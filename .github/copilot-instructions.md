@@ -1,7 +1,7 @@
 # Project Guidelines
 
 ## Code Style
-- Language: Go (`go.mod` uses module `superview`, Go 1.13).
+- Language: Go (`go.mod` uses module `superview`, Go 1.22).
 - Keep changes minimal and consistent with existing straightforward style in `superview-cli.go`, `superview-gui.go`, and `common/common.go`.
 - Prefer explicit error returns and `log.Fatal`/`dialog.ShowError` patterns already used by CLI/GUI entrypoints.
 - Preserve current package split: entrypoints in root, shared encoding logic in `common/`.
@@ -12,11 +12,13 @@
   - `superview-cli.go`: command-line workflow with `go-flags`.
   - `superview-gui.go`: desktop UI built with Fyne.
 - Shared video pipeline lives in `common/common.go`:
+  - `EncodingSession`: manages secure temporary files in isolated directory per session (not in working dir).
+  - `InitEncodingSession()` / `CloseEncodingSession()`: lifecycle management for temp files.
   - `CheckFfmpeg` discovers ffmpeg version/encoders/accels.
   - `CheckVideo` reads stream metadata via `ffprobe`.
-  - `GeneratePGM` creates `x.pgm` and `y.pgm` remap maps.
-  - `EncodeVideo` runs ffmpeg remap encoding and reports progress.
-  - `CleanUp` removes generated map files.
+  - `GeneratePGM` creates remap maps in session's temp directory.
+  - `EncodeVideo` runs ffmpeg with remap filtering and reports progress.
+  - `CleanUp` removes session's entire temp directory.
 - OS-specific process behavior is isolated in:
   - `common/command-other.go`
   - `common/command-windows.go`
@@ -35,7 +37,9 @@
 - FFmpeg/FFprobe are required runtime dependencies; failures should keep current user-facing error style.
 - Preserve encoder selection behavior:
   - default to input codec unless user selects/sets a supported encoder.
-- Keep temporary remap files (`x.pgm`, `y.pgm`) lifecycle intact: generate before encoding, remove after encoding.
+- Temporary remap files lifecycle: initialize session → generate files → encode → cleanup in isolated temp directory.
+  - Always call `InitEncodingSession()` before encoding and `defer common.CleanUp()` for guaranteed cleanup.
+  - Never hardcode temp file paths; use session management functions.
 - GUI behavior should stay responsive: long encode work runs in goroutine (see `superview-gui.go`).
 - Keep encode progress callback behavior intact (`EncodeVideo` callback drives CLI percentage and GUI progress bar).
 
@@ -48,6 +52,9 @@
 
 ## Security
 - Treat file paths from CLI flags and GUI file pickers as untrusted input; validate before processing.
+- Temporary files are managed in isolated directories via `EncodingSession` (not in working directory).
+  - Use `InitEncodingSession()` / `CloseEncodingSession()` for safe session lifecycle.
+  - Never create temp files directly in working directory or hardcode paths.
 - Avoid introducing shell interpolation for ffmpeg calls; keep `exec.Command` argument-based invocation.
 - Do not hardcode secrets/cert identities in new code; `build.sh` contains release-signing-specific behavior that should remain opt-in.
 - Preserve Ctrl+C termination behavior in encoding (`common.EncodeVideo` signal handling) when touching process logic.
