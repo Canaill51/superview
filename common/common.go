@@ -380,13 +380,37 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	defer fX.Close()
 	defer fY.Close()
 
-	wX := bufio.NewWriter(fX)
-	wY := bufio.NewWriter(fY)
+	// Pre-allocate buffers for efficient line generation (optimization for Étape 9)
+	// Estimate: each number ~5 chars + space = 6 bytes per pixel, plus newline
+	bufXCapacity := outX * 8
+	bufYCapacity := outX * 8
 
-	wX.WriteString(fmt.Sprintf("P2 %d %d 65535\n", outX, outY))
-	wY.WriteString(fmt.Sprintf("P2 %d %d 65535\n", outX, outY))
+	var bufX, bufY []byte
+
+	// Write PGM headers
+	headerX := fmt.Sprintf("P2 %d %d 65535\n", outX, outY)
+	headerY := fmt.Sprintf("P2 %d %d 65535\n", outX, outY)
+
+	if _, err := fX.WriteString(headerX); err != nil {
+		return fmt.Errorf("failed to write header to x.pgm: %w", err)
+	}
+	if _, err := fY.WriteString(headerY); err != nil {
+		return fmt.Errorf("failed to write header to y.pgm: %w", err)
+	}
 
 	for y := 0; y < outY; y++ {
+		// Reset buffers for this line (optimization: reuse allocation)
+		bufX = bufX[:0]
+		bufY = bufY[:0]
+
+		// Ensure buffer capacity before appending
+		if cap(bufX) < bufXCapacity {
+			bufX = make([]byte, 0, bufXCapacity)
+		}
+		if cap(bufY) < bufYCapacity {
+			bufY = make([]byte, 0, bufYCapacity)
+		}
+
 		for x := 0; x < outX; x++ {
 			sx := float64(x) - float64(outX-video.Streams[0].Width)/2.0 // x - width diff/2
 			tx := (float64(x)/float64(outX) - 0.5) * 2.0                // (x/width - 0.5) * 2
@@ -402,7 +426,7 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 					offset *= -1
 				}
 
-				wX.WriteString(strconv.Itoa(int(sx + offset)))
+				bufX = strconv.AppendInt(bufX, int64(int(sx+offset)), 10)
 			} else {
 				offset = math.Pow(tx, 2) * (float64(outX-video.Streams[0].Width) / 2.0) // tx^2 * width diff/2
 
@@ -410,20 +434,24 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 					offset *= -1
 				}
 
-				wX.WriteString(strconv.Itoa(int(sx - offset)))
+				bufX = strconv.AppendInt(bufX, int64(int(sx-offset)), 10)
 			}
 
-			wX.WriteString(" ")
+			bufX = append(bufX, ' ')
 
-			wY.WriteString(strconv.Itoa(y))
-			wY.WriteString(" ")
+			bufY = strconv.AppendInt(bufY, int64(y), 10)
+			bufY = append(bufY, ' ')
 		}
-		wX.WriteString("\n")
-		wY.WriteString("\n")
-	}
+		bufX = append(bufX, '\n')
+		bufY = append(bufY, '\n')
 
-	wX.Flush()
-	wY.Flush()
+		if _, err := fX.Write(bufX); err != nil {
+			return fmt.Errorf("failed to write x.pgm: %w", err)
+		}
+		if _, err := fY.Write(bufY); err != nil {
+			return fmt.Errorf("failed to write y.pgm: %w", err)
+		}
+	}
 
 	logger.Info("Filter files generated successfully")
 
