@@ -242,8 +242,8 @@ func TestValidateBitrate_WithConfig(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid bitrate", 5000000, false},
-		{"below custom min", 100000, true},     // Below 256000
-		{"above custom max", 50000000, true},   // Above 10000000
+		{"below custom min", 100000, true},   // Below 256000
+		{"above custom max", 50000000, true}, // Above 10000000
 		{"at custom min", 256000, false},
 		{"at custom max", 10000000, false},
 	}

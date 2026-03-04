@@ -1,0 +1,125 @@
+name: Tests & Coverage
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  test:
+    name: Test Go ${{ matrix.go-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go-version: [ '1.22', '1.23' ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests with coverage
+      run: go test ./common -v -coverprofile=coverage.out -covermode=atomic
+    
+    - name: Display coverage summary
+      run: go tool cover -func=coverage.out | tail -5
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      continue-on-error: true
+
+  coverage-report:
+    name: Coverage Report & Gate
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run tests with coverage
+      run: go test ./common -coverprofile=coverage.out -covermode=atomic
+    
+    - name: Check coverage threshold (30%)
+      run: |
+        coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        threshold=30.0
+        if (( $(echo "$coverage < $threshold" | bc -l) )); then
+          echo "❌ Coverage ${coverage}% is below threshold ${threshold}%"
+          exit 1
+        fi
+        echo "✅ Coverage ${coverage}% meets threshold ${threshold}%"
+    
+    - name: Generate HTML coverage report
+      run: go tool cover -html=coverage.out -o coverage.html
+    
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = require('child_process')
+            .execSync('go tool cover -func=coverage.out | grep total')
+            .toString()
+            .trim();
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Coverage Report\n\`\`\`\n${coverage}\n\`\`\``
+          });
+
+  build:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build CLI
+      run: go build -o superview-cli superview-cli.go
+    
+    - name: Build GUI
+      run: go build -o superview-gui superview-gui.go
+    
+    - name: Verify binaries
+      run: |
+        test -f superview-cli || exit 1
+        test -f superview-gui || exit 1
+        echo "✅ Both binaries built successfully"

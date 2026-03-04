@@ -10,16 +10,16 @@ import (
 
 func TestValidateBitrate_ValidBitrate(t *testing.T) {
 	tests := []struct {
-		name     string
-		bitrate  int
-		minBits  int
-		maxBits  int
-		wantErr  bool
+		name    string
+		bitrate int
+		minBits int
+		maxBits int
+		wantErr bool
 	}{
 		{
 			name:    "valid bitrate in range",
-			bitrate: 5000000, // 5M bytes/sec
-			minBits: 100000,  // 100k (recommended minimum)
+			bitrate: 5000000,  // 5M bytes/sec
+			minBits: 100000,   // 100k (recommended minimum)
 			maxBits: 50000000, // 50M (recommended maximum)
 			wantErr: false,
 		},
@@ -243,10 +243,10 @@ func TestFindEncoder_UseInputCodec(t *testing.T) {
 		File: "test.mp4",
 		Streams: []VideoStream{
 			{
-				Codec:    "h264",
-				Width:    1920,
-				Height:   1080,
-				BitrateInt: 5000000,
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
 				DurationFloat: 60.5,
 			},
 		},
@@ -272,10 +272,10 @@ func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 		File: "test.mp4",
 		Streams: []VideoStream{
 			{
-				Codec:    "h264",
-				Width:    1920,
-				Height:   1080,
-				BitrateInt: 5000000,
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
 				DurationFloat: 60.5,
 			},
 		},
@@ -300,10 +300,10 @@ func TestFindEncoder_InvalidEncoder(t *testing.T) {
 		File: "test.mp4",
 		Streams: []VideoStream{
 			{
-				Codec:    "h264",
-				Width:    1920,
-				Height:   1080,
-				BitrateInt: 5000000,
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
 				DurationFloat: 60.5,
 			},
 		},
@@ -353,13 +353,13 @@ func TestFindEncoder_NoStreams(t *testing.T) {
 
 // MockHandler implements UIHandler for testing
 type MockHandler struct {
-	ErrorCalls   []error
-	InfoCalls    []string
-	ProgressCalls []float64
-	ErrorToReturn error
+	ErrorCalls      []error
+	InfoCalls       []string
+	ProgressCalls   []float64
+	ErrorToReturn   error
 	BitrateDuration int
-	EncoderValue  string
-	SqueezeValue  bool
+	EncoderValue    string
+	SqueezeValue    bool
 }
 
 func (m *MockHandler) ShowError(err error) {

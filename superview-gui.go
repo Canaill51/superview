@@ -19,14 +19,14 @@ import (
 
 // GUIHandler implements UIHandler for GUI interface
 type GUIHandler struct {
-	window    fyne.Window
-	bitrate   *widget.Entry
-	squeeze   *widget.Check
-	encoder   *widget.Select
-	progress  *dialog.ProgressDialog
-	ffmpeg    map[string]string
-	video     *common.VideoSpecs
-	logger    *slog.Logger
+	window   fyne.Window
+	bitrate  *widget.Entry
+	squeeze  *widget.Check
+	encoder  *widget.Select
+	progress *dialog.ProgressDialog
+	ffmpeg   map[string]string
+	video    *common.VideoSpecs
+	logger   *slog.Logger
 }
 
 func (h *GUIHandler) ShowError(err error) {

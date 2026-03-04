@@ -118,8 +118,8 @@ var (
 
 // VideoSpecs contains metadata about a video file extracted by ffprobe.
 type VideoSpecs struct {
-	File    string         // Absolute path to the video file
-	Streams []VideoStream  // Video stream information (typically just the first stream)
+	File    string        // Absolute path to the video file
+	Streams []VideoStream // Video stream information (typically just the first stream)
 }
 
 // VideoStream contains metadata about a single video stream.
@@ -241,7 +241,7 @@ func InitEncodingSession() error {
 	}
 
 	session := &EncodingSession{
-		tempDir: tempDir,
+		tempDir:  tempDir,
 		pgmXPath: filepath.Join(tempDir, "x.pgm"),
 		pgmYPath: filepath.Join(tempDir, "y.pgm"),
 	}
@@ -658,4 +658,3 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 
 	return nil
 }
-

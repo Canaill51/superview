@@ -18,8 +18,8 @@ type Config struct {
 	// Bitrate constraints in bytes/second
 	// MinBitrate: minimum acceptable output bitrate (prevents lossy compression)
 	// MaxBitrate: maximum acceptable output bitrate (controls file size)
-	MinBitrate int `yaml:"min_bitrate" default:"102400"`      // 100k bytes/sec (~0.1 Mbps)
-	MaxBitrate int `yaml:"max_bitrate" default:"52428800"`    // 50M bytes/sec (~50 Mbps)
+	MinBitrate int `yaml:"min_bitrate" default:"102400"`   // 100k bytes/sec (~0.1 Mbps)
+	MaxBitrate int `yaml:"max_bitrate" default:"52428800"` // 50M bytes/sec (~50 Mbps)
 
 	// TempDirPrefix is the template for temporary directory creation
 	TempDirPrefix string `yaml:"temp_dir_prefix" default:"superview-*"`
@@ -36,8 +36,8 @@ type Config struct {
 }
 
 var defaultConfig = &Config{
-	MinBitrate:     102400,      // 100k bytes/sec
-	MaxBitrate:     52428800,    // 50M bytes/sec
+	MinBitrate:     102400,   // 100k bytes/sec
+	MaxBitrate:     52428800, // 50M bytes/sec
 	TempDirPrefix:  "superview-*",
 	EncoderCodecs:  []string{"264", "265", "hevc"},
 	LogLevel:       "info",
