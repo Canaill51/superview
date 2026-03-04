@@ -34,15 +34,47 @@ Here is a quick animation showing the scaling, note how the text in the center s
 
 ## Requirements
 
-- **FFmpeg 6.0+ (runtime requirement)**:
-  - Linux: `sudo apt install ffmpeg`
-  - macOS: `brew install ffmpeg`
-  - Windows: install from https://www.gyan.dev/ffmpeg/builds/ or `winget install -e --id Gyan.FFmpeg`
-- **Important**: both `ffmpeg` and `ffprobe` must be available in your `PATH`.
-- **Go 1.22+**: only needed for building from source.
-- **C compiler (build from source, GUI only)**:
-  - Windows: `gcc`/`clang` required (CGO).
-  - Linux/macOS: native toolchain required for Fyne GUI builds.
+Use the commands below.
+
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg golang build-essential pkg-config \
+  libgl1-mesa-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
+
+ffmpeg -version
+ffprobe -version
+go version
+gcc --version
+```
+
+### macOS (Homebrew)
+
+```bash
+brew update
+brew install ffmpeg go pkg-config
+
+ffmpeg -version
+ffprobe -version
+go version
+clang --version
+```
+
+### Windows (PowerShell + winget)
+
+```powershell
+winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
+winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
+
+ffmpeg -version
+ffprobe -version
+go version
+gcc --version
+```
+
+If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
 
 ## Installation
 
