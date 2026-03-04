@@ -12,22 +12,22 @@ import (
 
 // HealthCheckResult represents the result of a single health check.
 type HealthCheckResult struct {
-	Name       string // Check name (e.g., "ffmpeg", "disk_space")
-	Healthy    bool   // True if check passed
-	Message    string // Description or error details
-	Value      string // Current value (e.g., "6.1.1", "150GB free")
-	Timestamp  int64  // Unix timestamp when check was performed
+	Name      string // Check name (e.g., "ffmpeg", "disk_space")
+	Healthy   bool   // True if check passed
+	Message   string // Description or error details
+	Value     string // Current value (e.g., "6.1.1", "150GB free")
+	Timestamp int64  // Unix timestamp when check was performed
 }
 
 // SystemHealth represents overall system health for encoding.
 type SystemHealth struct {
-	Overall    bool
-	FFmpeg     HealthCheckResult
-	FFprobe    HealthCheckResult
-	Disk       HealthCheckResult
-	Memory     HealthCheckResult
-	CPU        HealthCheckResult
-	AllChecks  []HealthCheckResult // All checks performed
+	Overall   bool
+	FFmpeg    HealthCheckResult
+	FFprobe   HealthCheckResult
+	Disk      HealthCheckResult
+	Memory    HealthCheckResult
+	CPU       HealthCheckResult
+	AllChecks []HealthCheckResult // All checks performed
 }
 
 // CheckHealth performs comprehensive system health checks.
