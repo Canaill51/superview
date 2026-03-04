@@ -52,6 +52,7 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 	common.SetLogger(opts_logger)
+	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(opts_logger))
 
 	fmt.Println("===> Superview - dynamic video stretching <===\n")
 
@@ -63,6 +64,10 @@ func main() {
 	}
 	common.SetConfig(cfg)
 	opts_logger.Debug("Configuration loaded", slog.String("config", cfg.String()))
+
+	// Startup health check (observability phase)
+	health := common.CheckHealth()
+	common.LogHealth(opts_logger, health)
 
 	// Check for ffmpeg
 	ffmpeg, err := common.CheckFfmpeg()

@@ -73,6 +73,7 @@ func main() {
 		Level: slog.LevelDebug,
 	}))
 	common.SetLogger(gui_logger)
+	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
 
 	// Load configuration (from superview.yaml or env vars)
 	cfg, err := common.LoadConfig("superview.yaml")
