@@ -3,7 +3,7 @@
 # Note: GUI binaries are built natively on each platform (macOS, Windows, Linux)
 # This file handles CLI cross-compilation only
 
-version: 1
+version: 2
 
 project_name: superview
 
