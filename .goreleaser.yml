@@ -1,5 +1,7 @@
 # GoReleaser configuration for superview
-# Simplified version 1 compatible configuration
+# Version 1 compatible configuration
+# Note: GUI binaries are built natively on each platform (macOS, Windows, Linux)
+# This file handles CLI cross-compilation only
 
 version: 1
 
@@ -9,7 +11,7 @@ env:
   - GO111MODULE=on
 
 builds:
-  # CLI binary - all platforms (pure Go, cross-compiles everywhere)
+  # CLI binary - cross-compile from Linux to all platforms
   - id: superview-cli
     main: superview-cli.go
     binary: superview-cli

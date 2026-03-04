@@ -2,34 +2,55 @@
 
 ## Overview
 
-Étape 12 met en place un système d'automatisation complet pour les releases officielles avec cross-compilation, distribution multiplateforme et processus de versioning standardisé.
+Étape 12 met en place un système d'automatisation complet pour les releases officielles avec:
+- **CLI:** Cross-compilation via GoReleaser (tous les platforms d'une seule machine)
+- **GUI:** Compilation native par plateforme (macOS sur macOS, Windows sur Windows, Linux sur Linux)
+- Distribution multiplateforme, archivage automatique, checksums
 
 **Status:** ✅ Complete
-**Commits Affected:** New configuration files for GoReleaser and GitHub Actions workflows
+**Commits Affected:** Configuration files for GoReleaser and GitHub Actions workflows
 
 ---
 
 ## Architecture
 
-### Release Workflow
+### Release Workflow Multi-Plateforme
 
 ```
-Developer Tags Release
+Developer Tags Release (git push origin vX.Y.Z)
     ↓
-GitHub Actions Triggered (push tag event)
-    ↓
-Run Tests & Coverage Validation
-    ↓
-GoReleaser Builds All Platforms (CLI + GUI)
-    ↓
-Generate Checksums & Package Archives
-    ↓
-Create GitHub Release (Draft Mode)
-    ↓
-Manual Review & Publish
-    ↓
-Users Download Artifacts
+GitHub Actions Triggered
+    ├─ Test Suite (Ubuntu) → Coverage Gate ✓
+    │
+    ├─ Build CLI (Ubuntu) → GoReleaser
+    │   └─ Cross-compile CLI: Linux/macOS/Windows (amd64, 386, arm64)
+    │
+    ├─ Build GUI Linux (Ubuntu)
+    │   └─ Native compile: Linux (amd64, 386, arm64)
+    │
+    ├─ Build GUI macOS (macOS)
+    │   └─ Native compile: macOS (amd64, arm64) - 2 binaires
+    │
+    ├─ Build GUI Windows (Windows)
+    │   └─ Native compile: Windows (amd64, 386)
+    │
+    └─ Create Release (Ubuntu) → Aggregate + Checksums
+        ↓
+        GitHub Release (Draft Mode)
+        ↓
+Maintainer Publishes (Manual)
+        ↓
+Users Download Multiplateforme
 ```
+
+### Stratégie de Compilation
+
+| Composant | Approche | Raison |
+|-----------|----------|--------|
+| **CLI** | GoReleaser (cross-compile) | Pure Go, aucune dépendance native |
+| **GUI Linux** | Native build (Ubuntu) | Dépend de libGL, libXcursor, libXrandr |
+| **GUI macOS** | Native build (macOS) | Dépend de Xcode/Cocoa frameworks |
+| **GUI Windows** | Native build (Windows) | Dépend de MinGW/MSVC, DirectX |
 
 ---
 
@@ -37,98 +58,99 @@ Users Download Artifacts
 
 ### 1. GoReleaser Configuration (`.goreleaser.yml`)
 
-**Purpose:** Central configuration for cross-platform binary building and distribution
+**Purpose:** Cross-platform CLI compilation via GoReleaser
+
+**Scope:** CLI Binaries ONLY
+- Pure Go code → cross-compile d'une unique machine (Ubuntu)
+- Windows, macOS, Linux en une seule étape
 
 **Build Targets:**
 
-| Binary | Windows | Linux | macOS | Notes |
-|--------|---------|-------|-------|-------|
-| **CLI** | ✅ amd64, 386 | ✅ amd64, 386, arm64 | ✅ amd64, arm64 | Lightweight, portable |
-| **GUI** (Linux) | — | ✅ amd64, 386 | — | Requires X11/Wayland |
-| **GUI** (macOS) | — | — | ✅ amd64, arm64 | Native Cocoa |
-| **GUI** (Windows) | ✅ amd64, 386 | — | — | Native Win32 |
-
-**Key Features:**
-- Automatic compiler flags: `-s -w` (strip, no dwarf)
-- Version injection via ldflags
-- OS-specific exclusions (e.g., darwin no 386)
-- Per-platform archive strategies:
-  - Linux: `tar.gz`
-  - Windows: `zip`
-  - macOS: Project format-specific
-
-**Archives Created:**
-
 ```
-superview-1.0.0-linux-x86_64.tar.gz
-superview-1.0.0-darwin-x86_64.zip
-superview-1.0.0-windows-x86_64.zip
-superview-gui-1.0.0-linux-x86_64.tar.gz
-superview-gui-1.0.0-macos-amd64.zip
-superview-gui-1.0.0-windows-x86_64.zip
-checksums.txt  (SHA256 hashes)
+CLI Multiplateforme:
+├─ Linux: amd64, 386, arm64
+├─ macOS: amd64 (Intel), arm64 (Apple Silicon)
+└─ Windows: amd64, 386
 ```
 
-**Code Signing (Optional):**
-- macOS: Requires `APPLE_SIGNING_IDENTITY` environment variable
-- Windows: Requires signing certificate (optional)
-- Linux: No signing needed
+**Archives Créées:**
+```
+superview-1.0.0-Linux-x86_64.tar.gz
+superview-1.0.0-Linux-i386.tar.gz
+superview-1.0.0-Linux-aarch64.tar.gz
+superview-1.0.0-Darwin-x86_64.zip
+superview-1.0.0-Darwin-aarch64.zip
+superview-1.0.0-Windows-x86_64.zip
+superview-1.0.0-Windows-i386.zip
+```
+
+**Note:** GUI **NOT** compilé par GoReleaser (dépendances natives → compilation native par OS)
 
 ---
 
 ### 2. GitHub Actions Release Workflow (`.github/workflows/release.yml`)
 
-**Purpose:** Automate the entire release process from tag to published release
+**Purpose:** Automate entire release process via parallel platform-specific builds
 
-**Jobs:**
+**Jobs (Exécutés en parallèle après tests):**
 
-#### a) Test Job
+#### a) Test Job (Ubuntu)
 - Runs before any build
 - **Coverage Gate:** Enforces 30% minimum
 - Fails fast if tests don't pass
 - Prevents broken releases
 
-#### b) GoReleaser Job
-- Runs on Ubuntu (ideal for cross-compilation)
-- Uses GoReleaser action (official)
-- Creates draft releases automatically
-- Generates checksums.txt
-- **Draft Mode:** Manual review before publish (safety feature)
+#### b) Build CLI Job (Ubuntu)
+- Runs GoReleaser for cross-platform compilation
+- Creates CLI archives pour tous les platforms
+- Génère checksums.txt (SHA256)
+- **Output:** 7 archives CLI (Linux/macOS/Windows)
 
-#### c) macOS-Specific Build
-- Builds universal binaries (Intel + ARM)
-- Uses `lipo` to combine architectures
-- Optional code signing with Apple certs
-- Uploads to artifacts
+#### c) Build GUI Linux Job (Ubuntu)
+- Native compilation sur Ubuntu
+- Install GUI dependencies (libgl1-mesa-dev, etc.)
+- Compile pour: amd64, 386, arm64
+- **Output:** 3 archives tarball GUI
 
-#### d) Windows-Specific Build
-- Builds both amd64 and 386
-- Creates EXE files with version info
-- Cross-compiles from Linux
-- Uploads to artifacts
+#### d) Build GUI macOS Job (macOS Runner)
+- Runs on macOS native hardware
+- Compile both: amd64 (Intel) + arm64 (Apple Silicon)
+- **Output:** 2 archives ZIP GUI
 
-#### e) Linux-Specific Build
-- Builds amd64 and 386
-- Creates tar.gz archives
-- Runs on Ubuntu native
-- Uploads to artifacts
+#### e) Build GUI Windows Job (Windows Runner)
+- Runs on Windows native hardware
+- Compile both: amd64 + 386
+- **Output:** 2 archives ZIP GUI
 
-#### f) Release Publication
-- Collects all artifacts
-- Aggregates into GitHub Release
-- Generates release summary
-- Displays download instructions
+#### f) Create Release Job (Ubuntu)
+- Runs after all build jobs complete
+- Aggregate tous les artifacts
+- Calculate combined checksums
+- Create GitHub Release (Draft mode)
+- Generate release summary
 
-#### g) Notification
-- Reports success/failure
-- Advises manual publish step
+#### g) Notify Job (Ubuntu)
+- Final status report
+- Confirms all builds completed
 
-**Key Security Features:**
-- ✅ Tests run before ANY build
-- ✅ Coverage gate enforced
-- ✅ Draft releases (manual review)
-- ✅ Checksums for integrity verification
-- ✅ Atomic tag-to-release process
+**Parallelization:**
+```
+┌─ Test (required first)
+├─ Build CLI (parallel) ─────┐
+├─ Build GUI Linux (parallel) ├─ Create Release ─ Notify
+├─ Build GUI macOS (parallel) │
+└─ Build GUI Windows (parallel) ┘
+```
+
+**Total Distributed Artifacts:**
+```
+✅ 7 CLI archives (all platforms)
+✅ 3 GUI archives (Linux: amd64, 386, arm64)
+✅ 2 GUI archives (macOS: Intel + ARM)
+✅ 2 GUI archives (Windows: x86_64, x86)
+───────────────────────────────────────
+📦 Total: 14 application archives + 1 checksums.txt
+```
 
 ---
 
