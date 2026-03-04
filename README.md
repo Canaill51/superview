@@ -78,34 +78,41 @@ If a command is not found after install, close and reopen your terminal so `PATH
 
 ## Installation
 
-Download from the [releases page](https://github.com/Niek/superview/releases), or build from source:
+### Option 1: Use prebuilt binaries (recommended for final users)
 
-### Quick Start (Final Users)
+1. Download the archive matching your OS/CPU from [Releases](https://github.com/Niek/superview/releases).
+2. Extract it.
+3. Run one of the commands below.
 
-1. Download the binary matching your OS/CPU from Releases.
-2. Ensure `ffmpeg` and `ffprobe` are installed and in `PATH`.
-3. Run:
-  - Linux/macOS GUI: `./superview-gui`
-  - Windows GUI: `superview-gui.exe`
-  - Linux/macOS CLI: `./superview-cli -i input.mp4 -o output.mp4`
-  - Windows CLI: `superview-cli.exe -i input.mp4 -o output.mp4`
-
-### Build from Source
-
+Linux/macOS:
 ```bash
-go build superview-gui.go   # Graphical interface
-go build superview-cli.go   # Command-line tool
+chmod +x superview-gui superview-cli
+./superview-gui
+# or CLI
+./superview-cli -i input.mp4 -o output.mp4
 ```
 
-Windows CLI:
+Windows (PowerShell):
 ```powershell
-go build -o superview-cli.exe superview-cli.go
+.\superview-gui.exe
+# or CLI
+.\superview-cli.exe -i input.mp4 -o output.mp4
 ```
 
-On Windows, build the GUI without a console window:
+### Option 2: Build from source
 
+Linux/macOS:
+```bash
+go build -o superview-gui superview-gui.go
+go build -o superview-cli superview-cli.go
+./superview-gui
+```
+
+Windows (PowerShell):
 ```powershell
 go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+go build -o superview-cli.exe superview-cli.go
+.\superview-gui.exe
 ```
 
 ## Usage
