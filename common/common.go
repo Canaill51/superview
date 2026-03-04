@@ -583,28 +583,54 @@ func CleanUp() error {
 // Returns nil on success, or an error if any step fails.
 // Call this from entry points (CLI/GUI) only; the logic is pipeline-agnostic.
 // Security: Validates input/output paths and encoder selection for defensive programming.
+// Observability: Records metrics and events throughout the pipeline.
 func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
+	// ==== OBSERVABILITY: Initialize metrics collection ====
+	metrics := NewEncodingMetrics(inputFile, outputFile)
+	defer func() {
+		// Always record completion or error
+		if metrics.Success {
+			RecordEncodingCompletion(metrics)
+		}
+	}()
+
 	// ==== SECURITY VALIDATION ====
 	// Validate input file path (prevents directory traversal, symlink attacks, etc.)
 	if err := isValidInputPath(inputFile); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("invalid input file: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "input_validation"})
 		return fmt.Errorf("invalid input file: %w", err)
 	}
 
 	// Validate output file path (prevents directory traversal, checks parent writable)
 	if err := isValidOutputPath(outputFile); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("invalid output file: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "output_validation"})
 		return fmt.Errorf("invalid output file: %w", err)
 	}
 
 	// Load and validate video metadata (includes security checks)
 	video, err := CheckVideo(inputFile)
 	if err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("video validation failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "video_check"})
 		return fmt.Errorf("video validation failed: %w", err)
 	}
+
+	// ==== OBSERVABILITY: Record input metadata ====
+	inputFileInfo, _ := os.Stat(inputFile)
+	inputFileSize := int64(0)
+	if inputFileInfo != nil {
+		inputFileSize = inputFileInfo.Size()
+	}
+	metrics.RecordInputMetadata(video, inputFileSize)
 
 	// Get and sanitize encoder selection from UI (whitelist validation)
 	encoderInput := ui.GetEncoder()
 	encoderSanitized, err := SanitizeEncoderInput(encoderInput, ffmpeg["encoders"])
 	if err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("invalid encoder selection: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "encoder_sanitization"})
 		return fmt.Errorf("invalid encoder selection: %w", err)
 	}
 
@@ -621,39 +647,65 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	// Validate bitrate using configured constraints
 	cfg := GetConfig()
 	if err := ValidateBitrate(bitrate, cfg.MinBitrate, cfg.MaxBitrate); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("bitrate validation failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "bitrate_validation"})
 		return err
 	}
 
 	// Get encoder with full validation (uses sanitized input)
 	encoder, err := FindEncoder(encoderSanitized, ffmpeg, video)
 	if err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("encoder selection failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "encoder_selection"})
 		return err
 	}
 
+	// ==== OBSERVABILITY: Record output metadata ====
+	metrics.RecordOutputMetadata(bitrate, encoder)
+
 	// Initialize encoding session
 	if err := InitEncodingSession(); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("session initialization failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "session_init"})
 		return err
 	}
 	defer CleanUp()
 
 	// Generate remap filters
 	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("filter generation failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "pgm_generation"})
 		return err
 	}
 
-	// Perform encoding with progress callback
+	// Perform encoding with progress callback + metrics recording
 	progressFunc := func(percent float64) {
 		ui.ShowProgress(percent)
+		metrics.RecordProgress(percent)
+		RecordEncodingProgress(percent, fmt.Sprintf("Encoding: %.1f%%", percent))
 	}
 
 	if err := EncodeVideo(video, encoder, bitrate, outputFile, progressFunc); err != nil {
+		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
+		RecordEncodingError(err, map[string]interface{}{"stage": "encoding"})
 		return err
 	}
+
+	// ==== OBSERVABILITY: Record successful completion ====
+	outputFileInfo, _ := os.Stat(outputFile)
+	outputFileSize := int64(0)
+	if outputFileInfo != nil {
+		outputFileSize = outputFileInfo.Size()
+	}
+	metrics.RecordCompletion(outputFileSize)
+	metrics.LogMetrics(logger)
+	SetLastEncodingMetrics(metrics) // Make metrics available to CLI/GUI for reporting
 
 	logger.Info("Encoding completed successfully",
 		slog.String("output_file", filepath.Base(outputFile)),
 		slog.String("encoder", encoder),
 		slog.Int("bitrate_bytes_sec", bitrate),
+		slog.String("elapsed_time", metrics.ElapsedTime().String()),
 	)
 
 	return nil

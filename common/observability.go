@@ -278,6 +278,26 @@ func (r *EventRecorder) ClearHistory() {
 // Global event recorder instance
 var globalEventRecorder *EventRecorder = NewEventRecorder()
 
+// Global metrics from last encoding (for CLI/GUI reporting)
+var lastEncodingMetrics *EncodingMetrics
+var metricsMutex sync.RWMutex
+
+// GetLastEncodingMetrics returns the metrics from the last encoding operation.
+// Returns nil if no encoding has been performed yet.
+func GetLastEncodingMetrics() *EncodingMetrics {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	return lastEncodingMetrics
+}
+
+// SetLastEncodingMetrics updates the last encoding metrics (called by PerformEncoding).
+// This is primarily for CLI/GUI to access encoding performance data.
+func SetLastEncodingMetrics(metrics *EncodingMetrics) {
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
+	lastEncodingMetrics = metrics
+}
+
 // RegisterObservabilityHandler registers a global observability handler.
 // This allows UI code to subscribe to encoding events.
 func RegisterObservabilityHandler(handler ObservabilityHandler) {

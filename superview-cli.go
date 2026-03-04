@@ -87,4 +87,9 @@ func main() {
 	}
 
 	fmt.Printf("\nDone! You can open the output file %s to see the result\n", opts.Output)
+
+	// Display performance metrics report
+	if metrics := common.GetLastEncodingMetrics(); metrics != nil {
+		fmt.Println("\n" + metrics.Summary())
+	}
 }
