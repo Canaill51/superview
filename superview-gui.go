@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"superview/common"
@@ -25,6 +26,7 @@ type GUIHandler struct {
 	progress  *dialog.ProgressDialog
 	ffmpeg    map[string]string
 	video     *common.VideoSpecs
+	logger    *slog.Logger
 }
 
 func (h *GUIHandler) ShowError(err error) {
@@ -66,6 +68,12 @@ func main() {
 	var ffmpeg map[string]string
 	var encoder *widget.Select
 
+	// Initialize logger for GUI (suppress to avoid cluttering the UI)
+	gui_logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	common.SetLogger(gui_logger)
+
 	app := app.New()
 	app.Settings().SetTheme(theme.LightTheme())
 
@@ -86,7 +94,7 @@ func main() {
 	start := widget.NewButton("Encode the video...", func() {
 		dialog.ShowFileSave(func(file fyne.URIWriteCloser, err error) {
 			if err == nil && file == nil {
-				log.Println("File saving cancelled")
+				common.GetLogger().Debug("File saving cancelled by user")
 				return
 			}
 			if err != nil {
@@ -112,6 +120,7 @@ func main() {
 					progress: prog,
 					ffmpeg:   ffmpeg,
 					video:    video,
+					logger:   common.GetLogger(),
 				}
 
 				if err := common.PerformEncoding(video.File, uri, handler, ffmpeg); err != nil {
@@ -130,7 +139,7 @@ func main() {
 	open := widget.NewButton("Open input video...", func() {
 		fd := dialog.NewFileOpen(func(file fyne.URIReadCloser, err error) {
 			if err == nil && file == nil {
-				log.Println("File opening cancelled")
+				common.GetLogger().Debug("File opening cancelled by user")
 				return
 			}
 			if err != nil {

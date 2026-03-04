@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"os/exec"
@@ -17,6 +18,9 @@ import (
 	"sync"
 	"syscall"
 )
+
+// Global logger instance
+var logger = slog.Default()
 
 // Custom error types for better error handling
 type InvalidVideoError struct {
@@ -41,6 +45,18 @@ type SessionError struct {
 
 func (e *SessionError) Error() string {
 	return fmt.Sprintf("session error: %s", e.Msg)
+}
+
+// SetLogger sets the global logger instance used throughout the encoding pipeline
+func SetLogger(l *slog.Logger) {
+	if l != nil {
+		logger = l
+	}
+}
+
+// GetLogger returns the current global logger instance
+func GetLogger() *slog.Logger {
+	return logger
 }
 
 // EncodingOptions contains all parameters for a video encoding job
@@ -296,7 +312,16 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	}
 	outY := video.Streams[0].Height
 
-	fmt.Printf("Scaling input file %s (codec: %s, duration: %d secs) from %d*%d to %d*%d using superview scaling. Squeeze: %t\n", video.File, video.Streams[0].Codec, int(video.Streams[0].DurationFloat), video.Streams[0].Width, video.Streams[0].Height, outX, outY, squeeze)
+	logger.Info("Scaling video",
+		slog.String("file", video.File),
+		slog.String("codec", video.Streams[0].Codec),
+		slog.Int("duration_secs", int(video.Streams[0].DurationFloat)),
+		slog.Int("input_width", video.Streams[0].Width),
+		slog.Int("input_height", video.Streams[0].Height),
+		slog.Int("output_width", outX),
+		slog.Int("output_height", outY),
+		slog.Bool("squeeze", squeeze),
+	)
 
 	// Generate PGM P2 files for remap filter, see https://trac.ffmpeg.org/wiki/RemapFilter
 	xPath, yPath, err := getSessionPaths()
@@ -361,7 +386,7 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	wX.Flush()
 	wY.Flush()
 
-	fmt.Println("Filter files generated")
+	logger.Info("Filter files generated successfully")
 
 	return nil
 }
@@ -444,7 +469,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		line, _, err := rd.ReadLine()
 
 		if err == io.EOF {
-			fmt.Printf("\r")
+			logger.Debug("Encoding complete")
 			break
 		}
 
@@ -453,7 +478,10 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 			timeF, err := strconv.ParseFloat(string(time), 64)
 			if err != nil {
 				// Log warning but continue, don't fail the entire encode
-				fmt.Fprintf(os.Stderr, "warning: failed to parse progress value: %v\n", err)
+				logger.Warn("Failed to parse progress value",
+					slog.String("raw_value", string(time)),
+					slog.String("error", err.Error()),
+				)
 				continue
 			}
 			callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))

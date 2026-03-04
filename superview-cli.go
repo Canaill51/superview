@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"superview/common"
 
@@ -18,14 +18,16 @@ var opts struct {
 }
 
 // CLIHandler implements UIHandler for command-line interface
-type CLIHandler struct{}
+type CLIHandler struct {
+	logger *slog.Logger
+}
 
 func (h *CLIHandler) ShowError(err error) {
-	log.Printf("Error: %v\n", err)
+	h.logger.Error("Encoding error", slog.String("error", err.Error()))
 }
 
 func (h *CLIHandler) ShowInfo(msg string) {
-	fmt.Println(msg)
+	h.logger.Info(msg)
 }
 
 func (h *CLIHandler) ShowProgress(percent float64) {
@@ -45,12 +47,19 @@ func (h *CLIHandler) GetSqueeze() bool {
 }
 
 func main() {
+	// Initialize logger for CLI (text format for readability)
+	opts_logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	common.SetLogger(opts_logger)
+
 	fmt.Println("===> Superview - dynamic video stretching <===\n")
 
 	// Check for ffmpeg
 	ffmpeg, err := common.CheckFfmpeg()
 	if err != nil {
-		log.Fatal(err)
+		opts_logger.Error("Failed to check ffmpeg", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	fmt.Print(common.GetHeader(ffmpeg))
@@ -62,7 +71,7 @@ func main() {
 	}
 
 	// Create CLI handler and perform encoding
-	handler := &CLIHandler{}
+	handler := &CLIHandler{logger: opts_logger}
 	if err := common.PerformEncoding(opts.Input, opts.Output, handler, ffmpeg); err != nil {
 		handler.ShowError(err)
 		os.Exit(1)
