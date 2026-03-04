@@ -29,10 +29,13 @@ cd /home/cedric/Documents/Github/superview
 ./superview-gui
 
 # 3. Dans la fenêtre GUI qui s'ouvrira :
-#    - Cliquez sur "Select Input Video"
+#    - Cliquez sur "1) Choose input file"
 #    - Naviguez vers : /tmp/test_video.mp4
 #    - Sélectionnez le fichier
-#    - Cliquez sur "Start Encoding"
+#    - (Optionnel) Choisissez un codec dans "Output codec"
+#    - Cliquez sur "2) Choose output file"
+#    - Choisissez un nom de sortie (ex: /tmp/test_output_gui.mp4)
+#    - Cliquez sur "3) Start Superview transform"
 #    - Observez la barre de progression
 #    - Attendez que l'encodage se termine (~3-5 secondes)
 #    - Le fichier de sortie : /tmp/test_output_gui.mp4
@@ -79,17 +82,18 @@ echo "Test GUI terminé"
 - **Fichier d'entrée** : `/tmp/test_video.mp4`
 - **Résultat attendu** : Encodage HEVC réussi
 
-### Test 3 : Bitrate Personnalisé
-- **Bitrate** : `500000` (500k bytes/sec)
-- **Fichier d'entrée** : `/tmp/test_video.mp4`
-- **Résultat attendu** : Fichier avec un bitrate inférieur
+### Test 3 : Annulation Sélecteur Entrée
+- **Action** : Cliquer sur `1) Choose input file`, puis fermer/annuler la fenêtre
+- **Résultat attendu** : Retour propre à la GUI sans popup d'erreur ni fallback parasite
 
 ## ✨ Points à Valider dans la GUI
 
 - [x] La fenêtre s'ouvre sans erreurs
 - [ ] Le sélecteur de fichier fonctionne
+- [ ] L'annulation du sélecteur d'entrée est gérée sans erreur
 - [ ] La vidéo est chargée correctement
 - [ ] Les encodeurs disponibles sont affichés
+- [ ] Le fichier de sortie est sélectionnable avant lancement
 - [ ] La barre de progression se met à jour
 - [ ] Le fichier de sortie est généré
 - [ ] Pas de crash ou d'erreur lors de l'encodage

@@ -24,6 +24,7 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Squeeze Mode**: Special handling for horizontally-stretched sources
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
+- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Linux
 
 The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
@@ -51,11 +52,15 @@ go build superview-cli.go   # Command-line tool
 
 Double-click `superview-gui` and:
 
-1. Click **Open...** to select a video
-2. (Optional) Adjust encoder, bitrate, or enable squeeze mode
-3. Click **Encode the video...**
-4. Select output location
-5. Wait for encoding
+1. Click **1) Choose input file**
+2. (Optional) Select **Output codec**
+3. Click **2) Choose output file**
+4. Click **3) Start Superview transform**
+5. Wait for encoding completion
+
+Notes:
+- GUI bitrate is fixed from configuration (`max_bitrate`), there is no manual bitrate field.
+- Squeeze mode remains available in CLI (`-s`) but is not exposed in the simplified GUI.
 
 ![GUI Screenshot](.github/sample-gui.png)
 
@@ -114,6 +119,11 @@ superview/
 │   ├── common_test.go     # Unit tests
 │   ├── config.go          # Configuration management
 │   ├── config_test.go     # Config tests
+│   ├── hardware.go         # Hardware capability profiling
+│   ├── observability.go    # Observability hooks
+│   ├── metrics.go          # Runtime metrics
+│   ├── health.go           # Health checks
+│   ├── security.go         # Security helpers
 │   └── command-*.go       # OS-specific process setup
 ├── superview-cli.go       # CLI entry point
 ├── superview-gui.go       # GUI entry point (Fyne)
@@ -190,7 +200,7 @@ common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 
 ```bash
 # Run tests with coverage
-go test ./... -cover
+go test ./common -cover
 
 # Build binaries
 go build superview-cli.go
