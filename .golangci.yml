@@ -1,0 +1,107 @@
+# golangci-lint configuration for superview
+# See: https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+
+output:
+  format: colored-line-number
+
+linters:
+  enable:
+    # Default linters
+    - deadcode        # unused code detection
+    - errcheck        # checks for unchecked errors
+    - gosimple        # code simplification suggestions
+    - govet           # go vet
+    - ineffassign     # unused assignments
+    - structcheck     # unused struct fields
+    - typecheck       # type checking
+    - unused          # unused constants, variables, functions, types
+    - varcheck        # unused variables
+    
+    # Additional recommended linters
+    - asasfeits       # checks for pass-by-value slice functions
+    - asciicheck      # checks for non-ASCII identifiers
+    - bidichk         # checks for unicode bidirectional characters
+    - contextcheck    # context usage checks
+    - errname         # error naming conventions
+    - errorlint       # error wrapping conventions
+    - exhaustive      # switch statement exhaustiveness
+    - forbidigo       # forbids specific imports/functions
+    - gocheckcompileerrors # check compile errors
+    - gocritic        # opinionated code comments
+    - godot           # godoc format checking
+    - godox           # TODO/BUG/FIXME detection (warnings, not errors)
+    - goimports       # gofmt + unused imports removal
+    - golint          # golang lint
+    - gomnd           # magic number detection
+    - gomodguard      # blocked import checking
+    - goprintffuncname # printf function naming
+    - gosec           # security issues detection
+    - gosmopolitan    # analyze cross-platform code
+    - grouper         # var/const grouping style
+    - importas        # import alias enforcement
+    - ineffassign     # ineffective assignments
+    - loggercheck     # logger usage checks
+    - misspell        # spell checking
+    - noctx           # context usage in http requests
+    - nolintlint      # nolint directive validation
+    - nosprintfhostport # %s:%d formatting in net/url
+    - perfsprint      # fmt.Sprintf performance
+    - prealloc        # preallocate slices
+    - predeclared     # reserved identifiers usage
+    - promlinter      # prometheus client library usage
+    - reassign        # reassignment checks
+    - revive          # revise of golint
+    - sqlclosecheck   # SQL query resource leaks
+    - staticcheck     # static analysis
+    - stylecheck      # style conventions
+    - tagliatelle     # struct tag name conventions
+    - tenv            # environment variable tests
+    - testableexamples # testable example function checks
+    - testpackage     # _test.go package naming
+    - unconvert       # unnecessary type conversions
+    - unparam         # unused function parameters
+    - usestdlibvars   # stdlib variables usage
+    - wastedassign    # wasted assignments
+
+  disable:
+    - cyclop          # cyclomatic complexity (too strict for this project)
+    - gocognit        # cognitive complexity (too strict)
+    - gocyclo         # cyclomatic complexity (too strict)
+    - interfacebloat  # interface size limits (false positives)
+    - ireturn         # interface return checks (too strict)
+    - lll             # line length (handled by editor)
+    - wsl             # whitespace at line end (nitpicky)
+
+issues:
+  exclude-rules:
+    # Allow unused code in test files
+    - path: _test\.go
+      linters:
+        - unused
+        - deadcode
+        - varcheck
+        - ineffassign
+    
+    # Allow godox warnings (TODO/BUG) but not errors
+    - linters:
+        - godox
+      severity: info
+
+  # Global max issues per linter
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Always exclude
+  exclude-unmatched-default-rules: true
+
+severity:
+  default-severity: error
+  rules:
+    - linters:
+        - godox
+      severity: info

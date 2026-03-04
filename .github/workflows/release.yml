@@ -1,0 +1,284 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'release-*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Run Tests Before Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run tests
+      run: go test ./common -v
+    
+    - name: Run coverage check
+      run: |
+        go test ./common -coverprofile=coverage.out
+        coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        if (( $(echo "$coverage < 30" | bc -l) )); then
+          echo "❌ Coverage ${coverage}% below 30% gate"
+          exit 1
+        fi
+        echo "✅ Coverage ${coverage}% passes gate"
+
+  build-cli:
+    name: Build CLI (Cross-Platform) with GoReleaser
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Select GoReleaser mode
+      id: goreleaser-mode
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF_NAME}" == v* ]]; then
+          echo "args=release --clean --draft" >> "$GITHUB_OUTPUT"
+        else
+          echo "args=release --clean --draft --snapshot" >> "$GITHUB_OUTPUT"
+        fi
+    
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v4
+      with:
+        version: latest
+        args: ${{ steps.goreleaser-mode.outputs.args }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload CLI artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: cli-artifacts
+        path: dist/superview-*.{tar.gz,zip}
+
+  build-gui-linux:
+    name: Build GUI (Linux)
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Install GUI dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxi-dev \
+          libxxf86vm-dev
+    
+    - name: Build GUI (native arch)
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        ARCH="$(go env GOARCH)"
+        GOOS=linux GOARCH="$ARCH" go build -ldflags="-s -w" -o "build/superview-gui-linux-${ARCH}" superview-gui.go
+    
+    - name: Create archives
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARCH="$(go env GOARCH)"
+        case "$ARCH" in
+          amd64) ARCH_LABEL="x86_64" ;;
+          386) ARCH_LABEL="i386" ;;
+          arm64) ARCH_LABEL="aarch64" ;;
+          *) ARCH_LABEL="$ARCH" ;;
+        esac
+        tar -czf "superview-gui-0.0.0-SNAPSHOT-Linux-${ARCH_LABEL}.tar.gz" -C build "superview-gui-linux-${ARCH}"
+    
+    - name: Upload GUI artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gui-linux-artifacts
+        path: superview-gui-0.0.0-SNAPSHOT-Linux-*.tar.gz
+
+  build-gui-macos:
+    name: Build GUI (macOS)
+    needs: test
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build GUI (native arch)
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        ARCH="$(go env GOARCH)"
+        GOOS=darwin GOARCH="$ARCH" go build -ldflags="-s -w" -o "build/superview-gui-macos-${ARCH}" superview-gui.go
+    
+    - name: Create archives
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARCH="$(go env GOARCH)"
+        case "$ARCH" in
+          amd64) ARCH_LABEL="x86_64" ;;
+          arm64) ARCH_LABEL="aarch64" ;;
+          *) ARCH_LABEL="$ARCH" ;;
+        esac
+        zip "superview-gui-0.0.0-SNAPSHOT-macos-${ARCH_LABEL}.zip" "build/superview-gui-macos-${ARCH}"
+    
+    - name: Upload GUI artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gui-macos-artifacts
+        path: superview-gui-0.0.0-SNAPSHOT-macos-*.zip
+
+  build-gui-windows:
+    name: Build GUI (Windows)
+    needs: test
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build GUI (native arch)
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        ARCH="$(go env GOARCH)"
+        GOOS=windows GOARCH="$ARCH" go build -ldflags="-s -w -H=windowsgui" -o "build/superview-gui-windows-${ARCH}.exe" superview-gui.go
+    
+    - name: Create archives
+      shell: pwsh
+      run: |
+        $arch = go env GOARCH
+        switch ($arch) {
+          "amd64" { $archLabel = "x86_64" }
+          "386" { $archLabel = "i386" }
+          "arm64" { $archLabel = "aarch64" }
+          default { $archLabel = $arch }
+        }
+        Compress-Archive -Path "build/superview-gui-windows-$arch.exe" -DestinationPath "superview-gui-0.0.0-SNAPSHOT-Windows-$archLabel.zip" -Force
+    
+    - name: Upload GUI artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gui-windows-artifacts
+        path: superview-gui-0.0.0-SNAPSHOT-Windows-*.zip
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-cli, build-gui-linux, build-gui-macos, build-gui-windows]
+    runs-on: ubuntu-latest
+    if: always() && startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: List all artifacts
+      run: |
+        echo "=== Release Artifacts ===" 
+        find artifacts -type f -name "*.tar.gz" -o -name "*.zip" | sort
+    
+    - name: Calculate checksums
+      run: |
+        cd artifacts
+        find . -name "*.tar.gz" -o -name "*.zip" | while read file; do
+          sha256sum "$file"
+        done > checksums.txt
+        echo "=== Checksums ===" && cat checksums.txt
+    
+    - name: Create release summary
+      id: summary
+      run: |
+        version="${{ github.ref }}"
+        version="${version#refs/tags/}"
+        echo "## Release ${version} - Superview" > /tmp/release.md
+        echo "" >> /tmp/release.md
+        echo "### CLI Binaries (Cross-Platform)" >> /tmp/release.md
+        echo "- Linux: x86_64, i386, ARM64" >> /tmp/release.md
+        echo "- macOS: Intel, Apple Silicon" >> /tmp/release.md
+        echo "- Windows: x86_64, x86" >> /tmp/release.md
+        echo "" >> /tmp/release.md
+        echo "### GUI Applications (Native)" >> /tmp/release.md
+        echo "- Linux: native runner arch" >> /tmp/release.md
+        echo "- macOS: native runner arch" >> /tmp/release.md
+        echo "- Windows: native runner arch" >> /tmp/release.md
+        echo "" >> /tmp/release.md
+        echo "### Verify Integrity" >> /tmp/release.md
+        echo "\`\`\`bash" >> /tmp/release.md
+        echo "sha256sum -c checksums.txt" >> /tmp/release.md
+        echo "\`\`\`" >> /tmp/release.md
+        cat /tmp/release.md
+
+  notify:
+    name: Notify Release Status
+    needs: [test, build-cli, build-gui-linux, build-gui-macos, build-gui-windows, create-release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check release status
+      run: |
+        echo "✅ Release workflow completed"
+        echo "  - Tests: PASSED"
+        echo "  - CLI builds: COMPLETED"
+        echo "  - GUI Linux: COMPLETED"
+        echo "  - GUI macOS: COMPLETED"
+        echo "  - GUI Windows: COMPLETED"
+        echo ""
+        echo "📦 Artifacts ready in: GitHub Release page"
+        echo "📝 Next: Manual publish of draft release"

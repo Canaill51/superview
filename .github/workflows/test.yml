@@ -1,0 +1,206 @@
+name: Tests & Coverage
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  test:
+    name: Test Go ${{ matrix.go-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go-version: [ '1.22', '1.23' ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests with coverage
+      run: go test ./common -v -coverprofile=coverage.out -covermode=atomic
+    
+    - name: Display coverage summary
+      run: go tool cover -func=coverage.out | tail -5
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      continue-on-error: true
+
+  coverage-report:
+    name: Coverage Report & Gate
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run tests with coverage
+      run: go test ./common -coverprofile=coverage.out -covermode=atomic
+    
+    - name: Check coverage threshold (30%)
+      run: |
+        coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        threshold=30.0
+        if (( $(echo "$coverage < $threshold" | bc -l) )); then
+          echo "❌ Coverage ${coverage}% is below threshold ${threshold}%"
+          exit 1
+        fi
+        echo "✅ Coverage ${coverage}% meets threshold ${threshold}%"
+    
+    - name: Generate HTML coverage report
+      run: go tool cover -html=coverage.out -o coverage.html
+    
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = require('child_process')
+            .execSync('go tool cover -func=coverage.out | grep total')
+            .toString()
+            .trim();
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Coverage Report\n\`\`\`\n${coverage}\n\`\`\``
+          });
+
+  native-build-matrix:
+    name: Native Build ${{ matrix.label }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-amd64
+            runner: ubuntu-latest
+            expected_goos: linux
+            expected_goarch: amd64
+          - label: macos-amd64
+            runner: macos-13
+            expected_goos: darwin
+            expected_goarch: amd64
+          - label: macos-arm64
+            runner: macos-14
+            expected_goos: darwin
+            expected_goarch: arm64
+          - label: windows-amd64
+            runner: windows-latest
+            expected_goos: windows
+            expected_goarch: amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Install Linux GUI dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxi-dev \
+          libxxf86vm-dev
+
+    - name: Validate native runner architecture
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(go env GOOS)" = "${{ matrix.expected_goos }}"
+        test "$(go env GOARCH)" = "${{ matrix.expected_goarch }}"
+        echo "Native runner verified: $(go env GOOS)/$(go env GOARCH)"
+
+    - name: Validate native runner architecture (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $goos = go env GOOS
+        $goarch = go env GOARCH
+        if ($goos -ne '${{ matrix.expected_goos }}') { throw "Expected GOOS=${{ matrix.expected_goos }}, got $goos" }
+        if ($goarch -ne '${{ matrix.expected_goarch }}') { throw "Expected GOARCH=${{ matrix.expected_goarch }}, got $goarch" }
+        Write-Host "Native runner verified: $goos/$goarch"
+
+    - name: Build CLI (native)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        go build -o "build/superview-cli-${{ matrix.label }}" superview-cli.go
+
+    - name: Build GUI (native)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        go build -o "build/superview-gui-${{ matrix.label }}" superview-gui.go
+
+    - name: Build CLI/GUI (native, Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        go build -o "build/superview-cli-${{ matrix.label }}.exe" superview-cli.go
+        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" superview-gui.go
+
+    - name: Verify build outputs
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -f "build/superview-cli-${{ matrix.label }}"
+        test -f "build/superview-gui-${{ matrix.label }}"
+        echo "✅ Native build outputs verified"
+
+    - name: Verify build outputs (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (-not (Test-Path "build/superview-cli-${{ matrix.label }}.exe")) { throw 'CLI artifact missing' }
+        if (-not (Test-Path "build/superview-gui-${{ matrix.label }}.exe")) { throw 'GUI artifact missing' }
+        Write-Host "✅ Native build outputs verified"
