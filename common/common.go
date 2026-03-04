@@ -582,17 +582,30 @@ func CleanUp() error {
 // The ui parameter handles user interaction (showing errors, progress, getting options).
 // Returns nil on success, or an error if any step fails.
 // Call this from entry points (CLI/GUI) only; the logic is pipeline-agnostic.
+// Security: Validates input/output paths and encoder selection for defensive programming.
 func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
-	// Check input file exists
-	_, err := os.Stat(inputFile)
-	if err != nil {
-		return fmt.Errorf("input file not found: %s", inputFile)
+	// ==== SECURITY VALIDATION ====
+	// Validate input file path (prevents directory traversal, symlink attacks, etc.)
+	if err := isValidInputPath(inputFile); err != nil {
+		return fmt.Errorf("invalid input file: %w", err)
 	}
 
-	// Load video metadata
+	// Validate output file path (prevents directory traversal, checks parent writable)
+	if err := isValidOutputPath(outputFile); err != nil {
+		return fmt.Errorf("invalid output file: %w", err)
+	}
+
+	// Load and validate video metadata (includes security checks)
 	video, err := CheckVideo(inputFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("video validation failed: %w", err)
+	}
+
+	// Get and sanitize encoder selection from UI (whitelist validation)
+	encoderInput := ui.GetEncoder()
+	encoderSanitized, err := SanitizeEncoderInput(encoderInput, ffmpeg["encoders"])
+	if err != nil {
+		return fmt.Errorf("invalid encoder selection: %w", err)
 	}
 
 	// Get encoding options from UI
@@ -611,8 +624,8 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return err
 	}
 
-	// Get encoder selection from UI
-	encoder, err := FindEncoder(ui.GetEncoder(), ffmpeg, video)
+	// Get encoder with full validation (uses sanitized input)
+	encoder, err := FindEncoder(encoderSanitized, ffmpeg, video)
 	if err != nil {
 		return err
 	}
@@ -636,6 +649,12 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	if err := EncodeVideo(video, encoder, bitrate, outputFile, progressFunc); err != nil {
 		return err
 	}
+
+	logger.Info("Encoding completed successfully",
+		slog.String("output_file", filepath.Base(outputFile)),
+		slog.String("encoder", encoder),
+		slog.Int("bitrate_bytes_sec", bitrate),
+	)
 
 	return nil
 }
