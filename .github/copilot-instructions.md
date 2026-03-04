@@ -36,6 +36,10 @@
 - Build GUI: `go build superview-gui.go`
 - Run tests (if present): `go test ./common`
 - Preferred verification order for small changes: build touched binary first, then `go test ./common`.
+- Multi-main caveat: repository root contains two entrypoints (`superview-cli.go` and `superview-gui.go`).
+  - Do not use `go build ./...` or `go test ./...` for routine verification in this repo.
+- CI coverage gate: minimum 30% in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
+- GUI builds are most reliable on native OS runners; cross-compiling Fyne GUI binaries (especially for macOS) may fail locally.
 - Cross-build/release script: `./build.sh <version>`
   - Requires `fyne-cross`.
   - Creates git tags and pushes tags at the end; do not run automatically unless release intent is explicit.
