@@ -55,6 +55,15 @@ func main() {
 
 	fmt.Println("===> Superview - dynamic video stretching <===\n")
 
+	// Load configuration (from superview.yaml or env vars)
+	cfg, err := common.LoadConfig("superview.yaml")
+	if err != nil {
+		opts_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	common.SetConfig(cfg)
+	opts_logger.Debug("Configuration loaded", slog.String("config", cfg.String()))
+
 	// Check for ffmpeg
 	ffmpeg, err := common.CheckFfmpeg()
 	if err != nil {

@@ -175,8 +175,12 @@ func CheckFfmpeg() (map[string]string, error) {
 	for i := 10; i < len(encodersArr); i++ {
 		if strings.Index(encodersArr[i], " V") == 0 {
 			enc := strings.Split(encodersArr[i], " ")
-			if strings.Index(enc[2], "264") != -1 || strings.Index(enc[2], "265") != -1 || strings.Index(enc[2], "hevc") != -1 {
-				ret["encoders"] += enc[2] + ","
+			// Filter encoders based on configured codec preferences
+			for _, codec := range GetConfig().EncoderCodecs {
+				if strings.Contains(enc[2], codec) {
+					ret["encoders"] += enc[2] + ","
+					break
+				}
 			}
 		}
 	}
@@ -205,7 +209,7 @@ func InitEncodingSession() error {
 		return errors.New("encoding session already active")
 	}
 
-	tempDir, err := os.MkdirTemp("", "superview-*")
+	tempDir, err := os.MkdirTemp("", GetConfig().TempDirPrefix)
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -523,8 +527,9 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		bitrate = video.Streams[0].BitrateInt
 	}
 
-	// Validate bitrate
-	if err := ValidateBitrate(bitrate, 100000, 50000000); err != nil {
+	// Validate bitrate using configured constraints
+	cfg := GetConfig()
+	if err := ValidateBitrate(bitrate, cfg.MinBitrate, cfg.MaxBitrate); err != nil {
 		return err
 	}
 

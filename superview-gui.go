@@ -74,6 +74,15 @@ func main() {
 	}))
 	common.SetLogger(gui_logger)
 
+	// Load configuration (from superview.yaml or env vars)
+	cfg, err := common.LoadConfig("superview.yaml")
+	if err != nil {
+		gui_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
+		// Continue with defaults
+	} else {
+		common.SetConfig(cfg)
+	}
+
 	app := app.New()
 	app.Settings().SetTheme(theme.LightTheme())
 
@@ -165,7 +174,7 @@ func main() {
 		fd.Show()
 	})
 
-	ffmpeg, err := common.CheckFfmpeg()
+	ffmpeg, err = common.CheckFfmpeg()
 	if err != nil {
 		dialog.ShowError(err, window)
 		open.Disable()
