@@ -24,7 +24,7 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Squeeze Mode**: Special handling for horizontally-stretched sources
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
-- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Linux
+- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Linux and Windows
 
 The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
@@ -34,16 +34,40 @@ Here is a quick animation showing the scaling, note how the text in the center s
 
 ## Requirements
 
-- **FFmpeg 6.0+**: Install via `apt install ffmpeg` (Linux), `brew install ffmpeg` (macOS), or download from https://www.gyan.dev/ffmpeg/builds/ (Windows)
-- **Go 1.22+**: Only needed for building from source
+- **FFmpeg 6.0+ (runtime requirement)**:
+  - Linux: `sudo apt install ffmpeg`
+  - macOS: `brew install ffmpeg`
+  - Windows: install from https://www.gyan.dev/ffmpeg/builds/ or `winget install -e --id Gyan.FFmpeg`
+- **Important**: both `ffmpeg` and `ffprobe` must be available in your `PATH`.
+- **Go 1.22+**: only needed for building from source.
+- **C compiler (build from source, GUI only)**:
+  - Windows: `gcc`/`clang` required (CGO).
+  - Linux/macOS: native toolchain required for Fyne GUI builds.
 
 ## Installation
 
 Download from the [releases page](https://github.com/Niek/superview/releases), or build from source:
 
+### Quick Start (Final Users)
+
+1. Download the binary matching your OS/CPU from Releases.
+2. Ensure `ffmpeg` and `ffprobe` are installed and in `PATH`.
+3. Run:
+  - Linux/macOS GUI: `./superview-gui`
+  - Windows GUI: `superview-gui.exe`
+  - Linux/macOS CLI: `./superview-cli -i input.mp4 -o output.mp4`
+  - Windows CLI: `superview-cli.exe -i input.mp4 -o output.mp4`
+
+### Build from Source
+
 ```bash
 go build superview-gui.go   # Graphical interface
 go build superview-cli.go   # Command-line tool
+```
+
+Windows CLI:
+```powershell
+go build -o superview-cli.exe superview-cli.go
 ```
 
 On Windows, build the GUI without a console window:
@@ -56,7 +80,7 @@ go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
 
 ### GUI
 
-Double-click `superview-gui` and:
+Launch `superview-gui` (`superview-gui.exe` on Windows) and:
 
 1. Click **1) Choose input file**
 2. (Optional) Select **Output codec**
@@ -74,13 +98,20 @@ Notes:
 
 ```bash
 # Basic usage
-./superview-cli -i input.mp4 -o output.mp4
+./superview-cli -i input.mp4 -o output.mp4   # Linux/macOS
 
 # Custom options
-./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
+./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s   # Linux/macOS
 
 # Get help
-./superview-cli -h
+./superview-cli -h   # Linux/macOS
+```
+
+```powershell
+# Windows examples
+superview-cli.exe -i input.mp4 -o output.mp4
+superview-cli.exe -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
+superview-cli.exe -h
 ```
 
 #### Options
@@ -92,6 +123,8 @@ Notes:
   -b, --bitrate=BITRATE Output bitrate in bytes/second
   -s, --squeeze         Apply squeeze filter for stretched sources
 ```
+
+If you get `Cannot find ffmpeg/ffprobe`, fix your `PATH` and retry.
 
 ### Configuration
 
