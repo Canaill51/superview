@@ -1,4 +1,4 @@
-.PHONY: help build build-cli build-gui test lint vet coverage clean coverage-html fmt install-tools
+.PHONY: help build build-cli build-gui test lint vet coverage clean coverage-html fmt install-tools release-prepare release-dry-run version-bump
 
 # Default target
 help:
@@ -18,9 +18,16 @@ help:
 	@echo "  fmt            Check code formatting"
 	@echo "  fmt-fix        Auto-fix code formatting"
 	@echo "  vuln           Run govulncheck for vulnerabilities"
+	@echo "  check          Run all quality checks"
+	@echo ""
+	@echo "Release targets:"
+	@echo "  release-prepare  Prepare and tag release (e.g., make release-prepare VERSION=1.0.0)"
+	@echo "  release-dry-run  Dry-run release with goreleaser"
 	@echo ""
 	@echo "Utility targets:"
 	@echo "  install-tools  Install linting and analysis tools"
+	@echo "  install-goreleaser Install goreleaser for releases"
+	@echo "  version        Show version information"
 	@echo "  clean          Remove build artifacts and coverage files"
 	@echo ""
 
@@ -103,14 +110,46 @@ install-tools:
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	@echo "✅ Development tools installed"
 
+install-goreleaser:
+	@echo "Installing goreleaser..."
+	go install github.com/goreleaser/goreleaser@latest
+	@echo "✅ goreleaser installed"
+	@echo "  Run: go run github.com/goreleaser/goreleaser@latest --version"
+
 clean:
 	@echo "Cleaning up..."
 	rm -f superview-cli superview-gui
 	rm -f coverage.out coverage.html
 	go clean
+	rm -rf dist/ build/
 	@echo "✅ Cleanup complete"
 
 # Version info
 version:
 	@echo "Go version: $$(go version)"
 	@echo "golangci-lint version: $$(golangci-lint --version 2>/dev/null || echo 'not installed')"
+
+# Release targets
+release-prepare:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION is required: make release-prepare VERSION=1.0.0"; \
+		exit 1; \
+	fi
+	@if ! git diff-index --quiet HEAD --; then \
+		echo "❌ Working directory has uncommitted changes. Commit first."; \
+		exit 1; \
+	fi
+	@echo "Preparing release v$(VERSION)..."
+	@echo "Running full quality check..."
+	@make check > /dev/null
+	@echo "✅ Quality checks passed"
+	@echo "Creating git tag v$(VERSION)..."
+	git tag -a v$(VERSION) -m "Release v$(VERSION)" 
+	@echo "✅ Tag created: v$(VERSION)"
+	@echo "⚠️  Push tag to trigger release: git push origin v$(VERSION)"
+
+release-dry-run:
+	@echo "Running goreleaser in dry-run mode..."
+	@echo "  (Requires: go install github.com/goreleaser/goreleaser@latest)"
+	go run github.com/goreleaser/goreleaser@latest release --clean --snapshot --skip=publish
+	@echo "✅ Dry-run completed. Check ./dist/ directory"

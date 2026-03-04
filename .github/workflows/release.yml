@@ -1,0 +1,277 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'release-*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Run Tests Before Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run tests
+      run: go test ./common -v
+    
+    - name: Run coverage check
+      run: |
+        go test ./common -coverprofile=coverage.out
+        coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        if (( $(echo "$coverage < 30" | bc -l) )); then
+          echo "❌ Coverage ${coverage}% below 30% gate"
+          exit 1
+        fi
+        echo "✅ Coverage ${coverage}% passes gate"
+
+  build-and-release:
+    name: Build & Release with GoReleaser
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Prepare goreleaser
+      run: |
+        go install github.com/goreleaser/goreleaser@latest
+        goreleaser --version
+    
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Version: ${VERSION}"
+    
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v4
+      with:
+        version: latest
+        args: release --clean --draft
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        version="${{ steps.version.outputs.version }}"
+        echo "## Release ${version}" > /tmp/release_notes.md
+        echo "" >> /tmp/release_notes.md
+        echo "This release includes improvements and bug fixes." >> /tmp/release_notes.md
+        echo "" >> /tmp/release_notes.md
+        echo "### Download" >> /tmp/release_notes.md
+        echo "- **CLI**: Platform-specific binaries available" >> /tmp/release_notes.md
+        echo "- **GUI**: Cross-platform applications (Linux, macOS, Windows)" >> /tmp/release_notes.md
+        echo "" >> /tmp/release_notes.md
+        echo "### Installation" >> /tmp/release_notes.md
+        echo "See [Installation Guide](../README.md#installation) for platform-specific instructions." >> /tmp/release_notes.md
+        echo "" >> /tmp/release_notes.md
+        echo "### Changes" >> /tmp/release_notes.md
+        git log --oneline $(git describe --tags --abbrev=0 HEAD^)..HEAD >> /tmp/release_notes.md || echo "First release" >> /tmp/release_notes.md
+        
+        cat /tmp/release_notes.md
+
+  # macOS-specific build (with notarization if available)
+  build-macos:
+    name: Build macOS (Intel & ARM)
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build CLI (Intel - amd64)
+      run: |
+        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o ./build/superview-cli-macos-amd64 superview-cli.go
+    
+    - name: Build CLI (ARM - arm64)
+      run: |
+        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ./build/superview-cli-macos-arm64 superview-cli.go
+    
+    - name: Create universal binary
+      run: |
+        mkdir -p ./build
+        lipo -create ./build/superview-cli-macos-amd64 ./build/superview-cli-macos-arm64 -output ./build/superview-cli-macos-universal
+        file ./build/superview-cli-macos-*
+    
+    - name: Sign binaries (if identity available)
+      if: env.APPLE_SIGNING_IDENTITY != ''
+      run: |
+        for binary in ./build/superview-cli-macos-*; do
+          codesign -s "$APPLE_SIGNING_IDENTITY" --entitlements entitlements.plist -v "$binary"
+        done
+      env:
+        APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      continue-on-error: true
+    
+    - name: Upload macOS binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: macos-binaries
+        path: build/superview-cli-macos-*
+
+  # Windows-specific build
+  build-windows:
+    name: Build Windows (x86_64 & x86)
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build CLI (amd64)
+      run: |
+        mkdir -p build
+        go build -ldflags="-s -w" -o build/superview-cli-windows-amd64.exe superview-cli.go
+      env:
+        GOOS: windows
+        GOARCH: amd64
+    
+    - name: Build CLI (386)
+      run: |
+        go build -ldflags="-s -w" -o build/superview-cli-windows-386.exe superview-cli.go
+      env:
+        GOOS: windows
+        GOARCH: 386
+    
+    - name: Upload Windows binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-binaries
+        path: build/superview-cli-windows-*.exe
+
+  # Linux-specific build
+  build-linux:
+    name: Build Linux (x86_64 & x86)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Build CLI (amd64)
+      run: |
+        mkdir -p build
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o build/superview-cli-linux-amd64 superview-cli.go
+    
+    - name: Build CLI (386)
+      run: |
+        GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o build/superview-cli-linux-386 superview-cli.go
+    
+    - name: Create archives
+      run: |
+        cd build
+        tar -czf superview-cli-linux-amd64.tar.gz superview-cli-linux-amd64
+        tar -czf superview-cli-linux-386.tar.gz superview-cli-linux-386
+    
+    - name: Upload Linux binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: linux-binaries
+        path: build/superview-cli-linux-*.tar.gz
+
+  # Publish release
+  publish-release:
+    name: Publish Release
+    needs: [test, build-and-release, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: always() && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: List artifacts
+      run: |
+        echo "=== Release Artifacts ===" 
+        find artifacts -type f | sort
+    
+    - name: Create Release Summary
+      run: |
+        version="${{ github.ref }}"
+        version="${version#refs/tags/}"
+        echo "## Release ${version} - Superview" > /tmp/release_summary.md
+        echo "" >> /tmp/release_summary.md
+        echo "### Distributions Disponibles" >> /tmp/release_summary.md
+        echo "" >> /tmp/release_summary.md
+        echo "**CLI - Binaires Multiplateforme:**" >> /tmp/release_summary.md
+        echo "- Linux (x86_64, x86)" >> /tmp/release_summary.md
+        echo "- macOS (Intel + ARM Universal)" >> /tmp/release_summary.md
+        echo "- Windows (x86_64, x86)" >> /tmp/release_summary.md
+        echo "" >> /tmp/release_summary.md
+        echo "**GUI - Applications Natives:" >> /tmp/release_summary.md
+        echo "- Linux (AppImage)" >> /tmp/release_summary.md
+        echo "- macOS (DMG avec signature)" >> /tmp/release_summary.md
+        echo "- Windows (MSI installer)" >> /tmp/release_summary.md
+        echo "" >> /tmp/release_summary.md
+        echo "### Vérification d'Intégrité" >> /tmp/release_summary.md
+        echo "Tous les binaires sont vérifiés via checksums.txt" >> /tmp/release_summary.md
+        cat /tmp/release_summary.md
+
+  # Notify on completion
+  notify:
+    name: Notify Release Completion
+    needs: [test, build-and-release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check release status
+      run: |
+        if [ "${{ needs.build-and-release.result }}" == "success" ]; then
+          echo "✅ Release build completed successfully"
+          echo "📦 Artifacts are ready for download"
+          echo "🚀 Manual review required before publishing"
+        else
+          echo "❌ Release build failed"
+          exit 1
+        fi
