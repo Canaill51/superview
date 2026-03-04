@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -476,7 +477,7 @@ func ValidateBitrate(bitrate int, minBitrate int, maxBitrate int) error {
 }
 
 // FindEncoder selects the best available video encoder for the job.
-// If codec is empty, returns the input video's original codec.
+// If codec is empty, selects the best encoder based on machine profile (GPU first, CPU fallback).
 // Otherwise, searches the ffmpeg encoders list for the requested codec.
 // Returns EncoderError if the requested encoder is not available.
 func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (string, error) {
@@ -484,19 +485,29 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 		return "", &InvalidVideoError{Reason: "no video streams"}
 	}
 
-	encoder := video.Streams[0].Codec
+	profile := AnalyzeMachineProfile(ffmpeg)
+	encoder := ""
 
 	if codec != "" {
-		found := false
-		for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
-			if enc == codec {
-				encoder = enc
-				found = true
+		if !canUseEncoderWithProfile(codec, profile) {
+			return "", &EncoderError{Msg: fmt.Sprintf("encoder %s not available. Available encoders: %s", codec, ffmpeg["encoders"])}
+		}
+		encoder = codec
+	} else {
+		for _, candidate := range candidateEncodersForCodec(video.Streams[0].Codec) {
+			if canUseEncoderWithProfile(candidate, profile) {
+				encoder = candidate
 				break
 			}
 		}
-		if !found {
-			return "", &EncoderError{Msg: fmt.Sprintf("encoder %s not available. Available encoders: %s", codec, ffmpeg["encoders"])}
+
+		if encoder == "" {
+			for _, enc := range profile.AvailableEncoders {
+				if enc != "" {
+					encoder = enc
+					break
+				}
+			}
 		}
 	}
 
@@ -511,66 +522,108 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 // It reads PGM filter maps from the current session and encodes using the specified encoder and bitrate.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
-func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, callback func(float64)) error {
+func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64)) error {
 	// Get the session paths for PGM files
 	xPath, yPath, err := getSessionPaths()
 	if err != nil {
 		return err
 	}
 
-	// Starting encoder, write progress to stdout pipe
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-progress", "pipe:1", "-loglevel", "panic", "-y", "-re", "-i", video.File, "-i", xPath, "-i", yPath, "-filter_complex", "remap,format=yuv444p,format=yuv420p", "-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac", "-x265-params", "log-level=error", output)
-	prepareBackgroundCommand(cmd)
-	stdout, err := cmd.StdoutPipe()
-	rd := bufio.NewReader(stdout)
-
-	if err != nil {
-		return err
+	baseArgs := []string{
+		"-hide_banner", "-progress", "pipe:1", "-loglevel", "panic", "-y", "-re",
+		"-threads", strconv.Itoa(runtime.NumCPU()),
+		"-i", video.File, "-i", xPath, "-i", yPath,
+		"-filter_complex", "remap,format=yuv444p,format=yuv420p",
+		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac",
 	}
 
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("Error starting ffmpeg, output is:\n%s", err)
+	if encoder == "libx265" {
+		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
 	}
 
-	// Kill encoder process on Ctrl+C
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigC
-		cmd.Process.Kill()
-		os.Exit(1)
-	}()
+	run := func(hwaccel string) error {
+		args := make([]string, 0, len(baseArgs)+4)
+		if hwaccel != "" {
+			args = append(args, "-hwaccel", hwaccel)
+		}
+		args = append(args, baseArgs...)
+		args = append(args, output)
 
-	// Read and parse progress
-	for {
-		line, _, err := rd.ReadLine()
+		cmd := exec.Command("ffmpeg", args...)
+		prepareBackgroundCommand(cmd)
+		stdout, err := cmd.StdoutPipe()
+		rd := bufio.NewReader(stdout)
 
-		if err == io.EOF {
-			logger.Debug("Encoding complete")
-			break
+		if err != nil {
+			return err
 		}
 
-		if bytes.Contains(line, []byte("out_time_ms=")) {
-			time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
-			timeF, err := strconv.ParseFloat(string(time), 64)
-			if err != nil {
-				// Log warning but continue, don't fail the entire encode
-				logger.Warn("Failed to parse progress value",
-					slog.String("raw_value", string(time)),
-					slog.String("error", err.Error()),
-				)
-				continue
+		err = cmd.Start()
+		if err != nil {
+			return fmt.Errorf("Error starting ffmpeg, output is:\n%s", err)
+		}
+
+		// Kill encoder process on Ctrl+C
+		sigC := make(chan os.Signal, 1)
+		signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-sigC
+			cmd.Process.Kill()
+			os.Exit(1)
+		}()
+
+		for {
+			line, _, err := rd.ReadLine()
+
+			if err == io.EOF {
+				logger.Debug("Encoding complete")
+				break
 			}
-			callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
+
+			if bytes.Contains(line, []byte("out_time_ms=")) {
+				time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
+				timeF, err := strconv.ParseFloat(string(time), 64)
+				if err != nil {
+					logger.Warn("Failed to parse progress value",
+						slog.String("raw_value", string(time)),
+						slog.String("error", err.Error()),
+					)
+					continue
+				}
+				callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
+			}
+		}
+
+		if err := cmd.Wait(); err != nil {
+			return fmt.Errorf("Error running ffmpeg, output is:\n%s", err)
+		}
+
+		return nil
+	}
+
+	profile := AnalyzeMachineProfile(ffmpeg)
+	hwaccel := accelForEncoder(encoder)
+	if hwaccel != "" {
+		if toSet(profile.HardwareAccels)[hwaccel] {
+			logger.Info("Trying hardware decode+encode path",
+				slog.String("encoder", encoder),
+				slog.String("hwaccel", hwaccel),
+			)
+			if err := run(hwaccel); err == nil {
+				return nil
+			}
+			logger.Warn("Hardware decode path failed, falling back to CPU decode",
+				slog.String("encoder", encoder),
+				slog.String("hwaccel", hwaccel),
+			)
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("Error running ffmpeg, output is:\n%s", err)
-	}
-
-	return nil
+	logger.Info("Using CPU decode path",
+		slog.String("encoder", encoder),
+		slog.Int("threads", runtime.NumCPU()),
+	)
+	return run("")
 }
 
 func CleanUp() error {
@@ -660,6 +713,14 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return err
 	}
 
+	profile := AnalyzeMachineProfile(ffmpeg)
+	logger.Info("Machine profile analyzed",
+		slog.Int("cpu_cores", profile.CPUCores),
+		slog.String("hw_accels", strings.Join(profile.HardwareAccels, ",")),
+		slog.String("selected_encoder", encoder),
+		slog.Bool("hardware_encoder", isHardwareEncoder(encoder)),
+	)
+
 	// ==== OBSERVABILITY: Record output metadata ====
 	metrics.RecordOutputMetadata(bitrate, encoder)
 
@@ -685,7 +746,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		RecordEncodingProgress(percent, fmt.Sprintf("Encoding: %.1f%%", percent))
 	}
 
-	if err := EncodeVideo(video, encoder, bitrate, outputFile, progressFunc); err != nil {
+	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc); err != nil {
 		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "encoding"})
 		return err

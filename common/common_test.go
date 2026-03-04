@@ -237,6 +237,7 @@ func TestVideoSpecs_ValidateMissingCodec(t *testing.T) {
 func TestFindEncoder_UseInputCodec(t *testing.T) {
 	ffmpegInfo := map[string]string{
 		"encoders": "libx264,libx265,hevc",
+		"accels":   "",
 	}
 
 	video := &VideoSpecs{
@@ -258,8 +259,37 @@ func TestFindEncoder_UseInputCodec(t *testing.T) {
 		t.Errorf("FindEncoder with empty codec failed: %v", err)
 	}
 
-	if encoder != "h264" {
-		t.Errorf("Expected h264, got %s", encoder)
+	if encoder != "libx264" {
+		t.Errorf("Expected libx264, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_PreferHardwareWhenAvailable(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_nvenc,libx264,libx265",
+		"accels":   "cuda",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with hardware option failed: %v", err)
+	}
+
+	if encoder != "h264_nvenc" {
+		t.Errorf("Expected h264_nvenc, got %s", encoder)
 	}
 }
 
