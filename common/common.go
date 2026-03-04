@@ -43,6 +43,33 @@ func (e *SessionError) Error() string {
 	return fmt.Sprintf("session error: %s", e.Msg)
 }
 
+// EncodingOptions contains all parameters for a video encoding job
+type EncodingOptions struct {
+	InputFile    string
+	OutputFile   string
+	Encoder      string // empty string means use input codec
+	Bitrate      int    // bytes/second, 0 means use input bitrate
+	Squeeze      bool
+	FfmpegInfo   map[string]string
+	ProgressFunc func(float64)
+}
+
+// UIHandler abstracts CLI/GUI differences for user interaction
+type UIHandler interface {
+	// ShowError displays an error message to the user
+	ShowError(error)
+	// ShowInfo displays an information message
+	ShowInfo(msg string)
+	// ShowProgress updates progress (0-100)
+	ShowProgress(percent float64)
+	// GetBitrate returns the bitrate to use (0 means use video default)
+	GetBitrate() (int, error)
+	// GetEncoder returns the encoder selection (empty means use video default)
+	GetEncoder() string
+	// GetSqueeze returns whether to apply squeeze filter
+	GetSqueeze() bool
+}
+
 // EncodingSession manages temporary files for a single encoding job
 type EncodingSession struct {
 	tempDir  string
@@ -443,3 +470,62 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 func CleanUp() error {
 	return CloseEncodingSession()
 }
+
+// PerformEncoding orchestrates the entire encoding workflow
+func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
+	// Check input file exists
+	_, err := os.Stat(inputFile)
+	if err != nil {
+		return fmt.Errorf("input file not found: %s", inputFile)
+	}
+
+	// Load video metadata
+	video, err := CheckVideo(inputFile)
+	if err != nil {
+		return err
+	}
+
+	// Get encoding options from UI
+	bitrate := 0
+	bitrateFromUI, err := ui.GetBitrate()
+	if err == nil && bitrateFromUI > 0 {
+		bitrate = bitrateFromUI
+	}
+	if bitrate == 0 {
+		bitrate = video.Streams[0].BitrateInt
+	}
+
+	// Validate bitrate
+	if err := ValidateBitrate(bitrate, 100000, 50000000); err != nil {
+		return err
+	}
+
+	// Get encoder selection from UI
+	encoder, err := FindEncoder(ui.GetEncoder(), ffmpeg, video)
+	if err != nil {
+		return err
+	}
+
+	// Initialize encoding session
+	if err := InitEncodingSession(); err != nil {
+		return err
+	}
+	defer CleanUp()
+
+	// Generate remap filters
+	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
+		return err
+	}
+
+	// Perform encoding with progress callback
+	progressFunc := func(percent float64) {
+		ui.ShowProgress(percent)
+	}
+
+	if err := EncodeVideo(video, encoder, bitrate, outputFile, progressFunc); err != nil {
+		return err
+	}
+
+	return nil
+}
+

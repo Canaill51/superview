@@ -17,6 +17,33 @@ var opts struct {
 	Squeeze bool   `short:"s" long:"squeeze" description:"Squeeze 4:3 video stretched to 16:9 (e.g. Caddx Tarsier 2.7k60)" required:"false"`
 }
 
+// CLIHandler implements UIHandler for command-line interface
+type CLIHandler struct{}
+
+func (h *CLIHandler) ShowError(err error) {
+	log.Printf("Error: %v\n", err)
+}
+
+func (h *CLIHandler) ShowInfo(msg string) {
+	fmt.Println(msg)
+}
+
+func (h *CLIHandler) ShowProgress(percent float64) {
+	fmt.Printf("\rEncoding progress: %.2f%%", percent)
+}
+
+func (h *CLIHandler) GetBitrate() (int, error) {
+	return opts.Bitrate, nil
+}
+
+func (h *CLIHandler) GetEncoder() string {
+	return opts.Encoder
+}
+
+func (h *CLIHandler) GetSqueeze() bool {
+	return opts.Squeeze
+}
+
 func main() {
 	fmt.Println("===> Superview - dynamic video stretching <===\n")
 
@@ -34,51 +61,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	_, err = os.Stat(opts.Input)
-	if err != nil {
-		log.Fatalf("Error opening input file: %s\n", opts.Input)
+	// Create CLI handler and perform encoding
+	handler := &CLIHandler{}
+	if err := common.PerformEncoding(opts.Input, opts.Output, handler, ffmpeg); err != nil {
+		handler.ShowError(err)
+		os.Exit(1)
 	}
 
-	video, err := common.CheckVideo(opts.Input)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// If no bitrate set, use from input video
-	if opts.Bitrate == 0 {
-		opts.Bitrate = video.Streams[0].BitrateInt
-	}
-
-	// Validate bitrate (min 100k, max 50M bytes/sec)
-	if err := common.ValidateBitrate(opts.Bitrate, 100000, 50000000); err != nil {
-		log.Fatal(err)
-	}
-
-	encoder, err := common.FindEncoder(opts.Encoder, ffmpeg, video)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Initialize encoding session with secure temp directory
-	err = common.InitEncodingSession()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer common.CleanUp()
-
-	err = common.GeneratePGM(video, opts.Squeeze)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Re-encoding video with %s encoder at %d MB/s bitrate\n", encoder, opts.Bitrate/1024/1024)
-
-	err = common.EncodeVideo(video, encoder, opts.Bitrate, opts.Output, func(v float64) {
-		fmt.Printf("\rEncoding progress: %.2f%%", v)
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Done! You can open the output file %s to see the result\n", opts.Output)
+	fmt.Printf("\nDone! You can open the output file %s to see the result\n", opts.Output)
 }

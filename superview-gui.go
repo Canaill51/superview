@@ -16,6 +16,51 @@ import (
 	"fyne.io/fyne/widget"
 )
 
+// GUIHandler implements UIHandler for GUI interface
+type GUIHandler struct {
+	window    fyne.Window
+	bitrate   *widget.Entry
+	squeeze   *widget.Check
+	encoder   *widget.Select
+	progress  *dialog.ProgressDialog
+	ffmpeg    map[string]string
+	video     *common.VideoSpecs
+}
+
+func (h *GUIHandler) ShowError(err error) {
+	dialog.ShowError(err, h.window)
+}
+
+func (h *GUIHandler) ShowInfo(msg string) {
+	dialog.ShowInformation("Done", msg, h.window)
+}
+
+func (h *GUIHandler) ShowProgress(percent float64) {
+	h.progress.SetValue(percent / 100)
+}
+
+func (h *GUIHandler) GetBitrate() (int, error) {
+	if h.bitrate.Text == "" {
+		return 0, nil // Use default from video
+	}
+	return strconv.Atoi(h.bitrate.Text)
+}
+
+func (h *GUIHandler) GetEncoder() string {
+	if h.video == nil || len(h.video.Streams) == 0 {
+		return ""
+	}
+	if h.encoder.Selected == "Use same video codec as input file" {
+		return h.video.Streams[0].Codec
+	}
+	// Extract encoder name from "libx265 encoder" format
+	return strings.Split(h.encoder.Selected, " ")[0]
+}
+
+func (h *GUIHandler) GetSqueeze() bool {
+	return h.squeeze.Checked
+}
+
 func main() {
 	var video *common.VideoSpecs
 	var ffmpeg map[string]string
@@ -32,7 +77,6 @@ func main() {
 
 	info := widget.NewMultiLineEntry()
 	info.SetReadOnly(true)
-	//info.Disable()
 	info.SetPlaceHolder("Info box...")
 
 	squeeze := widget.NewCheck("Squeeze video", nil)
@@ -60,54 +104,24 @@ func main() {
 			prog.Show()
 
 			go func() {
-				// Initialize encoding session with secure temp directory
-				err := common.InitEncodingSession()
-				if err != nil {
+				handler := &GUIHandler{
+					window:   window,
+					bitrate:  bitrate,
+					squeeze:  squeeze,
+					encoder:  encoder,
+					progress: prog,
+					ffmpeg:   ffmpeg,
+					video:    video,
+				}
+
+				if err := common.PerformEncoding(video.File, uri, handler, ffmpeg); err != nil {
 					prog.Hide()
-					dialog.ShowError(err, window)
-					return
-				}
-				defer common.CleanUp()
-
-				err = common.GeneratePGM(video, squeeze.Checked)
-				if err != nil {
-					prog.Hide()
-					dialog.ShowError(err, window)
-					return
-				}
-
-				br, err := strconv.Atoi(bitrate.Text)
-				if err != nil {
-					br = video.Streams[0].BitrateInt
-				}
-
-				// Validate bitrate (min 100k, max 50M bytes/sec)
-				if err := common.ValidateBitrate(br, 100000, 50000000); err != nil {
-					prog.Hide()
-					dialog.ShowError(err, window)
-					return
-				}
-
-				enc := video.Streams[0].Codec
-				if encoder.Selected != "Use same video codec as input file" {
-					enc = strings.Split(encoder.Selected, " ")[0]
-				}
-
-				selectedEncoder, err := common.FindEncoder(enc, ffmpeg, video)
-				if err != nil {
-					prog.Hide()
-					dialog.ShowError(err, window)
-					return
-				}
-
-				err = common.EncodeVideo(video, selectedEncoder, br, uri, func(v float64) { prog.SetValue(v / 100) })
-				if err != nil {
-					dialog.ShowError(err, window)
+					handler.ShowError(err)
 					return
 				}
 
 				prog.Hide()
-				dialog.ShowInformation("Encode done", "Encode finished, your output file can be found here:\n"+uri, window)
+				handler.ShowInfo("Encode finished, your output file can be found here:\n" + uri)
 			}()
 		}, window)
 	})
