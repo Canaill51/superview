@@ -23,6 +23,92 @@ import (
 // Global logger instance
 var logger = slog.Default()
 
+// toolResolveCache stores resolved binary paths (ffmpeg/ffprobe) per process.
+var toolResolveCache sync.Map
+
+func newFFmpegCommand(args ...string) *exec.Cmd {
+	return exec.Command(resolveToolBinary("ffmpeg"), args...)
+}
+
+func newFFprobeCommand(args ...string) *exec.Cmd {
+	return exec.Command(resolveToolBinary("ffprobe"), args...)
+}
+
+func resolveToolBinary(tool string) string {
+	if cached, ok := toolResolveCache.Load(tool); ok {
+		return cached.(string)
+	}
+
+	if path, err := exec.LookPath(tool); err == nil {
+		toolResolveCache.Store(tool, path)
+		return path
+	}
+
+	if runtime.GOOS == "windows" {
+		if path := findWindowsToolBinary(tool); path != "" {
+			toolResolveCache.Store(tool, path)
+			return path
+		}
+	}
+
+	toolResolveCache.Store(tool, tool)
+	return tool
+}
+
+func findWindowsToolBinary(tool string) string {
+	exe := tool + ".exe"
+	// Common install paths used by winget/scoop/manual installs.
+	candidates := []string{
+		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", exe),
+		filepath.Join(os.Getenv("ProgramFiles"), "ffmpeg", "bin", exe),
+		filepath.Join(os.Getenv("ProgramFiles"), "FFmpeg", "bin", exe),
+		filepath.Join(os.Getenv("USERPROFILE"), "scoop", "apps", "ffmpeg", "current", "bin", exe),
+	}
+
+	for _, path := range candidates {
+		if path != "" {
+			if info, err := os.Stat(path); err == nil && !info.IsDir() {
+				return path
+			}
+		}
+	}
+
+	// Winget often extracts under LOCALAPPDATA/Microsoft/WinGet/Packages.
+	packageRoot := filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Packages")
+	dirs, err := os.ReadDir(packageRoot)
+	if err != nil {
+		return ""
+	}
+
+	lowerExe := strings.ToLower(exe)
+	for _, dir := range dirs {
+		if !dir.IsDir() {
+			continue
+		}
+		name := strings.ToLower(dir.Name())
+		if !strings.Contains(name, "ffmpeg") {
+			continue
+		}
+		root := filepath.Join(packageRoot, dir.Name())
+		var found string
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil || d == nil || d.IsDir() {
+				return nil
+			}
+			if strings.EqualFold(d.Name(), lowerExe) {
+				found = path
+				return errors.New("tool found")
+			}
+			return nil
+		})
+		if found != "" {
+			return found
+		}
+	}
+
+	return ""
+}
+
 // InvalidVideoError is returned when video metadata validation fails.
 // It indicates issues with video dimensions, codec, duration, or bitrate information.
 type InvalidVideoError struct {
@@ -169,7 +255,7 @@ func (v *VideoSpecs) Validate() error {
 func CheckFfmpeg() (map[string]string, error) {
 	ret := make(map[string]string)
 
-	cmd := exec.Command("ffmpeg", "-version")
+	cmd := newFFmpegCommand("-version")
 	prepareBackgroundCommand(cmd)
 	version, err := cmd.CombinedOutput()
 
@@ -180,7 +266,7 @@ func CheckFfmpeg() (map[string]string, error) {
 	ret["version"] = strings.Split(string(version), " ")[2]
 
 	// split on newline, skip first line
-	cmd = exec.Command("ffmpeg", "-hwaccels", "-hide_banner")
+	cmd = newFFmpegCommand("-hwaccels", "-hide_banner")
 	prepareBackgroundCommand(cmd)
 	accels, err := cmd.CombinedOutput()
 	accelsArr := strings.Split(strings.ReplaceAll(string(accels), "\r\n", "\n"), "\n")
@@ -191,7 +277,7 @@ func CheckFfmpeg() (map[string]string, error) {
 	}
 
 	// split on newline, skip first 10 lines
-	cmd = exec.Command("ffmpeg", "-encoders", "-hide_banner")
+	cmd = newFFmpegCommand("-encoders", "-hide_banner")
 	prepareBackgroundCommand(cmd)
 	encoders, err := cmd.CombinedOutput()
 	encodersArr := strings.Split(strings.ReplaceAll(string(encoders), "\r\n", "\n"), "\n")
@@ -284,7 +370,7 @@ func getSessionPaths() (xPath, yPath string, err error) {
 // Returns InvalidVideoError if required metadata is missing or invalid.
 func CheckVideo(file string) (*VideoSpecs, error) {
 	// Check specs of the input video (codec, dimensions, duration, bitrate)
-	cmd := exec.Command("ffprobe", "-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate", "-print_format", "json")
+	cmd := newFFprobeCommand("-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate", "-print_format", "json")
 	prepareBackgroundCommand(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -549,7 +635,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		args = append(args, baseArgs...)
 		args = append(args, output)
 
-		cmd := exec.Command("ffmpeg", args...)
+		cmd := newFFmpegCommand(args...)
 		prepareBackgroundCommand(cmd)
 		stdout, err := cmd.StdoutPipe()
 		rd := bufio.NewReader(stdout)

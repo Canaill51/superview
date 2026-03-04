@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -100,7 +99,7 @@ func checkFFprobeHealth(timestamp int64) HealthCheckResult {
 	}
 
 	// Try to run ffprobe -version
-	cmd := exec.Command("ffprobe", "-version")
+	cmd := newFFprobeCommand("-version")
 	prepareBackgroundCommand(cmd)
 	output, err := cmd.CombinedOutput()
 

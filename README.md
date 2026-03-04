@@ -140,7 +140,7 @@ Notes:
 - GUI bitrate is fixed from configuration (`max_bitrate`), there is no manual bitrate field.
 - Squeeze mode remains available in CLI (`-s`) but is not exposed in the simplified GUI.
 
-![GUI Screenshot](.github/sample-gui.png)
+GUI screenshot in this README is being refreshed to match the latest interface.
 
 ### Quick Run (CLI)
 
