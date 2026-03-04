@@ -81,12 +81,26 @@ func main() {
 					br = video.Streams[0].BitrateInt
 				}
 
+				// Validate bitrate (min 100k, max 50M bytes/sec)
+				if err := common.ValidateBitrate(br, 100000, 50000000); err != nil {
+					prog.Hide()
+					dialog.ShowError(err, window)
+					return
+				}
+
 				enc := video.Streams[0].Codec
 				if encoder.Selected != "Use same video codec as input file" {
 					enc = strings.Split(encoder.Selected, " ")[0]
 				}
 
-				err = common.EncodeVideo(video, common.FindEncoder(enc, ffmpeg, video), br, uri, func(v float64) { prog.SetValue(v / 100) })
+				selectedEncoder, err := common.FindEncoder(enc, ffmpeg, video)
+				if err != nil {
+					prog.Hide()
+					dialog.ShowError(err, window)
+					return
+				}
+
+				err = common.EncodeVideo(video, selectedEncoder, br, uri, func(v float64) { prog.SetValue(v / 100) })
 				if err != nil {
 					dialog.ShowError(err, window)
 					return

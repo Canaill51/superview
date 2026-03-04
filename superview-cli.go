@@ -49,7 +49,15 @@ func main() {
 		opts.Bitrate = video.Streams[0].BitrateInt
 	}
 
-	opts.Encoder = common.FindEncoder(opts.Encoder, ffmpeg, video)
+	// Validate bitrate (min 100k, max 50M bytes/sec)
+	if err := common.ValidateBitrate(opts.Bitrate, 100000, 50000000); err != nil {
+		log.Fatal(err)
+	}
+
+	encoder, err := common.FindEncoder(opts.Encoder, ffmpeg, video)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Initialize encoding session with secure temp directory
 	err = common.InitEncodingSession()
@@ -63,9 +71,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Re-encoding video with %s encoder at %d MB/s bitrate\n", opts.Encoder, opts.Bitrate/1024/1024)
+	fmt.Printf("Re-encoding video with %s encoder at %d MB/s bitrate\n", encoder, opts.Bitrate/1024/1024)
 
-	err = common.EncodeVideo(video, opts.Encoder, opts.Bitrate, opts.Output, func(v float64) {
+	err = common.EncodeVideo(video, encoder, opts.Bitrate, opts.Output, func(v float64) {
 		fmt.Printf("\rEncoding progress: %.2f%%", v)
 	})
 	if err != nil {

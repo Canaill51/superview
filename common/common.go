@@ -18,9 +18,34 @@ import (
 	"syscall"
 )
 
+// Custom error types for better error handling
+type InvalidVideoError struct {
+	Reason string
+}
+
+func (e *InvalidVideoError) Error() string {
+	return fmt.Sprintf("invalid video: %s", e.Reason)
+}
+
+type EncoderError struct {
+	Msg string
+}
+
+func (e *EncoderError) Error() string {
+	return fmt.Sprintf("encoder error: %s", e.Msg)
+}
+
+type SessionError struct {
+	Msg string
+}
+
+func (e *SessionError) Error() string {
+	return fmt.Sprintf("session error: %s", e.Msg)
+}
+
 // EncodingSession manages temporary files for a single encoding job
 type EncodingSession struct {
-	tempDir string
+	tempDir  string
 	pgmXPath string
 	pgmYPath string
 }
@@ -33,15 +58,45 @@ var (
 // VideoSpecs representing a video file
 type VideoSpecs struct {
 	File    string
-	Streams []struct {
-		Codec         string `json:"codec_name"`
-		Width         int
-		Height        int
-		Duration      string
-		DurationFloat float64
-		Bitrate       string `json:"bit_rate"`
-		BitrateInt    int
+	Streams []VideoStream
+}
+
+// VideoStream contains video stream metadata
+type VideoStream struct {
+	Codec         string  `json:"codec_name"`
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	Duration      string  `json:"duration"`
+	DurationFloat float64 `json:"-"`
+	Bitrate       string  `json:"bit_rate"`
+	BitrateInt    int     `json:"-"`
+}
+
+// Validate checks if video specs are valid
+func (v *VideoSpecs) Validate() error {
+	if len(v.Streams) == 0 {
+		return &InvalidVideoError{Reason: "no video streams found"}
 	}
+
+	stream := &v.Streams[0]
+
+	if stream.Width <= 0 || stream.Height <= 0 {
+		return &InvalidVideoError{Reason: fmt.Sprintf("invalid dimensions: %dx%d", stream.Width, stream.Height)}
+	}
+
+	if stream.DurationFloat <= 0 {
+		return &InvalidVideoError{Reason: "invalid or missing duration"}
+	}
+
+	if stream.BitrateInt <= 0 {
+		return &InvalidVideoError{Reason: "invalid or missing bitrate"}
+	}
+
+	if stream.Codec == "" {
+		return &InvalidVideoError{Reason: "no codec information"}
+	}
+
+	return nil
 }
 
 // Check for available codecs and hardware accelerators
@@ -157,23 +212,54 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 		return nil, fmt.Errorf("Error running ffprobe, output is:\n%s", out)
 	}
 
-	// Parse into struct
-	var specs VideoSpecs
-	json.Unmarshal(out, &specs)
+	// Parse ffprobe output
+	var response struct {
+		Streams []VideoStream `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse video metadata: %w", err)
+	}
 
-	// Add input file
-	specs.File = file
+	if len(response.Streams) == 0 {
+		return nil, &InvalidVideoError{Reason: "no video streams in file"}
+	}
 
-	// Parse duration to float
-	specs.Streams[0].DurationFloat, _ = strconv.ParseFloat(specs.Streams[0].Duration, 64)
+	specs := &VideoSpecs{
+		File:    file,
+		Streams: response.Streams,
+	}
 
-	// Parse bitrate to int
-	specs.Streams[0].BitrateInt, _ = strconv.Atoi(specs.Streams[0].Bitrate)
+	// Parse duration from first stream
+	durationFloat, err := strconv.ParseFloat(specs.Streams[0].Duration, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid duration value '%s': %w", specs.Streams[0].Duration, err)
+	}
+	specs.Streams[0].DurationFloat = durationFloat
 
-	return &specs, nil
+	// Parse bitrate from first stream
+	if specs.Streams[0].Bitrate == "" {
+		return nil, &InvalidVideoError{Reason: "bitrate information not available"}
+	}
+	bitrateInt, err := strconv.Atoi(specs.Streams[0].Bitrate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid bitrate value '%s': %w", specs.Streams[0].Bitrate, err)
+	}
+	specs.Streams[0].BitrateInt = bitrateInt
+
+	// Validate all required data is present
+	if err := specs.Validate(); err != nil {
+		return nil, err
+	}
+
+	return specs, nil
 }
 
 func GeneratePGM(video *VideoSpecs, squeeze bool) error {
+	// Validate video before processing
+	if err := video.Validate(); err != nil {
+		return err
+	}
+
 	var outX int
 
 	if squeeze {
@@ -253,18 +339,46 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	return nil
 }
 
-func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) string {
+// ValidateBitrate checks if bitrate is within acceptable ranges
+func ValidateBitrate(bitrate int, minBitrate int, maxBitrate int) error {
+	if bitrate <= 0 {
+		return fmt.Errorf("bitrate must be positive, got %d", bitrate)
+	}
+	if minBitrate > 0 && bitrate < minBitrate {
+		return fmt.Errorf("bitrate %d is below minimum %d bytes/second", bitrate, minBitrate)
+	}
+	if maxBitrate > 0 && bitrate > maxBitrate {
+		return fmt.Errorf("bitrate %d exceeds maximum %d bytes/second", bitrate, maxBitrate)
+	}
+	return nil
+}
+
+func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (string, error) {
+	if len(video.Streams) == 0 {
+		return "", &InvalidVideoError{Reason: "no video streams"}
+	}
+
 	encoder := video.Streams[0].Codec
 
 	if codec != "" {
+		found := false
 		for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
 			if enc == codec {
 				encoder = enc
+				found = true
+				break
 			}
+		}
+		if !found {
+			return "", &EncoderError{Msg: fmt.Sprintf("encoder %s not available. Available encoders: %s", codec, ffmpeg["encoders"])}
 		}
 	}
 
-	return encoder
+	if encoder == "" {
+		return "", &EncoderError{Msg: "no encoder found"}
+	}
+
+	return encoder, nil
 }
 
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, callback func(float64)) error {
@@ -309,7 +423,12 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 
 		if bytes.Contains(line, []byte("out_time_ms=")) {
 			time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
-			timeF, _ := strconv.ParseFloat(string(time), 64)
+			timeF, err := strconv.ParseFloat(string(time), 64)
+			if err != nil {
+				// Log warning but continue, don't fail the entire encode
+				fmt.Fprintf(os.Stderr, "warning: failed to parse progress value: %v\n", err)
+				continue
+			}
 			callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
 		}
 	}
