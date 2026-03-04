@@ -46,6 +46,12 @@ go build superview-gui.go   # Graphical interface
 go build superview-cli.go   # Command-line tool
 ```
 
+On Windows, build the GUI without a console window:
+
+```powershell
+go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+```
+
 ## Usage
 
 ### GUI
@@ -202,12 +208,30 @@ common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 # Run tests with coverage
 go test ./common -cover
 
+# Run package tests (repo root has 2 mains)
+go test ./common
+
 # Build binaries
 go build superview-cli.go
 go build superview-gui.go
 
 # Cross-platform build
 ./build.sh v1.0.0  # Requires fyne-cross
+```
+
+```powershell
+# Windows GUI build without terminal window
+go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+```
+
+```bash
+# OS-specific make targets
+make build-cli-linux
+make build-cli-macos
+make build-cli-windows
+make build-gui-linux
+make build-gui-macos
+make build-gui-windows
 ```
 
 ### Recent Improvements

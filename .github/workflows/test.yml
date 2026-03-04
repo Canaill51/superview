@@ -99,27 +99,108 @@ jobs:
             body: `## Coverage Report\n\`\`\`\n${coverage}\n\`\`\``
           });
 
-  build:
-    name: Build Binaries
-    runs-on: ubuntu-latest
-    
+  native-build-matrix:
+    name: Native Build ${{ matrix.label }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-amd64
+            runner: ubuntu-latest
+            expected_goos: linux
+            expected_goarch: amd64
+          - label: macos-amd64
+            runner: macos-13
+            expected_goos: darwin
+            expected_goarch: amd64
+          - label: macos-arm64
+            runner: macos-14
+            expected_goos: darwin
+            expected_goarch: arm64
+          - label: windows-amd64
+            runner: windows-latest
+            expected_goos: windows
+            expected_goarch: amd64
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.22'
-    
-    - name: Build CLI
-      run: go build -o superview-cli superview-cli.go
-    
-    - name: Build GUI
-      run: go build -o superview-gui superview-gui.go
-    
-    - name: Verify binaries
+
+    - name: Install Linux GUI dependencies
+      if: runner.os == 'Linux'
       run: |
-        test -f superview-cli || exit 1
-        test -f superview-gui || exit 1
-        echo "✅ Both binaries built successfully"
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxi-dev \
+          libxxf86vm-dev
+
+    - name: Validate native runner architecture
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(go env GOOS)" = "${{ matrix.expected_goos }}"
+        test "$(go env GOARCH)" = "${{ matrix.expected_goarch }}"
+        echo "Native runner verified: $(go env GOOS)/$(go env GOARCH)"
+
+    - name: Validate native runner architecture (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $goos = go env GOOS
+        $goarch = go env GOARCH
+        if ($goos -ne '${{ matrix.expected_goos }}') { throw "Expected GOOS=${{ matrix.expected_goos }}, got $goos" }
+        if ($goarch -ne '${{ matrix.expected_goarch }}') { throw "Expected GOARCH=${{ matrix.expected_goarch }}, got $goarch" }
+        Write-Host "Native runner verified: $goos/$goarch"
+
+    - name: Build CLI (native)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        go build -o "build/superview-cli-${{ matrix.label }}" superview-cli.go
+
+    - name: Build GUI (native)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        go build -o "build/superview-gui-${{ matrix.label }}" superview-gui.go
+
+    - name: Build CLI/GUI (native, Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        go build -o "build/superview-cli-${{ matrix.label }}.exe" superview-cli.go
+        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" superview-gui.go
+
+    - name: Verify build outputs
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -f "build/superview-cli-${{ matrix.label }}"
+        test -f "build/superview-gui-${{ matrix.label }}"
+        echo "✅ Native build outputs verified"
+
+    - name: Verify build outputs (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (-not (Test-Path "build/superview-cli-${{ matrix.label }}.exe")) { throw 'CLI artifact missing' }
+        if (-not (Test-Path "build/superview-gui-${{ matrix.label }}.exe")) { throw 'GUI artifact missing' }
+        Write-Host "✅ Native build outputs verified"

@@ -151,7 +151,7 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        GOOS=darwin GOARCH="$ARCH" go build -ldflags="-s -w" -o "build/superview-gui-darwin-${ARCH}" superview-gui.go
+        GOOS=darwin GOARCH="$ARCH" go build -ldflags="-s -w" -o "build/superview-gui-macos-${ARCH}" superview-gui.go
     
     - name: Create archives
       shell: bash
@@ -163,13 +163,13 @@ jobs:
           arm64) ARCH_LABEL="aarch64" ;;
           *) ARCH_LABEL="$ARCH" ;;
         esac
-        zip "superview-gui-0.0.0-SNAPSHOT-Darwin-${ARCH_LABEL}.zip" "build/superview-gui-darwin-${ARCH}"
+        zip "superview-gui-0.0.0-SNAPSHOT-macos-${ARCH_LABEL}.zip" "build/superview-gui-macos-${ARCH}"
     
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@v4
       with:
         name: gui-macos-artifacts
-        path: superview-gui-0.0.0-SNAPSHOT-Darwin-*.zip
+        path: superview-gui-0.0.0-SNAPSHOT-macos-*.zip
 
   build-gui-windows:
     name: Build GUI (Windows)
@@ -191,7 +191,7 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        GOOS=windows GOARCH="$ARCH" go build -ldflags="-s -w" -o "build/superview-gui-windows-${ARCH}.exe" superview-gui.go
+        GOOS=windows GOARCH="$ARCH" go build -ldflags="-s -w -H=windowsgui" -o "build/superview-gui-windows-${ARCH}.exe" superview-gui.go
     
     - name: Create archives
       shell: pwsh

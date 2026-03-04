@@ -61,6 +61,19 @@ func chooseInputFileNative() (string, error) {
 			return normalizeNativeDialogResult(path, runErr)
 		}
 	}
+	if runtime.GOOS == "windows" {
+		script := strings.Join([]string{
+			"Add-Type -AssemblyName System.Windows.Forms",
+			"$dialog = New-Object System.Windows.Forms.OpenFileDialog",
+			"$dialog.Title = 'Select input video'",
+			"$dialog.Filter = 'Video Files|*.mp4;*.MP4;*.mov;*.MOV;*.mkv;*.MKV;*.avi;*.AVI;*.m4v;*.M4V;*.webm;*.WEBM;*.flv;*.FLV;*.wmv;*.WMV;*.mpeg;*.MPEG;*.mpg;*.MPG|All Files|*.*'",
+			"$dialog.CheckFileExists = $true",
+			"$dialog.Multiselect = $false",
+			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
+		}, "; ")
+		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+		return normalizeNativeDialogResult(path, runErr)
+	}
 	return "", fmt.Errorf("native file dialog not available on this system")
 }
 
@@ -74,6 +87,21 @@ func chooseOutputFileNative() (string, error) {
 			path, runErr := runCommandAndGetPath("kdialog", "--getsavefilename", "output.mp4", "Videos (*.mp4)")
 			return normalizeNativeDialogResult(path, runErr)
 		}
+	}
+	if runtime.GOOS == "windows" {
+		script := strings.Join([]string{
+			"Add-Type -AssemblyName System.Windows.Forms",
+			"$dialog = New-Object System.Windows.Forms.SaveFileDialog",
+			"$dialog.Title = 'Save output video'",
+			"$dialog.Filter = 'MP4 Video|*.mp4|All Files|*.*'",
+			"$dialog.DefaultExt = 'mp4'",
+			"$dialog.AddExtension = $true",
+			"$dialog.OverwritePrompt = $true",
+			"$dialog.FileName = 'output.mp4'",
+			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
+		}, "; ")
+		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+		return normalizeNativeDialogResult(path, runErr)
 	}
 	return "", fmt.Errorf("native file dialog not available on this system")
 }

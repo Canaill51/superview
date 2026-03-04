@@ -31,11 +31,12 @@
    - Uploads to Codecov for trend tracking
    - Comments on PRs with coverage metrics
 
-3. **Binary Building**
-   - Builds CLI binary: `superview-cli`
-   - Builds GUI binary: `superview-gui`
-   - Verifies both binaries compile without errors
-   - Fails build if either binary cannot be created
+3. **Native Build Matrix**
+   - Builds CLI and GUI binaries on native runners (no cross-compilation shortcuts)
+   - Platforms verified: Linux amd64, macOS amd64, macOS arm64, Windows amd64
+   - Verifies runner architecture with `go env GOOS/GOARCH` before building
+   - Applies Windows GUI subsystem flag (`-H=windowsgui`) for GUI artifacts
+   - Fails the workflow if any native build output is missing
 
 **Key Metrics:**
 ```yaml
@@ -123,6 +124,12 @@
 make build          # Build CLI and GUI
 make build-cli      # Build CLI only
 make build-gui      # Build GUI only
+make build-cli-linux
+make build-cli-macos
+make build-cli-windows
+make build-gui-linux
+make build-gui-macos
+make build-gui-windows
 
 # Testing
 make test           # Run tests only

@@ -34,8 +34,8 @@
 ## Build and Test
 - Build CLI: `go build superview-cli.go`
 - Build GUI: `go build superview-gui.go`
-- Run tests (if present): `go test ./...`
-- Preferred verification order for small changes: build touched binary first, then `go test ./...`.
+- Run tests (if present): `go test ./common`
+- Preferred verification order for small changes: build touched binary first, then `go test ./common`.
 - Cross-build/release script: `./build.sh <version>`
   - Requires `fyne-cross`.
   - Creates git tags and pushes tags at the end; do not run automatically unless release intent is explicit.
