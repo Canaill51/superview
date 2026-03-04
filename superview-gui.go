@@ -60,7 +60,16 @@ func main() {
 			prog.Show()
 
 			go func() {
-				err := common.GeneratePGM(video, squeeze.Checked)
+				// Initialize encoding session with secure temp directory
+				err := common.InitEncodingSession()
+				if err != nil {
+					prog.Hide()
+					dialog.ShowError(err, window)
+					return
+				}
+				defer common.CleanUp()
+
+				err = common.GeneratePGM(video, squeeze.Checked)
 				if err != nil {
 					prog.Hide()
 					dialog.ShowError(err, window)
@@ -78,12 +87,6 @@ func main() {
 				}
 
 				err = common.EncodeVideo(video, common.FindEncoder(enc, ffmpeg, video), br, uri, func(v float64) { prog.SetValue(v / 100) })
-				if err != nil {
-					dialog.ShowError(err, window)
-					return
-				}
-
-				err = common.CleanUp()
 				if err != nil {
 					dialog.ShowError(err, window)
 					return

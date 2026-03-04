@@ -36,8 +36,7 @@ func main() {
 
 	_, err = os.Stat(opts.Input)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error opening input file: %s", opts.Input))
-		log.Fatal(err)
+		log.Fatalf("Error opening input file: %s\n", opts.Input)
 	}
 
 	video, err := common.CheckVideo(opts.Input)
@@ -52,7 +51,17 @@ func main() {
 
 	opts.Encoder = common.FindEncoder(opts.Encoder, ffmpeg, video)
 
-	common.GeneratePGM(video, opts.Squeeze)
+	// Initialize encoding session with secure temp directory
+	err = common.InitEncodingSession()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer common.CleanUp()
+
+	err = common.GeneratePGM(video, opts.Squeeze)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Printf("Re-encoding video with %s encoder at %d MB/s bitrate\n", opts.Encoder, opts.Bitrate/1024/1024)
 
@@ -60,10 +69,6 @@ func main() {
 		fmt.Printf("\rEncoding progress: %.2f%%", v)
 	})
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := common.CleanUp(); err != nil {
 		log.Fatal(err)
 	}
 

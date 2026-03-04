@@ -11,9 +11,23 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+)
+
+// EncodingSession manages temporary files for a single encoding job
+type EncodingSession struct {
+	tempDir string
+	pgmXPath string
+	pgmYPath string
+}
+
+var (
+	currentSession *EncodingSession
+	sessionMutex   sync.Mutex
 )
 
 // VideoSpecs representing a video file
@@ -79,6 +93,61 @@ func GetHeader(ffmpeg map[string]string) string {
 	return fmt.Sprintf("- ffmpeg version: %s\n- Hardware accelerators: %s\n- H.264/H.265 encoders: %s\n\n", ffmpeg["version"], ffmpeg["accels"], ffmpeg["encoders"])
 }
 
+func isValidPath(path string) bool {
+	// Ensure path doesn't escape the intended directory via .. or other tricks
+	clean := filepath.Clean(path)
+	return clean == path && filepath.IsAbs(clean)
+}
+
+func InitEncodingSession() error {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
+
+	if currentSession != nil {
+		return errors.New("encoding session already active")
+	}
+
+	tempDir, err := os.MkdirTemp("", "superview-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	session := &EncodingSession{
+		tempDir: tempDir,
+		pgmXPath: filepath.Join(tempDir, "x.pgm"),
+		pgmYPath: filepath.Join(tempDir, "y.pgm"),
+	}
+
+	currentSession = session
+	return nil
+}
+
+func CloseEncodingSession() error {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
+
+	if currentSession == nil {
+		return nil
+	}
+
+	defer func() {
+		currentSession = nil
+	}()
+
+	return os.RemoveAll(currentSession.tempDir)
+}
+
+func getSessionPaths() (xPath, yPath string, err error) {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
+
+	if currentSession == nil {
+		return "", "", errors.New("no encoding session active")
+	}
+
+	return currentSession.pgmXPath, currentSession.pgmYPath, nil
+}
+
 func CheckVideo(file string) (*VideoSpecs, error) {
 	// Check specs of the input video (codec, dimensions, duration, bitrate)
 	cmd := exec.Command("ffprobe", "-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate", "-print_format", "json")
@@ -117,13 +186,19 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	fmt.Printf("Scaling input file %s (codec: %s, duration: %d secs) from %d*%d to %d*%d using superview scaling. Squeeze: %t\n", video.File, video.Streams[0].Codec, int(video.Streams[0].DurationFloat), video.Streams[0].Width, video.Streams[0].Height, outX, outY, squeeze)
 
 	// Generate PGM P2 files for remap filter, see https://trac.ffmpeg.org/wiki/RemapFilter
-	fX, err := os.Create("x.pgm")
+	xPath, yPath, err := getSessionPaths()
 	if err != nil {
 		return err
 	}
-	fY, err := os.Create("y.pgm")
+
+	fX, err := os.Create(xPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create temp file x.pgm: %w", err)
+	}
+	fY, err := os.Create(yPath)
+	if err != nil {
+		fX.Close()
+		return fmt.Errorf("failed to create temp file y.pgm: %w", err)
 	}
 	defer fX.Close()
 	defer fY.Close()
@@ -193,8 +268,14 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) stri
 }
 
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, callback func(float64)) error {
+	// Get the session paths for PGM files
+	xPath, yPath, err := getSessionPaths()
+	if err != nil {
+		return err
+	}
+
 	// Starting encoder, write progress to stdout pipe
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-progress", "pipe:1", "-loglevel", "panic", "-y", "-re", "-i", video.File, "-i", "x.pgm", "-i", "y.pgm", "-filter_complex", "remap,format=yuv444p,format=yuv420p", "-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac", "-x265-params", "log-level=error", output)
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-progress", "pipe:1", "-loglevel", "panic", "-y", "-re", "-i", video.File, "-i", xPath, "-i", yPath, "-filter_complex", "remap,format=yuv444p,format=yuv420p", "-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac", "-x265-params", "log-level=error", output)
 	prepareBackgroundCommand(cmd)
 	stdout, err := cmd.StdoutPipe()
 	rd := bufio.NewReader(stdout)
@@ -241,11 +322,5 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 }
 
 func CleanUp() error {
-	for _, file := range []string{"x.pgm", "y.pgm"} {
-		if err := os.Remove(file); err != nil {
-			return fmt.Errorf("Error deleting %s, output is:\n%s", file, err)
-		}
-	}
-
-	return nil
+	return CloseEncodingSession()
 }
