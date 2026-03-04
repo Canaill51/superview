@@ -3,56 +3,213 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-This is a small Go program that takes a 4:3 aspect ratio video file, and transforms it to a 16:9 video using the [GoPro SuperView](https://gopro.com/help/articles/question_answer/What-is-SuperView) method. This means that the image is not naively scaled, but a dynamic scaling is applied where the outer areas are stretched more while the center parts stay close to the original aspect rate.
+Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
-This is not a 1-1 copy of the GoPro algorithm, but an attempt to reach similar quality of output using the open-source [FFmpeg](https://ffmpeg.org/) encoder.
+## Quick Links
 
-Credits for the idea go to _Banelle_, who wrote the [initial (Python) implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview).
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage (GUI/CLI)](#usage)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [API Documentation](#api-documentation)
+- [Development](#development)
+
+## Overview
+
+This program applies sophisticated distortion to convert 4:3 video to 16:9 widescreen:
+
+- **Dynamic Scaling**: Outer areas stretched more aggressively, center maintains aspect ratio
+- **Squeeze Mode**: Special handling for horizontally-stretched sources
+- **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
+- **Flexible Configuration**: Customizable bitrate constraints and encoder selection
+
+The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
 Here is a quick animation showing the scaling, note how the text in the center stays the same:
 
-![alt text](.github/sample.gif "Sample of the scaling result")
+![Sample of scaling result](.github/sample.gif)
 
 ## Requirements
 
-This program requires FFmpeg to be installed on your computer. If needed, please install it using one of these ways:
-
-- **Linux**: install from your local package manager, for example: `apt instal ffmpeg`
-- **Windows**: Download from https://www.gyan.dev/ffmpeg/builds/ and extract the `ffmpeg-release-full` 7ZIP file in the same directory as superview
-- **macOS**: Download from https://evermeet.cx/ffmpeg/ and put in the same folder as superview, or install using Homebrew: `brew install ffmpeg`
+- **FFmpeg 6.0+**: Install via `apt install ffmpeg` (Linux), `brew install ffmpeg` (macOS), or download from https://www.gyan.dev/ffmpeg/builds/ (Windows)
+- **Go 1.22+**: Only needed for building from source
 
 ## Installation
 
-Download the latest release from the [releases page on GitHub](https://github.com/Niek/superview/releases). There are two versions: a graphical version called `superview-gui` and a command line program called `superview-cli`.
+Download from the [releases page](https://github.com/Niek/superview/releases), or build from source:
+
+```bash
+go build superview-gui.go   # Graphical interface
+go build superview-cli.go   # Command-line tool
+```
 
 ## Usage
 
-#### GUI
-To run `superview-gui`, simply double-click the icon. Choose an input video file, optionally change some settings and click "Encode". The program will ask you where to save the output.
+### GUI
 
-![alt text](.github/sample-gui.png "Sample of GUI")
+Double-click `superview-gui` and:
 
-#### CLI
-To use `superview-cli`, run the program with the `-i` (input file) parameter. Optionally, you can provide a `-o` (output) and `-b` (bitrate) parameter. Full usage instructions:
+1. Click **Open...** to select a video
+2. (Optional) Adjust encoder, bitrate, or enable squeeze mode
+3. Click **Encode the video...**
+4. Select output location
+5. Wait for encoding
+
+![GUI Screenshot](.github/sample-gui.png)
+
+### CLI
+
+```bash
+# Basic usage
+./superview-cli -i input.mp4 -o output.mp4
+
+# Custom options
+./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
+
+# Get help
+./superview-cli -h
+```
+
+#### Options
 
 ```
-Usage:
-  superview-cli [OPTIONS]
+  -i, --input=FILE      (required) Input video file path
+  -o, --output=FILE     (optional) Output file (default: output.mp4)
+  -e, --encoder=ENCODER Selected encoder (default: input codec)
+  -b, --bitrate=BITRATE Output bitrate in bytes/second
+  -s, --squeeze         Apply squeeze filter for stretched sources
+```
 
-Application Options:
-  -i, --input=FILE         The input video filename
-  -o, --output=FILE        The output video filename (default: output.mp4)
-  -e, --encoder=ENCODER    The encoder to use, use -h to see a list. If not specified, it takes the standard encoder of the input file codec
-  -b, --bitrate=BITRATE    The bitrate in bytes/second to encode in. If not specified, take the same bitrate as the input file
-  -s, --squeeze            Squeeze 4:3 video stretched to 16:9 (e.g. Caddx Tarsier 2.7k60)
+### Configuration
 
-Help Options:
-  -h, --help               Show this help message
+Edit `superview.yaml` to customize:
+
+```yaml
+min_bitrate: 102400       # ~0.1 Mbps minimum
+max_bitrate: 52428800     # ~50 Mbps maximum
+temp_dir_prefix: "superview-*"
+encoder_codecs: ["264", "265", "hevc"]
+log_level: info
+```
+
+Override with environment variables:
+
+```bash
+export SUPERVIEW_MIN_BITRATE=262144
+export SUPERVIEW_MAX_BITRATE=20971520
+export SUPERVIEW_LOG_LEVEL=debug
+./superview-cli -i input.mp4 -o output.mp4
+```
+
+## Architecture
+
+### Project Structure
+
+```
+superview/
+├── common/
+│   ├── common.go          # Core encoding pipeline
+│   ├── common_test.go     # Unit tests
+│   ├── config.go          # Configuration management
+│   ├── config_test.go     # Config tests
+│   └── command-*.go       # OS-specific process setup
+├── superview-cli.go       # CLI entry point
+├── superview-gui.go       # GUI entry point (Fyne)
+└── superview.yaml         # Default configuration
+```
+
+### Encoding Pipeline
+
+```
+Input → CheckFfmpeg → CheckVideo → PerformEncoding → CleanUp → Output
+                                         ↓
+                               GetBitrate + ValidateBitrate
+                               GetEncoder + FindEncoder
+                               InitEncodingSession
+                               GeneratePGM (create remap filters)
+                               EncodeVideo (ffmpeg with progress)
+```
+
+## API Documentation
+
+Public API in `common` package:
+
+```go
+// Configuration
+GetConfig() *Config
+SetConfig(cfg *Config)
+LoadConfig(filepath string) (*Config, error)
+CreateDefaultConfig(filepath string) error
+
+// Logging
+SetLogger(l *slog.Logger)
+GetLogger() *slog.Logger
+
+// Encoding Workflow
+CheckFfmpeg() (map[string]string, error)
+CheckVideo(file string) (*VideoSpecs, error)
+PerformEncoding(inputFile, outputFile string, ui UIHandler, 
+                ffmpeg map[string]string) error
+```
+
+Implement the `UIHandler` interface for custom UIs:
+
+```go
+type UIHandler interface {
+    ShowError(error)
+    ShowInfo(msg string)
+    ShowProgress(percent float64)
+    GetBitrate() (int, error)
+    GetEncoder() string
+    GetSqueeze() bool
+}
+```
+
+### Example: Custom Handler
+
+```go
+type MyHandler struct{}
+
+func (h *MyHandler) ShowError(err error) { log.Printf("ERROR: %v\n", err) }
+func (h *MyHandler) ShowInfo(msg string) { fmt.Println("INFO:", msg) }
+func (h *MyHandler) ShowProgress(percent float64) { fmt.Printf("%.1f%%\r", percent) }
+func (h *MyHandler) GetBitrate() (int, error) { return 5242880, nil }
+func (h *MyHandler) GetEncoder() string { return "libx265" }
+func (h *MyHandler) GetSqueeze() bool { return false }
+
+// Use it
+ffmpeg, _ := common.CheckFfmpeg()
+common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 ```
 
 ## Development
 
-If you want superview from source, run `go build superview-gui.go` or `go build superview-cli.go` depending on which version you'd like to build. See [build.sh](/build.sh) for an example how to cross-compile.
+### Build & Test
+
+```bash
+# Run tests with coverage
+go test ./... -cover
+
+# Build binaries
+go build superview-cli.go
+go build superview-gui.go
+
+# Cross-platform build
+./build.sh v1.0.0  # Requires fyne-cross
+```
+
+### Recent Improvements
+
+- **Étape 1**: Go 1.22+, dependency updates
+- **Étape 2**: Secure temp file handling
+- **Étape 3**: Custom error types, validation
+- **Étape 4**: UIHandler interface, reduced duplication
+- **Étape 5**: 32 comprehensive unit tests
+- **Étape 6**: Structured logging with slog
+- **Étape 7**: External configuration (YAML + env vars)
+- **Étape 8**: Full documentation (Godoc + this README)
 
 ## Contributors ✨
 

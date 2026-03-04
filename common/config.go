@@ -11,22 +11,26 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config contains all configuration parameters for the video encoding pipeline
+// Config contains all configuration parameters for the video encoding pipeline.
+// Values can be loaded from YAML files and overridden via environment variables.
+// See superview.yaml for an example configuration file with documentation.
 type Config struct {
-	// Bitrate constraints (bytes/second)
+	// Bitrate constraints in bytes/second
+	// MinBitrate: minimum acceptable output bitrate (prevents lossy compression)
+	// MaxBitrate: maximum acceptable output bitrate (controls file size)
 	MinBitrate int `yaml:"min_bitrate" default:"102400"`      // 100k bytes/sec (~0.1 Mbps)
 	MaxBitrate int `yaml:"max_bitrate" default:"52428800"`    // 50M bytes/sec (~50 Mbps)
 
-	// Temporary file settings
+	// TempDirPrefix is the template for temporary directory creation
 	TempDirPrefix string `yaml:"temp_dir_prefix" default:"superview-*"`
 
-	// Encoder preferences
+	// EncoderCodecs is a list of H.264/H.265 encoder codec identifiers to recognize
 	EncoderCodecs []string `yaml:"encoder_codecs" default:"264,265,hevc"`
 
-	// Default logging level (debug, info, warn, error)
+	// LogLevel controls the verbosity of logging (debug, info, warn, error)
 	LogLevel string `yaml:"log_level" default:"info"`
 
-	// Video constraints
+	// MinVideoWidth and MinVideoHeight enforce minimum input video dimensions
 	MinVideoWidth  int `yaml:"min_video_width" default:"320"`
 	MinVideoHeight int `yaml:"min_video_height" default:"240"`
 }
@@ -43,12 +47,13 @@ var defaultConfig = &Config{
 
 var currentConfig = defaultConfig
 
-// GetConfig returns the current configuration
+// GetConfig returns the current global configuration used by the encoding pipeline.
 func GetConfig() *Config {
 	return currentConfig
 }
 
-// SetConfig sets the global configuration
+// SetConfig sets the global configuration.
+// If nil is passed, the configuration is unchanged.
 func SetConfig(cfg *Config) {
 	if cfg != nil {
 		currentConfig = cfg
@@ -60,7 +65,10 @@ func SetConfig(cfg *Config) {
 	}
 }
 
-// LoadConfig loads configuration from a YAML file, with environment variable overrides
+// LoadConfig loads configuration from a YAML file and applies environment variable overrides.
+// If filepath is empty, returns default configuration.
+// Environment variables (SUPERVIEW_*) override values from the YAML file.
+// Returns an error only if the file cannot be read (not if file doesn't exist).
 func LoadConfig(filepath string) (*Config, error) {
 	config := &Config{}
 
@@ -126,7 +134,9 @@ func LoadConfig(filepath string) (*Config, error) {
 	return config, nil
 }
 
-// CreateDefaultConfig creates a default config file at the specified path
+// CreateDefaultConfig creates a default configuration file at the specified path.
+// The file includes commented documentation for all configuration options.
+// Useful for generating initial configuration templates for users.
 func CreateDefaultConfig(filepath string) error {
 	data, err := yaml.Marshal(defaultConfig)
 	if err != nil {
