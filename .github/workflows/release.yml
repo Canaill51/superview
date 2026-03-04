@@ -64,7 +64,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Upload CLI artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: cli-artifacts
         path: dist/superview-*.{tar.gz,zip}
@@ -115,7 +115,7 @@ jobs:
         tar -czf ../superview-gui-0.0.0-SNAPSHOT-Linux-aarch64.tar.gz superview-gui-linux-arm64
     
     - name: Upload GUI artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gui-linux-artifacts
         path: superview-gui-0.0.0-SNAPSHOT-Linux-*.tar.gz
@@ -150,7 +150,7 @@ jobs:
         zip ../superview-gui-0.0.0-SNAPSHOT-Darwin-aarch64.zip superview-gui-darwin-arm64
     
     - name: Upload GUI artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gui-macos-artifacts
         path: superview-gui-0.0.0-SNAPSHOT-Darwin-*.zip
@@ -192,7 +192,7 @@ jobs:
         zip ../superview-gui-0.0.0-SNAPSHOT-Windows-i386.zip superview-gui-windows-386.exe
     
     - name: Upload GUI artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gui-windows-artifacts
         path: superview-gui-0.0.0-SNAPSHOT-Windows-*.zip
@@ -210,7 +210,7 @@ jobs:
         fetch-depth: 0
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
     
