@@ -117,10 +117,19 @@ go build -o superview-cli.exe superview-cli.go
 
 ## Usage
 
-### GUI
+### Quick Run (GUI)
 
-Launch `superview-gui` (`superview-gui.exe` on Windows) and:
+Linux/macOS:
+```bash
+./superview-gui
+```
 
+Windows (PowerShell):
+```powershell
+.\superview-gui.exe
+```
+
+GUI workflow:
 1. Click **1) Choose input file**
 2. (Optional) Select **Output codec**
 3. Click **2) Choose output file**
@@ -133,24 +142,20 @@ Notes:
 
 ![GUI Screenshot](.github/sample-gui.png)
 
-### CLI
+### Quick Run (CLI)
 
+Linux/macOS:
 ```bash
-# Basic usage
-./superview-cli -i input.mp4 -o output.mp4   # Linux/macOS
-
-# Custom options
-./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s   # Linux/macOS
-
-# Get help
-./superview-cli -h   # Linux/macOS
+./superview-cli -i input.mp4 -o output.mp4
+./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
+./superview-cli -h
 ```
 
+Windows (PowerShell):
 ```powershell
-# Windows examples
-superview-cli.exe -i input.mp4 -o output.mp4
-superview-cli.exe -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
-superview-cli.exe -h
+.\superview-cli.exe -i input.mp4 -o output.mp4
+.\superview-cli.exe -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
+.\superview-cli.exe -h
 ```
 
 #### Options
