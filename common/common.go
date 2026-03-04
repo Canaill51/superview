@@ -530,10 +530,10 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 	}
 
 	baseArgs := []string{
-		"-hide_banner", "-progress", "pipe:1", "-loglevel", "panic", "-y", "-re",
+		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y", "-re",
 		"-threads", strconv.Itoa(runtime.NumCPU()),
 		"-i", video.File, "-i", xPath, "-i", yPath,
-		"-filter_complex", "remap,format=yuv444p,format=yuv420p",
+		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
 		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac",
 	}
 
@@ -553,6 +553,8 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		prepareBackgroundCommand(cmd)
 		stdout, err := cmd.StdoutPipe()
 		rd := bufio.NewReader(stdout)
+		stderrBytes := new(bytes.Buffer)
+		cmd.Stderr = stderrBytes
 
 		if err != nil {
 			return err
@@ -595,6 +597,9 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		}
 
 		if err := cmd.Wait(); err != nil {
+			if stderrBytes.Len() > 0 {
+				return fmt.Errorf("Error running ffmpeg, output is:\n%s\nffmpeg stderr:\n%s", err, stderrBytes.String())
+			}
 			return fmt.Errorf("Error running ffmpeg, output is:\n%s", err)
 		}
 
@@ -623,7 +628,29 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		slog.String("encoder", encoder),
 		slog.Int("threads", runtime.NumCPU()),
 	)
-	return run("")
+	err = run("")
+	if err == nil {
+		return nil
+	}
+
+	if isHardwareEncoder(encoder) {
+		fallbackEncoder := ""
+		if strings.Contains(encoder, "h264") {
+			fallbackEncoder = "libx264"
+		} else if strings.Contains(encoder, "hevc") || strings.Contains(encoder, "265") {
+			fallbackEncoder = "libx265"
+		}
+
+		if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
+			logger.Warn("Hardware encoder failed, retrying with CPU encoder",
+				slog.String("failed_encoder", encoder),
+				slog.String("fallback_encoder", fallbackEncoder),
+			)
+			return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback)
+		}
+	}
+
+	return err
 }
 
 func CleanUp() error {

@@ -53,7 +53,7 @@ func (h *GUIHandler) GetEncoder() string {
 		return ""
 	}
 	if h.encoder.Selected == "Use same video codec as input file" {
-		return h.video.Streams[0].Codec
+		return ""
 	}
 	// Extract encoder name from "libx265 encoder" format
 	return strings.Split(h.encoder.Selected, " ")[0]
