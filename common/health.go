@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -131,16 +130,12 @@ func checkDiskSpaceHealth(timestamp int64) HealthCheckResult {
 
 	// Check temp directory
 	tempDir := os.TempDir()
-	tempStat := syscall.Statfs_t{}
-	if err := syscall.Statfs(tempDir, &tempStat); err != nil {
+	tempFreeGB, err := getFreeDiskGB(tempDir)
+	if err != nil {
 		result.Healthy = false
 		result.Message = fmt.Sprintf("Could not check temp disk: %v", err)
 		return result
 	}
-
-	// Calculate free space in bytes
-	tempFreeBytes := tempStat.Bavail * uint64(tempStat.Bsize)
-	tempFreeGB := float64(tempFreeBytes) / (1024 * 1024 * 1024)
 
 	// Warning threshold: less than 10GB free
 	if tempFreeGB < 10 {
