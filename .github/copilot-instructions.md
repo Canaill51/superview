@@ -1,0 +1,53 @@
+# Project Guidelines
+
+## Code Style
+- Language: Go (`go.mod` uses module `superview`, Go 1.13).
+- Keep changes minimal and consistent with existing straightforward style in `superview-cli.go`, `superview-gui.go`, and `common/common.go`.
+- Prefer explicit error returns and `log.Fatal`/`dialog.ShowError` patterns already used by CLI/GUI entrypoints.
+- Preserve current package split: entrypoints in root, shared encoding logic in `common/`.
+- Keep user-facing strings and flags stable unless the task explicitly requests UX/CLI changes.
+
+## Architecture
+- Two binaries:
+  - `superview-cli.go`: command-line workflow with `go-flags`.
+  - `superview-gui.go`: desktop UI built with Fyne.
+- Shared video pipeline lives in `common/common.go`:
+  - `CheckFfmpeg` discovers ffmpeg version/encoders/accels.
+  - `CheckVideo` reads stream metadata via `ffprobe`.
+  - `GeneratePGM` creates `x.pgm` and `y.pgm` remap maps.
+  - `EncodeVideo` runs ffmpeg remap encoding and reports progress.
+  - `CleanUp` removes generated map files.
+- OS-specific process behavior is isolated in:
+  - `common/command-other.go`
+  - `common/command-windows.go`
+
+## Build and Test
+- Build CLI: `go build superview-cli.go`
+- Build GUI: `go build superview-gui.go`
+- Run tests (if present): `go test ./...`
+- Preferred verification order for small changes: build touched binary first, then `go test ./...`.
+- Cross-build/release script: `./build.sh <version>`
+  - Requires `fyne-cross`.
+  - Creates git tags and pushes tags at the end; do not run automatically unless release intent is explicit.
+  - May trigger signing/release tooling (`codesign`, `hub`) when available.
+
+## Project Conventions
+- FFmpeg/FFprobe are required runtime dependencies; failures should keep current user-facing error style.
+- Preserve encoder selection behavior:
+  - default to input codec unless user selects/sets a supported encoder.
+- Keep temporary remap files (`x.pgm`, `y.pgm`) lifecycle intact: generate before encoding, remove after encoding.
+- GUI behavior should stay responsive: long encode work runs in goroutine (see `superview-gui.go`).
+- Keep encode progress callback behavior intact (`EncodeVideo` callback drives CLI percentage and GUI progress bar).
+
+## Integration Points
+- External tools: `ffmpeg`, `ffprobe` executed through `os/exec`.
+- CLI args parser: `github.com/jessevdk/go-flags`.
+- GUI toolkit: `fyne.io/fyne`.
+- Cross-platform GUI packaging via `fyne-cross` in `build.sh`.
+- Platform-specific process setup: `prepareBackgroundCommand` in `common/command-*.go`.
+
+## Security
+- Treat file paths from CLI flags and GUI file pickers as untrusted input; validate before processing.
+- Avoid introducing shell interpolation for ffmpeg calls; keep `exec.Command` argument-based invocation.
+- Do not hardcode secrets/cert identities in new code; `build.sh` contains release-signing-specific behavior that should remain opt-in.
+- Preserve Ctrl+C termination behavior in encoding (`common.EncodeVideo` signal handling) when touching process logic.
