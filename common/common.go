@@ -869,7 +869,11 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		RecordEncodingError(err, map[string]interface{}{"stage": "session_init"})
 		return err
 	}
-	defer CleanUp()
+	defer func() {
+		if cleanupErr := CleanUp(); cleanupErr != nil {
+			logger.Warn("Failed to cleanup encoding session", slog.String("error", cleanupErr.Error()))
+		}
+	}()
 
 	// Generate remap filters
 	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {

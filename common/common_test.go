@@ -360,14 +360,22 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	if err := os.Setenv("PATH", tempDir+sep+oldPath); err != nil {
 		t.Fatalf("failed to set PATH: %v", err)
 	}
-	defer os.Setenv("PATH", oldPath)
+	defer func() {
+		if err := os.Setenv("PATH", oldPath); err != nil {
+			t.Errorf("failed to restore PATH: %v", err)
+		}
+	}()
 
 	toolResolveCache.Delete("ffmpeg")
 
 	if err := InitEncodingSession(); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
-	defer CleanUp()
+	defer func() {
+		if err := CleanUp(); err != nil {
+			t.Errorf("failed to cleanup session: %v", err)
+		}
+	}()
 
 	video := &VideoSpecs{
 		File: filepath.Join(tempDir, "input.mp4"),
@@ -430,7 +438,11 @@ func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
 	if err := InitEncodingSession(); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
-	defer CleanUp()
+	defer func() {
+		if err := CleanUp(); err != nil {
+			t.Errorf("failed to cleanup session: %v", err)
+		}
+	}()
 
 	video := &VideoSpecs{
 		File: "input.mp4",
