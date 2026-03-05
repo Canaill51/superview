@@ -25,7 +25,6 @@ linters:
     - varcheck        # unused variables
     
     # Additional recommended linters
-    - asasfeits       # checks for pass-by-value slice functions
     - asciicheck      # checks for non-ASCII identifiers
     - bidichk         # checks for unicode bidirectional characters
     - contextcheck    # context usage checks
@@ -33,7 +32,6 @@ linters:
     - errorlint       # error wrapping conventions
     - exhaustive      # switch statement exhaustiveness
     - forbidigo       # forbids specific imports/functions
-    - gocheckcompileerrors # check compile errors
     - gocritic        # opinionated code comments
     - godot           # godoc format checking
     - godox           # TODO/BUG/FIXME detection (warnings, not errors)
