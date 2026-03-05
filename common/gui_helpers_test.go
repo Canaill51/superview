@@ -3,8 +3,16 @@ package common
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"testing"
 )
+
+func commandExitWithCode(code int) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/c", "exit", fmt.Sprintf("%d", code))
+	}
+	return exec.Command("sh", "-c", fmt.Sprintf("exit %d", code))
+}
 
 // ============================================================================
 // Tests for NormalizeNativeDialogResult
@@ -32,7 +40,7 @@ func TestNormalizeNativeDialogResult_TrimsWhitespace(t *testing.T) {
 
 func TestNormalizeNativeDialogResult_CancellationExitCode1(t *testing.T) {
 	// Simulate a cancelled dialog: exit code 1 means user cancelled
-	cmd := exec.Command("sh", "-c", "exit 1")
+	cmd := commandExitWithCode(1)
 	err := cmd.Run()
 
 	path, normErr := NormalizeNativeDialogResult("", err)
@@ -46,7 +54,7 @@ func TestNormalizeNativeDialogResult_CancellationExitCode1(t *testing.T) {
 
 func TestNormalizeNativeDialogResult_UnexpectedError(t *testing.T) {
 	// Simulate an unexpected non-zero exit code (not 1 or 255)
-	cmd := exec.Command("sh", "-c", "exit 2")
+	cmd := commandExitWithCode(2)
 	err := cmd.Run()
 
 	_, normErr := NormalizeNativeDialogResult("", err)

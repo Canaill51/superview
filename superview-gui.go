@@ -1,15 +1,15 @@
+//go:build windows
+// +build windows
+
 package main
 
 import (
 	_ "embed"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"runtime"
 	"strings"
 	"superview/common"
 	"syscall"
@@ -59,18 +59,7 @@ func runCommandAndGetPath(name string, args ...string) (string, error) {
 }
 
 func prepareNativeDialogCommand(cmd *exec.Cmd) {
-	if runtime.GOOS != "windows" {
-		return
-	}
-
-	// Use reflection so this stays portable while enabling HideWindow on Windows.
-	attr := &syscall.SysProcAttr{}
-	attrVal := reflect.ValueOf(attr).Elem()
-	hideField := attrVal.FieldByName("HideWindow")
-	if hideField.IsValid() && hideField.CanSet() && hideField.Kind() == reflect.Bool {
-		hideField.SetBool(true)
-		cmd.SysProcAttr = attr
-	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }
 
 func normalizeNativeDialogResult(path string, err error) (string, error) {
@@ -78,65 +67,33 @@ func normalizeNativeDialogResult(path string, err error) (string, error) {
 }
 
 func chooseInputFileNative() (string, error) {
-	if runtime.GOOS == "linux" {
-		if _, err := exec.LookPath("zenity"); err == nil {
-			path, runErr := runCommandAndGetPath(
-				"zenity",
-				"--file-selection",
-				"--title=Select input video",
-				"--file-filter=Videos | *.mp4 *.MP4 *.mov *.MOV *.mkv *.MKV *.avi *.AVI *.m4v *.M4V *.webm *.WEBM *.flv *.FLV *.wmv *.WMV *.mpeg *.MPEG *.mpg *.MPG",
-				"--file-filter=All files | *",
-			)
-			return normalizeNativeDialogResult(path, runErr)
-		}
-		if _, err := exec.LookPath("kdialog"); err == nil {
-			path, runErr := runCommandAndGetPath("kdialog", "--getopenfilename", "", "Videos (*.mp4 *.MP4 *.mov *.MOV *.mkv *.MKV *.avi *.AVI *.m4v *.M4V *.webm *.WEBM *.flv *.FLV *.wmv *.WMV *.mpeg *.MPEG *.mpg *.MPG)")
-			return normalizeNativeDialogResult(path, runErr)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		script := strings.Join([]string{
-			"Add-Type -AssemblyName System.Windows.Forms",
-			"$dialog = New-Object System.Windows.Forms.OpenFileDialog",
-			"$dialog.Title = 'Select input video'",
-			"$dialog.Filter = 'Video Files|*.mp4;*.MP4;*.mov;*.MOV;*.mkv;*.MKV;*.avi;*.AVI;*.m4v;*.M4V;*.webm;*.WEBM;*.flv;*.FLV;*.wmv;*.WMV;*.mpeg;*.MPEG;*.mpg;*.MPG|All Files|*.*'",
-			"$dialog.CheckFileExists = $true",
-			"$dialog.Multiselect = $false",
-			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
-		}, "; ")
-		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
-		return normalizeNativeDialogResult(path, runErr)
-	}
-	return "", fmt.Errorf("native file dialog not available on this system")
+	script := strings.Join([]string{
+		"Add-Type -AssemblyName System.Windows.Forms",
+		"$dialog = New-Object System.Windows.Forms.OpenFileDialog",
+		"$dialog.Title = 'Select input video'",
+		"$dialog.Filter = 'Video Files|*.mp4;*.MP4;*.mov;*.MOV;*.mkv;*.MKV;*.avi;*.AVI;*.m4v;*.M4V;*.webm;*.WEBM;*.flv;*.FLV;*.wmv;*.WMV;*.mpeg;*.MPEG;*.mpg;*.MPG|All Files|*.*'",
+		"$dialog.CheckFileExists = $true",
+		"$dialog.Multiselect = $false",
+		"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
+	}, "; ")
+	path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
+	return normalizeNativeDialogResult(path, runErr)
 }
 
 func chooseOutputFileNative() (string, error) {
-	if runtime.GOOS == "linux" {
-		if _, err := exec.LookPath("zenity"); err == nil {
-			path, runErr := runCommandAndGetPath("zenity", "--file-selection", "--save", "--confirm-overwrite", "--title=Save output video", "--filename=output.mp4")
-			return normalizeNativeDialogResult(path, runErr)
-		}
-		if _, err := exec.LookPath("kdialog"); err == nil {
-			path, runErr := runCommandAndGetPath("kdialog", "--getsavefilename", "output.mp4", "Videos (*.mp4)")
-			return normalizeNativeDialogResult(path, runErr)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		script := strings.Join([]string{
-			"Add-Type -AssemblyName System.Windows.Forms",
-			"$dialog = New-Object System.Windows.Forms.SaveFileDialog",
-			"$dialog.Title = 'Save output video'",
-			"$dialog.Filter = 'MP4 Video|*.mp4|All Files|*.*'",
-			"$dialog.DefaultExt = 'mp4'",
-			"$dialog.AddExtension = $true",
-			"$dialog.OverwritePrompt = $true",
-			"$dialog.FileName = 'output.mp4'",
-			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
-		}, "; ")
-		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
-		return normalizeNativeDialogResult(path, runErr)
-	}
-	return "", fmt.Errorf("native file dialog not available on this system")
+	script := strings.Join([]string{
+		"Add-Type -AssemblyName System.Windows.Forms",
+		"$dialog = New-Object System.Windows.Forms.SaveFileDialog",
+		"$dialog.Title = 'Save output video'",
+		"$dialog.Filter = 'MP4 Video|*.mp4|All Files|*.*'",
+		"$dialog.DefaultExt = 'mp4'",
+		"$dialog.AddExtension = $true",
+		"$dialog.OverwritePrompt = $true",
+		"$dialog.FileName = 'output.mp4'",
+		"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
+	}, "; ")
+	path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
+	return normalizeNativeDialogResult(path, runErr)
 }
 
 // GUIHandler implements UIHandler for GUI interface
