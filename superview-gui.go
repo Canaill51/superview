@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -19,6 +20,28 @@ import (
 	"fyne.io/fyne/theme"
 	"fyne.io/fyne/widget"
 )
+
+const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#requirements"
+
+func showPrerequisiteDialog(window fyne.Window, err error) bool {
+	if err == nil || !strings.Contains(err.Error(), "cannot find ffmpeg/ffprobe") {
+		return false
+	}
+
+	parsedURL, parseErr := url.Parse(requirementsURL)
+	if parseErr != nil {
+		dialog.ShowError(err, window)
+		return true
+	}
+
+	content := container.NewVBox(
+		widget.NewLabel("cannot find ffmpeg/ffprobe on your system"),
+		widget.NewLabel("make sure to install it first:"),
+		widget.NewHyperlink(requirementsURL, parsedURL),
+	)
+	dialog.NewCustom("Error", "OK", content, window).Show()
+	return true
+}
 
 func runCommandAndGetPath(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
@@ -118,6 +141,9 @@ type GUIHandler struct {
 }
 
 func (h *GUIHandler) ShowError(err error) {
+	if showPrerequisiteDialog(h.window, err) {
+		return
+	}
 	dialog.ShowError(err, h.window)
 }
 
@@ -339,7 +365,9 @@ func main() {
 
 	ffmpeg, err = common.CheckFfmpeg()
 	if err != nil {
-		dialog.ShowError(err, window)
+		if !showPrerequisiteDialog(window, err) {
+			dialog.ShowError(err, window)
+		}
 		open.Disable()
 		selectOutput.Disable()
 		status.SetText("Status: ffmpeg unavailable")

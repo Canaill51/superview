@@ -260,7 +260,7 @@ func CheckFfmpeg() (map[string]string, error) {
 	version, err := cmd.CombinedOutput()
 
 	if err != nil {
-		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Niek/superview/#requirements")
+		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Canaill51/superview?tab=readme-ov-file#requirements")
 	}
 
 	ret["version"] = strings.Split(string(version), " ")[2]

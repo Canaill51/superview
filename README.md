@@ -80,7 +80,7 @@ If a command is not found after install, close and reopen your terminal so `PATH
 
 ### Option 1: Use prebuilt binaries (recommended for final users)
 
-1. Download the archive matching your OS/CPU from [Releases](https://github.com/Niek/superview/releases).
+1. Download the archive matching your OS/CPU from [Releases](https://github.com/Canaill51/superview/releases).
 2. Extract it.
 3. Run one of the commands below.
 
