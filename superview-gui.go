@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"superview/common"
+	"syscall"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
@@ -48,11 +50,27 @@ func showPrerequisiteDialog(window fyne.Window, err error) bool {
 
 func runCommandAndGetPath(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	prepareNativeDialogCommand(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func prepareNativeDialogCommand(cmd *exec.Cmd) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	// Use reflection so this stays portable while enabling HideWindow on Windows.
+	attr := &syscall.SysProcAttr{}
+	attrVal := reflect.ValueOf(attr).Elem()
+	hideField := attrVal.FieldByName("HideWindow")
+	if hideField.IsValid() && hideField.CanSet() && hideField.Kind() == reflect.Bool {
+		hideField.SetBool(true)
+		cmd.SysProcAttr = attr
+	}
 }
 
 func normalizeNativeDialogResult(path string, err error) (string, error) {
@@ -86,7 +104,7 @@ func chooseInputFileNative() (string, error) {
 			"$dialog.Multiselect = $false",
 			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
 		}, "; ")
-		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
 		return normalizeNativeDialogResult(path, runErr)
 	}
 	return "", fmt.Errorf("native file dialog not available on this system")
@@ -115,7 +133,7 @@ func chooseOutputFileNative() (string, error) {
 			"$dialog.FileName = 'output.mp4'",
 			"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
 		}, "; ")
-		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+		path, runErr := runCommandAndGetPath("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
 		return normalizeNativeDialogResult(path, runErr)
 	}
 	return "", fmt.Errorf("native file dialog not available on this system")
@@ -179,7 +197,8 @@ func main() {
 	cfg, err := common.LoadConfig("superview.yaml")
 	if err != nil {
 		gui_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
-		// Continue with defaults
+		// Continue with current/default configuration to avoid nil dereference.
+		cfg = common.GetConfig()
 	} else {
 		common.SetConfig(cfg)
 	}

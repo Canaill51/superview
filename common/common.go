@@ -26,6 +26,15 @@ var logger = slog.Default()
 // toolResolveCache stores resolved binary paths (ffmpeg/ffprobe) per process.
 var toolResolveCache sync.Map
 
+// Wrappers around os/signal for testability.
+var signalNotify = signal.Notify
+var signalStop = signal.Stop
+
+// Wrapper around Cmd.StdoutPipe for testability of error paths.
+var commandStdoutPipe = func(cmd *exec.Cmd) (io.ReadCloser, error) {
+	return cmd.StdoutPipe()
+}
+
 func newFFmpegCommand(args ...string) *exec.Cmd {
 	return exec.Command(resolveToolBinary("ffmpeg"), args...)
 }
@@ -637,28 +646,40 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 
 		cmd := newFFmpegCommand(args...)
 		prepareBackgroundCommand(cmd)
-		stdout, err := cmd.StdoutPipe()
-		rd := bufio.NewReader(stdout)
+		stdout, err := commandStdoutPipe(cmd)
 		stderrBytes := new(bytes.Buffer)
 		cmd.Stderr = stderrBytes
 
 		if err != nil {
 			return err
 		}
+		rd := bufio.NewReader(stdout)
 
 		err = cmd.Start()
 		if err != nil {
 			return fmt.Errorf("Error starting ffmpeg, output is:\n%s", err)
 		}
 
-		// Kill encoder process on Ctrl+C
+		// Stop ffmpeg on Ctrl+C and return a clean interruption error.
 		sigC := make(chan os.Signal, 1)
-		signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
+		done := make(chan struct{})
+		interrupted := make(chan struct{}, 1)
+		signalNotify(sigC, os.Interrupt, syscall.SIGTERM)
+		defer signalStop(sigC)
 		go func() {
-			<-sigC
-			cmd.Process.Kill()
-			os.Exit(1)
+			select {
+			case <-sigC:
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				select {
+				case interrupted <- struct{}{}:
+				default:
+				}
+			case <-done:
+			}
 		}()
+		defer close(done)
 
 		for {
 			line, _, err := rd.ReadLine()
@@ -683,6 +704,11 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		}
 
 		if err := cmd.Wait(); err != nil {
+			select {
+			case <-interrupted:
+				return errors.New("encoding interrupted by user")
+			default:
+			}
 			if stderrBytes.Len() > 0 {
 				return fmt.Errorf("Error running ffmpeg, output is:\n%s\nffmpeg stderr:\n%s", err, stderrBytes.String())
 			}

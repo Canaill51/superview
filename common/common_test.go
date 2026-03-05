@@ -1,7 +1,15 @@
 package common
 
 import (
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 // ============================================================================
@@ -318,6 +326,141 @@ func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 
 	if encoder != "libx265" {
 		t.Errorf("Expected libx265, got %s", encoder)
+	}
+}
+
+func TestEncodeVideo_InterruptedByUser(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a fake ffmpeg executable that keeps running until killed.
+	ffmpegPath := filepath.Join(tempDir, "ffmpeg")
+	if runtime.GOOS == "windows" {
+		ffmpegPath += ".bat"
+		script := "@echo off\r\n" +
+			":loop\r\n" +
+			"echo out_time_ms=1000\r\n" +
+			"ping -n 2 127.0.0.1 >nul\r\n" +
+			"goto loop\r\n"
+		if err := os.WriteFile(ffmpegPath, []byte(script), 0644); err != nil {
+			t.Fatalf("failed to create fake ffmpeg script: %v", err)
+		}
+	} else {
+		script := "#!/bin/sh\n" +
+			"while true; do\n" +
+			"  echo out_time_ms=1000\n" +
+			"  sleep 0.2\n" +
+			"done\n"
+		if err := os.WriteFile(ffmpegPath, []byte(script), 0755); err != nil {
+			t.Fatalf("failed to create fake ffmpeg script: %v", err)
+		}
+	}
+
+	oldPath := os.Getenv("PATH")
+	sep := string(os.PathListSeparator)
+	if err := os.Setenv("PATH", tempDir+sep+oldPath); err != nil {
+		t.Fatalf("failed to set PATH: %v", err)
+	}
+	defer os.Setenv("PATH", oldPath)
+
+	toolResolveCache.Delete("ffmpeg")
+
+	if err := InitEncodingSession(); err != nil {
+		t.Fatalf("failed to init session: %v", err)
+	}
+	defer CleanUp()
+
+	video := &VideoSpecs{
+		File: filepath.Join(tempDir, "input.mp4"),
+		Streams: []VideoStream{{
+			Codec:         "h264",
+			Width:         1920,
+			Height:        1080,
+			Duration:      "60",
+			DurationFloat: 60,
+			Bitrate:       "5000000",
+			BitrateInt:    5000000,
+		}},
+	}
+
+	oldNotify := signalNotify
+	oldStop := signalStop
+	defer func() {
+		signalNotify = oldNotify
+		signalStop = oldStop
+	}()
+
+	registered := make(chan chan<- os.Signal, 1)
+	signalNotify = func(c chan<- os.Signal, _ ...os.Signal) {
+		registered <- c
+	}
+	signalStop = func(c chan<- os.Signal) {}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {})
+	}()
+
+	var sigTarget chan<- os.Signal
+	select {
+	case sigTarget = <-registered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for signal registration")
+	}
+
+	select {
+	case sigTarget <- os.Interrupt:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout sending interrupt to encoder")
+	}
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected interruption error, got nil")
+		}
+		if !strings.Contains(err.Error(), "encoding interrupted by user") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("EncodeVideo did not return after interruption")
+	}
+}
+
+func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
+	if err := InitEncodingSession(); err != nil {
+		t.Fatalf("failed to init session: %v", err)
+	}
+	defer CleanUp()
+
+	video := &VideoSpecs{
+		File: "input.mp4",
+		Streams: []VideoStream{{
+			Codec:         "h264",
+			Width:         1920,
+			Height:        1080,
+			Duration:      "60",
+			DurationFloat: 60,
+			Bitrate:       "5000000",
+			BitrateInt:    5000000,
+		}},
+	}
+
+	expectedErr := errors.New("stdout pipe unavailable")
+	oldStdoutPipe := commandStdoutPipe
+	defer func() {
+		commandStdoutPipe = oldStdoutPipe
+	}()
+
+	commandStdoutPipe = func(_ *exec.Cmd) (io.ReadCloser, error) {
+		return nil, expectedErr
+	}
+
+	err := EncodeVideo(video, "libx264", 2000000, "output.mp4", map[string]string{}, func(float64) {})
+	if err == nil {
+		t.Fatal("expected stdout pipe error, got nil")
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected error %q, got %v", expectedErr, err)
 	}
 }
 
