@@ -27,7 +27,7 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Squeeze Mode**: Special handling for horizontally-stretched sources
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
-- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Linux and Windows
+- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Windows
 
 The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
@@ -310,7 +310,7 @@ common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 
 ### Build & Test
 
-```bash
+```powershell
 # Run tests with coverage
 go test ./common -cover
 
@@ -318,26 +318,8 @@ go test ./common -cover
 go test ./common
 
 # Build binaries
-go build superview-cli.go
-go build superview-gui.go
-
-# Cross-platform build
-./build.sh v1.0.0  # Requires fyne-cross
-```
-
-```powershell
-# Windows GUI build without terminal window
+go build -o superview-cli.exe superview-cli.go
 go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
-```
-
-```bash
-# OS-specific make targets
-make build-cli-linux
-make build-cli-macos
-make build-cli-windows
-make build-gui-linux
-make build-gui-macos
-make build-gui-windows
 ```
 
 ### Recent Improvements
