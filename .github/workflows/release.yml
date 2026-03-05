@@ -58,7 +58,8 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        GOOS=windows GOARCH="$ARCH" go build -ldflags="-s -w -H=windowsgui" -o "build/superview-gui-windows-${ARCH}.exe" superview-gui.go
+        go run fyne.io/tools/cmd/fyne@latest package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}"
+        mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
     
     - name: Create archives
       shell: pwsh
