@@ -116,6 +116,7 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
+        VERSION="${GITHUB_REF_NAME}"
         ARCH="$(go env GOARCH)"
         case "$ARCH" in
           amd64) ARCH_LABEL="x86_64" ;;
@@ -123,13 +124,13 @@ jobs:
           arm64) ARCH_LABEL="aarch64" ;;
           *) ARCH_LABEL="$ARCH" ;;
         esac
-        tar -czf "superview-gui-0.0.0-SNAPSHOT-Linux-${ARCH_LABEL}.tar.gz" -C build "superview-gui-linux-${ARCH}"
+        tar -czf "superview-gui-${VERSION}-linux-${ARCH_LABEL}.tar.gz" -C build "superview-gui-linux-${ARCH}"
     
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@v4
       with:
         name: gui-linux-artifacts
-        path: superview-gui-0.0.0-SNAPSHOT-Linux-*.tar.gz
+        path: superview-gui-${{ github.ref_name }}-linux-*.tar.gz
 
   build-gui-macos:
     name: Build GUI (macOS)
@@ -157,19 +158,20 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
+        VERSION="${GITHUB_REF_NAME}"
         ARCH="$(go env GOARCH)"
         case "$ARCH" in
           amd64) ARCH_LABEL="x86_64" ;;
           arm64) ARCH_LABEL="aarch64" ;;
           *) ARCH_LABEL="$ARCH" ;;
         esac
-        zip "superview-gui-0.0.0-SNAPSHOT-macos-${ARCH_LABEL}.zip" "build/superview-gui-macos-${ARCH}"
+        zip "superview-gui-${VERSION}-macos-${ARCH_LABEL}.zip" "build/superview-gui-macos-${ARCH}"
     
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@v4
       with:
         name: gui-macos-artifacts
-        path: superview-gui-0.0.0-SNAPSHOT-macos-*.zip
+        path: superview-gui-${{ github.ref_name }}-macos-*.zip
 
   build-gui-windows:
     name: Build GUI (Windows)
@@ -196,6 +198,7 @@ jobs:
     - name: Create archives
       shell: pwsh
       run: |
+        $version = "${{ github.ref_name }}"
         $arch = go env GOARCH
         switch ($arch) {
           "amd64" { $archLabel = "x86_64" }
@@ -203,13 +206,13 @@ jobs:
           "arm64" { $archLabel = "aarch64" }
           default { $archLabel = $arch }
         }
-        Compress-Archive -Path "build/superview-gui-windows-$arch.exe" -DestinationPath "superview-gui-0.0.0-SNAPSHOT-Windows-$archLabel.zip" -Force
+        Compress-Archive -Path "build/superview-gui-windows-$arch.exe" -DestinationPath "superview-gui-$version-windows-$archLabel.zip" -Force
     
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@v4
       with:
         name: gui-windows-artifacts
-        path: superview-gui-0.0.0-SNAPSHOT-Windows-*.zip
+        path: superview-gui-${{ github.ref_name }}-windows-*.zip
 
   create-release:
     name: Create GitHub Release
