@@ -2,7 +2,6 @@ package main
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -57,18 +56,7 @@ func runCommandAndGetPath(name string, args ...string) (string, error) {
 }
 
 func normalizeNativeDialogResult(path string, err error) (string, error) {
-	if err == nil {
-		return strings.TrimSpace(path), nil
-	}
-
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if exitErr.ExitCode() == 1 || exitErr.ExitCode() == 255 {
-			return "", nil
-		}
-	}
-
-	return "", err
+	return common.NormalizeNativeDialogResult(path, err)
 }
 
 func chooseInputFileNative() (string, error) {
@@ -167,15 +155,7 @@ func (h *GUIHandler) GetEncoder() string {
 	if h.video == nil || len(h.video.Streams) == 0 {
 		return ""
 	}
-	selected := strings.TrimSpace(h.encoder.Selected)
-	if selected == "Use same video codec as input file" {
-		return ""
-	}
-	parts := strings.Fields(selected)
-	if len(parts) == 0 {
-		return ""
-	}
-	return parts[0]
+	return common.ParseEncoderSelection(h.encoder.Selected)
 }
 
 func (h *GUIHandler) GetSqueeze() bool {
