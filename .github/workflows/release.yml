@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'
-      - 'release-*'
+      - 'RC-*'
 
 permissions:
   contents: write
@@ -83,7 +83,7 @@ jobs:
     name: Create GitHub Release
     needs: [build-gui-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/release-')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/RC-')
     
     steps:
     - name: Download all artifacts
@@ -122,7 +122,7 @@ jobs:
       with:
         tag_name: ${{ github.ref_name }}
         draft: true
-        prerelease: ${{ startsWith(github.ref, 'refs/tags/release-') }}
+        prerelease: ${{ startsWith(github.ref, 'refs/tags/RC-') }}
         body_path: /tmp/release.md
         files: |
           artifacts/**/*.zip
