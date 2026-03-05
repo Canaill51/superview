@@ -7,8 +7,8 @@ import (
 
 // MachineProfile describes runtime hardware/software capabilities detected from ffmpeg and host CPU.
 type MachineProfile struct {
-	CPUCores         int
-	HardwareAccels   []string
+	CPUCores          int
+	HardwareAccels    []string
 	AvailableEncoders []string
 }
 

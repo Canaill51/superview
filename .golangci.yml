@@ -7,7 +7,9 @@ run:
   allow-parallel-runners: true
 
 output:
-  format: colored-line-number
+  formats:
+    text:
+      path: stdout
 
 linters:
   enable:
@@ -87,11 +89,6 @@ issues:
         - varcheck
         - ineffassign
     
-    # Allow godox warnings (TODO/BUG) but not errors
-    - linters:
-        - godox
-      severity: info
-
   # Global max issues per linter
   max-issues-per-linter: 0
   max-same-issues: 0

@@ -260,7 +260,7 @@ func CheckFfmpeg() (map[string]string, error) {
 	version, err := cmd.CombinedOutput()
 
 	if err != nil {
-		return nil, errors.New("Cannot find ffmpeg/ffprobe on your system.\nMake sure to install it first: https://github.com/Niek/superview/#requirements")
+		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Niek/superview/#requirements")
 	}
 
 	ret["version"] = strings.Split(string(version), " ")[2]
@@ -269,6 +269,9 @@ func CheckFfmpeg() (map[string]string, error) {
 	cmd = newFFmpegCommand("-hwaccels", "-hide_banner")
 	prepareBackgroundCommand(cmd)
 	accels, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query ffmpeg hardware accelerators: %w", err)
+	}
 	accelsArr := strings.Split(strings.ReplaceAll(string(accels), "\r\n", "\n"), "\n")
 	for i := 1; i < len(accelsArr); i++ {
 		if len(accelsArr[i]) != 0 {
@@ -280,6 +283,9 @@ func CheckFfmpeg() (map[string]string, error) {
 	cmd = newFFmpegCommand("-encoders", "-hide_banner")
 	prepareBackgroundCommand(cmd)
 	encoders, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query ffmpeg encoders: %w", err)
+	}
 	encodersArr := strings.Split(strings.ReplaceAll(string(encoders), "\r\n", "\n"), "\n")
 	for i := 10; i < len(encodersArr); i++ {
 		if strings.Index(encodersArr[i], " V") == 0 {
@@ -303,12 +309,6 @@ func CheckFfmpeg() (map[string]string, error) {
 // GetHeader returns a formatted string with ffmpeg information for display to the user.
 func GetHeader(ffmpeg map[string]string) string {
 	return fmt.Sprintf("- ffmpeg version: %s\n- Hardware accelerators: %s\n- H.264/H.265 encoders: %s\n\n", ffmpeg["version"], ffmpeg["accels"], ffmpeg["encoders"])
-}
-
-func isValidPath(path string) bool {
-	// Ensure path doesn't escape the intended directory via .. or other tricks
-	clean := filepath.Clean(path)
-	return clean == path && filepath.IsAbs(clean)
 }
 
 // InitEncodingSession creates a new secure temporary directory for this encoding job.

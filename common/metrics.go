@@ -16,18 +16,18 @@ type EncodingMetrics struct {
 	mu sync.RWMutex
 
 	// Timestamps marking key events
-	StartTime      time.Time // Encoding start (after validation)
-	EndTime        time.Time // Encoding completion
+	StartTime       time.Time // Encoding start (after validation)
+	EndTime         time.Time // Encoding completion
 	ProgressUpdates int       // Number of progress updates
 
 	// Input file information
-	InputFile      string // Source file path
-	InputFileSize  int64  // File size in bytes
-	InputDuration  float64 // Duration in seconds
-	InputBitrate   int    // bytes/second (from video metadata)
-	InputCodec     string // Video codec name
-	InputWidth     int    // Video width in pixels
-	InputHeight    int    // Video height in pixels
+	InputFile     string  // Source file path
+	InputFileSize int64   // File size in bytes
+	InputDuration float64 // Duration in seconds
+	InputBitrate  int     // bytes/second (from video metadata)
+	InputCodec    string  // Video codec name
+	InputWidth    int     // Video width in pixels
+	InputHeight   int     // Video height in pixels
 
 	// Output file information
 	OutputFile     string // Destination file path
@@ -41,9 +41,9 @@ type EncodingMetrics struct {
 	LastFrameTime float64   // Approx frame timing from ffmpeg output
 
 	// Processing metrics
-	EncodingSpeed     float64 // Computed frames per second
-	CompressionRatio  float64 // Output size / Input size (computed)
-	BitrateReduction  float64 // (Input - Output) / Input ratio (computed)
+	EncodingSpeed      float64       // Computed frames per second
+	CompressionRatio   float64       // Output size / Input size (computed)
+	BitrateReduction   float64       // (Input - Output) / Input ratio (computed)
 	EstimatedRemaining time.Duration // Computed time remaining
 
 	// Error tracking

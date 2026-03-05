@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -69,7 +70,7 @@ func (h *DefaultObservabilityHandler) OnEvent(event *EncodingEvent) {
 		level = slog.LevelDebug
 	}
 
-	if h.logger.Enabled(nil, level) {
+	if h.logger.Enabled(context.TODO(), level) {
 		args := []interface{}{
 			slog.String("event_type", event.EventType),
 			slog.String("message", event.Message),
@@ -91,7 +92,7 @@ func (h *DefaultObservabilityHandler) OnEvent(event *EncodingEvent) {
 			}
 		}
 
-		h.logger.Log(nil, level, "encoding_event", args...)
+		h.logger.Log(context.TODO(), level, "encoding_event", args...)
 	}
 }
 
@@ -127,9 +128,9 @@ func (h *DefaultObservabilityHandler) OnComplete(metrics *EncodingMetrics) {
 // EventRecorder manages multiple observability handlers and formats event recording.
 // It allows plugins/handlers to receive encoding events for custom processing.
 type EventRecorder struct {
-	mu       sync.RWMutex
-	handlers []ObservabilityHandler
-	events   []*EncodingEvent // Event history (last 1000)
+	mu        sync.RWMutex
+	handlers  []ObservabilityHandler
+	events    []*EncodingEvent // Event history (last 1000)
 	maxEvents int
 }
 
