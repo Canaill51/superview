@@ -1,0 +1,25 @@
+# Superview Configuration File
+# All values can be overridden with environment variables prefixed with SUPERVIEW_
+
+# Bitrate constraints in bytes/second
+# 100k bytes/sec = ~0.1 Mbps (minimum quality)
+# 50M bytes/sec = ~50 Mbps (high quality)
+min_bitrate: 102400
+max_bitrate: 52428800
+
+# Temporary directory prefix for encoding sessions (absolute temp dir)
+temp_dir_prefix: "superview-*"
+
+# Encoder codec preferences to filter from available encoders
+# Supports: 264 (H.264), 265 (H.265/HEVC)
+encoder_codecs:
+  - "264"
+  - "265"
+  - "hevc"
+
+# Logging level: debug, info, warn, error
+log_level: info
+
+# Minimum video dimensions in pixels
+min_video_width: 320
+min_video_height: 240

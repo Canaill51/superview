@@ -1,0 +1,40 @@
+# golangci-lint configuration for superview
+# See: https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+
+output:
+  formats:
+    text:
+      path: stdout
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - typecheck
+    - unused
+
+issues:
+  exclude-rules:
+    # Allow unused code in test files
+    - path: _test\.go
+      linters:
+        - unused
+        - ineffassign
+    
+  # Global max issues per linter
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Always exclude
+  exclude-unmatched-default-rules: true
+
+severity:
+  default-severity: error

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"superview/common"
 
@@ -17,13 +17,63 @@ var opts struct {
 	Squeeze bool   `short:"s" long:"squeeze" description:"Squeeze 4:3 video stretched to 16:9 (e.g. Caddx Tarsier 2.7k60)" required:"false"`
 }
 
+// CLIHandler implements UIHandler for command-line interface
+type CLIHandler struct {
+	logger *slog.Logger
+}
+
+func (h *CLIHandler) ShowError(err error) {
+	h.logger.Error("Encoding error", slog.String("error", err.Error()))
+}
+
+func (h *CLIHandler) ShowInfo(msg string) {
+	h.logger.Info(msg)
+}
+
+func (h *CLIHandler) ShowProgress(percent float64) {
+	fmt.Printf("\rEncoding progress: %.2f%%", percent)
+}
+
+func (h *CLIHandler) GetBitrate() (int, error) {
+	return opts.Bitrate, nil
+}
+
+func (h *CLIHandler) GetEncoder() string {
+	return opts.Encoder
+}
+
+func (h *CLIHandler) GetSqueeze() bool {
+	return opts.Squeeze
+}
+
 func main() {
+	// Initialize logger for CLI (text format for readability)
+	opts_logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	common.SetLogger(opts_logger)
+	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(opts_logger))
+
 	fmt.Println("===> Superview - dynamic video stretching <===\n")
+
+	// Load configuration (from superview.yaml or env vars)
+	cfg, err := common.LoadConfig("superview.yaml")
+	if err != nil {
+		opts_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	common.SetConfig(cfg)
+	opts_logger.Debug("Configuration loaded", slog.String("config", cfg.String()))
+
+	// Startup health check (observability phase)
+	health := common.CheckHealth()
+	common.LogHealth(opts_logger, health)
 
 	// Check for ffmpeg
 	ffmpeg, err := common.CheckFfmpeg()
 	if err != nil {
-		log.Fatal(err)
+		opts_logger.Error("Failed to check ffmpeg", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	fmt.Print(common.GetHeader(ffmpeg))
@@ -34,38 +84,17 @@ func main() {
 		os.Exit(0)
 	}
 
-	_, err = os.Stat(opts.Input)
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Error opening input file: %s", opts.Input))
-		log.Fatal(err)
+	// Create CLI handler and perform encoding
+	handler := &CLIHandler{logger: opts_logger}
+	if err := common.PerformEncoding(opts.Input, opts.Output, handler, ffmpeg); err != nil {
+		handler.ShowError(err)
+		os.Exit(1)
 	}
 
-	video, err := common.CheckVideo(opts.Input)
-	if err != nil {
-		log.Fatal(err)
+	fmt.Printf("\nDone! You can open the output file %s to see the result\n", opts.Output)
+
+	// Display performance metrics report
+	if metrics := common.GetLastEncodingMetrics(); metrics != nil {
+		fmt.Println("\n" + metrics.Summary())
 	}
-
-	// If no bitrate set, use from input video
-	if opts.Bitrate == 0 {
-		opts.Bitrate = video.Streams[0].BitrateInt
-	}
-
-	opts.Encoder = common.FindEncoder(opts.Encoder, ffmpeg, video)
-
-	common.GeneratePGM(video, opts.Squeeze)
-
-	fmt.Printf("Re-encoding video with %s encoder at %d MB/s bitrate\n", opts.Encoder, opts.Bitrate/1024/1024)
-
-	err = common.EncodeVideo(video, opts.Encoder, opts.Bitrate, opts.Output, func(v float64) {
-		fmt.Printf("\rEncoding progress: %.2f%%", v)
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := common.CleanUp(); err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Done! You can open the output file %s to see the result\n", opts.Output)
 }

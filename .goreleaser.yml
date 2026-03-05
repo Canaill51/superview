@@ -1,0 +1,72 @@
+# GoReleaser configuration for superview
+# Version 1 compatible configuration
+# Note: GUI binaries are built natively on each platform (macOS, Windows, Linux)
+# This file handles CLI cross-compilation only
+
+version: 2
+
+project_name: superview
+
+env:
+  - GO111MODULE=on
+
+builds:
+  # CLI binary - cross-compile from Linux to all platforms
+  - id: superview-cli
+    main: superview-cli.go
+    binary: superview-cli
+    
+    goos:
+      - linux
+      - windows
+      - darwin
+    
+    goarch:
+      - amd64
+      - 386
+      - arm64
+    
+    # Exclude unsupported combinations
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: arm64
+    
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+# Archives
+archives:
+  - name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-
+      {{- title .Os }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "arm64" }}aarch64
+      {{- else }}{{ .Arch }}{{ end }}
+    
+    format_overrides:
+      - goos: windows
+        format: zip
+      - goos: darwin
+        format: zip
+    
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+
+# Checksums
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Release notes
+release:
+  draft: true
+  prerelease: auto
+  name_template: Release {{.Tag}}

@@ -37,7 +37,7 @@ for program in "superview-cli" "superview-gui"; do
                 exit 1
             fi
         else
-            fyne-cross ${GOOS} -silent -arch ${GOARCH} -ldflags="-s -w" -output ${output_name} "${program}.go"
+            fyne-cross ${GOOS} -silent -arch ${GOARCH} -icon Icon.png -ldflags="-s -w" -output ${output_name} "${program}.go"
             output_name="fyne-cross/dist/${GOOS}-${GOARCH}/${output_name}"
             if [ $GOOS == "windows" ]; then
                 output_name+=".zip"

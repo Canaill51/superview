@@ -1,0 +1,102 @@
+name: Lint & Code Quality
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=5m --max-issues-per-linter=0 --max-same-issues=0 ./common
+
+  vet:
+    name: Go Vet Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run go vet
+      run: go vet ./common
+
+  govulncheck:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23.x'
+    
+    - name: Run govulncheck
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        "$(go env GOPATH)/bin/govulncheck" ./common
+
+  staticcheck:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Run staticcheck
+      run: |
+        go install honnef.co/go/tools/cmd/staticcheck@v0.5.1
+        "$(go env GOPATH)/bin/staticcheck" ./common
+
+  fmt:
+    name: Code Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    
+    - name: Check gofmt
+      run: |
+        dfmt=$(gofmt -l .)
+        if [ -n "$dfmt" ]; then
+          echo "Formatting issues found:"
+          echo "$dfmt"
+          exit 1
+        fi
+        echo "✅ Code formatting is correct"
