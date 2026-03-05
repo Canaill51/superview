@@ -198,31 +198,48 @@ export SUPERVIEW_LOG_LEVEL=debug
 ```
 superview/
 ├── common/
-│   ├── common.go          # Core encoding pipeline
-│   ├── common_test.go     # Unit tests
-│   ├── config.go          # Configuration management
-│   ├── config_test.go     # Config tests
-│   ├── hardware.go         # Hardware capability profiling
-│   ├── observability.go    # Observability hooks
-│   ├── metrics.go          # Runtime metrics
-│   ├── health.go           # Health checks
-│   ├── security.go         # Security helpers
-│   └── command-*.go       # OS-specific process setup
-├── superview-cli.go       # CLI entry point
-├── superview-gui.go       # GUI entry point (Fyne)
-└── superview.yaml         # Default configuration
+│   ├── common.go              # Core encoding pipeline (CheckFfmpeg, CheckVideo, GeneratePGM, EncodeVideo)
+│   ├── common_test.go         # Unit tests for core pipeline
+│   ├── common_bench_test.go   # Benchmark tests (GeneratePGM performance)
+│   ├── config.go              # Configuration management (YAML + env var overrides)
+│   ├── config_test.go         # Config unit tests
+│   ├── hardware.go            # Hardware capability profiling (CPU cores, GPU encoders, accels)
+│   ├── hardware_test.go       # Hardware profiling tests
+│   ├── health.go              # System health checks (ffmpeg, ffprobe, disk, memory, CPU)
+│   ├── health_disk_unix.go    # Unix-specific disk space check
+│   ├── health_disk_windows.go # Windows-specific disk space check
+│   ├── health_test.go         # Health check tests
+│   ├── metrics.go             # Encoding performance metrics (speed, compression, bitrate)
+│   ├── metrics_test.go        # Metrics tests
+│   ├── observability.go       # Event recording system and observability hooks
+│   ├── observability_test.go  # Observability tests
+│   ├── security.go            # Path validation, symlink protection, encoder sanitization
+│   ├── security_test.go       # Security validation tests
+│   └── command-*.go           # OS-specific process setup
+├── tools/
+│   ├── gen_icons.py           # Icon generation helper
+│   └── install_linux_launcher.sh # Linux desktop launcher installer
+├── superview-cli.go           # CLI entry point (go-flags)
+├── superview-gui.go           # GUI entry point (Fyne)
+├── superview.yaml             # Default configuration file
+├── Makefile                   # Build, test, lint, and release automation
+└── .goreleaser.yml            # GoReleaser cross-compilation config
 ```
 
 ### Encoding Pipeline
 
 ```
+Startup → CheckHealth (ffmpeg, disk, memory, CPU)
+              ↓
 Input → CheckFfmpeg → CheckVideo → PerformEncoding → CleanUp → Output
                                          ↓
+                               isValidInputPath + isValidOutputPath
                                GetBitrate + ValidateBitrate
-                               GetEncoder + FindEncoder
-                               InitEncodingSession
+                               GetEncoder + FindEncoder (whitelist)
+                               InitEncodingSession (session-managed isolated temp dir, never working dir)
                                GeneratePGM (create remap filters)
                                EncodeVideo (ffmpeg with progress)
+                               RecordEncodingMetrics (speed, ratio, bitrate)
 ```
 
 ## API Documentation
@@ -309,6 +326,21 @@ make build-cli-windows
 make build-gui-linux
 make build-gui-macos
 make build-gui-windows
+
+# Quality checks
+make test          # Run all tests
+make coverage      # Tests with coverage report
+make lint          # golangci-lint
+make vet           # go vet
+make vuln          # govulncheck security scan
+make check         # All quality checks at once
+
+# Benchmark tests (GeneratePGM performance)
+go test -bench=. ./common -benchmem -run=^$
+
+# Release automation
+make release-prepare VERSION=1.0.0   # Tag and validate release
+make release-dry-run                 # Dry-run goreleaser
 ```
 
 ### Recent Improvements
@@ -321,6 +353,11 @@ make build-gui-windows
 - **Étape 6**: Structured logging with slog
 - **Étape 7**: External configuration (YAML + env vars)
 - **Étape 8**: Full documentation (Godoc + this README)
+- **Étape 9**: Performance optimization — `GeneratePGM` rewritten with `strconv.AppendInt` and pre-allocated buffers for **-47% processing time, -100% hot-path allocations** (see `common/common_bench_test.go`); benchmark suite added
+- **Étape 10**: Advanced security — input/output path validation, directory traversal prevention, symlink attack protection, encoder whitelist sanitization (`common/security.go`)
+- **Étape 11**: CI/CD pipeline — GitHub Actions with multi-OS × Go-version matrix (Ubuntu, macOS, Windows × Go 1.22/1.23), 30% coverage gate, native binary builds per platform
+- **Étape 12**: Distribution — GoReleaser cross-compilation for CLI, native GUI builds per OS, automated multi-platform releases with checksums; `Makefile` build/lint/release targets
+- **Étape 13**: Observability & monitoring — `EncodingMetrics` (speed, compression ratio, bitrate), `ObservabilityHandler` event system (start/progress/complete/error), system health checks (`CheckHealth`), structured logging throughout the pipeline
 
 ## Contributors ✨
 
