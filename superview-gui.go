@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,9 @@ import (
 	"fyne.io/fyne/theme"
 	"fyne.io/fyne/widget"
 )
+
+//go:embed Icon.png
+var appIconPNG []byte
 
 const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#requirements"
 
@@ -200,10 +204,13 @@ func main() {
 		common.SetConfig(cfg)
 	}
 
-	app := app.New()
+	app := app.NewWithID("com.canaill51.superview")
+	iconResource := fyne.NewStaticResource("Icon.png", appIconPNG)
+	app.SetIcon(iconResource)
 	app.Settings().SetTheme(theme.DarkTheme())
 
 	window := app.NewWindow("Superview")
+	window.SetIcon(iconResource)
 
 	subtitle := widget.NewLabel("Transform your video in 3 simple steps")
 	subtitle.Alignment = fyne.TextAlignCenter
