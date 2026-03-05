@@ -218,14 +218,9 @@ jobs:
     name: Create GitHub Release
     needs: [build-cli, build-gui-linux, build-gui-macos, build-gui-windows]
     runs-on: ubuntu-latest
-    if: always() && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/release-')
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
@@ -234,27 +229,24 @@ jobs:
     - name: List all artifacts
       run: |
         echo "=== Release Artifacts ===" 
-        find artifacts -type f -name "*.tar.gz" -o -name "*.zip" | sort
+        find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) | sort
     
     - name: Calculate checksums
       run: |
-        cd artifacts
-        find . -name "*.tar.gz" -o -name "*.zip" | while read file; do
+        find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) | while read file; do
           sha256sum "$file"
-        done > checksums.txt
-        echo "=== Checksums ===" && cat checksums.txt
+        done > artifacts/checksums.txt
+        echo "=== Checksums ===" && cat artifacts/checksums.txt
     
     - name: Create release summary
-      id: summary
       run: |
-        version="${{ github.ref }}"
-        version="${version#refs/tags/}"
+        version="${GITHUB_REF_NAME}"
         echo "## Release ${version} - Superview" > /tmp/release.md
         echo "" >> /tmp/release.md
         echo "### CLI Binaries (Cross-Platform)" >> /tmp/release.md
-        echo "- Linux: x86_64, i386, ARM64" >> /tmp/release.md
+        echo "- Linux: x86_64, ARM64" >> /tmp/release.md
         echo "- macOS: Intel, Apple Silicon" >> /tmp/release.md
-        echo "- Windows: x86_64, x86" >> /tmp/release.md
+        echo "- Windows: x86_64, ARM64" >> /tmp/release.md
         echo "" >> /tmp/release.md
         echo "### GUI Applications (Native)" >> /tmp/release.md
         echo "- Linux: native runner arch" >> /tmp/release.md
@@ -266,6 +258,18 @@ jobs:
         echo "sha256sum -c checksums.txt" >> /tmp/release.md
         echo "\`\`\`" >> /tmp/release.md
         cat /tmp/release.md
+
+    - name: Publish release assets
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        draft: true
+        prerelease: ${{ startsWith(github.ref, 'refs/tags/release-') }}
+        body_path: /tmp/release.md
+        files: |
+          artifacts/**/*.tar.gz
+          artifacts/**/*.zip
+          artifacts/checksums.txt
 
   notify:
     name: Notify Release Status
