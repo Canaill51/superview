@@ -8,7 +8,6 @@ Goal: simplify the project to focus on Windows while avoiding regressions.
 - Baseline commit: `de443c7`
 
 ## Guardrails (must stay green in every step)
-- `go build superview-cli.go`
 - `go test ./common`
 - `go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go`
 - Manual GUI smoke test on Windows (open input, choose output, start encode)

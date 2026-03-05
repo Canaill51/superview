@@ -6,14 +6,14 @@
 Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
 > Official target platform: **Windows**.
-> Linux/macOS instructions are kept as legacy references and are not actively supported.
+> Superview is now distributed and maintained as a **GUI-only** application.
 
 ## Quick Links
 
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Usage (GUI/CLI)](#usage)
+- [Usage (GUI)](#usage)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
 - [API Documentation](#api-documentation)
@@ -24,7 +24,6 @@ Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, ins
 This program applies sophisticated distortion to convert 4:3 video to 16:9 widescreen:
 
 - **Dynamic Scaling**: Outer areas stretched more aggressively, center maintains aspect ratio
-- **Squeeze Mode**: Special handling for horizontally-stretched sources
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
 - **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Windows
@@ -54,104 +53,36 @@ gcc --version
 
 If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
 
-### Legacy References (Linux/macOS)
-
-Use the commands below.
-
-### Linux (Ubuntu/Debian)
-
-```bash
-sudo apt update
-sudo apt install -y ffmpeg golang build-essential pkg-config \
-  libgl1-mesa-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev
-
-ffmpeg -version
-ffprobe -version
-go version
-gcc --version
-```
-
-### macOS (Homebrew)
-
-```bash
-brew update
-brew install ffmpeg go pkg-config
-
-ffmpeg -version
-ffprobe -version
-go version
-clang --version
-```
-
-### Windows (PowerShell + winget)
-
-```powershell
-winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
-winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
-winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
-
-ffmpeg -version
-ffprobe -version
-go version
-gcc --version
-```
-
-If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
-
 ## Installation
 
 ### Option 1: Use prebuilt binaries (recommended for final users)
 
-1. Download the archive matching your OS/CPU from [Releases](https://github.com/Canaill51/superview/releases).
+1. Download the Windows archive from [Releases](https://github.com/Canaill51/superview/releases).
 2. Extract it.
-3. Run one of the commands below.
-
-Linux/macOS:
-```bash
-chmod +x superview-gui superview-cli
-./superview-gui
-# or CLI
-./superview-cli -i input.mp4 -o output.mp4
-```
+3. Run `superview-gui.exe`.
 
 Windows (PowerShell):
 ```powershell
 .\superview-gui.exe
-# or CLI
-.\superview-cli.exe -i input.mp4 -o output.mp4
 ```
 
 ### Option 2: Build from source
 
-Official local build flow (Windows):
+Official local build flow (Windows GUI):
 
 ```powershell
 go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
-go build -o superview-cli.exe superview-cli.go
 ```
 
-Linux/macOS:
-```bash
-go build -o superview-gui superview-gui.go
-go build -o superview-cli superview-cli.go
-./superview-gui
-```
+Then launch:
 
-Windows (PowerShell):
 ```powershell
-go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
-go build -o superview-cli.exe superview-cli.go
 .\superview-gui.exe
 ```
 
 ## Usage
 
-### Quick Run (GUI)
-
-Linux/macOS:
-```bash
-./superview-gui
-```
+### Quick Run
 
 Windows (PowerShell):
 ```powershell
@@ -167,35 +98,8 @@ GUI workflow:
 
 Notes:
 - GUI bitrate is fixed from configuration (`max_bitrate`), there is no manual bitrate field.
-- Squeeze mode remains available in CLI (`-s`) but is not exposed in the simplified GUI.
 
 ![GUI Screenshot](.github/sample-gui.png)
-
-### Quick Run (CLI)
-
-Linux/macOS:
-```bash
-./superview-cli -i input.mp4 -o output.mp4
-./superview-cli -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
-./superview-cli -h
-```
-
-Windows (PowerShell):
-```powershell
-.\superview-cli.exe -i input.mp4 -o output.mp4
-.\superview-cli.exe -i input.mp4 -o output.mp4 -e libx265 -b 5242880 -s
-.\superview-cli.exe -h
-```
-
-#### Options
-
-```
-  -i, --input=FILE      (required) Input video file path
-  -o, --output=FILE     (optional) Output file (default: output.mp4)
-  -e, --encoder=ENCODER Selected encoder (default: input codec)
-  -b, --bitrate=BITRATE Output bitrate in bytes/second
-  -s, --squeeze         Apply squeeze filter for stretched sources
-```
 
 If you get `Cannot find ffmpeg/ffprobe`, fix your `PATH` and retry.
 
@@ -217,7 +121,7 @@ Override with environment variables:
 export SUPERVIEW_MIN_BITRATE=262144
 export SUPERVIEW_MAX_BITRATE=20971520
 export SUPERVIEW_LOG_LEVEL=debug
-./superview-cli -i input.mp4 -o output.mp4
+./superview-gui
 ```
 
 ## Architecture
@@ -237,7 +141,6 @@ superview/
 │   ├── health.go           # Health checks
 │   ├── security.go         # Security helpers
 │   └── command-*.go       # OS-specific process setup
-├── superview-cli.go       # CLI entry point
 ├── superview-gui.go       # GUI entry point (Fyne)
 └── superview.yaml         # Default configuration
 ```
@@ -314,11 +217,10 @@ common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 # Run tests with coverage
 go test ./common -cover
 
-# Run package tests (repo root has 2 mains)
+# Run package tests
 go test ./common
 
-# Build binaries
-go build -o superview-cli.exe superview-cli.go
+# Build GUI binary
 go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
 ```
 

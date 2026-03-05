@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ $# -ne 1 ]; then
     echo "Usage: ./build.sh <version number>"
@@ -14,54 +14,22 @@ fi
 
 VERSION=$1
 
-echo "Build packages with version number ${VERSION}"
+echo "Build GUI Windows packages with version number ${VERSION}"
 
-platforms=("windows/amd64" "windows/386" "darwin/amd64" "linux/386" "linux/amd64")
+platforms=("windows/amd64" "windows/386")
 files=()
 
-for program in "superview-cli" "superview-gui"; do
-    for platform in "${platforms[@]}"; do
-        platform_split=(${platform//\// })
-        GOOS=${platform_split[0]}
-        GOARCH=${platform_split[1]}
-        output_name="${program}-${GOOS}-${GOARCH}-v${VERSION}"
-        if [ $GOOS == "windows" ]; then
-            output_name+=".exe"
-        fi
+for platform in "${platforms[@]}"; do
+    platform_split=(${platform//\// })
+    GOOS=${platform_split[0]}
+    GOARCH=${platform_split[1]}
+    output_name="superview-gui-${GOOS}-${GOARCH}-v${VERSION}.exe"
 
-        if [ "$program" == "superview-cli" ]; then
-            output_name="build/${output_name}"
-            env GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o $output_name ${program}.go
-            if [ $? -ne 0 ]; then
-                echo "An error has occurred! Aborting the script execution..."
-                exit 1
-            fi
-        else
-            fyne-cross ${GOOS} -silent -arch ${GOARCH} -icon Icon.png -ldflags="-s -w" -output ${output_name} "${program}.go"
-            output_name="fyne-cross/dist/${GOOS}-${GOARCH}/${output_name}"
-            if [ $GOOS == "windows" ]; then
-                output_name+=".zip"
-            elif [ $GOOS == "linux" ]; then
-                output_name+=".tar.gz"
-            else
-                if command -v create-dmg &> /dev/null; then
-                    # Create the DMG file
-                    create-dmg --hdiutil-quiet --volname "Superview" --volicon "Icon.png" "${output_name}.dmg" "${output_name}.app"
-                    output_name+=".dmg"
-                    # Sign the DMG including all content
-                    if command -v codesign &> /dev/null; then
-                        codesign --force --verify --verbose --sign "Apple Distribution: Nivadema B.V. (N577R5DT64)" "${output_name}"
-                    fi
-                else
-                    output_name+=".app"
-                fi
-            fi
-        fi
+    fyne-cross ${GOOS} -silent -arch ${GOARCH} -icon Icon.png -ldflags="-s -w -H=windowsgui" -output ${output_name} "superview-gui.go"
+    output_name="fyne-cross/dist/${GOOS}-${GOARCH}/${output_name}.zip"
 
-        echo "Built: ${output_name}"
-
-        files+=($output_name)
-    done
+    echo "Built: ${output_name}"
+    files+=($output_name)
 done
 
 git tag v${VERSION}

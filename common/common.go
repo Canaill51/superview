@@ -180,7 +180,7 @@ type EncodingOptions struct {
 	ProgressFunc func(float64)
 }
 
-// UIHandler abstracts user interface interactions between CLI and GUI implementations.
+// UIHandler abstracts user interface interactions between GUI components and the core pipeline.
 // It allows the core encoding pipeline to be UI-agnostic and testable.
 type UIHandler interface {
 	// ShowError displays an error message to the user.
@@ -773,7 +773,7 @@ func CleanUp() error {
 // It coordinates all steps: validation, metadata extraction, option gathering, encoding, and cleanup.
 // The ui parameter handles user interaction (showing errors, progress, getting options).
 // Returns nil on success, or an error if any step fails.
-// Call this from entry points (CLI/GUI) only; the logic is pipeline-agnostic.
+// Call this from GUI entry points only; the logic is pipeline-agnostic.
 // Security: Validates input/output paths and encoder selection for defensive programming.
 // Observability: Records metrics and events throughout the pipeline.
 func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
@@ -903,7 +903,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 	metrics.RecordCompletion(outputFileSize)
 	metrics.LogMetrics(logger)
-	SetLastEncodingMetrics(metrics) // Make metrics available to CLI/GUI for reporting
+	SetLastEncodingMetrics(metrics) // Make metrics available to GUI reporting components
 
 	logger.Info("Encoding completed successfully",
 		slog.String("output_file", filepath.Base(outputFile)),

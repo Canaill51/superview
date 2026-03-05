@@ -2,16 +2,15 @@
 
 ## Code Style
 - Language: Go (`go.mod` uses module `superview`, Go 1.22).
-- Keep changes minimal and consistent with existing straightforward style in `superview-cli.go`, `superview-gui.go`, and `common/common.go`.
+- Keep changes minimal and consistent with existing straightforward style in `superview-gui.go` and `common/common.go`.
 - Prefer explicit error returns and proper error handling: check ALL error returns.
 - Use custom error types (`InvalidVideoError`, `EncoderError`, `SessionError`) for domain-specific errors.
-- Preserve explicit error returns and `log.Fatal`/`dialog.ShowError` patterns already used by CLI/GUI entrypoints.
+- Preserve explicit error returns and `dialog.ShowError` patterns used by GUI entrypoints.
 - Preserve current package split: entrypoints in root, shared encoding logic in `common/`.
-- Keep user-facing strings and flags stable unless the task explicitly requests UX/CLI changes.
+- Keep user-facing strings stable unless the task explicitly requests UX changes.
 
 ## Architecture
-- Two binaries:
-  - `superview-cli.go`: command-line workflow with `go-flags`.
+- One binary:
   - `superview-gui.go`: desktop UI built with Fyne.
 - Shared types in `common/common.go`:
   - `VideoSpecs`: contains video metadata with validation method.
@@ -32,12 +31,11 @@
   - `common/command-windows.go`
 
 ## Build and Test
-- Build CLI: `go build superview-cli.go`
 - Build GUI: `go build superview-gui.go`
 - Run tests (if present): `go test ./common`
 - Preferred verification order for small changes: build touched binary first, then `go test ./common`.
-- Multi-main caveat: repository root contains two entrypoints (`superview-cli.go` and `superview-gui.go`).
-  - Do not use `go build ./...` or `go test ./...` for routine verification in this repo.
+- Repository has one GUI entrypoint at root (`superview-gui.go`).
+- Keep using `go test ./common` for routine validation.
 - CI coverage gate: minimum 30% in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
 - GUI builds are most reliable on native OS runners; cross-compiling Fyne GUI binaries (especially for macOS) may fail locally.
 - Cross-build/release script: `./build.sh <version>`
@@ -58,17 +56,16 @@
   - Always call `InitEncodingSession()` before encoding and `defer common.CleanUp()` for guaranteed cleanup.
   - Never hardcode temp file paths; use session management functions.
 - GUI behavior should stay responsive: long encode work runs in goroutine (see `superview-gui.go`).
-- Keep encode progress callback behavior intact (`EncodeVideo` callback drives CLI percentage and GUI progress bar).
+- Keep encode progress callback behavior intact (`EncodeVideo` callback drives GUI progress bar).
 
 ## Integration Points
 - External tools: `ffmpeg`, `ffprobe` executed through `os/exec`.
-- CLI args parser: `github.com/jessevdk/go-flags`.
 - GUI toolkit: `fyne.io/fyne`.
 - Cross-platform GUI packaging via `fyne-cross` in `build.sh`.
 - Platform-specific process setup: `prepareBackgroundCommand` in `common/command-*.go`.
 
 ## Security
-- Treat file paths from CLI flags and GUI file pickers as untrusted input; validate before processing.
+- Treat file paths from GUI file pickers as untrusted input; validate before processing.
 - Validate all user input before processing:
   - Video metadata via `VideoSpecs.Validate()`.
   - Bitrate ranges via `ValidateBitrate()` (100k-50M bytes/sec).

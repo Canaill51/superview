@@ -136,16 +136,14 @@ jobs:
         if ($goarch -ne '${{ matrix.expected_goarch }}') { throw "Expected GOARCH=${{ matrix.expected_goarch }}, got $goarch" }
         Write-Host "Native runner verified: $goos/$goarch"
 
-    - name: Build CLI/GUI (native, Windows)
+    - name: Build GUI (native, Windows)
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path build | Out-Null
-        go build -o "build/superview-cli-${{ matrix.label }}.exe" superview-cli.go
         go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" superview-gui.go
 
     - name: Verify build outputs (Windows)
       shell: pwsh
       run: |
-        if (-not (Test-Path "build/superview-cli-${{ matrix.label }}.exe")) { throw 'CLI artifact missing' }
         if (-not (Test-Path "build/superview-gui-${{ matrix.label }}.exe")) { throw 'GUI artifact missing' }
         Write-Host "✅ Native build outputs verified"
