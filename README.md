@@ -5,6 +5,9 @@
 
 Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
+> Official target platform: **Windows**.
+> Linux/macOS instructions are kept as legacy references and are not actively supported.
+
 ## Quick Links
 
 - [Overview](#overview)
@@ -33,6 +36,25 @@ Here is a quick animation showing the scaling, note how the text in the center s
 ![Sample of scaling result](.github/sample.gif)
 
 ## Requirements
+
+### Official (Windows)
+
+Use the commands below.
+
+```powershell
+winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
+winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
+
+ffmpeg -version
+ffprobe -version
+go version
+gcc --version
+```
+
+If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
+
+### Legacy References (Linux/macOS)
 
 Use the commands below.
 
@@ -100,6 +122,13 @@ Windows (PowerShell):
 ```
 
 ### Option 2: Build from source
+
+Official local build flow (Windows):
+
+```powershell
+go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+go build -o superview-cli.exe superview-cli.go
+```
 
 Linux/macOS:
 ```bash
