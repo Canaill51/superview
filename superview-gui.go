@@ -1,15 +1,15 @@
+//go:build windows
+// +build windows
+
 package main
 
 import (
 	_ "embed"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"runtime"
 	"strings"
 	"superview/common"
 	"syscall"
@@ -59,18 +59,7 @@ func runCommandAndGetPath(name string, args ...string) (string, error) {
 }
 
 func prepareNativeDialogCommand(cmd *exec.Cmd) {
-	if runtime.GOOS != "windows" {
-		return
-	}
-
-	// Use reflection so this stays portable while enabling HideWindow on Windows.
-	attr := &syscall.SysProcAttr{}
-	attrVal := reflect.ValueOf(attr).Elem()
-	hideField := attrVal.FieldByName("HideWindow")
-	if hideField.IsValid() && hideField.CanSet() && hideField.Kind() == reflect.Bool {
-		hideField.SetBool(true)
-		cmd.SysProcAttr = attr
-	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }
 
 func normalizeNativeDialogResult(path string, err error) (string, error) {
@@ -78,10 +67,6 @@ func normalizeNativeDialogResult(path string, err error) (string, error) {
 }
 
 func chooseInputFileNative() (string, error) {
-	if runtime.GOOS != "windows" {
-		return "", fmt.Errorf("native file dialog only supported on windows")
-	}
-
 	script := strings.Join([]string{
 		"Add-Type -AssemblyName System.Windows.Forms",
 		"$dialog = New-Object System.Windows.Forms.OpenFileDialog",
@@ -96,10 +81,6 @@ func chooseInputFileNative() (string, error) {
 }
 
 func chooseOutputFileNative() (string, error) {
-	if runtime.GOOS != "windows" {
-		return "", fmt.Errorf("native file dialog only supported on windows")
-	}
-
 	script := strings.Join([]string{
 		"Add-Type -AssemblyName System.Windows.Forms",
 		"$dialog = New-Object System.Windows.Forms.SaveFileDialog",
