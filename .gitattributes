@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+# Go sources and module files
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# CI and config
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+# Windows scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

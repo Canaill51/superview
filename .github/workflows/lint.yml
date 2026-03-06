@@ -18,7 +18,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
     
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v3
@@ -37,7 +37,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
     
     - name: Run go vet
       run: go vet ./common
@@ -71,7 +71,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
     
     - name: Run staticcheck
       run: |
@@ -89,7 +89,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
     
     - name: Check gofmt
       run: |

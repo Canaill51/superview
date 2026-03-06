@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go-version: [ '1.22', '1.23' ]
+        go-version: [ '1.23.x' ]
         os: [ windows-latest ]
     
     steps:
@@ -70,7 +70,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
     
     - name: Run tests with coverage
       run: go test ./common -coverprofile=coverage.out -covermode=atomic
@@ -125,7 +125,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.23.x'
 
     - name: Validate native runner architecture (Windows)
       shell: pwsh

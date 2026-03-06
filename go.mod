@@ -2,6 +2,8 @@ module superview
 
 go 1.23.0
 
+toolchain go1.23.12
+
 require (
 	fyne.io/fyne v1.4.3
 	golang.org/x/sys v0.31.0
