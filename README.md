@@ -114,6 +114,9 @@ temp_dir_prefix: "superview-*"
 encoder_codecs: ["264", "265", "hevc"]
 log_level: info
 performance_mode: safe    # safe | safe_performance
+video_preset: ""         # optional: ultrafast..veryslow (empty = ffmpeg default)
+filter_threads: 0         # 0 = auto/default
+encoder_threads: 0        # 0 = auto/default
 ```
 
 Override with environment variables:
@@ -123,6 +126,9 @@ export SUPERVIEW_MIN_BITRATE=262144
 export SUPERVIEW_MAX_BITRATE=20971520
 export SUPERVIEW_LOG_LEVEL=debug
 export SUPERVIEW_PERFORMANCE_MODE=safe_performance
+export SUPERVIEW_VIDEO_PRESET=fast
+export SUPERVIEW_FILTER_THREADS=4
+export SUPERVIEW_ENCODER_THREADS=8
 ./superview-gui
 ```
 

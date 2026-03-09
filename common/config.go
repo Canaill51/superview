@@ -36,6 +36,18 @@ type Config struct {
 	// - "safe_performance": remove realtime input throttle and prefer audio copy with safe fallback.
 	PerformanceMode string `yaml:"performance_mode" default:"safe"`
 
+	// VideoPreset controls ffmpeg encoder preset (optional).
+	// Empty value keeps ffmpeg defaults for maximum compatibility.
+	VideoPreset string `yaml:"video_preset" default:""`
+
+	// FilterThreads controls ffmpeg filter graph thread count.
+	// 0 means ffmpeg auto/implicit behavior.
+	FilterThreads int `yaml:"filter_threads" default:"0"`
+
+	// EncoderThreads controls ffmpeg encoder thread count.
+	// 0 means auto (or runtime defaults where explicitly configured).
+	EncoderThreads int `yaml:"encoder_threads" default:"0"`
+
 	// MinVideoWidth and MinVideoHeight enforce minimum input video dimensions
 	MinVideoWidth  int `yaml:"min_video_width" default:"320"`
 	MinVideoHeight int `yaml:"min_video_height" default:"240"`
@@ -48,6 +60,9 @@ var defaultConfig = &Config{
 	EncoderCodecs:   []string{"264", "265", "hevc"},
 	LogLevel:        "info",
 	PerformanceMode: "safe",
+	VideoPreset:     "",
+	FilterThreads:   0,
+	EncoderThreads:  0,
 	MinVideoWidth:   320,
 	MinVideoHeight:  240,
 }
@@ -142,7 +157,36 @@ func LoadConfig(filepath string) (*Config, error) {
 		config.PerformanceMode = mode
 	}
 
+	if preset := os.Getenv("SUPERVIEW_VIDEO_PRESET"); preset != "" {
+		config.VideoPreset = preset
+	}
+
+	if filterThreads := os.Getenv("SUPERVIEW_FILTER_THREADS"); filterThreads != "" {
+		val, err := strconv.Atoi(filterThreads)
+		if err != nil {
+			logger.Warn("Invalid SUPERVIEW_FILTER_THREADS, using config value",
+				slog.String("value", filterThreads),
+			)
+		} else {
+			config.FilterThreads = val
+		}
+	}
+
+	if encoderThreads := os.Getenv("SUPERVIEW_ENCODER_THREADS"); encoderThreads != "" {
+		val, err := strconv.Atoi(encoderThreads)
+		if err != nil {
+			logger.Warn("Invalid SUPERVIEW_ENCODER_THREADS, using config value",
+				slog.String("value", encoderThreads),
+			)
+		} else {
+			config.EncoderThreads = val
+		}
+	}
+
 	config.PerformanceMode = normalizePerformanceMode(config.PerformanceMode)
+	config.VideoPreset = normalizeVideoPreset(config.VideoPreset)
+	config.FilterThreads = normalizeThreadCount(config.FilterThreads, "filter_threads")
+	config.EncoderThreads = normalizeThreadCount(config.EncoderThreads, "encoder_threads")
 
 	return config, nil
 }
@@ -159,6 +203,29 @@ func normalizePerformanceMode(mode string) string {
 		)
 		return "safe"
 	}
+}
+
+func normalizeVideoPreset(preset string) string {
+	switch strings.ToLower(strings.TrimSpace(preset)) {
+	case "", "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo":
+		return strings.ToLower(strings.TrimSpace(preset))
+	default:
+		logger.Warn("Invalid video_preset, falling back to ffmpeg default",
+			slog.String("value", preset),
+		)
+		return ""
+	}
+}
+
+func normalizeThreadCount(value int, key string) int {
+	if value < 0 {
+		logger.Warn("Invalid thread count, falling back to auto",
+			slog.String("key", key),
+			slog.Int("value", value),
+		)
+		return 0
+	}
+	return value
 }
 
 // IsSafePerformanceMode returns true when optional performance optimizations are enabled.
@@ -207,5 +274,8 @@ func (c *Config) String() string {
 	buf.WriteString(fmt.Sprintf("  Encoder Codecs: %s\n", strings.Join(c.EncoderCodecs, ",")))
 	buf.WriteString(fmt.Sprintf("  Log Level: %s\n", c.LogLevel))
 	buf.WriteString(fmt.Sprintf("  Performance Mode: %s\n", normalizePerformanceMode(c.PerformanceMode)))
+	buf.WriteString(fmt.Sprintf("  Video Preset: %s\n", normalizeVideoPreset(c.VideoPreset)))
+	buf.WriteString(fmt.Sprintf("  Filter Threads: %d\n", normalizeThreadCount(c.FilterThreads, "filter_threads")))
+	buf.WriteString(fmt.Sprintf("  Encoder Threads: %d\n", normalizeThreadCount(c.EncoderThreads, "encoder_threads")))
 	return buf.String()
 }
