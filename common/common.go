@@ -626,6 +626,19 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 	}
 
 	safePerformanceMode := GetConfig().IsSafePerformanceMode()
+	cfg := GetConfig()
+	encoderThreads := runtime.NumCPU()
+	if cfg != nil && cfg.EncoderThreads > 0 {
+		encoderThreads = cfg.EncoderThreads
+	}
+	filterThreads := 0
+	if cfg != nil && cfg.FilterThreads > 0 {
+		filterThreads = cfg.FilterThreads
+	}
+	videoPreset := ""
+	if cfg != nil {
+		videoPreset = cfg.VideoPreset
+	}
 
 	buildBaseArgs := func(audioCodec string) []string {
 		baseArgs := []string{
@@ -636,11 +649,19 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		}
 
 		baseArgs = append(baseArgs,
-			"-threads", strconv.Itoa(runtime.NumCPU()),
+			"-threads", strconv.Itoa(encoderThreads),
 			"-i", video.File, "-i", xPath, "-i", yPath,
 			"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
 			"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
 		)
+
+		if filterThreads > 0 {
+			baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
+		}
+
+		if videoPreset != "" {
+			baseArgs = append(baseArgs, "-preset", videoPreset)
+		}
 
 		if encoder == "libx265" {
 			baseArgs = append(baseArgs, "-x265-params", "log-level=error")
@@ -773,7 +794,9 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 
 	logger.Info("Using CPU decode path",
 		slog.String("encoder", encoder),
-		slog.Int("threads", runtime.NumCPU()),
+		slog.Int("threads", encoderThreads),
+		slog.Int("filter_threads", filterThreads),
+		slog.String("video_preset", videoPreset),
 	)
 	err = runWithAudioFallback("")
 	if err == nil {

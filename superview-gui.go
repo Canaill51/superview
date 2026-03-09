@@ -187,6 +187,7 @@ func main() {
 
 	selectedOutput := widget.NewLabel("No output file selected")
 	selectedOutput.Wrapping = fyne.TextWrapWord
+	selectedProfile := ""
 
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignCenter
@@ -203,6 +204,16 @@ func main() {
 		}
 
 		uri := outputPath
+		effectiveCfg := *cfg
+		switch selectedProfile {
+		case "fast":
+			effectiveCfg.PerformanceMode = "safe_performance"
+			effectiveCfg.VideoPreset = "fast"
+		case "quality":
+			effectiveCfg.PerformanceMode = "safe"
+			effectiveCfg.VideoPreset = "slow"
+		}
+		common.SetConfig(&effectiveCfg)
 
 		prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
 		prog.Show()
@@ -350,6 +361,11 @@ func main() {
 	centerLabel := func(text string) string {
 		return "   " + text + "   "
 	}
+	profileOptions := []string{
+		centerLabel("Auto (config)"),
+		centerLabel("Fast"),
+		centerLabel("Quality"),
+	}
 	for i := range encoderOptions {
 		encoderOptions[i] = centerLabel(encoderOptions[i])
 	}
@@ -361,8 +377,21 @@ func main() {
 
 	})
 	encoder.SetSelected(encoderOptions[0])
+	profile := widget.NewSelect(profileOptions, func(s string) {
+		switch strings.ToLower(strings.TrimSpace(s)) {
+		case strings.ToLower(strings.TrimSpace(centerLabel("Fast"))):
+			selectedProfile = "fast"
+		case strings.ToLower(strings.TrimSpace(centerLabel("Quality"))):
+			selectedProfile = "quality"
+		default:
+			selectedProfile = ""
+		}
+	})
+	profile.SetSelected(profileOptions[0])
 	codecLabel := widget.NewLabel("Output codec")
 	codecLabel.Alignment = fyne.TextAlignCenter
+	profileLabel := widget.NewLabel("Performance profile")
+	profileLabel.Alignment = fyne.TextAlignCenter
 
 	buttonSize := fyne.NewSize(300, 40)
 	selectSize := fyne.NewSize(360, 40)
@@ -385,6 +414,8 @@ func main() {
 	flow := widget.NewForm(
 		widget.NewFormItem("", centerButton(open)),
 		widget.NewFormItem("", selectedFile),
+		widget.NewFormItem("", profileLabel),
+		widget.NewFormItem("", centerSelect(profile)),
 		widget.NewFormItem("", codecLabel),
 		widget.NewFormItem("", centerSelect(encoder)),
 		widget.NewFormItem("", centerButton(selectOutput)),
