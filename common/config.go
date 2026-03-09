@@ -30,19 +30,26 @@ type Config struct {
 	// LogLevel controls the verbosity of logging (debug, info, warn, error)
 	LogLevel string `yaml:"log_level" default:"info"`
 
+	// PerformanceMode controls ffmpeg safety/performance tradeoffs.
+	// Supported values:
+	// - "safe": preserve historical behavior.
+	// - "safe_performance": remove realtime input throttle and prefer audio copy with safe fallback.
+	PerformanceMode string `yaml:"performance_mode" default:"safe"`
+
 	// MinVideoWidth and MinVideoHeight enforce minimum input video dimensions
 	MinVideoWidth  int `yaml:"min_video_width" default:"320"`
 	MinVideoHeight int `yaml:"min_video_height" default:"240"`
 }
 
 var defaultConfig = &Config{
-	MinBitrate:     102400,   // 100k bytes/sec
-	MaxBitrate:     52428800, // 50M bytes/sec
-	TempDirPrefix:  "superview-*",
-	EncoderCodecs:  []string{"264", "265", "hevc"},
-	LogLevel:       "info",
-	MinVideoWidth:  320,
-	MinVideoHeight: 240,
+	MinBitrate:      102400,   // 100k bytes/sec
+	MaxBitrate:      52428800, // 50M bytes/sec
+	TempDirPrefix:   "superview-*",
+	EncoderCodecs:   []string{"264", "265", "hevc"},
+	LogLevel:        "info",
+	PerformanceMode: "safe",
+	MinVideoWidth:   320,
+	MinVideoHeight:  240,
 }
 
 var currentConfig = defaultConfig
@@ -131,7 +138,35 @@ func LoadConfig(filepath string) (*Config, error) {
 		config.EncoderCodecs = strings.Split(encoders, ",")
 	}
 
+	if mode := os.Getenv("SUPERVIEW_PERFORMANCE_MODE"); mode != "" {
+		config.PerformanceMode = mode
+	}
+
+	config.PerformanceMode = normalizePerformanceMode(config.PerformanceMode)
+
 	return config, nil
+}
+
+func normalizePerformanceMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "safe":
+		return "safe"
+	case "safe_performance", "performance":
+		return "safe_performance"
+	default:
+		logger.Warn("Invalid performance_mode, falling back to safe",
+			slog.String("value", mode),
+		)
+		return "safe"
+	}
+}
+
+// IsSafePerformanceMode returns true when optional performance optimizations are enabled.
+func (c *Config) IsSafePerformanceMode() bool {
+	if c == nil {
+		return false
+	}
+	return normalizePerformanceMode(c.PerformanceMode) == "safe_performance"
 }
 
 // CreateDefaultConfig creates a default configuration file at the specified path.
@@ -171,5 +206,6 @@ func (c *Config) String() string {
 	buf.WriteString(fmt.Sprintf("  Temp Dir Prefix: %s\n", c.TempDirPrefix))
 	buf.WriteString(fmt.Sprintf("  Encoder Codecs: %s\n", strings.Join(c.EncoderCodecs, ",")))
 	buf.WriteString(fmt.Sprintf("  Log Level: %s\n", c.LogLevel))
+	buf.WriteString(fmt.Sprintf("  Performance Mode: %s\n", normalizePerformanceMode(c.PerformanceMode)))
 	return buf.String()
 }

@@ -20,6 +20,11 @@ encoder_codecs:
 # Logging level: debug, info, warn, error
 log_level: info
 
+# Performance mode:
+# - safe: keep legacy behavior (realtime throttle + AAC re-encode)
+# - safe_performance: remove realtime throttle and try audio copy first
+performance_mode: safe_performance
+
 # Minimum video dimensions in pixels
 min_video_width: 320
 min_video_height: 240

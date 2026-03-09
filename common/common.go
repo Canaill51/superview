@@ -624,19 +624,32 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		return err
 	}
 
-	baseArgs := []string{
-		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y", "-re",
-		"-threads", strconv.Itoa(runtime.NumCPU()),
-		"-i", video.File, "-i", xPath, "-i", yPath,
-		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
-		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac",
+	safePerformanceMode := GetConfig().IsSafePerformanceMode()
+
+	buildBaseArgs := func(audioCodec string) []string {
+		baseArgs := []string{
+			"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
+		}
+		if !safePerformanceMode {
+			baseArgs = append(baseArgs, "-re")
+		}
+
+		baseArgs = append(baseArgs,
+			"-threads", strconv.Itoa(runtime.NumCPU()),
+			"-i", video.File, "-i", xPath, "-i", yPath,
+			"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
+			"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
+		)
+
+		if encoder == "libx265" {
+			baseArgs = append(baseArgs, "-x265-params", "log-level=error")
+		}
+
+		return baseArgs
 	}
 
-	if encoder == "libx265" {
-		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
-	}
-
-	run := func(hwaccel string) error {
+	run := func(hwaccel string, audioCodec string) error {
+		baseArgs := buildBaseArgs(audioCodec)
 		args := make([]string, 0, len(baseArgs)+4)
 		if hwaccel != "" {
 			args = append(args, "-hwaccel", hwaccel)
@@ -718,6 +731,27 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		return nil
 	}
 
+	runWithAudioFallback := func(hwaccel string) error {
+		preferredAudioCodec := "aac"
+		if safePerformanceMode {
+			preferredAudioCodec = "copy"
+		}
+
+		err := run(hwaccel, preferredAudioCodec)
+		if err == nil {
+			return nil
+		}
+
+		if safePerformanceMode && preferredAudioCodec == "copy" {
+			logger.Warn("Audio stream copy failed, retrying with AAC",
+				slog.String("error", err.Error()),
+			)
+			return run(hwaccel, "aac")
+		}
+
+		return err
+	}
+
 	profile := AnalyzeMachineProfile(ffmpeg)
 	hwaccel := accelForEncoder(encoder)
 	if hwaccel != "" {
@@ -726,7 +760,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("encoder", encoder),
 				slog.String("hwaccel", hwaccel),
 			)
-			if err := run(hwaccel); err == nil {
+			if err := runWithAudioFallback(hwaccel); err == nil {
 				return nil
 			}
 			logger.Warn("Hardware decode path failed, falling back to CPU decode",
@@ -740,7 +774,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		slog.String("encoder", encoder),
 		slog.Int("threads", runtime.NumCPU()),
 	)
-	err = run("")
+	err = runWithAudioFallback("")
 	if err == nil {
 		return nil
 	}

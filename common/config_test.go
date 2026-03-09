@@ -29,6 +29,10 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("Expected LogLevel=info, got %s", cfg.LogLevel)
 	}
+
+	if cfg.PerformanceMode != "safe" {
+		t.Errorf("Expected PerformanceMode=safe, got %s", cfg.PerformanceMode)
+	}
 }
 
 func TestLoadConfig_NonexistentFile(t *testing.T) {
@@ -92,6 +96,7 @@ func TestLoadConfig_EnvironmentOverrides(t *testing.T) {
 	t.Setenv("SUPERVIEW_MIN_BITRATE", "131072")
 	t.Setenv("SUPERVIEW_MAX_BITRATE", "26214400")
 	t.Setenv("SUPERVIEW_LOG_LEVEL", "warn")
+	t.Setenv("SUPERVIEW_PERFORMANCE_MODE", "safe_performance")
 
 	cfg, err := LoadConfig("")
 	if err != nil {
@@ -108,6 +113,23 @@ func TestLoadConfig_EnvironmentOverrides(t *testing.T) {
 
 	if cfg.LogLevel != "warn" {
 		t.Errorf("Expected LogLevel=warn from env, got %s", cfg.LogLevel)
+	}
+
+	if cfg.PerformanceMode != "safe_performance" {
+		t.Errorf("Expected PerformanceMode=safe_performance from env, got %s", cfg.PerformanceMode)
+	}
+}
+
+func TestLoadConfig_InvalidPerformanceModeFallsBackToSafe(t *testing.T) {
+	t.Setenv("SUPERVIEW_PERFORMANCE_MODE", "turbo")
+
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Errorf("LoadConfig with invalid performance mode failed: %v", err)
+	}
+
+	if cfg.PerformanceMode != "safe" {
+		t.Errorf("Expected PerformanceMode=safe fallback, got %s", cfg.PerformanceMode)
 	}
 }
 
