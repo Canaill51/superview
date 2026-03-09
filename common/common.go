@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // Global logger instance
@@ -813,11 +814,20 @@ func CleanUp() error {
 func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
 	// ==== OBSERVABILITY: Initialize metrics collection ====
 	metrics := NewEncodingMetrics(inputFile, outputFile)
+	stageDurations := make(map[string]time.Duration)
 	defer func() {
 		// Always record completion or error
 		if metrics.Success {
 			RecordEncodingCompletion(metrics)
 		}
+	}()
+	defer func() {
+		logger.Info("Encoding stage timings",
+			slog.Int64("video_check_ms", stageDurations["video_check"].Milliseconds()),
+			slog.Int64("pgm_generation_ms", stageDurations["pgm_generation"].Milliseconds()),
+			slog.Int64("encoding_ms", stageDurations["encoding"].Milliseconds()),
+			slog.Int64("cleanup_ms", stageDurations["cleanup"].Milliseconds()),
+		)
 	}()
 
 	// ==== SECURITY VALIDATION ====
@@ -836,10 +846,15 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	// Load and validate video metadata (includes security checks)
+	videoCheckStart := time.Now()
 	video, err := CheckVideo(inputFile)
+	stageDurations["video_check"] = time.Since(videoCheckStart)
 	if err != nil {
 		metrics.RecordError(-1, fmt.Sprintf("video validation failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "video_check"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":            "video_check",
+			"stage_duration_ms": stageDurations["video_check"].Milliseconds(),
+		})
 		return fmt.Errorf("video validation failed: %w", err)
 	}
 
@@ -904,17 +919,25 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return err
 	}
 	defer func() {
+		cleanupStart := time.Now()
 		if cleanupErr := CleanUp(); cleanupErr != nil {
 			logger.Warn("Failed to cleanup encoding session", slog.String("error", cleanupErr.Error()))
 		}
+		stageDurations["cleanup"] = time.Since(cleanupStart)
 	}()
 
 	// Generate remap filters
+	pgmStart := time.Now()
 	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
+		stageDurations["pgm_generation"] = time.Since(pgmStart)
 		metrics.RecordError(-1, fmt.Sprintf("filter generation failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "pgm_generation"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":            "pgm_generation",
+			"stage_duration_ms": stageDurations["pgm_generation"].Milliseconds(),
+		})
 		return err
 	}
+	stageDurations["pgm_generation"] = time.Since(pgmStart)
 
 	// Perform encoding with progress callback + metrics recording
 	progressFunc := func(percent float64) {
@@ -923,11 +946,17 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		RecordEncodingProgress(percent, fmt.Sprintf("Encoding: %.1f%%", percent))
 	}
 
+	encodeStart := time.Now()
 	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc); err != nil {
+		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "encoding"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":            "encoding",
+			"stage_duration_ms": stageDurations["encoding"].Milliseconds(),
+		})
 		return err
 	}
+	stageDurations["encoding"] = time.Since(encodeStart)
 
 	// ==== OBSERVABILITY: Record successful completion ====
 	outputFileInfo, _ := os.Stat(outputFile)
