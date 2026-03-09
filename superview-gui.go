@@ -14,13 +14,13 @@ import (
 	"superview/common"
 	"syscall"
 
-	"fyne.io/fyne"
-	"fyne.io/fyne/app"
-	"fyne.io/fyne/container"
-	"fyne.io/fyne/dialog"
-	"fyne.io/fyne/storage"
-	"fyne.io/fyne/theme"
-	"fyne.io/fyne/widget"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
 
 //go:embed Icon.png
@@ -108,18 +108,24 @@ type GUIHandler struct {
 }
 
 func (h *GUIHandler) ShowError(err error) {
-	if showPrerequisiteDialog(h.window, err) {
-		return
-	}
-	dialog.ShowError(err, h.window)
+	fyne.Do(func() {
+		if showPrerequisiteDialog(h.window, err) {
+			return
+		}
+		dialog.ShowError(err, h.window)
+	})
 }
 
 func (h *GUIHandler) ShowInfo(msg string) {
-	dialog.ShowInformation("Done", msg, h.window)
+	fyne.Do(func() {
+		dialog.ShowInformation("Done", msg, h.window)
+	})
 }
 
 func (h *GUIHandler) ShowProgress(percent float64) {
-	h.progress.SetValue(percent / 100)
+	fyne.Do(func() {
+		h.progress.SetValue(percent / 100)
+	})
 }
 
 func (h *GUIHandler) GetBitrate() (int, error) {
@@ -214,14 +220,18 @@ func main() {
 			}
 
 			if err := common.PerformEncoding(video.File, uri, handler, ffmpeg); err != nil {
-				prog.Hide()
-				status.SetText("Status: Failed")
+				fyne.Do(func() {
+					prog.Hide()
+					status.SetText("Status: Failed")
+				})
 				handler.ShowError(err)
 				return
 			}
 
-			prog.Hide()
-			status.SetText("Status: Completed")
+			fyne.Do(func() {
+				prog.Hide()
+				status.SetText("Status: Completed")
+			})
 			handler.ShowInfo("Transform complete. Output file:\n" + uri)
 		}()
 
@@ -363,7 +373,7 @@ func main() {
 		return container.NewCenter(container.NewGridWrap(selectSize, sel))
 	}
 
-	header := widget.NewVBox(
+	header := container.NewVBox(
 		subtitle,
 		widget.NewSeparator(),
 	)
@@ -382,7 +392,7 @@ func main() {
 		widget.NewFormItem("", centerButton(start)),
 	)
 
-	window.SetContent(widget.NewVBox(
+	window.SetContent(container.NewVBox(
 		header,
 		flow,
 		status,
