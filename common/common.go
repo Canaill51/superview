@@ -618,6 +618,36 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 // It reads PGM filter maps from the current session and encodes using the specified encoder and bitrate.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
+func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, safePerformanceMode bool, encoderThreads int, filterThreads int, videoPreset string) []string {
+	baseArgs := []string{
+		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
+	}
+	if !safePerformanceMode {
+		baseArgs = append(baseArgs, "-re")
+	}
+
+	baseArgs = append(baseArgs,
+		"-threads", strconv.Itoa(encoderThreads),
+		"-i", video.File, "-i", xPath, "-i", yPath,
+		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
+		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
+	)
+
+	if filterThreads > 0 {
+		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
+	}
+
+	if videoPreset != "" {
+		baseArgs = append(baseArgs, "-preset", videoPreset)
+	}
+
+	if encoder == "libx265" {
+		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
+	}
+
+	return baseArgs
+}
+
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64)) error {
 	// Get the session paths for PGM files
 	xPath, yPath, err := getSessionPaths()
@@ -640,38 +670,8 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		videoPreset = cfg.VideoPreset
 	}
 
-	buildBaseArgs := func(audioCodec string) []string {
-		baseArgs := []string{
-			"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
-		}
-		if !safePerformanceMode {
-			baseArgs = append(baseArgs, "-re")
-		}
-
-		baseArgs = append(baseArgs,
-			"-threads", strconv.Itoa(encoderThreads),
-			"-i", video.File, "-i", xPath, "-i", yPath,
-			"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
-			"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
-		)
-
-		if filterThreads > 0 {
-			baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
-		}
-
-		if videoPreset != "" {
-			baseArgs = append(baseArgs, "-preset", videoPreset)
-		}
-
-		if encoder == "libx265" {
-			baseArgs = append(baseArgs, "-x265-params", "log-level=error")
-		}
-
-		return baseArgs
-	}
-
 	run := func(hwaccel string, audioCodec string) error {
-		baseArgs := buildBaseArgs(audioCodec)
+		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, safePerformanceMode, encoderThreads, filterThreads, videoPreset)
 		args := make([]string, 0, len(baseArgs)+4)
 		if hwaccel != "" {
 			args = append(args, "-hwaccel", hwaccel)
@@ -881,7 +881,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	if err != nil {
 		metrics.RecordError(-1, fmt.Sprintf("video validation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
-			"stage":            "video_check",
+			"stage":             "video_check",
 			"stage_duration_ms": stageDurations["video_check"].Milliseconds(),
 		})
 		return fmt.Errorf("video validation failed: %w", err)
@@ -961,7 +961,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		stageDurations["pgm_generation"] = time.Since(pgmStart)
 		metrics.RecordError(-1, fmt.Sprintf("filter generation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
-			"stage":            "pgm_generation",
+			"stage":             "pgm_generation",
 			"stage_duration_ms": stageDurations["pgm_generation"].Milliseconds(),
 		})
 		return err
@@ -980,7 +980,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
-			"stage":            "encoding",
+			"stage":             "encoding",
 			"stage_duration_ms": stageDurations["encoding"].Milliseconds(),
 		})
 		return err
