@@ -845,6 +845,12 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		}
 	}()
 	defer func() {
+		metrics.RecordStageDurations(
+			stageDurations["video_check"],
+			stageDurations["pgm_generation"],
+			stageDurations["encoding"],
+			stageDurations["cleanup"],
+		)
 		logger.Info("Encoding stage timings",
 			slog.Int64("video_check_ms", stageDurations["video_check"].Milliseconds()),
 			slog.Int64("pgm_generation_ms", stageDurations["pgm_generation"].Milliseconds()),

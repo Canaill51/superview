@@ -45,11 +45,26 @@ type EncodingMetrics struct {
 	CompressionRatio   float64       // Output size / Input size (computed)
 	BitrateReduction   float64       // (Input - Output) / Input ratio (computed)
 	EstimatedRemaining time.Duration // Computed time remaining
+	VideoCheckDuration time.Duration // Time spent in CheckVideo
+	PGMGenerationTime  time.Duration // Time spent generating remap PGM files
+	EncodeDuration     time.Duration // Time spent in ffmpeg encoding
+	CleanupDuration    time.Duration // Time spent cleaning temporary session data
 
 	// Error tracking
 	FfmpegExitCode int    // ffmpeg process exit code (0 = success)
 	ErrorMessage   string // Error message if encoding failed
 	Success        bool   // True if encoding completed successfully
+}
+
+// RecordStageDurations stores per-stage durations for later UI/reporting consumption.
+func (m *EncodingMetrics) RecordStageDurations(videoCheck, pgmGeneration, encode, cleanup time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.VideoCheckDuration = videoCheck
+	m.PGMGenerationTime = pgmGeneration
+	m.EncodeDuration = encode
+	m.CleanupDuration = cleanup
 }
 
 // NewEncodingMetrics creates a new metrics tracker with initialized timestamp.

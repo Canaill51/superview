@@ -5,6 +5,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"superview/common"
 	"syscall"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -143,6 +145,22 @@ func (h *GUIHandler) GetSqueeze() bool {
 	return false
 }
 
+func formatResultsPanel(metrics *common.EncodingMetrics) string {
+	if metrics == nil {
+		return "Results: no completed run yet"
+	}
+
+	return fmt.Sprintf(
+		"Results: total=%s | check=%s | pgm=%s | encode=%s | cleanup=%s | output=%.1f MB",
+		metrics.ElapsedTime().Round(time.Second).String(),
+		metrics.VideoCheckDuration.Round(time.Millisecond).String(),
+		metrics.PGMGenerationTime.Round(time.Millisecond).String(),
+		metrics.EncodeDuration.Round(time.Millisecond).String(),
+		metrics.CleanupDuration.Round(time.Millisecond).String(),
+		float64(metrics.OutputFileSize)/1024.0/1024.0,
+	)
+}
+
 func main() {
 	var video *common.VideoSpecs
 	var outputPath string
@@ -192,6 +210,8 @@ func main() {
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignCenter
 	status.TextStyle = fyne.TextStyle{Bold: true}
+	results := widget.NewLabel("Results: no completed run yet")
+	results.Wrapping = fyne.TextWrapWord
 
 	start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
 		if video == nil {
@@ -234,14 +254,18 @@ func main() {
 				fyne.Do(func() {
 					prog.Hide()
 					status.SetText("Status: Failed")
+					results.SetText("Results: last run failed")
 				})
 				handler.ShowError(err)
 				return
 			}
 
+			lastMetrics := common.GetLastEncodingMetrics()
+			resultsText := formatResultsPanel(lastMetrics)
 			fyne.Do(func() {
 				prog.Hide()
 				status.SetText("Status: Completed")
+				results.SetText(resultsText)
 			})
 			handler.ShowInfo("Transform complete. Output file:\n" + uri)
 		}()
@@ -427,6 +451,7 @@ func main() {
 		header,
 		flow,
 		status,
+		results,
 		centerButton(quitBtn),
 	))
 
