@@ -20,6 +20,24 @@ encoder_codecs:
 # Logging level: debug, info, warn, error
 log_level: info
 
+# Performance mode:
+# - safe: keep legacy behavior (realtime throttle + AAC re-encode)
+# - safe_performance: remove realtime throttle and try audio copy first
+performance_mode: safe_performance
+
+# Optional ffmpeg tuning (safe defaults)
+# video_preset: empty uses ffmpeg default preset
+# Common presets: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+video_preset: ""
+
+# filter_threads: number of threads for ffmpeg filter graph
+# 0 means auto/default behavior
+filter_threads: 0
+
+# encoder_threads: number of threads for ffmpeg encoder
+# 0 means auto/default behavior
+encoder_threads: 0
+
 # Minimum video dimensions in pixels
 min_video_width: 320
 min_video_height: 240

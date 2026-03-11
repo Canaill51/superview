@@ -29,6 +29,22 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("Expected LogLevel=info, got %s", cfg.LogLevel)
 	}
+
+	if cfg.PerformanceMode != "safe" {
+		t.Errorf("Expected PerformanceMode=safe, got %s", cfg.PerformanceMode)
+	}
+
+	if cfg.VideoPreset != "" {
+		t.Errorf("Expected VideoPreset empty, got %s", cfg.VideoPreset)
+	}
+
+	if cfg.FilterThreads != 0 {
+		t.Errorf("Expected FilterThreads=0, got %d", cfg.FilterThreads)
+	}
+
+	if cfg.EncoderThreads != 0 {
+		t.Errorf("Expected EncoderThreads=0, got %d", cfg.EncoderThreads)
+	}
 }
 
 func TestLoadConfig_NonexistentFile(t *testing.T) {
@@ -92,6 +108,10 @@ func TestLoadConfig_EnvironmentOverrides(t *testing.T) {
 	t.Setenv("SUPERVIEW_MIN_BITRATE", "131072")
 	t.Setenv("SUPERVIEW_MAX_BITRATE", "26214400")
 	t.Setenv("SUPERVIEW_LOG_LEVEL", "warn")
+	t.Setenv("SUPERVIEW_PERFORMANCE_MODE", "safe_performance")
+	t.Setenv("SUPERVIEW_VIDEO_PRESET", "fast")
+	t.Setenv("SUPERVIEW_FILTER_THREADS", "4")
+	t.Setenv("SUPERVIEW_ENCODER_THREADS", "8")
 
 	cfg, err := LoadConfig("")
 	if err != nil {
@@ -108,6 +128,58 @@ func TestLoadConfig_EnvironmentOverrides(t *testing.T) {
 
 	if cfg.LogLevel != "warn" {
 		t.Errorf("Expected LogLevel=warn from env, got %s", cfg.LogLevel)
+	}
+
+	if cfg.PerformanceMode != "safe_performance" {
+		t.Errorf("Expected PerformanceMode=safe_performance from env, got %s", cfg.PerformanceMode)
+	}
+
+	if cfg.VideoPreset != "fast" {
+		t.Errorf("Expected VideoPreset=fast from env, got %s", cfg.VideoPreset)
+	}
+
+	if cfg.FilterThreads != 4 {
+		t.Errorf("Expected FilterThreads=4 from env, got %d", cfg.FilterThreads)
+	}
+
+	if cfg.EncoderThreads != 8 {
+		t.Errorf("Expected EncoderThreads=8 from env, got %d", cfg.EncoderThreads)
+	}
+}
+
+func TestLoadConfig_InvalidPerformanceModeFallsBackToSafe(t *testing.T) {
+	t.Setenv("SUPERVIEW_PERFORMANCE_MODE", "turbo")
+
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Errorf("LoadConfig with invalid performance mode failed: %v", err)
+	}
+
+	if cfg.PerformanceMode != "safe" {
+		t.Errorf("Expected PerformanceMode=safe fallback, got %s", cfg.PerformanceMode)
+	}
+}
+
+func TestLoadConfig_InvalidFfmpegTuningValuesFallbackToDefaults(t *testing.T) {
+	t.Setenv("SUPERVIEW_VIDEO_PRESET", "turbo")
+	t.Setenv("SUPERVIEW_FILTER_THREADS", "-1")
+	t.Setenv("SUPERVIEW_ENCODER_THREADS", "-2")
+
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Errorf("LoadConfig with invalid tuning values failed: %v", err)
+	}
+
+	if cfg.VideoPreset != "" {
+		t.Errorf("Expected VideoPreset empty fallback, got %s", cfg.VideoPreset)
+	}
+
+	if cfg.FilterThreads != 0 {
+		t.Errorf("Expected FilterThreads=0 fallback, got %d", cfg.FilterThreads)
+	}
+
+	if cfg.EncoderThreads != 0 {
+		t.Errorf("Expected EncoderThreads=0 fallback, got %d", cfg.EncoderThreads)
 	}
 }
 

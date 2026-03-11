@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // Global logger instance
@@ -617,6 +618,36 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 // It reads PGM filter maps from the current session and encodes using the specified encoder and bitrate.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
+func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, safePerformanceMode bool, encoderThreads int, filterThreads int, videoPreset string) []string {
+	baseArgs := []string{
+		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
+	}
+	if !safePerformanceMode {
+		baseArgs = append(baseArgs, "-re")
+	}
+
+	baseArgs = append(baseArgs,
+		"-threads", strconv.Itoa(encoderThreads),
+		"-i", video.File, "-i", xPath, "-i", yPath,
+		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
+		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
+	)
+
+	if filterThreads > 0 {
+		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
+	}
+
+	if videoPreset != "" {
+		baseArgs = append(baseArgs, "-preset", videoPreset)
+	}
+
+	if encoder == "libx265" {
+		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
+	}
+
+	return baseArgs
+}
+
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64)) error {
 	// Get the session paths for PGM files
 	xPath, yPath, err := getSessionPaths()
@@ -624,19 +655,23 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		return err
 	}
 
-	baseArgs := []string{
-		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y", "-re",
-		"-threads", strconv.Itoa(runtime.NumCPU()),
-		"-i", video.File, "-i", xPath, "-i", yPath,
-		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
-		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", "aac",
+	safePerformanceMode := GetConfig().IsSafePerformanceMode()
+	cfg := GetConfig()
+	encoderThreads := runtime.NumCPU()
+	if cfg != nil && cfg.EncoderThreads > 0 {
+		encoderThreads = cfg.EncoderThreads
+	}
+	filterThreads := 0
+	if cfg != nil && cfg.FilterThreads > 0 {
+		filterThreads = cfg.FilterThreads
+	}
+	videoPreset := ""
+	if cfg != nil {
+		videoPreset = cfg.VideoPreset
 	}
 
-	if encoder == "libx265" {
-		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
-	}
-
-	run := func(hwaccel string) error {
+	run := func(hwaccel string, audioCodec string) error {
+		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, safePerformanceMode, encoderThreads, filterThreads, videoPreset)
 		args := make([]string, 0, len(baseArgs)+4)
 		if hwaccel != "" {
 			args = append(args, "-hwaccel", hwaccel)
@@ -718,6 +753,27 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		return nil
 	}
 
+	runWithAudioFallback := func(hwaccel string) error {
+		preferredAudioCodec := "aac"
+		if safePerformanceMode {
+			preferredAudioCodec = "copy"
+		}
+
+		err := run(hwaccel, preferredAudioCodec)
+		if err == nil {
+			return nil
+		}
+
+		if safePerformanceMode && preferredAudioCodec == "copy" {
+			logger.Warn("Audio stream copy failed, retrying with AAC",
+				slog.String("error", err.Error()),
+			)
+			return run(hwaccel, "aac")
+		}
+
+		return err
+	}
+
 	profile := AnalyzeMachineProfile(ffmpeg)
 	hwaccel := accelForEncoder(encoder)
 	if hwaccel != "" {
@@ -726,7 +782,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("encoder", encoder),
 				slog.String("hwaccel", hwaccel),
 			)
-			if err := run(hwaccel); err == nil {
+			if err := runWithAudioFallback(hwaccel); err == nil {
 				return nil
 			}
 			logger.Warn("Hardware decode path failed, falling back to CPU decode",
@@ -738,9 +794,11 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 
 	logger.Info("Using CPU decode path",
 		slog.String("encoder", encoder),
-		slog.Int("threads", runtime.NumCPU()),
+		slog.Int("threads", encoderThreads),
+		slog.Int("filter_threads", filterThreads),
+		slog.String("video_preset", videoPreset),
 	)
-	err = run("")
+	err = runWithAudioFallback("")
 	if err == nil {
 		return nil
 	}
@@ -779,11 +837,26 @@ func CleanUp() error {
 func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
 	// ==== OBSERVABILITY: Initialize metrics collection ====
 	metrics := NewEncodingMetrics(inputFile, outputFile)
+	stageDurations := make(map[string]time.Duration)
 	defer func() {
 		// Always record completion or error
 		if metrics.Success {
 			RecordEncodingCompletion(metrics)
 		}
+	}()
+	defer func() {
+		metrics.RecordStageDurations(
+			stageDurations["video_check"],
+			stageDurations["pgm_generation"],
+			stageDurations["encoding"],
+			stageDurations["cleanup"],
+		)
+		logger.Info("Encoding stage timings",
+			slog.Int64("video_check_ms", stageDurations["video_check"].Milliseconds()),
+			slog.Int64("pgm_generation_ms", stageDurations["pgm_generation"].Milliseconds()),
+			slog.Int64("encoding_ms", stageDurations["encoding"].Milliseconds()),
+			slog.Int64("cleanup_ms", stageDurations["cleanup"].Milliseconds()),
+		)
 	}()
 
 	// ==== SECURITY VALIDATION ====
@@ -802,10 +875,15 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	// Load and validate video metadata (includes security checks)
+	videoCheckStart := time.Now()
 	video, err := CheckVideo(inputFile)
+	stageDurations["video_check"] = time.Since(videoCheckStart)
 	if err != nil {
 		metrics.RecordError(-1, fmt.Sprintf("video validation failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "video_check"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":             "video_check",
+			"stage_duration_ms": stageDurations["video_check"].Milliseconds(),
+		})
 		return fmt.Errorf("video validation failed: %w", err)
 	}
 
@@ -870,17 +948,25 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return err
 	}
 	defer func() {
+		cleanupStart := time.Now()
 		if cleanupErr := CleanUp(); cleanupErr != nil {
 			logger.Warn("Failed to cleanup encoding session", slog.String("error", cleanupErr.Error()))
 		}
+		stageDurations["cleanup"] = time.Since(cleanupStart)
 	}()
 
 	// Generate remap filters
+	pgmStart := time.Now()
 	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
+		stageDurations["pgm_generation"] = time.Since(pgmStart)
 		metrics.RecordError(-1, fmt.Sprintf("filter generation failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "pgm_generation"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":             "pgm_generation",
+			"stage_duration_ms": stageDurations["pgm_generation"].Milliseconds(),
+		})
 		return err
 	}
+	stageDurations["pgm_generation"] = time.Since(pgmStart)
 
 	// Perform encoding with progress callback + metrics recording
 	progressFunc := func(percent float64) {
@@ -889,11 +975,17 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		RecordEncodingProgress(percent, fmt.Sprintf("Encoding: %.1f%%", percent))
 	}
 
+	encodeStart := time.Now()
 	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc); err != nil {
+		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
-		RecordEncodingError(err, map[string]interface{}{"stage": "encoding"})
+		RecordEncodingError(err, map[string]interface{}{
+			"stage":             "encoding",
+			"stage_duration_ms": stageDurations["encoding"].Milliseconds(),
+		})
 		return err
 	}
+	stageDurations["encoding"] = time.Since(encodeStart)
 
 	// ==== OBSERVABILITY: Record successful completion ====
 	outputFileInfo, _ := os.Stat(outputFile)

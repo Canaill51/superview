@@ -329,6 +329,54 @@ func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 	}
 }
 
+func TestBuildEncodeBaseArgs_SafeModeDefaults(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "aac", false, 6, 0, "")
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-re") {
+		t.Fatalf("expected -re in safe mode, args: %v", args)
+	}
+	if strings.Contains(joined, "-preset") {
+		t.Fatalf("did not expect -preset by default, args: %v", args)
+	}
+	if strings.Contains(joined, "-filter_threads") {
+		t.Fatalf("did not expect -filter_threads when set to 0, args: %v", args)
+	}
+	if !strings.Contains(joined, "-threads 6") {
+		t.Fatalf("expected encoder threads to be applied, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "copy", true, 8, 4, "fast")
+
+	joined := strings.Join(args, " ")
+	if strings.Contains(joined, "-re") {
+		t.Fatalf("did not expect -re in safe_performance mode, args: %v", args)
+	}
+	if !strings.Contains(joined, "-preset fast") {
+		t.Fatalf("expected preset to be applied, args: %v", args)
+	}
+	if !strings.Contains(joined, "-filter_threads 4") {
+		t.Fatalf("expected filter threads to be applied, args: %v", args)
+	}
+	if !strings.Contains(joined, "-threads 8") {
+		t.Fatalf("expected encoder threads to be applied, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", true, 4, 0, "slow")
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-x265-params log-level=error") {
+		t.Fatalf("expected x265 params for libx265 encoder, args: %v", args)
+	}
+}
+
 func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	tempDir := t.TempDir()
 

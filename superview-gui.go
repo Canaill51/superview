@@ -5,6 +5,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
@@ -13,14 +14,15 @@ import (
 	"strings"
 	"superview/common"
 	"syscall"
+	"time"
 
-	"fyne.io/fyne"
-	"fyne.io/fyne/app"
-	"fyne.io/fyne/container"
-	"fyne.io/fyne/dialog"
-	"fyne.io/fyne/storage"
-	"fyne.io/fyne/theme"
-	"fyne.io/fyne/widget"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
 
 //go:embed Icon.png
@@ -108,18 +110,24 @@ type GUIHandler struct {
 }
 
 func (h *GUIHandler) ShowError(err error) {
-	if showPrerequisiteDialog(h.window, err) {
-		return
-	}
-	dialog.ShowError(err, h.window)
+	fyne.Do(func() {
+		if showPrerequisiteDialog(h.window, err) {
+			return
+		}
+		dialog.ShowError(err, h.window)
+	})
 }
 
 func (h *GUIHandler) ShowInfo(msg string) {
-	dialog.ShowInformation("Done", msg, h.window)
+	fyne.Do(func() {
+		dialog.ShowInformation("Done", msg, h.window)
+	})
 }
 
 func (h *GUIHandler) ShowProgress(percent float64) {
-	h.progress.SetValue(percent / 100)
+	fyne.Do(func() {
+		h.progress.SetValue(percent / 100)
+	})
 }
 
 func (h *GUIHandler) GetBitrate() (int, error) {
@@ -135,6 +143,22 @@ func (h *GUIHandler) GetEncoder() string {
 
 func (h *GUIHandler) GetSqueeze() bool {
 	return false
+}
+
+func formatResultsPanel(metrics *common.EncodingMetrics) string {
+	if metrics == nil {
+		return "Results: no completed run yet"
+	}
+
+	return fmt.Sprintf(
+		"Results: total=%s | check=%s | pgm=%s | encode=%s | cleanup=%s | output=%.1f MB",
+		metrics.ElapsedTime().Round(time.Second).String(),
+		metrics.VideoCheckDuration.Round(time.Millisecond).String(),
+		metrics.PGMGenerationTime.Round(time.Millisecond).String(),
+		metrics.EncodeDuration.Round(time.Millisecond).String(),
+		metrics.CleanupDuration.Round(time.Millisecond).String(),
+		float64(metrics.OutputFileSize)/1024.0/1024.0,
+	)
 }
 
 func main() {
@@ -181,10 +205,13 @@ func main() {
 
 	selectedOutput := widget.NewLabel("No output file selected")
 	selectedOutput.Wrapping = fyne.TextWrapWord
+	selectedProfile := ""
 
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignCenter
 	status.TextStyle = fyne.TextStyle{Bold: true}
+	results := widget.NewLabel("Results: no completed run yet")
+	results.Wrapping = fyne.TextWrapWord
 
 	start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
 		if video == nil {
@@ -197,6 +224,16 @@ func main() {
 		}
 
 		uri := outputPath
+		effectiveCfg := *cfg
+		switch selectedProfile {
+		case "fast":
+			effectiveCfg.PerformanceMode = "safe_performance"
+			effectiveCfg.VideoPreset = "fast"
+		case "quality":
+			effectiveCfg.PerformanceMode = "safe"
+			effectiveCfg.VideoPreset = "slow"
+		}
+		common.SetConfig(&effectiveCfg)
 
 		prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
 		prog.Show()
@@ -214,14 +251,22 @@ func main() {
 			}
 
 			if err := common.PerformEncoding(video.File, uri, handler, ffmpeg); err != nil {
-				prog.Hide()
-				status.SetText("Status: Failed")
+				fyne.Do(func() {
+					prog.Hide()
+					status.SetText("Status: Failed")
+					results.SetText("Results: last run failed")
+				})
 				handler.ShowError(err)
 				return
 			}
 
-			prog.Hide()
-			status.SetText("Status: Completed")
+			lastMetrics := common.GetLastEncodingMetrics()
+			resultsText := formatResultsPanel(lastMetrics)
+			fyne.Do(func() {
+				prog.Hide()
+				status.SetText("Status: Completed")
+				results.SetText(resultsText)
+			})
 			handler.ShowInfo("Transform complete. Output file:\n" + uri)
 		}()
 
@@ -340,6 +385,11 @@ func main() {
 	centerLabel := func(text string) string {
 		return "   " + text + "   "
 	}
+	profileOptions := []string{
+		centerLabel("Auto (config)"),
+		centerLabel("Fast"),
+		centerLabel("Quality"),
+	}
 	for i := range encoderOptions {
 		encoderOptions[i] = centerLabel(encoderOptions[i])
 	}
@@ -351,8 +401,21 @@ func main() {
 
 	})
 	encoder.SetSelected(encoderOptions[0])
+	profile := widget.NewSelect(profileOptions, func(s string) {
+		switch strings.ToLower(strings.TrimSpace(s)) {
+		case strings.ToLower(strings.TrimSpace(centerLabel("Fast"))):
+			selectedProfile = "fast"
+		case strings.ToLower(strings.TrimSpace(centerLabel("Quality"))):
+			selectedProfile = "quality"
+		default:
+			selectedProfile = ""
+		}
+	})
+	profile.SetSelected(profileOptions[0])
 	codecLabel := widget.NewLabel("Output codec")
 	codecLabel.Alignment = fyne.TextAlignCenter
+	profileLabel := widget.NewLabel("Performance profile")
+	profileLabel.Alignment = fyne.TextAlignCenter
 
 	buttonSize := fyne.NewSize(300, 40)
 	selectSize := fyne.NewSize(360, 40)
@@ -363,7 +426,7 @@ func main() {
 		return container.NewCenter(container.NewGridWrap(selectSize, sel))
 	}
 
-	header := widget.NewVBox(
+	header := container.NewVBox(
 		subtitle,
 		widget.NewSeparator(),
 	)
@@ -375,6 +438,8 @@ func main() {
 	flow := widget.NewForm(
 		widget.NewFormItem("", centerButton(open)),
 		widget.NewFormItem("", selectedFile),
+		widget.NewFormItem("", profileLabel),
+		widget.NewFormItem("", centerSelect(profile)),
 		widget.NewFormItem("", codecLabel),
 		widget.NewFormItem("", centerSelect(encoder)),
 		widget.NewFormItem("", centerButton(selectOutput)),
@@ -382,10 +447,11 @@ func main() {
 		widget.NewFormItem("", centerButton(start)),
 	)
 
-	window.SetContent(widget.NewVBox(
+	window.SetContent(container.NewVBox(
 		header,
 		flow,
 		status,
+		results,
 		centerButton(quitBtn),
 	))
 
