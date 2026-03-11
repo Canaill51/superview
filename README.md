@@ -42,13 +42,10 @@ Use the commands below.
 
 ```powershell
 winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
-winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
-winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
 
 ffmpeg -version
 ffprobe -version
-go version
-gcc --version
+
 ```
 
 If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
@@ -218,6 +215,13 @@ common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
 ```
 
 ## Development
+
+Use the commands below.
+
+```powershell
+winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
+winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
 
 ### Build & Test
 
