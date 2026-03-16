@@ -201,17 +201,15 @@ func main() {
 	}
 
 	selectedFile := widget.NewLabel("No input file selected")
-	selectedFile.Wrapping = fyne.TextWrapWord
 
 	selectedOutput := widget.NewLabel("No output file selected")
-	selectedOutput.Wrapping = fyne.TextWrapWord
+
 	selectedProfile := ""
 
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignCenter
 	status.TextStyle = fyne.TextStyle{Bold: true}
 	results := widget.NewLabel("Results: no completed run yet")
-	results.Wrapping = fyne.TextWrapWord
 
 	start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
 		if video == nil {
@@ -437,21 +435,21 @@ func main() {
 
 	flow := widget.NewForm(
 		widget.NewFormItem("", centerButton(open)),
-		widget.NewFormItem("", selectedFile),
+		widget.NewFormItem("", container.NewCenter(selectedFile)),
 		widget.NewFormItem("", profileLabel),
 		widget.NewFormItem("", centerSelect(profile)),
 		widget.NewFormItem("", codecLabel),
 		widget.NewFormItem("", centerSelect(encoder)),
 		widget.NewFormItem("", centerButton(selectOutput)),
-		widget.NewFormItem("", selectedOutput),
+		widget.NewFormItem("", container.NewCenter(selectedOutput)),
 		widget.NewFormItem("", centerButton(start)),
+		widget.NewFormItem("", container.NewCenter(results)),
 	)
 
 	window.SetContent(container.NewVBox(
 		header,
 		flow,
 		status,
-		results,
 		centerButton(quitBtn),
 	))
 
