@@ -648,7 +648,7 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 	return baseArgs
 }
 
-func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64)) error {
+func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
 	// Get the session paths for PGM files
 	xPath, yPath, err := getSessionPaths()
 	if err != nil {
@@ -701,42 +701,66 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		interrupted := make(chan struct{}, 1)
 		signalNotify(sigC, os.Interrupt, syscall.SIGTERM)
 		defer signalStop(sigC)
-		go func() {
-			select {
-			case <-sigC:
-				if cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
-				select {
-				case interrupted <- struct{}{}:
-				default:
-				}
-			case <-done:
-			}
-		}()
-		defer close(done)
 
-		for {
-			line, _, err := rd.ReadLine()
+		       go func() {
+			       select {
+			       case <-sigC:
+				       if cmd.Process != nil {
+					       _ = cmd.Process.Kill()
+				       }
+				       select {
+				       case interrupted <- struct{}{}:
+				       default:
+				       }
+			       case <-cancel:
+				       if cmd.Process != nil {
+					       _ = cmd.Process.Kill()
+				       }
+				       select {
+				       case interrupted <- struct{}{}:
+				       default:
+				       }
+			       case <-done:
+			       }
+		       }()
+		       defer close(done)
 
-			if err == io.EOF {
-				logger.Debug("Encoding complete")
-				break
-			}
 
-			if bytes.Contains(line, []byte("out_time_ms=")) {
-				time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
-				timeF, err := strconv.ParseFloat(string(time), 64)
-				if err != nil {
-					logger.Warn("Failed to parse progress value",
-						slog.String("raw_value", string(time)),
-						slog.String("error", err.Error()),
-					)
-					continue
-				}
-				callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
-			}
-		}
+		       readDone := make(chan struct{})
+		       go func() {
+			       defer close(readDone)
+			       for {
+				       line, _, err := rd.ReadLine()
+
+				       if err == io.EOF {
+					       logger.Debug("Encoding complete")
+					       break
+				       }
+
+				       if bytes.Contains(line, []byte("out_time_ms=")) {
+					       time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
+					       timeF, err := strconv.ParseFloat(string(time), 64)
+					       if err != nil {
+						       logger.Warn("Failed to parse progress value",
+							       slog.String("raw_value", string(time)),
+							       slog.String("error", err.Error()),
+						       )
+						       continue
+					       }
+					       callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
+				       }
+			       }
+		       }()
+
+		       select {
+		       case <-cancel:
+			       if cmd.Process != nil {
+				       _ = cmd.Process.Kill()
+			       }
+			       <-readDone
+			       return errors.New("encoding interrupted by user")
+		       case <-readDone:
+		       }
 
 		if err := cmd.Wait(); err != nil {
 			select {
@@ -782,7 +806,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("encoder", encoder),
 				slog.String("hwaccel", hwaccel),
 			)
-			if err := runWithAudioFallback(hwaccel); err == nil {
+					   if err := runWithAudioFallback(hwaccel); err == nil {
 				return nil
 			}
 			logger.Warn("Hardware decode path failed, falling back to CPU decode",
@@ -811,13 +835,13 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 			fallbackEncoder = "libx265"
 		}
 
-		if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
-			logger.Warn("Hardware encoder failed, retrying with CPU encoder",
-				slog.String("failed_encoder", encoder),
-				slog.String("fallback_encoder", fallbackEncoder),
-			)
-			return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback)
-		}
+		       if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
+			       logger.Warn("Hardware encoder failed, retrying with CPU encoder",
+				       slog.String("failed_encoder", encoder),
+				       slog.String("fallback_encoder", fallbackEncoder),
+			       )
+			       return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
+		       }
 	}
 
 	return err
@@ -834,7 +858,7 @@ func CleanUp() error {
 // Call this from GUI entry points only; the logic is pipeline-agnostic.
 // Security: Validates input/output paths and encoder selection for defensive programming.
 // Observability: Records metrics and events throughout the pipeline.
-func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string) error {
+func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string, cancel <-chan struct{}) error {
 	// ==== OBSERVABILITY: Initialize metrics collection ====
 	metrics := NewEncodingMetrics(inputFile, outputFile)
 	stageDurations := make(map[string]time.Duration)
@@ -976,7 +1000,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	encodeStart := time.Now()
-	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc); err != nil {
+	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc, cancel); err != nil {
 		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{

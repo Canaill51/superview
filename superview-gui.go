@@ -167,6 +167,10 @@ func main() {
 	var ffmpeg map[string]string
 	var encoder *widget.Select
 
+	// Nouveaux champs d'état pour l'annulation
+	var encodingInProgress bool
+	var cancelEncoding chan struct{}
+
 	// Initialize logger for GUI (suppress to avoid cluttering the UI)
 	gui_logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -189,8 +193,30 @@ func main() {
 	app.SetIcon(iconResource)
 	app.Settings().SetTheme(theme.DarkTheme())
 
-	window := app.NewWindow("Superview")
-	window.SetIcon(iconResource)
+	       window := app.NewWindow("Superview")
+	       window.SetIcon(iconResource)
+
+	       // Interception de la fermeture de la fenêtre principale
+	       window.SetCloseIntercept(func() {
+		       if encodingInProgress {
+			       dialog.ShowConfirm("Annuler et quitter", "Un encodage est en cours. Voulez-vous l'annuler et quitter ?", func(confirm bool) {
+				       if confirm {
+					       // Demande d'annulation
+					       if cancelEncoding != nil {
+						       close(cancelEncoding)
+					       }
+					       // On laisse la goroutine d'encodage nettoyer, puis on ferme l'app après un court délai
+					       go func() {
+						       time.Sleep(1 * time.Second)
+						       app.Quit()
+					       }()
+				       }
+				       // Sinon, ne rien faire (l'utilisateur a annulé la fermeture)
+			       }, window)
+		       } else {
+			       app.Quit()
+		       }
+	       })
 
 	subtitle := widget.NewLabel("Transform your video in 3 simple steps")
 	subtitle.Alignment = fyne.TextAlignCenter
@@ -211,65 +237,72 @@ func main() {
 	status.TextStyle = fyne.TextStyle{Bold: true}
 	results := widget.NewLabel("Results: no completed run yet")
 
-	start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
-		if video == nil {
-			dialog.ShowInformation("No input", "Please open an input video first.", window)
-			return
-		}
-		if outputPath == "" {
-			dialog.ShowInformation("No output", "Please choose an output file first.", window)
-			return
-		}
+	       start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
+		       if video == nil {
+			       dialog.ShowInformation("No input", "Please open an input video first.", window)
+			       return
+		       }
+		       if outputPath == "" {
+			       dialog.ShowInformation("No output", "Please choose an output file first.", window)
+			       return
+		       }
 
-		uri := outputPath
-		effectiveCfg := *cfg
-		switch selectedProfile {
-		case "fast":
-			effectiveCfg.PerformanceMode = "safe_performance"
-			effectiveCfg.VideoPreset = "fast"
-		case "quality":
-			effectiveCfg.PerformanceMode = "safe"
-			effectiveCfg.VideoPreset = "slow"
-		}
-		common.SetConfig(&effectiveCfg)
+		       uri := outputPath
+		       effectiveCfg := *cfg
+		       switch selectedProfile {
+		       case "fast":
+			       effectiveCfg.PerformanceMode = "safe_performance"
+			       effectiveCfg.VideoPreset = "fast"
+		       case "quality":
+			       effectiveCfg.PerformanceMode = "safe"
+			       effectiveCfg.VideoPreset = "slow"
+		       }
+		       common.SetConfig(&effectiveCfg)
 
-		prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
-		prog.Show()
-		status.SetText("Status: Transforming...")
+		       prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
+		       prog.Show()
+		       status.SetText("Status: Transforming...")
 
-		go func() {
-			handler := &GUIHandler{
-				window:   window,
-				bitrate:  fixedBitrate,
-				encoder:  encoder,
-				progress: prog,
-				ffmpeg:   ffmpeg,
-				video:    video,
-				logger:   common.GetLogger(),
-			}
+		       // Activation de l'état d'encodage et initialisation du canal d'annulation
+		       encodingInProgress = true
+		       cancelEncoding = make(chan struct{})
 
-			if err := common.PerformEncoding(video.File, uri, handler, ffmpeg); err != nil {
-				fyne.Do(func() {
-					prog.Hide()
-					status.SetText("Status: Failed")
-					results.SetText("Results: last run failed")
-				})
-				handler.ShowError(err)
-				return
-			}
+		       go func() {
+			       handler := &GUIHandler{
+				       window:   window,
+				       bitrate:  fixedBitrate,
+				       encoder:  encoder,
+				       progress: prog,
+				       ffmpeg:   ffmpeg,
+				       video:    video,
+				       logger:   common.GetLogger(),
+			       }
 
-			lastMetrics := common.GetLastEncodingMetrics()
-			resultsText := formatResultsPanel(lastMetrics)
-			fyne.Do(func() {
-				prog.Hide()
-				status.SetText("Status: Completed")
-				results.SetText(resultsText)
-			})
-			handler.ShowInfo("Transform complete. Output file:\n" + uri)
-		}()
+					   // Passage du canal d'annulation à PerformEncoding
+					   if err := common.PerformEncoding(video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
+				       fyne.Do(func() {
+					       prog.Hide()
+					       status.SetText("Status: Failed")
+					       results.SetText("Results: last run failed")
+				       })
+				       handler.ShowError(err)
+				       encodingInProgress = false
+				       return
+			       }
 
-	})
-	start.Disable()
+			       lastMetrics := common.GetLastEncodingMetrics()
+			       resultsText := formatResultsPanel(lastMetrics)
+			       fyne.Do(func() {
+				       prog.Hide()
+				       status.SetText("Status: Completed")
+				       results.SetText(resultsText)
+			       })
+			       handler.ShowInfo("Transform complete. Output file:\n" + uri)
+			       encodingInProgress = false
+		       }()
+
+	       })
+	       start.Disable()
 
 	refreshStart := func() {
 		if video != nil && outputPath != "" {
