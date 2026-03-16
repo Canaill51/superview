@@ -452,9 +452,9 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	signalStop = func(c chan<- os.Signal) {}
 
 	errCh := make(chan error, 1)
-	go func() {
-		errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {})
-	}()
+	       go func() {
+		       errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
+	       }()
 
 	var sigTarget chan<- os.Signal
 	select {
@@ -515,7 +515,7 @@ func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	err := EncodeVideo(video, "libx264", 2000000, "output.mp4", map[string]string{}, func(float64) {})
+	err := EncodeVideo(video, "libx264", 2000000, "output.mp4", map[string]string{}, func(float64) {}, make(chan struct{}))
 	if err == nil {
 		t.Fatal("expected stdout pipe error, got nil")
 	}
