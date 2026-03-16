@@ -702,65 +702,64 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		signalNotify(sigC, os.Interrupt, syscall.SIGTERM)
 		defer signalStop(sigC)
 
-		       go func() {
-			       select {
-			       case <-sigC:
-				       if cmd.Process != nil {
-					       _ = cmd.Process.Kill()
-				       }
-				       select {
-				       case interrupted <- struct{}{}:
-				       default:
-				       }
-			       case <-cancel:
-				       if cmd.Process != nil {
-					       _ = cmd.Process.Kill()
-				       }
-				       select {
-				       case interrupted <- struct{}{}:
-				       default:
-				       }
-			       case <-done:
-			       }
-		       }()
-		       defer close(done)
+		go func() {
+			select {
+			case <-sigC:
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				select {
+				case interrupted <- struct{}{}:
+				default:
+				}
+			case <-cancel:
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				select {
+				case interrupted <- struct{}{}:
+				default:
+				}
+			case <-done:
+			}
+		}()
+		defer close(done)
 
+		readDone := make(chan struct{})
+		go func() {
+			defer close(readDone)
+			for {
+				line, _, err := rd.ReadLine()
 
-		       readDone := make(chan struct{})
-		       go func() {
-			       defer close(readDone)
-			       for {
-				       line, _, err := rd.ReadLine()
+				if err == io.EOF {
+					logger.Debug("Encoding complete")
+					break
+				}
 
-				       if err == io.EOF {
-					       logger.Debug("Encoding complete")
-					       break
-				       }
+				if bytes.Contains(line, []byte("out_time_ms=")) {
+					time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
+					timeF, err := strconv.ParseFloat(string(time), 64)
+					if err != nil {
+						logger.Warn("Failed to parse progress value",
+							slog.String("raw_value", string(time)),
+							slog.String("error", err.Error()),
+						)
+						continue
+					}
+					callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
+				}
+			}
+		}()
 
-				       if bytes.Contains(line, []byte("out_time_ms=")) {
-					       time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
-					       timeF, err := strconv.ParseFloat(string(time), 64)
-					       if err != nil {
-						       logger.Warn("Failed to parse progress value",
-							       slog.String("raw_value", string(time)),
-							       slog.String("error", err.Error()),
-						       )
-						       continue
-					       }
-					       callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
-				       }
-			       }
-		       }()
-
-		       select {
-		       case <-cancel:
-			       if cmd.Process != nil {
-				       _ = cmd.Process.Kill()
-			       }
-			       <-readDone
-			       return errors.New("encoding interrupted by user")
-		       case <-readDone:
-		       }
+		select {
+		case <-cancel:
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			<-readDone
+			return errors.New("encoding interrupted by user")
+		case <-readDone:
+		}
 
 		if err := cmd.Wait(); err != nil {
 			select {
@@ -806,7 +805,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("encoder", encoder),
 				slog.String("hwaccel", hwaccel),
 			)
-					   if err := runWithAudioFallback(hwaccel); err == nil {
+			if err := runWithAudioFallback(hwaccel); err == nil {
 				return nil
 			}
 			logger.Warn("Hardware decode path failed, falling back to CPU decode",
@@ -835,13 +834,13 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 			fallbackEncoder = "libx265"
 		}
 
-		       if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
-			       logger.Warn("Hardware encoder failed, retrying with CPU encoder",
-				       slog.String("failed_encoder", encoder),
-				       slog.String("fallback_encoder", fallbackEncoder),
-			       )
-			       return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
-		       }
+		if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
+			logger.Warn("Hardware encoder failed, retrying with CPU encoder",
+				slog.String("failed_encoder", encoder),
+				slog.String("fallback_encoder", fallbackEncoder),
+			)
+			return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
+		}
 	}
 
 	return err
