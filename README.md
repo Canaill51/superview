@@ -88,13 +88,17 @@ Windows (PowerShell):
 
 GUI workflow:
 1. Click **1) Choose input file**
-2. (Optional) Select **Output codec**
-3. Click **2) Choose output file**
-4. Click **3) Start Superview transform**
-5. Wait for encoding completion
+2. Select **Quality** (**Fast** or **Balanced**)
+3. (Optional) Select **Video codec**
+4. Click **2) Choose output file**
+5. Click **3) Start Superview transform**
+6. Wait for encoding completion
 
 Notes:
-- GUI bitrate is fixed from configuration (`max_bitrate`), there is no manual bitrate field.
+- GUI quality is profile-driven (GPU-friendly bitrate + preset strategy).
+- `Fast`: faster encode, smaller output.
+- `Balanced`: best visual quality.
+- The app asks for confirmation before overwriting an existing output file.
 
 ![GUI Screenshot](.github/sample-gui.png)
 
@@ -106,7 +110,8 @@ Edit `superview.yaml` to customize:
 
 ```yaml
 min_bitrate: 102400       # ~0.1 Mbps minimum
-max_bitrate: 52428800     # ~50 Mbps maximum
+max_bitrate: 209715200    # ~200 Mbps maximum
+quality_preset: balanced  # balanced | fast
 temp_dir_prefix: "superview-*"
 encoder_codecs: ["264", "265", "hevc"]
 log_level: info
@@ -120,7 +125,8 @@ Override with environment variables:
 
 ```bash
 export SUPERVIEW_MIN_BITRATE=262144
-export SUPERVIEW_MAX_BITRATE=20971520
+export SUPERVIEW_MAX_BITRATE=209715200
+export SUPERVIEW_QUALITY_PRESET=balanced
 export SUPERVIEW_LOG_LEVEL=debug
 export SUPERVIEW_PERFORMANCE_MODE=safe_performance
 export SUPERVIEW_VIDEO_PRESET=fast
@@ -180,8 +186,8 @@ GetLogger() *slog.Logger
 // Encoding Workflow
 CheckFfmpeg() (map[string]string, error)
 CheckVideo(file string) (*VideoSpecs, error)
-PerformEncoding(inputFile, outputFile string, ui UIHandler, 
-                ffmpeg map[string]string) error
+PerformEncoding(inputFile, outputFile string, ui UIHandler,
+                ffmpeg map[string]string, cancel <-chan struct{}) error
 ```
 
 Implement the `UIHandler` interface for custom UIs:
@@ -211,7 +217,8 @@ func (h *MyHandler) GetSqueeze() bool { return false }
 
 // Use it
 ffmpeg, _ := common.CheckFfmpeg()
-common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg)
+cancel := make(chan struct{})
+common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg, cancel)
 ```
 
 ## Development
@@ -222,6 +229,7 @@ Use the commands below.
 winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
 winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
 winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
+```
 
 ### Build & Test
 

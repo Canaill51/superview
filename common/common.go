@@ -615,7 +615,7 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 }
 
 // EncodeVideo runs ffmpeg with the remap filter to apply the superview distortion.
-// It reads PGM filter maps from the current session and encodes using the specified encoder and bitrate.
+// It reads PGM filter maps from the current session and encodes using the specified encoder and quality settings.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
 func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, safePerformanceMode bool, encoderThreads int, filterThreads int, videoPreset string) []string {
@@ -630,8 +630,10 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 		"-threads", strconv.Itoa(encoderThreads),
 		"-i", video.File, "-i", xPath, "-i", yPath,
 		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
-		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate), "-c:a", audioCodec,
+		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate),
 	)
+
+	baseArgs = append(baseArgs, "-c:a", audioCodec)
 
 	if filterThreads > 0 {
 		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
@@ -927,8 +929,11 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return fmt.Errorf("invalid encoder selection: %w", err)
 	}
 
-	// Get encoding options from UI
+	// Get encoding quality options from UI (bitrate)
+	cfg := GetConfig()
 	bitrate := 0
+
+	// Bitrate mode: get bitrate from UI
 	bitrateFromUI, err := ui.GetBitrate()
 	if err == nil && bitrateFromUI > 0 {
 		bitrate = bitrateFromUI
@@ -938,7 +943,6 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	// Validate bitrate using configured constraints
-	cfg := GetConfig()
 	if err := ValidateBitrate(bitrate, cfg.MinBitrate, cfg.MaxBitrate); err != nil {
 		metrics.RecordError(-1, fmt.Sprintf("bitrate validation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "bitrate_validation"})

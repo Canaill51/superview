@@ -22,8 +22,8 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 		t.Errorf("Expected MinBitrate=102400, got %d", cfg.MinBitrate)
 	}
 
-	if cfg.MaxBitrate != 52428800 {
-		t.Errorf("Expected MaxBitrate=52428800, got %d", cfg.MaxBitrate)
+	if cfg.MaxBitrate != 209715200 {
+		t.Errorf("Expected MaxBitrate=209715200 (200M bytes/sec), got %d", cfg.MaxBitrate)
 	}
 
 	if cfg.LogLevel != "info" {
@@ -36,6 +36,10 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 
 	if cfg.VideoPreset != "" {
 		t.Errorf("Expected VideoPreset empty, got %s", cfg.VideoPreset)
+	}
+
+	if cfg.QualityPreset != "balanced" {
+		t.Errorf("Expected QualityPreset=balanced, got %s", cfg.QualityPreset)
 	}
 
 	if cfg.FilterThreads != 0 {

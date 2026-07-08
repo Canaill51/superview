@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -100,13 +101,13 @@ func chooseOutputFileNative() (string, error) {
 
 // GUIHandler implements UIHandler for GUI interface
 type GUIHandler struct {
-	window   fyne.Window
-	bitrate  int
-	encoder  *widget.Select
-	progress *dialog.ProgressDialog
-	ffmpeg   map[string]string
-	video    *common.VideoSpecs
-	logger   *slog.Logger
+	window       fyne.Window
+	bitrate      int
+	encoder      *widget.Select
+	progress     *dialog.ProgressDialog
+	ffmpeg       map[string]string
+	video        *common.VideoSpecs
+	logger       *slog.Logger
 }
 
 func (h *GUIHandler) ShowError(err error) {
@@ -150,14 +151,20 @@ func formatResultsPanel(metrics *common.EncodingMetrics) string {
 		return "Results: no completed run yet"
 	}
 
+	inputMB := float64(metrics.InputFileSize) / 1024.0 / 1024.0
+	outputMB := float64(metrics.OutputFileSize) / 1024.0 / 1024.0
+	ratio := 0.0
+	if metrics.InputFileSize > 0 {
+		ratio = (float64(metrics.OutputFileSize) / float64(metrics.InputFileSize)) * 100.0
+	}
+
 	return fmt.Sprintf(
-		"Results: total=%s | check=%s | pgm=%s | encode=%s | cleanup=%s | output=%.1f MB",
+		"Results: in=%.1f MB | out=%.1f MB (%.1f%%) | total=%s | encode=%s",
+		inputMB,
+		outputMB,
+		ratio,
 		metrics.ElapsedTime().Round(time.Second).String(),
-		metrics.VideoCheckDuration.Round(time.Millisecond).String(),
-		metrics.PGMGenerationTime.Round(time.Millisecond).String(),
 		metrics.EncodeDuration.Round(time.Millisecond).String(),
-		metrics.CleanupDuration.Round(time.Millisecond).String(),
-		float64(metrics.OutputFileSize)/1024.0/1024.0,
 	)
 }
 
@@ -199,7 +206,12 @@ func main() {
 	// Interception de la fermeture de la fenêtre principale
 	window.SetCloseIntercept(func() {
 		if encodingInProgress {
-			dialog.ShowConfirm("Annuler et quitter", "Un encodage est en cours. Voulez-vous l'annuler et quitter ?", func(confirm bool) {
+			dialog.NewCustomConfirm(
+				"Cancel and quit",
+				"Yes",
+				"No",
+				widget.NewLabel("An encoding is in progress. Do you want to cancel and quit?"),
+				func(confirm bool) {
 				if confirm {
 					// Demande d'annulation
 					if cancelEncoding != nil {
@@ -212,7 +224,9 @@ func main() {
 					}()
 				}
 				// Sinon, ne rien faire (l'utilisateur a annulé la fermeture)
-			}, window)
+			},
+				window,
+			).Show()
 		} else {
 			app.Quit()
 		}
@@ -221,21 +235,34 @@ func main() {
 	subtitle := widget.NewLabel("Transform your video in 3 simple steps")
 	subtitle.Alignment = fyne.TextAlignCenter
 
-	fixedBitrate := cfg.MaxBitrate
-	if fixedBitrate <= 0 {
-		fixedBitrate = 50000000
-	}
-
 	selectedFile := widget.NewLabel("No input file selected")
 
 	selectedOutput := widget.NewLabel("No output file selected")
 
-	selectedProfile := ""
+	selectedQualityProfile := "Balanced" // Default quality profile
 
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignCenter
 	status.TextStyle = fyne.TextStyle{Bold: true}
 	results := widget.NewLabel("Results: no completed run yet")
+	selectionSummary := widget.NewLabel("Profile: Balanced | Codec: Auto")
+	selectionSummary.Alignment = fyne.TextAlignCenter
+	selectionSummary.TextStyle = fyne.TextStyle{Italic: true}
+
+	var updateSelectionSummary func()
+
+	qualityProfileSelect := widget.NewSelect([]string{"Fast", "Balanced"}, func(s string) {
+		selectedQualityProfile = s
+		if updateSelectionSummary != nil {
+			updateSelectionSummary()
+		}
+	})
+	qualityProfileSelect.Alignment = fyne.TextAlignCenter
+	qualityProfileSelect.SetSelected("Balanced")
+	qualityProfileLabel := widget.NewLabel("Quality")
+	qualityProfileLabel.Alignment = fyne.TextAlignCenter
+	qualityHint := widget.NewLabel("Fast: faster encode, smaller output | Balanced: best visual quality")
+	qualityHint.Alignment = fyne.TextAlignCenter
 
 	start := widget.NewButtonWithIcon("3) Start Superview transform", theme.MediaPlayIcon(), func() {
 		if video == nil {
@@ -247,59 +274,94 @@ func main() {
 			return
 		}
 
-		uri := outputPath
-		effectiveCfg := *cfg
-		switch selectedProfile {
-		case "fast":
-			effectiveCfg.PerformanceMode = "safe_performance"
-			effectiveCfg.VideoPreset = "fast"
-		case "quality":
-			effectiveCfg.PerformanceMode = "safe"
-			effectiveCfg.VideoPreset = "slow"
-		}
-		common.SetConfig(&effectiveCfg)
+		startEncoding := func(uri string) {
+			effectiveCfg := *cfg
 
-		prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
-		prog.Show()
-		status.SetText("Status: Transforming...")
-
-		// Activation de l'état d'encodage et initialisation du canal d'annulation
-		encodingInProgress = true
-		cancelEncoding = make(chan struct{})
-
-		go func() {
-			handler := &GUIHandler{
-				window:   window,
-				bitrate:  fixedBitrate,
-				encoder:  encoder,
-				progress: prog,
-				ffmpeg:   ffmpeg,
-				video:    video,
-				logger:   common.GetLogger(),
+			// GPU-friendly quality strategy: keep hardware encoders and scale bitrate by profile.
+			profileBitrate := video.Streams[0].BitrateInt
+			switch selectedQualityProfile {
+			case "Fast":
+				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.0)
+				effectiveCfg.VideoPreset = "fast"
+			case "Balanced":
+				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.6)
+				effectiveCfg.VideoPreset = "medium"
+			default:
+				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.6)
+				effectiveCfg.VideoPreset = "medium"
 			}
 
-			// Passage du canal d'annulation à PerformEncoding
-			if err := common.PerformEncoding(video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
+			if profileBitrate < cfg.MinBitrate {
+				profileBitrate = cfg.MinBitrate
+			}
+			if cfg.MaxBitrate > 0 && profileBitrate > cfg.MaxBitrate {
+				profileBitrate = cfg.MaxBitrate
+			}
+
+			common.SetConfig(&effectiveCfg)
+
+			prog := dialog.NewProgress("Transforming", "Superview is processing your video...", window)
+			prog.Show()
+			status.SetText("Status: Transforming...")
+
+			// Activation de l'état d'encodage et initialisation du canal d'annulation
+			encodingInProgress = true
+			cancelEncoding = make(chan struct{})
+
+			go func() {
+				handler := &GUIHandler{
+					window:   window,
+					bitrate:  profileBitrate,
+					encoder:  encoder,
+					progress: prog,
+					ffmpeg:   ffmpeg,
+					video:    video,
+					logger:   common.GetLogger(),
+				}
+
+				if err := common.PerformEncoding(video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
+					fyne.Do(func() {
+						prog.Hide()
+						status.SetText("Status: Failed")
+						results.SetText("Results: last run failed")
+					})
+					handler.ShowError(err)
+					encodingInProgress = false
+					return
+				}
+
+				lastMetrics := common.GetLastEncodingMetrics()
+				resultsText := formatResultsPanel(lastMetrics)
 				fyne.Do(func() {
 					prog.Hide()
-					status.SetText("Status: Failed")
-					results.SetText("Results: last run failed")
+					status.SetText("Status: Completed")
+					results.SetText(resultsText)
 				})
-				handler.ShowError(err)
+				handler.ShowInfo("Transform complete. Output file:\n" + uri)
 				encodingInProgress = false
-				return
-			}
+			}()
+		}
 
-			lastMetrics := common.GetLastEncodingMetrics()
-			resultsText := formatResultsPanel(lastMetrics)
-			fyne.Do(func() {
-				prog.Hide()
-				status.SetText("Status: Completed")
-				results.SetText(resultsText)
-			})
-			handler.ShowInfo("Transform complete. Output file:\n" + uri)
-			encodingInProgress = false
-		}()
+		if _, statErr := os.Stat(outputPath); statErr == nil {
+			dialog.NewCustomConfirm(
+				"Overwrite output file",
+				"Yes",
+				"No",
+				widget.NewLabel("The selected output file already exists. Overwrite it?"),
+				func(confirm bool) {
+				if confirm {
+					startEncoding(outputPath)
+				}
+			},
+				window,
+			).Show()
+			return
+		} else if !os.IsNotExist(statErr) {
+			dialog.ShowError(fmt.Errorf("cannot access output file: %w", statErr), window)
+			return
+		}
+
+		startEncoding(outputPath)
 
 	})
 	start.Disable()
@@ -413,40 +475,28 @@ func main() {
 	}
 
 	encoderOptions := []string{"Use same video codec as input file"}
-	centerLabel := func(text string) string {
-		return "   " + text + "   "
-	}
-	profileOptions := []string{
-		centerLabel("Auto (config)"),
-		centerLabel("Fast"),
-		centerLabel("Quality"),
-	}
-	for i := range encoderOptions {
-		encoderOptions[i] = centerLabel(encoderOptions[i])
-	}
 
 	for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
-		encoderOptions = append(encoderOptions, centerLabel(enc+" encoder"))
+		encoderOptions = append(encoderOptions, enc+" encoder")
 	}
 	encoder = widget.NewSelect(encoderOptions, func(s string) {
-
-	})
-	encoder.SetSelected(encoderOptions[0])
-	profile := widget.NewSelect(profileOptions, func(s string) {
-		switch strings.ToLower(strings.TrimSpace(s)) {
-		case strings.ToLower(strings.TrimSpace(centerLabel("Fast"))):
-			selectedProfile = "fast"
-		case strings.ToLower(strings.TrimSpace(centerLabel("Quality"))):
-			selectedProfile = "quality"
-		default:
-			selectedProfile = ""
+		if updateSelectionSummary != nil {
+			updateSelectionSummary()
 		}
 	})
-	profile.SetSelected(profileOptions[0])
-	codecLabel := widget.NewLabel("Output codec")
+	encoder.Alignment = fyne.TextAlignCenter
+	encoder.SetSelected(encoderOptions[0])
+	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignCenter
-	profileLabel := widget.NewLabel("Performance profile")
-	profileLabel.Alignment = fyne.TextAlignCenter
+
+	updateSelectionSummary = func() {
+		codec := common.ParseEncoderSelection(encoder.Selected)
+		if codec == "" {
+			codec = "Auto"
+		}
+		selectionSummary.SetText(fmt.Sprintf("Profile: %s | Codec: %s", selectedQualityProfile, codec))
+	}
+	updateSelectionSummary()
 
 	buttonSize := fyne.NewSize(300, 40)
 	selectSize := fyne.NewSize(360, 40)
@@ -469,10 +519,13 @@ func main() {
 	flow := widget.NewForm(
 		widget.NewFormItem("", centerButton(open)),
 		widget.NewFormItem("", container.NewCenter(selectedFile)),
-		widget.NewFormItem("", profileLabel),
-		widget.NewFormItem("", centerSelect(profile)),
+		widget.NewFormItem("", qualityProfileLabel),
+		widget.NewFormItem("", centerSelect(qualityProfileSelect)),
+		widget.NewFormItem("", container.NewCenter(qualityHint)),
 		widget.NewFormItem("", codecLabel),
 		widget.NewFormItem("", centerSelect(encoder)),
+		widget.NewFormItem("", container.NewCenter(selectionSummary)),
+		widget.NewFormItem("", widget.NewLabel(" ")),
 		widget.NewFormItem("", centerButton(selectOutput)),
 		widget.NewFormItem("", container.NewCenter(selectedOutput)),
 		widget.NewFormItem("", centerButton(start)),

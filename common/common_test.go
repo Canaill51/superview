@@ -346,6 +346,9 @@ func TestBuildEncodeBaseArgs_SafeModeDefaults(t *testing.T) {
 	if !strings.Contains(joined, "-threads 6") {
 		t.Fatalf("expected encoder threads to be applied, args: %v", args)
 	}
+	if !strings.Contains(joined, "-b:v 2000000") {
+		t.Fatalf("expected bitrate to be applied, args: %v", args)
+	}
 }
 
 func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T) {

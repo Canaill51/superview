@@ -1,11 +1,15 @@
 # Superview Configuration File
 # All values can be overridden with environment variables prefixed with SUPERVIEW_
 
-# Bitrate constraints in bytes/second
+# Bitrate constraints in bytes/second (used by GPU-friendly quality profiles)
 # 100k bytes/sec = ~0.1 Mbps (minimum quality)
-# 50M bytes/sec = ~50 Mbps (high quality)
+# 209M bytes/sec = ~200 Mbps (excellent quality, large files)
 min_bitrate: 102400
-max_bitrate: 52428800
+max_bitrate: 209715200
+
+# Quality preset for CLI/advanced users (balanced, fast)
+# Used by GUI profiles to pick bitrate/preset strategy.
+quality_preset: balanced
 
 # Temporary directory prefix for encoding sessions (absolute temp dir)
 temp_dir_prefix: "superview-*"

@@ -18,8 +18,8 @@ type Config struct {
 	// Bitrate constraints in bytes/second
 	// MinBitrate: minimum acceptable output bitrate (prevents lossy compression)
 	// MaxBitrate: maximum acceptable output bitrate (controls file size)
-	MinBitrate int `yaml:"min_bitrate" default:"102400"`   // 100k bytes/sec (~0.1 Mbps)
-	MaxBitrate int `yaml:"max_bitrate" default:"52428800"` // 50M bytes/sec (~50 Mbps)
+	MinBitrate int `yaml:"min_bitrate" default:"102400"`    // 100k bytes/sec (~0.1 Mbps)
+	MaxBitrate int `yaml:"max_bitrate" default:"209715200"` // 200M bytes/sec (~200 Mbps)
 
 	// TempDirPrefix is the template for temporary directory creation
 	TempDirPrefix string `yaml:"temp_dir_prefix" default:"superview-*"`
@@ -51,11 +51,15 @@ type Config struct {
 	// MinVideoWidth and MinVideoHeight enforce minimum input video dimensions
 	MinVideoWidth  int `yaml:"min_video_width" default:"320"`
 	MinVideoHeight int `yaml:"min_video_height" default:"240"`
+
+	// QualityPreset defines standard GPU bitrate quality profiles.
+	// Accessible via environment: SUPERVIEW_QUALITY_PRESET
+	QualityPreset string `yaml:"quality_preset" default:"balanced"` // balanced, fast
 }
 
 var defaultConfig = &Config{
-	MinBitrate:      102400,   // 100k bytes/sec
-	MaxBitrate:      52428800, // 50M bytes/sec
+	MinBitrate:      102400,    // 100k bytes/sec
+	MaxBitrate:      209715200, // 200M bytes/sec
 	TempDirPrefix:   "superview-*",
 	EncoderCodecs:   []string{"264", "265", "hevc"},
 	LogLevel:        "info",
@@ -65,6 +69,7 @@ var defaultConfig = &Config{
 	EncoderThreads:  0,
 	MinVideoWidth:   320,
 	MinVideoHeight:  240,
+	QualityPreset:   "balanced",
 }
 
 var currentConfig = defaultConfig
@@ -181,6 +186,10 @@ func LoadConfig(filepath string) (*Config, error) {
 		} else {
 			config.EncoderThreads = val
 		}
+	}
+
+	if qualityPreset := os.Getenv("SUPERVIEW_QUALITY_PRESET"); qualityPreset != "" {
+		config.QualityPreset = qualityPreset
 	}
 
 	config.PerformanceMode = normalizePerformanceMode(config.PerformanceMode)
