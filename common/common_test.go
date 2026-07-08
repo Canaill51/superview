@@ -452,9 +452,9 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	signalStop = func(c chan<- os.Signal) {}
 
 	errCh := make(chan error, 1)
-	       go func() {
-		       errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
-	       }()
+	go func() {
+		errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
+	}()
 
 	var sigTarget chan<- os.Signal
 	select {

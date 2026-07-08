@@ -8,7 +8,7 @@ run:
 
 output:
   formats:
-    text:
+    - format: line-number
       path: stdout
 
 linters:
@@ -28,13 +28,10 @@ issues:
       linters:
         - unused
         - ineffassign
-    
+
   # Global max issues per linter
   max-issues-per-linter: 0
   max-same-issues: 0
-
-  # Always exclude
-  exclude-unmatched-default-rules: true
 
 severity:
   default-severity: error
