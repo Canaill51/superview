@@ -101,13 +101,13 @@ func chooseOutputFileNative() (string, error) {
 
 // GUIHandler implements UIHandler for GUI interface
 type GUIHandler struct {
-	window       fyne.Window
-	bitrate      int
-	encoder      *widget.Select
-	progress     *dialog.ProgressDialog
-	ffmpeg       map[string]string
-	video        *common.VideoSpecs
-	logger       *slog.Logger
+	window   fyne.Window
+	bitrate  int
+	encoder  *widget.Select
+	progress *dialog.ProgressDialog
+	ffmpeg   map[string]string
+	video    *common.VideoSpecs
+	logger   *slog.Logger
 }
 
 func (h *GUIHandler) ShowError(err error) {
@@ -212,19 +212,19 @@ func main() {
 				"No",
 				widget.NewLabel("An encoding is in progress. Do you want to cancel and quit?"),
 				func(confirm bool) {
-				if confirm {
-					// Demande d'annulation
-					if cancelEncoding != nil {
-						close(cancelEncoding)
+					if confirm {
+						// Demande d'annulation
+						if cancelEncoding != nil {
+							close(cancelEncoding)
+						}
+						// On laisse la goroutine d'encodage nettoyer, puis on ferme l'app après un court délai
+						go func() {
+							time.Sleep(1 * time.Second)
+							app.Quit()
+						}()
 					}
-					// On laisse la goroutine d'encodage nettoyer, puis on ferme l'app après un court délai
-					go func() {
-						time.Sleep(1 * time.Second)
-						app.Quit()
-					}()
-				}
-				// Sinon, ne rien faire (l'utilisateur a annulé la fermeture)
-			},
+					// Sinon, ne rien faire (l'utilisateur a annulé la fermeture)
+				},
 				window,
 			).Show()
 		} else {
@@ -349,10 +349,10 @@ func main() {
 				"No",
 				widget.NewLabel("The selected output file already exists. Overwrite it?"),
 				func(confirm bool) {
-				if confirm {
-					startEncoding(outputPath)
-				}
-			},
+					if confirm {
+						startEncoding(outputPath)
+					}
+				},
 				window,
 			).Show()
 			return
