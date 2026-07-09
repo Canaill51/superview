@@ -115,14 +115,14 @@ func chooseOutputFileNative() (string, error) {
 
 // GUIHandler implements UIHandler for GUI interface
 type GUIHandler struct {
-	window       fyne.Window
-	bitrate      int
-	encoder      *widget.Select
-	progress     *dialog.ProgressDialog
-	inlineBar    *widget.ProgressBar
-	ffmpeg       map[string]string
-	video        *common.VideoSpecs
-	logger       *slog.Logger
+	window    fyne.Window
+	bitrate   int
+	encoder   *widget.Select
+	progress  *dialog.ProgressDialog
+	inlineBar *widget.ProgressBar
+	ffmpeg    map[string]string
+	video     *common.VideoSpecs
+	logger    *slog.Logger
 }
 
 func (h *GUIHandler) ShowError(err error) {
