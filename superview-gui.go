@@ -31,6 +31,20 @@ var appIconPNG []byte
 
 const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#requirements"
 
+const (
+	prefQualityProfile   = "ui.quality_profile"
+	prefEncoderSelection = "ui.encoder_selection"
+)
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func showPrerequisiteDialog(window fyne.Window, err error) bool {
 	if err == nil || !strings.Contains(err.Error(), "cannot find ffmpeg/ffprobe") {
 		return false
@@ -208,6 +222,7 @@ func main() {
 
 	window := app.NewWindow("Superview")
 	window.SetIcon(iconResource)
+	prefs := app.Preferences()
 
 	// Interception de la fermeture de la fenêtre principale
 	window.SetCloseIntercept(func() {
@@ -254,7 +269,10 @@ func main() {
 	selectedOutput.Alignment = fyne.TextAlignLeading
 	selectedOutput.Wrapping = fyne.TextWrapWord
 
-	selectedQualityProfile := "Balanced" // Default quality profile
+	selectedQualityProfile := prefs.String(prefQualityProfile)
+	if !containsString([]string{"Fast", "Balanced"}, selectedQualityProfile) {
+		selectedQualityProfile = "Balanced"
+	}
 
 	status := widget.NewLabel("Status: Ready")
 	status.Alignment = fyne.TextAlignLeading
@@ -267,9 +285,10 @@ func main() {
 	progressBar.SetValue(0)
 	qualityProfileSelect := widget.NewSelect([]string{"Fast", "Balanced"}, func(s string) {
 		selectedQualityProfile = s
+		prefs.SetString(prefQualityProfile, s)
 	})
 	qualityProfileSelect.Alignment = fyne.TextAlignCenter
-	qualityProfileSelect.SetSelected("Balanced")
+	qualityProfileSelect.SetSelected(selectedQualityProfile)
 	qualityProfileLabel := widget.NewLabel("Quality")
 	qualityProfileLabel.Alignment = fyne.TextAlignLeading
 
@@ -538,9 +557,15 @@ func main() {
 	for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
 		encoderOptions = append(encoderOptions, enc+" encoder")
 	}
-	encoder = widget.NewSelect(encoderOptions, func(string) {})
+	encoder = widget.NewSelect(encoderOptions, func(s string) {
+		prefs.SetString(prefEncoderSelection, s)
+	})
 	encoder.Alignment = fyne.TextAlignCenter
-	encoder.SetSelected(encoderOptions[0])
+	savedEncoderSelection := prefs.String(prefEncoderSelection)
+	if !containsString(encoderOptions, savedEncoderSelection) {
+		savedEncoderSelection = encoderOptions[0]
+	}
+	encoder.SetSelected(savedEncoderSelection)
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading
 
