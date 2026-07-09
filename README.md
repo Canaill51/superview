@@ -6,7 +6,8 @@
 Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
 > Official target platform: **Windows**.
-> Superview is now distributed and maintained as a **GUI-only** application.
+> Superview is distributed and maintained as a **GUI-only** application.
+> The current codebase targets **Go 1.25+**.
 
 ## Quick Links
 
@@ -115,7 +116,7 @@ quality_preset: balanced  # balanced | fast
 temp_dir_prefix: "superview-*"
 encoder_codecs: ["264", "265", "hevc"]
 log_level: info
-performance_mode: safe    # safe | safe_performance
+performance_mode: safe_performance    # safe | safe_performance
 video_preset: ""         # optional: ultrafast..veryslow (empty = ffmpeg default)
 filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
@@ -142,30 +143,30 @@ export SUPERVIEW_ENCODER_THREADS=8
 ```
 superview/
 ├── common/
-│   ├── common.go          # Core encoding pipeline
-│   ├── common_test.go     # Unit tests
-│   ├── config.go          # Configuration management
-│   ├── config_test.go     # Config tests
+│   ├── common.go           # Encoding pipeline, session lifecycle, exported workflow
+│   ├── config.go           # Configuration loading and defaults
+│   ├── gui_helpers.go      # GUI-specific helpers shared with tests
 │   ├── hardware.go         # Hardware capability profiling
-│   ├── observability.go    # Observability hooks
-│   ├── metrics.go          # Runtime metrics
-│   ├── health.go           # Health checks
-│   ├── security.go         # Security helpers
-│   └── command-*.go       # OS-specific process setup
-├── superview-gui.go       # GUI entry point (Fyne)
-└── superview.yaml         # Default configuration
+│   ├── health.go           # System health checks
+│   ├── metrics.go          # Encoding metrics collection
+│   ├── observability.go    # Event recording and logging hooks
+│   ├── security.go         # Path and input validation helpers
+│   ├── command-*.go        # OS-specific process setup
+│   └── *_test.go           # Unit tests for the common package
+├── superview-gui.go        # GUI entry point (Fyne)
+├── superview.yaml          # Default configuration
+├── build.sh                # Release / cross-build helper
+└── FyneApp.toml            # Fyne packaging metadata
 ```
 
 ### Encoding Pipeline
 
 ```
-Input → CheckFfmpeg → CheckVideo → PerformEncoding → CleanUp → Output
-                                         ↓
-                               GetBitrate + ValidateBitrate
-                               GetEncoder + FindEncoder
-                               InitEncodingSession
-                               GeneratePGM (create remap filters)
-                               EncodeVideo (ffmpeg with progress)
+Input → CheckFfmpeg → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo → CleanUp → Output
+                                              ↓
+                               ValidateBitrate + FindEncoder
+                               VideoSpecs.Validate()
+                               EncodingMetrics / Observability hooks
 ```
 
 ## API Documentation
@@ -188,6 +189,8 @@ CheckFfmpeg() (map[string]string, error)
 CheckVideo(file string) (*VideoSpecs, error)
 PerformEncoding(inputFile, outputFile string, ui UIHandler,
                 ffmpeg map[string]string, cancel <-chan struct{}) error
+InitEncodingSession() error
+CleanUp() error
 ```
 
 Implement the `UIHandler` interface for custom UIs:
@@ -246,14 +249,14 @@ go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
 
 ### Recent Improvements
 
-- **Étape 1**: Go 1.22+, dependency updates
+- **Étape 1**: Go 1.25+ and dependency refresh
 - **Étape 2**: Secure temp file handling
-- **Étape 3**: Custom error types, validation
-- **Étape 4**: UIHandler interface, reduced duplication
-- **Étape 5**: 32 comprehensive unit tests
-- **Étape 6**: Structured logging with slog
+- **Étape 3**: Custom error types and validation
+- **Étape 4**: UIHandler interface and shared GUI helpers
+- **Étape 5**: Expanded unit test coverage
+- **Étape 6**: Structured logging with `slog`
 - **Étape 7**: External configuration (YAML + env vars)
-- **Étape 8**: Full documentation (Godoc + this README)
+- **Étape 8**: Updated documentation for the current project layout
 
 ## Contributors ✨
 
@@ -264,10 +267,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- markdownlint-disable -->
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/naorunaoru"><img src="https://avatars0.githubusercontent.com/u/3761149?v=4" width="100px;" alt=""/><br /><sub><b>Roman Kuraev</b></sub></a><br /><a href="#ideas-naorunaoru" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Niek/superview/commits?author=naorunaoru" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/dangr0"><img src="https://avatars1.githubusercontent.com/u/61669715?v=4" width="100px;" alt=""/><br /><sub><b>dangr0</b></sub></a><br /><a href="https://github.com/Niek/superview/issues?q=author%3Adangr0" title="Bug reports">🐛</a></td>
-    <td align="center"><a href="https://github.com/dga711"><img src="https://avatars1.githubusercontent.com/u/2995606?v=4" width="100px;" alt=""/><br /><sub><b>DG</b></sub></a><br /><a href="#ideas-dga711" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Niek/superview/commits?author=dga711" title="Tests">⚠️</a></td>
-    <td align="center"><a href="https://github.com/tommaier123"><img src="https://avatars2.githubusercontent.com/u/40432491?v=4" width="100px;" alt=""/><br /><sub><b>Nova_Max</b></sub></a><br /><a href="https://github.com/Niek/superview/commits?author=tommaier123" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/naorunaoru"><img src="https://avatars0.githubusercontent.com/u/3761149?v=4" width="100px;" alt=""/><br /><sub><b>Roman Kuraev</b></sub></a><br /><a href="#ideas-naorunaoru" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Canaill51/superview/commits?author=naorunaoru" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/dangr0"><img src="https://avatars1.githubusercontent.com/u/61669715?v=4" width="100px;" alt=""/><br /><sub><b>dangr0</b></sub></a><br /><a href="https://github.com/Canaill51/superview/issues?q=author%3Adangr0" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/dga711"><img src="https://avatars1.githubusercontent.com/u/2995606?v=4" width="100px;" alt=""/><br /><sub><b>DG</b></sub></a><br /><a href="#ideas-dga711" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Canaill51/superview/commits?author=dga711" title="Tests">⚠️</a></td>
+    <td align="center"><a href="https://github.com/tommaier123"><img src="https://avatars2.githubusercontent.com/u/40432491?v=4" width="100px;" alt=""/><br /><sub><b>Nova_Max</b></sub></a><br /><a href="https://github.com/Canaill51/superview/commits?author=tommaier123" title="Documentation">📖</a></td>
   </tr>
 </table>
 

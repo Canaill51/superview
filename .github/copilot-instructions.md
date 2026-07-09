@@ -1,7 +1,7 @@
 # Project Guidelines
 
 ## Code Style
-- Language: Go (`go.mod` uses module `superview`, Go 1.22).
+- Language: Go (`go.mod` uses module `superview`, Go 1.25.0).
 - Keep changes minimal and consistent with existing straightforward style in `superview-gui.go` and `common/common.go`.
 - Prefer explicit error returns and proper error handling: check ALL error returns.
 - Use custom error types (`InvalidVideoError`, `EncoderError`, `SessionError`) for domain-specific errors.
@@ -12,7 +12,17 @@
 ## Architecture
 - One binary:
   - `superview-gui.go`: desktop UI built with Fyne.
-- Shared types in `common/common.go`:
+- Shared logic in `common/` is split by responsibility:
+  - `common/common.go`: encoding workflow, session lifecycle, shared exported types.
+  - `common/config.go`: configuration loading and defaults.
+  - `common/gui_helpers.go`: GUI helper functions.
+  - `common/hardware.go`: encoder capability profiling.
+  - `common/health.go`: system health checks.
+  - `common/metrics.go`: encoding metrics.
+  - `common/observability.go`: event recording and logging hooks.
+  - `common/security.go`: path and input validation helpers.
+  - `common/command-*.go`: OS-specific process setup.
+- Shared types are primarily defined in `common/common.go`:
   - `VideoSpecs`: contains video metadata with validation method.
   - `VideoStream`: named type for individual stream data (replaces anonymous struct).
   - Error types: `InvalidVideoError`, `EncoderError`, `SessionError` for better error handling.
@@ -26,9 +36,7 @@
   - `ValidateBitrate()`: validates bitrate is in acceptable range (100k-50M bytes/sec).
   - `FindEncoder()`: selects encoder with error validation.
   - `CleanUp` removes session's entire temp directory.
-- OS-specific process behavior is isolated in:
-  - `common/command-other.go`
-  - `common/command-windows.go`
+- OS-specific process behavior is isolated in `common/command-other.go` and `common/command-windows.go`.
 
 ## Build and Test
 - Build GUI: `go build superview-gui.go`
