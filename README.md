@@ -7,7 +7,7 @@ Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, ins
 
 > Official target platform: **Windows**.
 > Superview is distributed and maintained as a **GUI-only** application.
-> The current codebase targets **Go 1.25+**.
+> The current codebase targets **Go 1.26+**.
 
 ## Quick Links
 
@@ -249,7 +249,7 @@ go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
 
 ### Recent Improvements
 
-- **Étape 1**: Go 1.25+ and dependency refresh
+- **Étape 1**: Go 1.26+ and dependency refresh
 - **Étape 2**: Secure temp file handling
 - **Étape 3**: Custom error types and validation
 - **Étape 4**: UIHandler interface and shared GUI helpers
