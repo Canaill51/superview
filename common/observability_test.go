@@ -106,6 +106,14 @@ func TestSetGetLastEncodingMetrics(t *testing.T) {
 	}
 }
 
+func TestSetGetLastHardwareAccelerationSummary(t *testing.T) {
+	SetLastHardwareAccelerationSummary("Hardware: used h264_nvenc encode + D3D11VA decode")
+	got := GetLastHardwareAccelerationSummary()
+	if got != "Hardware: used h264_nvenc encode + D3D11VA decode" {
+		t.Fatalf("unexpected hardware summary: %q", got)
+	}
+}
+
 func TestGlobalRecorderFunctions(t *testing.T) {
 	old := globalEventRecorder
 	defer func() { globalEventRecorder = old }()

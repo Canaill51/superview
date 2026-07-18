@@ -639,8 +639,8 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
 	}
 
-	if videoPreset != "" {
-		baseArgs = append(baseArgs, "-preset", videoPreset)
+	if mappedPreset := mapVideoPresetForEncoder(encoder, videoPreset); mappedPreset != "" {
+		baseArgs = append(baseArgs, "-preset", mappedPreset)
 	}
 
 	if encoder == "libx265" {
@@ -650,7 +650,44 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 	return baseArgs
 }
 
+func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
+	preset := strings.TrimSpace(strings.ToLower(videoPreset))
+	if preset == "" {
+		return ""
+	}
+
+	if strings.Contains(encoder, "_amf") {
+		switch preset {
+		case "ultrafast", "superfast", "veryfast", "faster", "fast":
+			return "speed"
+		case "medium":
+			return "balanced"
+		case "slow", "slower", "veryslow", "placebo":
+			return "quality"
+		default:
+			return ""
+		}
+	}
+
+	if strings.Contains(encoder, "_qsv") {
+		switch preset {
+		case "ultrafast", "superfast":
+			return "veryfast"
+		case "placebo":
+			return "veryslow"
+		case "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow":
+			return preset
+		default:
+			return ""
+		}
+	}
+
+	return preset
+}
+
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
+	SetLastHardwareAccelerationSummary("")
+
 	// Get the session paths for PGM files
 	xPath, yPath, err := getSessionPaths()
 	if err != nil {
@@ -800,21 +837,20 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 	}
 
 	profile := AnalyzeMachineProfile(ffmpeg)
-	hwaccel := accelForEncoder(encoder)
+	hwaccel := selectHardwareDecodeAccel(encoder, profile)
 	if hwaccel != "" {
-		if toSet(profile.HardwareAccels)[hwaccel] {
-			logger.Info("Trying hardware decode+encode path",
-				slog.String("encoder", encoder),
-				slog.String("hwaccel", hwaccel),
-			)
-			if err := runWithAudioFallback(hwaccel); err == nil {
-				return nil
-			}
-			logger.Warn("Hardware decode path failed, falling back to CPU decode",
-				slog.String("encoder", encoder),
-				slog.String("hwaccel", hwaccel),
-			)
+		logger.Info("Trying hardware decode+encode path",
+			slog.String("encoder", encoder),
+			slog.String("hwaccel", hwaccel),
+		)
+		if err := runWithAudioFallback(hwaccel); err == nil {
+			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + %s decode", encoder, strings.ToUpper(hwaccel)))
+			return nil
 		}
+		logger.Warn("Hardware decode path failed, falling back to CPU decode",
+			slog.String("encoder", encoder),
+			slog.String("hwaccel", hwaccel),
+		)
 	}
 
 	logger.Info("Using CPU decode path",
@@ -825,6 +861,11 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 	)
 	err = runWithAudioFallback("")
 	if err == nil {
+		if isHardwareEncoder(encoder) {
+			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + CPU decode fallback", encoder))
+		} else {
+			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used CPU encode (%s) + CPU decode", encoder))
+		}
 		return nil
 	}
 
@@ -841,7 +882,11 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("failed_encoder", encoder),
 				slog.String("fallback_encoder", fallbackEncoder),
 			)
-			return EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
+			fallbackErr := EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
+			if fallbackErr == nil {
+				SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: %s failed; used CPU encode (%s) + CPU decode", encoder, fallbackEncoder))
+			}
+			return fallbackErr
 		}
 	}
 

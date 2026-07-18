@@ -301,6 +301,180 @@ func TestFindEncoder_PreferHardwareWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestFindEncoder_AllowsNVENCWithoutCUDAHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_nvenc,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with NVENC on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_nvenc" {
+		t.Errorf("Expected h264_nvenc, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsAMFWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_amf,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with AMF on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_amf" {
+		t.Errorf("Expected h264_amf, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsQSVWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_qsv,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with QSV on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_qsv" {
+		t.Errorf("Expected h264_qsv, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCNVENCWithoutCUDAHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_nvenc,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC NVENC on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_nvenc" {
+		t.Errorf("Expected hevc_nvenc, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCAMFWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_amf,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC AMF on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_amf" {
+		t.Errorf("Expected hevc_amf, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCQSVWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_qsv,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC QSV on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_qsv" {
+		t.Errorf("Expected hevc_qsv, got %s", encoder)
+	}
+}
+
 func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 	ffmpegInfo := map[string]string{
 		"encoders": "libx264,libx265,hevc",
@@ -367,6 +541,79 @@ func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T)
 	}
 	if !strings.Contains(joined, "-threads 8") {
 		t.Fatalf("expected encoder threads to be applied, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_AMFMapsFastPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "fast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset speed") {
+		t.Fatalf("expected AMF fast preset to map to speed, args: %v", args)
+	}
+	if strings.Contains(joined, "-preset fast") {
+		t.Fatalf("did not expect unsupported AMF preset name to leak through, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_AMFMapsMediumPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_amf", 2000000, "copy", true, 8, 4, "medium")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset balanced") {
+		t.Fatalf("expected AMF medium preset to map to balanced, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "p4")
+	joined := strings.Join(args, " ")
+
+	if strings.Contains(joined, "-preset") {
+		t.Fatalf("did not expect unsupported AMF preset to be passed through, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "fast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset fast") {
+		t.Fatalf("expected QSV supported preset to be kept, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "ultrafast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset veryfast") {
+		t.Fatalf("expected QSV ultrafast preset to map to veryfast, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_qsv", 2000000, "copy", true, 8, 4, "placebo")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset veryslow") {
+		t.Fatalf("expected QSV placebo preset to map to veryslow, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "p4")
+	joined := strings.Join(args, " ")
+
+	if strings.Contains(joined, "-preset") {
+		t.Fatalf("did not expect unsupported QSV preset to be passed through, args: %v", args)
 	}
 }
 
