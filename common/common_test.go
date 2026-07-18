@@ -544,6 +544,39 @@ func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T)
 	}
 }
 
+func TestBuildEncodeBaseArgs_AMFMapsFastPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "fast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset speed") {
+		t.Fatalf("expected AMF fast preset to map to speed, args: %v", args)
+	}
+	if strings.Contains(joined, "-preset fast") {
+		t.Fatalf("did not expect unsupported AMF preset name to leak through, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_AMFMapsMediumPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_amf", 2000000, "copy", true, 8, 4, "medium")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset balanced") {
+		t.Fatalf("expected AMF medium preset to map to balanced, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "p4")
+	joined := strings.Join(args, " ")
+
+	if strings.Contains(joined, "-preset") {
+		t.Fatalf("did not expect unsupported AMF preset to be passed through, args: %v", args)
+	}
+}
+
 func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
 	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", true, 4, 0, "slow")

@@ -639,8 +639,8 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
 	}
 
-	if videoPreset != "" {
-		baseArgs = append(baseArgs, "-preset", videoPreset)
+	if mappedPreset := mapVideoPresetForEncoder(encoder, videoPreset); mappedPreset != "" {
+		baseArgs = append(baseArgs, "-preset", mappedPreset)
 	}
 
 	if encoder == "libx265" {
@@ -648,6 +648,28 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 	}
 
 	return baseArgs
+}
+
+func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
+	preset := strings.TrimSpace(strings.ToLower(videoPreset))
+	if preset == "" {
+		return ""
+	}
+
+	if strings.Contains(encoder, "_amf") {
+		switch preset {
+		case "ultrafast", "superfast", "veryfast", "faster", "fast":
+			return "speed"
+		case "medium":
+			return "balanced"
+		case "slow", "slower", "veryslow", "placebo":
+			return "quality"
+		default:
+			return ""
+		}
+	}
+
+	return preset
 }
 
 func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
