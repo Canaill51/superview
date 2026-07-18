@@ -669,6 +669,19 @@ func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
 		}
 	}
 
+	if strings.Contains(encoder, "_qsv") {
+		switch preset {
+		case "ultrafast", "superfast":
+			return "veryfast"
+		case "placebo":
+			return "veryslow"
+		case "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow":
+			return preset
+		default:
+			return ""
+		}
+	}
+
 	return preset
 }
 

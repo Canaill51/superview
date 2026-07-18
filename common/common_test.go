@@ -577,6 +577,46 @@ func TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset(t *testing.T) {
 	}
 }
 
+func TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "fast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset fast") {
+		t.Fatalf("expected QSV supported preset to be kept, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "ultrafast")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset veryfast") {
+		t.Fatalf("expected QSV ultrafast preset to map to veryfast, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_qsv", 2000000, "copy", true, 8, 4, "placebo")
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-preset veryslow") {
+		t.Fatalf("expected QSV placebo preset to map to veryslow, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "p4")
+	joined := strings.Join(args, " ")
+
+	if strings.Contains(joined, "-preset") {
+		t.Fatalf("did not expect unsupported QSV preset to be passed through, args: %v", args)
+	}
+}
+
 func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
 	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", true, 4, 0, "slow")
