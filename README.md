@@ -83,7 +83,6 @@ Commonly compatible families:
 
 Notes:
 
-- `Quadro P1000` is compatible with this requirement set.
 - Some low-end exceptions exist even inside newer generations, so FFmpeg detection remains authoritative.
 - Older `Maxwell 2` cards may support parts of HEVC, but are not the baseline recommended here.
 
