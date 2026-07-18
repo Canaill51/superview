@@ -281,6 +281,9 @@ func main() {
 	results := widget.NewLabel("Results: no completed run yet")
 	results.Alignment = fyne.TextAlignLeading
 	results.Wrapping = fyne.TextWrapWord
+	hardwareStatus := widget.NewLabel("Hardware: waiting for input video")
+	hardwareStatus.Alignment = fyne.TextAlignLeading
+	hardwareStatus.Wrapping = fyne.TextWrapWord
 	progressBar := widget.NewProgressBar()
 	progressBar.SetValue(0)
 	qualityProfileSelect := widget.NewSelect([]string{"Fast", "Balanced"}, func(s string) {
@@ -300,6 +303,7 @@ func main() {
 	ffmpegAvailable := true
 
 	refreshStart := func() {}
+	updateHardwareStatus := func() {}
 
 	setEncodingState := func(inProgress bool) {
 		encodingInProgress = inProgress
@@ -382,6 +386,7 @@ func main() {
 					fyne.Do(func() {
 						status.SetText("Status: Failed")
 						results.SetText("Results: last run failed")
+						hardwareStatus.SetText(common.GetLastHardwareAccelerationSummary())
 						setEncodingState(false)
 						cancelEncoding = nil
 						open.Enable()
@@ -400,6 +405,7 @@ func main() {
 				fyne.Do(func() {
 					status.SetText("Status: Completed")
 					results.SetText(resultsText)
+					hardwareStatus.SetText(common.GetLastHardwareAccelerationSummary())
 					progressBar.SetValue(1)
 					setEncodingState(false)
 					cancelEncoding = nil
@@ -450,6 +456,15 @@ func main() {
 		}
 	}
 
+	updateHardwareStatus = func() {
+		if !ffmpegAvailable {
+			hardwareStatus.SetText("Hardware: ffmpeg unavailable")
+			return
+		}
+
+		hardwareStatus.SetText(common.DescribeHardwareAccelerationPlan(ffmpeg, video, common.ParseEncoderSelection(encoder.Selected)))
+	}
+
 	open = widget.NewButtonWithIcon("Choose input file", theme.FolderOpenIcon(), func() {
 		uri, err := chooseInputFileNative()
 		if err != nil {
@@ -477,6 +492,7 @@ func main() {
 				}
 				selectedFile.SetText(filepath.Base(video.File))
 				status.SetText("Status: Input loaded")
+				updateHardwareStatus()
 				refreshStart()
 			}, window)
 			fd.SetFilter(storage.NewExtensionFileFilter([]string{".mp4", ".avi", ".mov", ".mkv", ".m4v", ".webm", ".flv", ".wmv", ".mpeg", ".mpg", ".MP4", ".AVI", ".MOV", ".MKV", ".M4V", ".WEBM", ".FLV", ".WMV", ".MPEG", ".MPG"}))
@@ -496,6 +512,7 @@ func main() {
 		}
 		selectedFile.SetText(filepath.Base(video.File))
 		status.SetText("Status: Input loaded")
+		updateHardwareStatus()
 		refreshStart()
 	})
 
@@ -550,6 +567,7 @@ func main() {
 		selectOutput.Disable()
 		qualityProfileSelect.Disable()
 		status.SetText("Status: ffmpeg unavailable")
+		hardwareStatus.SetText("Hardware: ffmpeg unavailable")
 	}
 
 	encoderOptions := []string{"Use same video codec as input file"}
@@ -559,6 +577,7 @@ func main() {
 	}
 	encoder = widget.NewSelect(encoderOptions, func(s string) {
 		prefs.SetString(prefEncoderSelection, s)
+		updateHardwareStatus()
 	})
 	encoder.Alignment = fyne.TextAlignCenter
 	savedEncoderSelection := prefs.String(prefEncoderSelection)
@@ -602,6 +621,7 @@ func main() {
 		optionsForm,
 		status,
 		results,
+		hardwareStatus,
 	)
 
 	bottomBar := container.NewBorder(

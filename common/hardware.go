@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 )
@@ -10,6 +11,13 @@ type MachineProfile struct {
 	CPUCores          int
 	HardwareAccels    []string
 	AvailableEncoders []string
+}
+
+// HardwarePlan describes the encoder and decode path Superview expects to use.
+type HardwarePlan struct {
+	Encoder        string
+	DecodeAccel    string
+	HardwareEncode bool
 }
 
 // AnalyzeMachineProfile analyzes host and ffmpeg capabilities for encoder selection.
@@ -51,7 +59,7 @@ func toSet(items []string) map[string]bool {
 }
 
 func isHardwareEncoder(encoder string) bool {
-	return strings.Contains(encoder, "_nvenc") || strings.Contains(encoder, "_qsv") || strings.Contains(encoder, "_vaapi") || strings.Contains(encoder, "_v4l2m2m")
+	return strings.Contains(encoder, "_nvenc") || strings.Contains(encoder, "_amf") || strings.Contains(encoder, "_qsv") || strings.Contains(encoder, "_vaapi") || strings.Contains(encoder, "_v4l2m2m")
 }
 
 func accelForEncoder(encoder string) string {
@@ -69,12 +77,97 @@ func accelForEncoder(encoder string) string {
 	}
 }
 
+func decodeAccelCandidatesForEncoder(encoder string) []string {
+	switch {
+	case strings.Contains(encoder, "_nvenc"):
+		return []string{"cuda", "d3d11va", "dxva2"}
+	case strings.Contains(encoder, "_amf"):
+		return []string{"d3d11va", "dxva2"}
+	case strings.Contains(encoder, "_qsv"):
+		return []string{"qsv", "d3d11va", "dxva2"}
+	default:
+		requiredAccel := accelForEncoder(encoder)
+		if requiredAccel == "" {
+			return []string{}
+		}
+		return []string{requiredAccel}
+	}
+}
+
+func canUseDedicatedHardwareEncoderWithoutMatchingAccel(encoder string) bool {
+	return strings.Contains(encoder, "_nvenc") || strings.Contains(encoder, "_amf") || strings.Contains(encoder, "_qsv")
+}
+
+func selectHardwareDecodeAccel(encoder string, profile *MachineProfile) string {
+	if profile == nil {
+		return ""
+	}
+
+	accelSet := toSet(profile.HardwareAccels)
+	for _, accel := range decodeAccelCandidatesForEncoder(encoder) {
+		if accelSet[accel] {
+			return accel
+		}
+	}
+
+	return ""
+}
+
+func describePlannedHardwarePath(plan HardwarePlan) string {
+	if plan.Encoder == "" {
+		return "Hardware: no compatible encoder selected"
+	}
+
+	if !plan.HardwareEncode {
+		return fmt.Sprintf("Hardware: planned CPU encode (%s) + CPU decode", plan.Encoder)
+	}
+
+	if plan.DecodeAccel != "" {
+		return fmt.Sprintf("Hardware: planned %s encode + %s decode", plan.Encoder, strings.ToUpper(plan.DecodeAccel))
+	}
+
+	return fmt.Sprintf("Hardware: planned %s encode + CPU decode fallback", plan.Encoder)
+}
+
+// BuildHardwarePlan determines the most likely encoder and decode path for the current input.
+func BuildHardwarePlan(ffmpeg map[string]string, video *VideoSpecs, requestedEncoder string) (HardwarePlan, error) {
+	if video == nil || len(video.Streams) == 0 {
+		return HardwarePlan{}, &InvalidVideoError{Reason: "no video streams"}
+	}
+
+	encoder, err := FindEncoder(requestedEncoder, ffmpeg, video)
+	if err != nil {
+		return HardwarePlan{}, err
+	}
+
+	profile := AnalyzeMachineProfile(ffmpeg)
+	return HardwarePlan{
+		Encoder:        encoder,
+		DecodeAccel:    selectHardwareDecodeAccel(encoder, profile),
+		HardwareEncode: isHardwareEncoder(encoder),
+	}, nil
+}
+
+// DescribeHardwareAccelerationPlan returns a user-facing summary of the planned hardware path.
+func DescribeHardwareAccelerationPlan(ffmpeg map[string]string, video *VideoSpecs, requestedEncoder string) string {
+	if video == nil {
+		return "Hardware: waiting for input video"
+	}
+
+	plan, err := BuildHardwarePlan(ffmpeg, video, requestedEncoder)
+	if err != nil {
+		return fmt.Sprintf("Hardware: %s", err.Error())
+	}
+
+	return describePlannedHardwarePath(plan)
+}
+
 func candidateEncodersForCodec(codec string) []string {
 	switch strings.ToLower(codec) {
 	case "h264", "avc":
-		return []string{"h264_nvenc", "h264_qsv", "h264_vaapi", "h264_v4l2m2m", "libx264", "libx264rgb"}
+		return []string{"h264_nvenc", "h264_amf", "h264_qsv", "h264_vaapi", "h264_v4l2m2m", "libx264", "libx264rgb"}
 	case "h265", "hevc":
-		return []string{"hevc_nvenc", "hevc_qsv", "hevc_vaapi", "hevc_v4l2m2m", "libx265"}
+		return []string{"hevc_nvenc", "hevc_amf", "hevc_qsv", "hevc_vaapi", "hevc_v4l2m2m", "libx265"}
 	default:
 		return []string{"libx264", "libx265"}
 	}
@@ -91,6 +184,10 @@ func canUseEncoderWithProfile(encoder string, profile *MachineProfile) bool {
 	}
 
 	if !isHardwareEncoder(encoder) {
+		return true
+	}
+
+	if canUseDedicatedHardwareEncoderWithoutMatchingAccel(encoder) {
 		return true
 	}
 

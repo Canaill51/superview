@@ -13,6 +13,7 @@ Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, ins
 
 - [Overview](#overview)
 - [Requirements](#requirements)
+- [Hardware Compatibility](#hardware-compatibility)
 - [Installation](#installation)
 - [Usage (GUI)](#usage)
 - [Configuration](#configuration)
@@ -28,6 +29,11 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
 - **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Windows
+
+Superview now shows a hardware diagnostic in the GUI:
+
+- the planned path before launch, for example `h264_nvenc + D3D11VA`
+- the actual path used after the run, including CPU fallback when FFmpeg or the driver rejects a hardware path
 
 The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
@@ -50,6 +56,89 @@ ffprobe -version
 ```
 
 If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
+
+## Hardware Compatibility
+
+Superview does not hardcode a fixed GPU whitelist at runtime. It relies on the hardware capabilities actually exposed by your installed FFmpeg build and graphics driver.
+
+For H.264 and H.265 hardware acceleration, the practical prerequisites are:
+
+- the GPU must provide hardware encode and decode support for the codec you want to use
+- the installed driver must expose that support correctly
+- the installed FFmpeg build must include the relevant hardware encoder (`nvenc`, `amf`, or `qsv`)
+
+On Windows, Superview can now combine these hardware encoders with `D3D11VA` or `DXVA2` decode when the vendor-specific `hwaccel` token is not exposed by FFmpeg.
+
+### Nvidia
+
+Recommended minimum for reliable H.264 + H.265 encode/decode: `Pascal` and newer.
+
+Commonly compatible families:
+
+- GeForce GTX `10xx`
+- GeForce RTX `20xx`, `30xx`, `40xx`, `50xx`
+- Quadro `Pxxxx`
+- RTX professional `Axxxx`
+- Tesla / data center `P4`, `P40`, `T4`, `A2`, `A10`, `A16`, `L4`, `L40`
+
+Notes:
+
+- `Quadro P1000` is compatible with this requirement set.
+- Some low-end exceptions exist even inside newer generations, so FFmpeg detection remains authoritative.
+- Older `Maxwell 2` cards may support parts of HEVC, but are not the baseline recommended here.
+
+### AMD
+
+Recommended minimum for reliable H.264 + H.265 encode/decode: `VCN 2.0` and newer.
+
+Commonly compatible families:
+
+- Radeon RX `5300`, `5500`, `5600`, `5700`
+- Radeon RX `6600`, `6700`, `6800`, `6900`
+- Radeon RX `7600`, `7700`, `7800`, `7900`
+- Radeon RX `9060`, `9070`
+- Radeon Pro `W5xxx`, `W6xxx`, `W7xxx` families with matching VCN support
+- Ryzen APUs with supported media engines, typically Ryzen `5000` and newer integrated graphics platforms
+
+Important exclusions:
+
+- some `Navi24` products are decode-only for this use case, including RX `6300`, `6400`, `6500`
+- some Radeon Pro variants built on the same media block are also decode-only
+
+### Intel
+
+Minimum practical baseline for H.264 + H.265 hardware encode/decode: `Skylake`.
+
+Recommended baseline to reduce edge cases: `Kaby Lake` and newer.
+
+Commonly compatible families:
+
+- Intel Core `6th gen` and newer with active Quick Sync support
+- Intel Core `7th`, `8th`, `9th`, `10th`, `11th`, `12th`, `13th`, `14th gen`
+- Intel `Core Ultra`
+- Intel `Arc`
+
+Important limitations:
+
+- CPUs without an active iGPU or without Quick Sync available are not compatible
+- some `F`, `KF`, Xeon, and workstation variants may not expose usable Quick Sync
+- BIOS settings can disable the iGPU and therefore remove hardware video support entirely
+
+### What Superview Actually Supports
+
+Superview currently targets the following FFmpeg hardware encoders for H.264 and H.265:
+
+- Nvidia: `h264_nvenc`, `hevc_nvenc`
+- AMD: `h264_amf`, `hevc_amf`
+- Intel: `h264_qsv`, `hevc_qsv`
+- CPU fallback: `libx264`, `libx265`
+
+If your GPU is theoretically compatible but the encoder does not appear in the GUI, the issue is usually one of these:
+
+- FFmpeg was installed without the relevant hardware encoder enabled
+- the graphics driver is missing, outdated, or vendor-generic in a way that hides the video engine
+- the machine exposes decode support but not encode support for that specific card
+- the codec is supported on paper by the family, but not by that exact SKU
 
 ## Installation
 
@@ -100,6 +189,7 @@ Notes:
 - `Fast`: faster encode, smaller output.
 - `Balanced`: best visual quality.
 - The app asks for confirmation before overwriting an existing output file.
+- The GUI shows the planned hardware path before launch and the actual path used after encoding completes.
 
 ![GUI Screenshot](.github/sample-gui.png)
 

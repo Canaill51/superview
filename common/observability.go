@@ -282,6 +282,7 @@ var globalEventRecorder *EventRecorder = NewEventRecorder()
 // Global metrics from last encoding (for GUI reporting)
 var lastEncodingMetrics *EncodingMetrics
 var metricsMutex sync.RWMutex
+var lastHardwareAccelerationSummary string
 
 // GetLastEncodingMetrics returns the metrics from the last encoding operation.
 // Returns nil if no encoding has been performed yet.
@@ -297,6 +298,20 @@ func SetLastEncodingMetrics(metrics *EncodingMetrics) {
 	metricsMutex.Lock()
 	defer metricsMutex.Unlock()
 	lastEncodingMetrics = metrics
+}
+
+// GetLastHardwareAccelerationSummary returns the hardware path used during the last encoding.
+func GetLastHardwareAccelerationSummary() string {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	return lastHardwareAccelerationSummary
+}
+
+// SetLastHardwareAccelerationSummary updates the summary of the hardware path used during encoding.
+func SetLastHardwareAccelerationSummary(summary string) {
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
+	lastHardwareAccelerationSummary = summary
 }
 
 // RegisterObservabilityHandler registers a global observability handler.

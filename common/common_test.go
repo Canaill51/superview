@@ -301,6 +301,180 @@ func TestFindEncoder_PreferHardwareWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestFindEncoder_AllowsNVENCWithoutCUDAHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_nvenc,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with NVENC on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_nvenc" {
+		t.Errorf("Expected h264_nvenc, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsAMFWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_amf,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with AMF on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_amf" {
+		t.Errorf("Expected h264_amf, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsQSVWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "h264_qsv,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "h264",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with QSV on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "h264_qsv" {
+		t.Errorf("Expected h264_qsv, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCNVENCWithoutCUDAHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_nvenc,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC NVENC on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_nvenc" {
+		t.Errorf("Expected hevc_nvenc, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCAMFWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_amf,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC AMF on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_amf" {
+		t.Errorf("Expected hevc_amf, got %s", encoder)
+	}
+}
+
+func TestFindEncoder_AllowsHEVCQSVWithoutDedicatedHwAccel(t *testing.T) {
+	ffmpegInfo := map[string]string{
+		"encoders": "hevc_qsv,libx264,libx265",
+		"accels":   "d3d11va,dxva2",
+	}
+
+	video := &VideoSpecs{
+		File: "test.mp4",
+		Streams: []VideoStream{
+			{
+				Codec:         "hevc",
+				Width:         1920,
+				Height:        1080,
+				BitrateInt:    5000000,
+				DurationFloat: 60.5,
+			},
+		},
+	}
+
+	encoder, err := FindEncoder("", ffmpegInfo, video)
+	if err != nil {
+		t.Errorf("FindEncoder with HEVC QSV on Windows hardware failed: %v", err)
+	}
+
+	if encoder != "hevc_qsv" {
+		t.Errorf("Expected hevc_qsv, got %s", encoder)
+	}
+}
+
 func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 	ffmpegInfo := map[string]string{
 		"encoders": "libx264,libx265,hevc",
