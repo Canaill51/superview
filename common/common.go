@@ -36,6 +36,9 @@ var commandStdoutPipe = func(cmd *exec.Cmd) (io.ReadCloser, error) {
 	return cmd.StdoutPipe()
 }
 
+// Wrapper around os.Executable for testability.
+var osExecutable = os.Executable
+
 func newFFmpegCommand(args ...string) *exec.Cmd {
 	return exec.Command(resolveToolBinary("ffmpeg"), args...)
 }
@@ -47,6 +50,11 @@ func newFFprobeCommand(args ...string) *exec.Cmd {
 func resolveToolBinary(tool string) string {
 	if cached, ok := toolResolveCache.Load(tool); ok {
 		return cached.(string)
+	}
+
+	if path := findBundledToolBinary(tool); path != "" {
+		toolResolveCache.Store(tool, path)
+		return path
 	}
 
 	if path, err := exec.LookPath(tool); err == nil {
@@ -63,6 +71,29 @@ func resolveToolBinary(tool string) string {
 
 	toolResolveCache.Store(tool, tool)
 	return tool
+}
+
+// findBundledToolBinary looks for tool(.exe) next to the running executable.
+// Release archives ship a pinned FFmpeg build alongside superview-gui.exe so that
+// hardware-acceleration behavior is reproducible and does not depend on whatever
+// FFmpeg version the user happens to have installed.
+func findBundledToolBinary(tool string) string {
+	exePath, err := osExecutable()
+	if err != nil {
+		return ""
+	}
+
+	name := tool
+	if runtime.GOOS == "windows" {
+		name = tool + ".exe"
+	}
+
+	candidate := filepath.Join(filepath.Dir(exePath), name)
+	if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		return candidate
+	}
+
+	return ""
 }
 
 func findWindowsToolBinary(tool string) string {

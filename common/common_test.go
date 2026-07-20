@@ -732,6 +732,97 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// Tests for resolveToolBinary bundled-binary resolution
+// ============================================================================
+
+func TestResolveToolBinary_PrefersBundledOverPath(t *testing.T) {
+	bundleDir := t.TempDir()
+	pathDir := t.TempDir()
+
+	exeName := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		exeName = "ffmpeg.exe"
+	}
+
+	bundledPath := filepath.Join(bundleDir, exeName)
+	if err := os.WriteFile(bundledPath, []byte("bundled"), 0755); err != nil {
+		t.Fatalf("failed to create fake bundled ffmpeg: %v", err)
+	}
+
+	pathBinaryName := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		pathBinaryName = "ffmpeg.exe"
+	}
+	if err := os.WriteFile(filepath.Join(pathDir, pathBinaryName), []byte("path"), 0755); err != nil {
+		t.Fatalf("failed to create fake PATH ffmpeg: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	sep := string(os.PathListSeparator)
+	if err := os.Setenv("PATH", pathDir+sep+oldPath); err != nil {
+		t.Fatalf("failed to set PATH: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("PATH", oldPath); err != nil {
+			t.Errorf("failed to restore PATH: %v", err)
+		}
+	}()
+
+	oldExecutable := osExecutable
+	osExecutable = func() (string, error) {
+		return filepath.Join(bundleDir, "superview-gui.exe"), nil
+	}
+	defer func() { osExecutable = oldExecutable }()
+
+	toolResolveCache.Delete("ffmpeg")
+	defer toolResolveCache.Delete("ffmpeg")
+
+	got := resolveToolBinary("ffmpeg")
+	if got != bundledPath {
+		t.Fatalf("expected bundled binary %q to win over PATH, got %q", bundledPath, got)
+	}
+}
+
+func TestResolveToolBinary_FallsBackToPathWhenNoBundle(t *testing.T) {
+	emptyDir := t.TempDir()
+	pathDir := t.TempDir()
+
+	pathBinaryName := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		pathBinaryName = "ffmpeg.exe"
+	}
+	pathBinary := filepath.Join(pathDir, pathBinaryName)
+	if err := os.WriteFile(pathBinary, []byte("path"), 0755); err != nil {
+		t.Fatalf("failed to create fake PATH ffmpeg: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	sep := string(os.PathListSeparator)
+	if err := os.Setenv("PATH", pathDir+sep+oldPath); err != nil {
+		t.Fatalf("failed to set PATH: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("PATH", oldPath); err != nil {
+			t.Errorf("failed to restore PATH: %v", err)
+		}
+	}()
+
+	oldExecutable := osExecutable
+	osExecutable = func() (string, error) {
+		return filepath.Join(emptyDir, "superview-gui.exe"), nil
+	}
+	defer func() { osExecutable = oldExecutable }()
+
+	toolResolveCache.Delete("ffmpeg")
+	defer toolResolveCache.Delete("ffmpeg")
+
+	got := resolveToolBinary("ffmpeg")
+	if got != pathBinary {
+		t.Fatalf("expected fallback to PATH binary %q, got %q", pathBinary, got)
+	}
+}
+
 func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
 	if err := InitEncodingSession(); err != nil {
 		t.Fatalf("failed to init session: %v", err)

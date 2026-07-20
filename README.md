@@ -45,7 +45,15 @@ Here is a quick animation showing the scaling, note how the text in the center s
 
 ### Official (Windows)
 
-Use the commands below.
+The Windows release archive bundles a pinned FFmpeg build (`ffmpeg.exe`/`ffprobe.exe`)
+next to `superview-gui.exe` — no separate FFmpeg install is needed. Superview always
+prefers this bundled copy over anything on `PATH`, so hardware-acceleration behavior is
+reproducible regardless of what else is installed on the machine. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact bundled version and its
+license (GPLv3).
+
+Installing FFmpeg yourself is only needed when **building/running from source** without
+using the release archive:
 
 ```powershell
 winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
@@ -192,7 +200,10 @@ Notes:
 
 ![GUI Screenshot](.github/sample-gui.png)
 
-If you get `Cannot find ffmpeg/ffprobe`, fix your `PATH` and retry.
+If you get `Cannot find ffmpeg/ffprobe`, this usually means the release archive was
+extracted incorrectly (superview-gui.exe is no longer next to the bundled
+ffmpeg.exe/ffprobe.exe). Re-extract the archive, or, when running from source, fix
+your `PATH` and retry.
 
 ### Configuration
 

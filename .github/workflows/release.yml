@@ -42,16 +42,25 @@ jobs:
     name: Build GUI (Windows)
     needs: test
     runs-on: windows-latest
-    
+
+    env:
+      # Pinned FFmpeg build (BtbN/FFmpeg-Builds, GPLv3, static win64) bundled next to
+      # superview-gui.exe so hardware-acceleration behavior is reproducible and does
+      # not depend on whatever FFmpeg the user has installed. Bump deliberately, not
+      # via "latest", when a newer pinned build is needed.
+      FFMPEG_RELEASE_TAG: autobuild-2026-07-20-14-10
+      FFMPEG_ASSET_NAME: ffmpeg-n8.1.2-29-g703dcc25b9-win64-gpl-8.1.zip
+      FFMPEG_ASSET_SHA256: 80c6edffbf27f7e0f9d263af40579cfd0dc1fd37a3d42b49b63f62b97195b8a9
+
     steps:
     - name: Checkout code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-    
+
     - name: Setup Go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         go-version: '1.26.x'
-    
+
     - name: Build GUI (native arch)
       shell: bash
       run: |
@@ -60,7 +69,23 @@ jobs:
         ARCH="$(go env GOARCH)"
         go run fyne.io/tools/cmd/fyne@latest package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}"
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
-    
+
+    - name: Download and verify bundled FFmpeg
+      shell: bash
+      run: |
+        set -euo pipefail
+        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_RELEASE_TAG}/${FFMPEG_ASSET_NAME}"
+        archive="ffmpeg-bundle.zip"
+        curl -fsSL -o "$archive" "$url"
+
+        echo "${FFMPEG_ASSET_SHA256}  ${archive}" | sha256sum -c -
+
+        mkdir -p ffmpeg-extract
+        unzip -q "$archive" -d ffmpeg-extract
+        bin_dir="$(find ffmpeg-extract -type d -name bin)"
+        cp "$bin_dir/ffmpeg.exe" build/ffmpeg.exe
+        cp "$bin_dir/ffprobe.exe" build/ffprobe.exe
+
     - name: Create archives
       shell: pwsh
       run: |
@@ -72,7 +97,12 @@ jobs:
           "arm64" { $archLabel = "aarch64" }
           default { $archLabel = $arch }
         }
-        Compress-Archive -Path "build/superview-gui-windows-$arch.exe" -DestinationPath "superview-gui-$version-windows-$archLabel.zip" -Force
+        $files = @(
+          "build/superview-gui-windows-$arch.exe",
+          "build/ffmpeg.exe",
+          "build/ffprobe.exe"
+        )
+        Compress-Archive -Path $files -DestinationPath "superview-gui-$version-windows-$archLabel.zip" -Force
     
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
