@@ -103,7 +103,6 @@ jobs:
         mkdir -p build
         ARCH="$(go env GOARCH)"
         go run fyne.io/tools/cmd/fyne@latest package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
-        mv "superview-gui-linux-${ARCH}" "build/superview-gui-linux-${ARCH}"
         
     - name: Inspect build directory
       run: |
