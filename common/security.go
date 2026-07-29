@@ -104,7 +104,7 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("path traversal detected in output path: %s", filePath)
 	}
 
-		// Normalize and validate
+	// Normalize and validate
 	cleanPath := filepath.Clean(filePath)
 
 	// Require absolute path
