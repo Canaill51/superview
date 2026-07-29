@@ -4,8 +4,36 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+// sensitiveSystemDirectories returns directories that must never be used
+// as an output destination, regardless of whether the current process
+// happens to have write access to them (e.g. running as root in CI/containers).
+func sensitiveSystemDirectories() []string {
+	if runtime.GOOS == "windows" {
+		return []string{
+			`C:\Windows`,
+			`C:\Program Files`,
+			`C:\Program Files (x86)`,
+			`C:\ProgramData`,
+		}
+	}
+	return []string{
+		"/etc", "/bin", "/sbin", "/usr", "/boot",
+		"/root", "/sys", "/proc", "/lib", "/lib64", "/var/lib",
+	}
+}
+
+func isSensitiveSystemPath(cleanPath string) bool {
+	for _, dir := range sensitiveSystemDirectories() {
+		if cleanPath == dir || strings.HasPrefix(cleanPath, dir+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
 
 // isValidInputPath validates that a file path is safe for input operations.
 // It prevents directory traversal attacks and ensures paths are absolute.
@@ -76,12 +104,19 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("path traversal detected in output path: %s", filePath)
 	}
 
-	// Normalize and validate
+		// Normalize and validate
 	cleanPath := filepath.Clean(filePath)
 
 	// Require absolute path
 	if !filepath.IsAbs(cleanPath) {
 		return fmt.Errorf("output path must be absolute: %s", filePath)
+	}
+
+	// Reject known system directories outright, independent of actual
+	// write permissions (a process running with elevated rights must
+	// still not be allowed to target these paths).
+	if isSensitiveSystemPath(cleanPath) {
+		return fmt.Errorf("output path targets a protected system directory: %s", filePath)
 	}
 
 	// Check that parent directory exists and is writable
