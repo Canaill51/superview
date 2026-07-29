@@ -102,7 +102,7 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        go build -o "build/superview-gui-linux-${ARCH}" .
+        go run fyne.io/tools/cmd/fyne@latest package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
 
     - name: Create archive
       run: |
@@ -137,12 +137,12 @@ jobs:
     
     - name: List all artifacts
       run: |
-        echo "=== Release Artifacts ===" 
-        find artifacts -type f -name "*.zip" | sort
+        echo "=== Release Artifacts ==="
+        find artifacts -type f | sort
     
     - name: Calculate checksums
       run: |
-        find artifacts -type f -name "*.zip" | while read file; do
+        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) | while read file; do
           sha256sum "$file"
         done > artifacts/checksums.txt
         echo "=== Checksums ===" && cat artifacts/checksums.txt
@@ -155,6 +155,8 @@ jobs:
         echo "### GUI Application" >> /tmp/release.md
         echo "- Windows: native runner arch" >> /tmp/release.md
         echo "" >> /tmp/release.md
+        echo "- Linux: native runner arch (Ubuntu 24.04 compatible)" >> /tmp/release.md
+        echo "" >> /tmp/release.md
         echo "### Verify Integrity" >> /tmp/release.md
         echo "\`\`\`bash" >> /tmp/release.md
         echo "sha256sum -c checksums.txt" >> /tmp/release.md
@@ -162,7 +164,7 @@ jobs:
         cat /tmp/release.md
 
     - name: Publish release assets
-      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         draft: true
@@ -170,6 +172,7 @@ jobs:
         body_path: /tmp/release.md
         files: |
           artifacts/**/*.zip
+          artifacts/**/*.tar.gz
           artifacts/checksums.txt
 
   notify:
