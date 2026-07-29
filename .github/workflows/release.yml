@@ -80,9 +80,52 @@ jobs:
         name: gui-windows-artifacts
         path: superview-gui-${{ github.ref_name }}-windows-*.zip
 
+  build-gui-linux:
+    name: Build GUI (Linux)
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+    - name: Setup Go
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      with:
+        go-version: '1.26.x'
+
+    - name: Install GUI build dependencies
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
+    - name: Build GUI (native arch)
+      run: |
+        set -euo pipefail
+        mkdir -p build
+        ARCH="$(go env GOARCH)"
+        go build -o "build/superview-gui-linux-${ARCH}" .
+
+    - name: Create archive
+      run: |
+        set -euo pipefail
+        version="${{ github.ref_name }}"
+        arch="$(go env GOARCH)"
+        case "$arch" in
+          amd64) archLabel="x86_64" ;;
+          386) archLabel="i386" ;;
+          arm64) archLabel="aarch64" ;;
+          *) archLabel="$arch" ;;
+        esac
+        tar -C build -czf "superview-gui-${version}-linux-${archLabel}.tar.gz" "superview-gui-linux-${arch}"
+
+    - name: Upload GUI artifacts
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: gui-linux-artifacts
+        path: superview-gui-${{ github.ref_name }}-linux-*.tar.gz
+
   create-release:
     name: Create GitHub Release
-    needs: [build-gui-windows]
+    needs: [build-gui-windows, build-gui-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/RC-')
     
@@ -131,7 +174,7 @@ jobs:
 
   notify:
     name: Notify Release Status
-    needs: [test, build-gui-windows, create-release]
+    needs: [test, build-gui-windows, build-gui-linux, create-release]
     runs-on: ubuntu-latest
     if: always()
     
@@ -140,7 +183,9 @@ jobs:
       run: |
         echo "✅ Release workflow completed"
         echo "  - Tests: PASSED"
-        echo "  - GUI Windows: COMPLETED"
+        echo "### GUI Application" >> /tmp/release.md
+        echo "- Windows: native runner arch" >> /tmp/release.md
+        echo "- Linux: native runner arch (requires libgl1-mesa-dev, xorg-dev at runtime; zenity or kdialog recommended for native file dialogs)" >> /tmp/release.md
         echo ""
         echo "📦 Artifacts ready in: GitHub Release page"
         echo "📝 Next: Manual publish of draft release"
