@@ -132,6 +132,7 @@ jobs:
         go-version: '1.26.x'
 
     - name: Validate native runner architecture (Windows)
+      if: matrix.expected_goos == 'windows'
       shell: pwsh
       run: |
         $goos = go env GOOS
@@ -141,12 +142,14 @@ jobs:
         Write-Host "Native runner verified: $goos/$goarch"
 
     - name: Build GUI (native, Windows)
+      if: matrix.expected_goos == 'windows'
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path build | Out-Null
         go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" .
 
     - name: Verify build outputs (Windows)
+      if: matrix.expected_goos == 'windows'
       shell: pwsh
       run: |
         if (-not (Test-Path "build/superview-gui-${{ matrix.label }}.exe")) { throw 'GUI artifact missing' }
