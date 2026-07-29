@@ -5,7 +5,7 @@
 
 Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
-> Official target platform: **Windows**.
+> Officially supported platforms: **Windows** and **Linux** (Ubuntu 24.04 LTS+).
 > Superview is distributed and maintained as a **GUI-only** application.
 > The current codebase targets **Go 1.26+**.
 
@@ -56,6 +56,27 @@ ffprobe -version
 ```
 
 If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
+
+### Linux (Ubuntu 24.04 LTS / 26.04 LTS)
+
+Install FFmpeg and the system libraries required to build/run the Fyne GUI:
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev
+```
+
+Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
+
+```bash
+sudo apt install -y zenity
+```
+
+Check FFmpeg NVENC support if you have an Nvidia GPU:
+
+```bash
+ffmpeg -hide_banner -encoders | grep nvenc
+```
 
 ## Hardware Compatibility
 
@@ -164,6 +185,17 @@ Then launch:
 
 ```powershell
 .\superview-gui.exe
+```
+
+Linux:
+```bash
+go build -o superview-gui .
+```
+
+Then launch:
+
+```bash
+./superview-gui
 ```
 
 ## Usage
@@ -334,6 +366,9 @@ go test ./common
 
 # Build GUI binary
 go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+
+# Linux
+go build -o superview-gui .
 ```
 
 ### Recent Improvements

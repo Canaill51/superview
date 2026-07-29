@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         go-version: [ '1.26.x' ]
-        os: [ windows-latest ]
+        os: [ windows-latest, ubuntu-latest ]
     
     steps:
     - name: Checkout code
@@ -117,6 +117,10 @@ jobs:
             runner: windows-latest
             expected_goos: windows
             expected_goarch: amd64
+          - label: ubuntu-amd64
+            runner: ubuntu-latest
+            expected_goos: linux
+            expected_goarch: amd64
 
     steps:
     - name: Checkout code
@@ -140,10 +144,35 @@ jobs:
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path build | Out-Null
-        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" superview-gui.go
+        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" .
 
     - name: Verify build outputs (Windows)
       shell: pwsh
       run: |
         if (-not (Test-Path "build/superview-gui-${{ matrix.label }}.exe")) { throw 'GUI artifact missing' }
         Write-Host "✅ Native build outputs verified"
+
+    - name: Install GUI build dependencies (Linux)
+      if: matrix.expected_goos == 'linux'
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
+    - name: Validate native runner architecture (Linux)
+      if: matrix.expected_goos == 'linux'
+      run: |
+        goos=$(go env GOOS)
+        goarch=$(go env GOARCH)
+        if [ "$goos" != "${{ matrix.expected_goos }}" ]; then echo "Expected GOOS=${{ matrix.expected_goos }}, got $goos"; exit 1; fi
+        if [ "$goarch" != "${{ matrix.expected_goarch }}" ]; then echo "Expected GOARCH=${{ matrix.expected_goarch }}, got $goarch"; exit 1; fi
+        echo "Native runner verified: $goos/$goarch"
+
+    - name: Build GUI (native, Linux)
+      if: matrix.expected_goos == 'linux'
+      run: |
+        mkdir -p build
+        go build -o "build/superview-gui-${{ matrix.label }}" .
+
+    - name: Verify build outputs (Linux)
+      if: matrix.expected_goos == 'linux'
+      run: |
+        test -f "build/superview-gui-${{ matrix.label }}" || { echo 'GUI artifact missing'; exit 1; }
+        echo "✅ Native build outputs verified"

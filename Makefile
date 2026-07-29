@@ -1,4 +1,4 @@
-.PHONY: help build build-gui build-gui-windows test lint vet coverage coverage-html fmt fmt-fix vuln check install-tools clean version release-prepare
+.PHONY: help build build-gui build-gui-windows build-gui-linux test lint vet coverage coverage-html fmt fmt-fix vuln check install-tools clean version release-prepare
 
 ARCH := $(shell go env GOARCH)
 
@@ -10,6 +10,7 @@ help:
 	@echo "  build          Build GUI binary"
 	@echo "  build-gui      Build GUI binary"
 	@echo "  build-gui-windows Build Windows GUI .exe without console"
+	@echo "  build-gui-linux   Build Linux GUI binary"
 	@echo ""
 	@echo "Test & Quality targets:"
 	@echo "  test           Run all tests"
@@ -45,6 +46,12 @@ build-gui-windows:
 	@echo "Building Windows GUI without console window..."
 	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe superview-gui.go
 	@echo "✅ Windows GUI binary created: superview-gui-windows-$(ARCH).exe"
+
+build-gui-linux: export GOOS=linux
+build-gui-linux:
+	@echo "Building Linux GUI..."
+	go build -o superview-gui-linux-$(ARCH) .
+	@echo "✅ Linux GUI binary created: superview-gui-linux-$(ARCH)"
 
 # Test targets
 test:
@@ -115,6 +122,7 @@ clean:
 	@echo "Cleaning up..."
 	rm -f superview-gui superview-gui.exe
 	rm -f superview-gui-windows-*.exe
+	rm -f superview-gui-linux-*
 	rm -f coverage.out coverage.html
 	go clean
 	rm -rf dist/ build/

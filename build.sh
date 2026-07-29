@@ -25,7 +25,7 @@ for platform in "${platforms[@]}"; do
     GOARCH=${platform_split[1]}
     output_name="superview-gui-${GOOS}-${GOARCH}-v${VERSION}.exe"
 
-    fyne-cross ${GOOS} -silent -arch ${GOARCH} -icon Icon.png -ldflags="-s -w -H=windowsgui" -output ${output_name} "superview-gui.go"
+    fyne-cross ${GOOS} -silent -arch ${GOARCH} -icon Icon.png -ldflags="-s -w -H=windowsgui" -output ${output_name} .
     output_name="fyne-cross/dist/${GOOS}-${GOARCH}/${output_name}.zip"
 
     echo "Built: ${output_name}"
