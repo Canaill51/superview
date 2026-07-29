@@ -104,6 +104,11 @@ jobs:
         ARCH="$(go env GOARCH)"
         go run fyne.io/tools/cmd/fyne@latest package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
 
+    - name: Inspect build directory
+      run: |
+        echo "ARCH=$(go env GOARCH)"
+        ls -lah build
+
     - name: Create archive
       run: |
         set -euo pipefail
