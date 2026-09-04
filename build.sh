@@ -1,4 +1,24 @@
 #!/bin/bash
+#
+# DEPRECATED — do not use for releases.
+#
+# This script predates the Linux port (commit 76a8341) and only builds Windows
+# binaries. It also relies on fyne-cross v2, whose documented install command
+# (`go get`) no longer installs binaries since Go 1.18.
+#
+# Releases are produced by .github/workflows/release.yml, which builds Windows
+# and Linux artifacts on native runners, publishes checksums and creates a draft
+# release. Tag the repository (`git tag vX.Y.Z && git push origin --tags`) and
+# let CI do the rest.
+#
+# Kept only for historical reference. It will refuse to run unless
+# SUPERVIEW_ALLOW_LEGACY_BUILD=1 is set.
+
+if [ "${SUPERVIEW_ALLOW_LEGACY_BUILD:-0}" != "1" ]; then
+    echo "build.sh is deprecated; releases are built by .github/workflows/release.yml." >&2
+    echo "Set SUPERVIEW_ALLOW_LEGACY_BUILD=1 to run it anyway." >&2
+    exit 1
+fi
 
 if [ $# -ne 1 ]; then
     echo "Usage: ./build.sh <version number>"

@@ -38,13 +38,13 @@ build: build-gui
 
 build-gui:
 	@echo "Building GUI..."
-	go build -o superview-gui superview-gui.go
+	go build -o superview-gui .
 	@echo "✅ GUI binary created: superview-gui"
 
 build-gui-windows: export GOOS=windows
 build-gui-windows:
 	@echo "Building Windows GUI without console window..."
-	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe superview-gui.go
+	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe .
 	@echo "✅ Windows GUI binary created: superview-gui-windows-$(ARCH).exe"
 
 build-gui-linux: export GOOS=linux
