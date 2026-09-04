@@ -641,25 +641,71 @@ haute. Mesuré sur contenu incompressible (bruit), consigne 40 Mbps :
 > simplement pas ces bits. Sur contenu exigeant, NVENC suit correctement la consigne et c'est
 > `libx264` qui dérape. Une mesure sur le mauvais échantillon menait à la conclusion inverse.
 
-### N-07 🟡 — Le décodage matériel n'apporte que ~5 %, pour une complexité et un risque réels
+### N-07 🔄 — ~~Le décodage matériel n'apporte que ~5 %~~ — **MESURE RÉVISÉE : ~10 %**
 
-Mesuré sur une source 2880×2160 de 15 s, deux exécutions concordantes :
+> **La mesure d'origine était faite sur le mauvais échantillon.** Elle sous-estimait le gain
+> d'un facteur deux, et la recommandation qui en découlait s'en trouve inversée.
+> Refaite le 2026-09-04 sur le même matériel (RTX 4070) et sur le code actuel.
+
+#### Mesure d'origine (3ᵉ passe) — à ne plus utiliser
+
+Source 2880×2160 de 15 s, `testsrc`, ~2 Mbps :
 
 | Chemin | Durée |
 | --- | --- |
-| `h264_nvenc` + décodage CUDA | **4,31 s / 4,37 s** |
-| `h264_nvenc` + décodage CPU | 4,53 s / 4,58 s |
-| `libx264` + décodage CPU | 7,54 s / 7,56 s |
+| `h264_nvenc` + décodage CUDA | 4,31 s |
+| `h264_nvenc` + décodage CPU | 4,53 s |
+| `libx264` + décodage CPU | 7,54 s |
 
-L'**encodage** matériel vaut largement son existence : **×1,7**. Le **décodage** matériel, lui,
-n'apporte que **~5 %**, parce que le filtre `remap` tourne sur CPU et impose des transferts
-GPU→CPU→GPU qui annulent le gain.
+D'où « décodage matériel : ~5 %, encodage matériel : ×1,7 ».
 
-Or c'est le chemin tenté **en premier**, et son échec déclenche une réexécution complète de
-l'encodage. Le rapport bénéfice/risque est défavorable : 5 % à gagner, jusqu'à 100 % d'un
-encodage à perdre si l'échec survient tardivement (un échec d'initialisation, le cas courant,
-coûte peu). À arbitrer : conserver, ou ne tenter le décodage matériel que si un gain réel est
-constaté sur la plateforme.
+#### Mesure révisée (2026-09-04)
+
+Une mire `testsrc` à 2 Mbps se décode quasi gratuitement : il n'y a presque rien à déporter,
+donc presque rien à gagner. Une GoPro 5,3K produit du **100-120 Mbps** de contenu détaillé.
+Refait sur les deux échantillons, deux exécutions concordantes, meilleur temps retenu :
+
+| Source | Décodage matériel | Encodage matériel |
+| --- | --- | --- |
+| Mire `testsrc`, 2 Mbps *(l'échantillon d'origine)* | +3,1 % | ×1,92 |
+| **Type GoPro, 2880×2160 à 127 Mbps** | **+9,9 %** | **×3,18** |
+
+Les deux chiffres du constat initial étaient bas : le décodage matériel vaut **le double** de ce
+qui était consigné, et l'encodage matériel presque **le double** aussi.
+
+#### Pourquoi le gain reste inférieur à ce qu'on attendrait
+
+Le filtre `remap` tourne sur CPU, donc les trames décodées doivent redescendre en mémoire
+système quoi qu'il arrive. Mesuré sur la même source de 127 Mbps, en transcodage **sans**
+`remap` :
+
+| Chemin | Durée | Gain |
+| --- | --- | --- |
+| Décodage GPU, trames gardées en VRAM | 2,34 s | +7 % |
+| Décodage GPU, trames rapatriées en RAM — *ce que fait Superview* | 2,47 s | **+1 %** |
+| Décodage CPU | 2,51 s | — |
+
+Le rapatriement en RAM annule donc presque tout le gain… en transcodage simple. Avec `remap`,
+le même décodage matériel rapporte pourtant **+9,9 %**.
+
+L'explication la plus cohérente avec ces deux mesures : le gain ne vient pas du décodage plus
+rapide mais du **CPU libéré pour le filtre**. En transcodage simple le CPU est largement
+inoccupé — NVENC fait l'encodage — donc lui retirer le décodage ne change presque rien. Avec
+`remap` le CPU est saturé, et chaque cycle rendu au filtre compte. *C'est une inférence à partir
+de deux mesures, pas une propriété vérifiée directement.*
+
+#### Arbitrage révisé — recommandation : **conserver**
+
+- **Bénéfice** : ~10 % sur du contenu réel, pas 5 %.
+- **Risque** : c'est le chemin tenté en premier, et son échec relance l'encodage. Mais l'échec
+  courant — pilote absent, GPU occupé, format non supporté — survient à l'**initialisation** et
+  coûte une fraction de seconde. Un échec tardif existe mais reste rare.
+
+À 5 % pour un risque flou, l'abandon se défendait. À **10 % pour un risque essentiellement
+limité à l'initialisation**, le conserver est le meilleur choix. Aucune modification de code
+n'est donc nécessaire.
+
+*Décision finale : à l'utilisateur.*
 
 ### N-08 ✅ — ~~Jusqu'à 146 Mo de fichiers temporaires, en RAM, sans vérification préalable~~ — **CORRIGÉ**
 
@@ -1029,9 +1075,9 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ⬜ **Invalidé** (1) | B-03 — le constat était faux, voir ci-dessus |
 | ✅ **Corrigé et vérifié — 2ᵉ passe** (4) | C-05, C-06, O-05, O-06 |
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
-| ⏸️ **Ouvert — 3ᵉ passe** (1) | N-07 *(arbitrage produit : conserver ou non le décodage matériel, qui ne vaut que ~5 %)* |
+| 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (11) | P-01 à P-11 *(P-09 partiellement, voir ci-dessus)* |
-| ⏸️ **Ouvert** | *aucun constat technique.* Reste **N-07**, qui est un arbitrage produit, pas un défaut. |
+| ⏸️ **Ouvert** | *aucun.* |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
 `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
@@ -1080,3 +1126,4 @@ Détail des mesures obtenues :
 | 2026-09-04 | Application des deux correctifs demandés : N-03+N-04+N-05 (chaîne de filtres, `-map`, `-map_metadata`) et P-08 (cartes PGM en P5 binaire). **P-11 découvert et corrigé en chemin** — `libx265` échouait sur toute machine de plus de 16 cœurs. 3 tests unitaires de format, 3 tests PGM et 1 test d'intégration bout en bout ajoutés, chacun vérifié en contre-épreuve. Leçons L-36 à L-39. |
 | 2026-09-04 | Second lot : P-01 à P-07 et P-09, plus N-06, N-08, N-09, N-10. `-maxrate`/`-bufsize` calibrés par la mesure (+83 % → +24 % de dépassement). Leçons L-40 à L-43. Restent ouverts : **P-10** et **N-07** seulement. |
 | 2026-09-04 | **P-10** : état de `main()` extrait dans `appState` (11 méthodes, toutes à 100 % de couverture), 18 sous-tests, chacun vérifié en contre-épreuve. `beginEncoding()` rend P-02 inexprimable. Leçons L-44, L-45. **Plus aucun constat technique ouvert ; reste N-07, arbitrage produit.** |
+| 2026-09-04 | **N-07 révisé.** La mesure d'origine (~5 %) était faite sur une mire à 2 Mbps, qui se décode quasi gratuitement. Refaite sur une source type GoPro à 127 Mbps : décodage matériel **+9,9 %**, encodage matériel **×3,18**. L'arbitrage s'inverse — recommandation : conserver. Leçon L-46. |

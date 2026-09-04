@@ -203,6 +203,8 @@ Vérifiés en exécutant FFmpeg 8.0.1, pas déduits de la documentation. À trai
 | **`libx265` refuse `-threads` au-delà de 16** | FFmpeg le fait correspondre à `--frame-threads` de x265. 17 et plus : `Cannot open libx265 encoder`, échec dur. `runtime.NumCPU()` ne peut donc pas être passé tel quel — voir `clampEncoderThreads` (P-11). |
 | **`-b:v` seul dépasse jusqu'à +83 %** | Mesuré sur bruit incompressible à 8 Mbps : 14,7 Mbps sans plafond, 10,0 Mbps avec `-maxrate` égal à la consigne et `-bufsize` au double (+24 %), 10,4 Mbps avec la recommandation habituelle de 1,5× (+29 %). Le plafond retenu est **1×** — la valeur « standard » était la moins bonne. |
 | `ffprobe` donne la cadence en rationnel (`30000/1001`) | Et `0/0` quand il ne sait pas ; `parseFrameRate` rend 0, que tous les appelants lisent comme « inconnu ». |
+| **Le gain de l'accélération matérielle dépend fortement du débit de la source** | Sur une mire à 2 Mbps : décodage +3 %, encodage ×1,9. Sur une source type GoPro à 127 Mbps : décodage **+9,9 %**, encodage **×3,18**. Mesurer le matériel sur une mire mène à la conclusion inverse (N-07, L-46). |
+| Rapatrier les trames du GPU vers la RAM annule presque le gain du décodage matériel | En transcodage simple à 127 Mbps : +7 % si les trames restent en VRAM, **+1 %** si elles redescendent. `remap` étant un filtre CPU, Superview est forcément dans le second cas — et y gagne pourtant +9,9 %, vraisemblablement en libérant du CPU pour le filtre. |
 | Le filtre `remap` accepte des cartes 16 bits pour une source 10 bits | La profondeur des cartes et celle de la vidéo sont indépendantes. |
 
 Recette de vérification d'un changement de chaîne de filtres — comparer la **sortie décodée**,
@@ -372,3 +374,4 @@ Trois tests le verrouillent, et ils ne sont pas interchangeables :
 | 2026-09-04 | Correctifs N-03/N-04/N-05, P-08 et P-11 appliqués : ajout des contrats « chaîne de filtres » et « cartes de remappage », du plafond `-threads` de `libx265` au contrat FFmpeg, et de la mise en garde contre les empreintes figées dépendant d'un build externe. |
 | 2026-09-04 | Second lot de correctifs : ajout du « Contrat du pipeline » (7 invariants tenus par des tests), de la mesure du dépassement de débit et du format de cadence au contrat FFmpeg, et de la recette d'écriture d'un test d'annulation. |
 | 2026-09-04 | P-10 appliqué : ajout du « Contrat de l'état de la GUI » (5 règles) et du point d'entrée `newTestAppState` pour tester une transition. |
+| 2026-09-04 | N-07 révisé : ajout au contrat FFmpeg de la dépendance du gain matériel au débit de la source, et du coût du rapatriement GPU→RAM. Une mesure d'accélération matérielle faite sur une mire ne vaut rien. |

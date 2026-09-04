@@ -137,6 +137,17 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-46 — Une mesure héritée se revérifie avant d'en tirer une décision — 2026-09-04
+J'ai relayé à l'utilisateur les « ~5 % » de N-07 comme un fait établi. Ce chiffre venait d'une
+passe précédente et je ne l'avais pas revérifié — alors que le RTX 4070 était disponible et que
+la mesure prend cinq minutes. Refaite, elle donne **+9,9 %** : la mesure d'origine portait sur
+une mire `testsrc` à 2 Mbps, qui se décode quasi gratuitement. L'arbitrage que j'en tirais
+— « le gain ne justifie pas le risque » — s'inverse.
+→ Une mesure consignée dans un document n'est pas plus vraie que l'échantillon sur lequel elle a
+été faite, et un document ne transporte pas cet échantillon. Avant de **fonder une décision** sur
+un chiffre hérité, le refaire, ou au minimum vérifier sur quoi il portait. Deuxième occurrence de
+L-25 dans ce dépôt, et cette fois j'ai failli la propager jusqu'à une recommandation produit.
+
 ### L-44 — Rendre un bug inexprimable vaut mieux que le corriger — 2026-09-04
 P-02 était une course : la goroutine d'encodage relisait `cancelEncoding` pendant que le fil UI
 le mettait à `nil`. Le correctif immédiat — capturer le canal dans une locale — marchait, mais
@@ -370,6 +381,46 @@ Constat O-01.
 ---
 
 ## 3. Corrections appliquées
+
+### [2026-09-04] N-07 — Mesure révisée, arbitrage inversé (aucun changement de code)
+
+| | |
+| --- | --- |
+| **Constat** | N-07 ([§ 3bis](ANALYSE_PROJET.md)) |
+| **Fichiers** | `output_claude/ANALYSE_PROJET.md` · `output_claude/SOURCES.md` — **aucun fichier de code** |
+| **Commit** | non commité |
+| **Vérification** | mesures refaites sur RTX 4070, code actuel, deux exécutions concordantes par cas |
+
+**Symptôme** — le constat annonçait « le décodage matériel n'apporte que ~5 %, pour un risque
+réel », et j'ai relayé cette conclusion à l'utilisateur comme un fait. Il a demandé une
+explication, ce qui m'a conduit à refaire la mesure.
+
+**Cause racine** — la mesure d'origine portait sur une mire `testsrc` à ~2 Mbps. Un tel flux se
+décode quasi gratuitement : il n'y a presque rien à déporter sur le GPU, donc presque rien à
+gagner. Une GoPro 5,3K produit du 100-120 Mbps de contenu détaillé.
+
+**Mesures** — même matériel, code actuel, meilleur de deux exécutions :
+
+| Source | Décodage matériel | Encodage matériel |
+| --- | --- | --- |
+| Mire `testsrc`, 2 Mbps *(échantillon d'origine)* | +3,1 % | ×1,92 |
+| Type GoPro, 2880×2160 à 127 Mbps | **+9,9 %** | **×3,18** |
+
+Le mécanisme a aussi été isolé, en transcodage sans `remap` sur la source de 127 Mbps :
+trames gardées en VRAM 2,34 s (+7 %), trames rapatriées en RAM — ce que fait Superview —
+2,47 s (+1 %), décodage CPU 2,51 s. Le rapatriement annule donc le gain *en transcodage simple*,
+alors qu'avec `remap` le même décodage matériel rapporte +9,9 %. L'explication cohérente avec ces
+deux mesures est que le gain vient du **CPU libéré pour le filtre**, pas d'un décodage plus
+rapide — inférence, non vérifiée directement.
+
+**Conclusion** — l'arbitrage s'inverse : à ~10 % pour un risque essentiellement limité à
+l'initialisation, conserver le décodage matériel est le meilleur choix. **Aucune modification de
+code.** Décision finale à l'utilisateur.
+
+**Leçon** — L-46.
+
+---
+
 
 ### [2026-09-04] P-10 — L'état de `main()` extrait dans `appState`
 
@@ -1133,7 +1184,9 @@ renseigner la date + le lien vers l'entrée § 3.
 - [x] **N-08** Vérifier l'espace avec le besoin réel avant `InitEncodingSession` → appliqué le 2026-09-04 (`checkTempSpaceForMaps`)
 - [x] **N-09** Comparer entrée et sortie avant lancement, message clair → appliqué le 2026-09-04, **rendu obligatoire par P-04**
 - [x] **N-10** Afficher l'ETA et le chemin du fichier de journal → appliqué le 2026-09-04
-- [ ] **N-07** *(arbitrage produit)* Conserver ou non le décodage matériel, qui ne vaut que ~5 %
+- [x] **N-07** *(arbitrage produit)* Conserver ou non le décodage matériel
+      → **mesure refaite le 2026-09-04 : ~10 %, pas ~5 %.** Recommandation : conserver,
+      donc aucun changement de code (L-46)
 
 ### Palier 10 — 4ᵉ passe : constats P-xx
 
@@ -1172,3 +1225,4 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
 | 2026-09-04 | Correctifs appliqués : N-03+N-04+N-05 et P-08, sur demande de l'utilisateur. **P-11 découvert et corrigé en chemin** (`libx265` inutilisable au-delà de 16 cœurs). 7 tests ajoutés, tous vérifiés en contre-épreuve. Leçons L-36 à L-39. Restent ouverts : N-06 à N-10, P-01 à P-07, P-09, P-10. |
 | 2026-09-04 | Second lot : P-01 à P-07, P-09 et N-06, N-08, N-09, N-10. Deux tests réécrits parce qu'ils passaient à vide (L-40, L-41). Leçons L-40 à L-43. **File d'attente réduite à P-10 et N-07.** |
 | 2026-09-04 | **P-10** : `appState`, 11 méthodes couvertes à 100 %, 18 sous-tests. `beginEncoding()` rend P-02 inexprimable (L-44). Découvert en chemin : le sélecteur de codec restait actif quand ffmpeg manque. Leçons L-44, L-45. **File d'attente vide ; reste N-07, arbitrage produit.** |
+| 2026-09-04 | PR #28 fusionnée (`ab8b8a8`). **N-07 révisé** : la mesure d'origine sous-estimait le gain d'un facteur deux ; l'arbitrage s'inverse, recommandation « conserver », aucun code touché. Leçon L-46. **Plus aucun constat ouvert.** |
