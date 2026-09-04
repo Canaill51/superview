@@ -503,13 +503,14 @@ func TestFindEncoder_SelectValidEncoder(t *testing.T) {
 	}
 }
 
-func TestBuildEncodeBaseArgs_SafeModeDefaults(t *testing.T) {
+func TestBuildEncodeBaseArgs_Defaults(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "aac", false, 6, 0, "")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "aac", 6, 0, "")
 
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "-re") {
-		t.Fatalf("expected -re in safe mode, args: %v", args)
+	// -re throttles the input to realtime; it must never appear for file output.
+	if strings.Contains(joined, "-re") {
+		t.Fatalf("-re must not be emitted, it caps the encode at realtime speed, args: %v", args)
 	}
 	if strings.Contains(joined, "-preset") {
 		t.Fatalf("did not expect -preset by default, args: %v", args)
@@ -527,11 +528,11 @@ func TestBuildEncodeBaseArgs_SafeModeDefaults(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "copy", true, 8, 4, "fast")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "copy", 8, 4, "fast")
 
 	joined := strings.Join(args, " ")
 	if strings.Contains(joined, "-re") {
-		t.Fatalf("did not expect -re in safe_performance mode, args: %v", args)
+		t.Fatalf("did not expect -re, args: %v", args)
 	}
 	if !strings.Contains(joined, "-preset fast") {
 		t.Fatalf("expected preset to be applied, args: %v", args)
@@ -546,7 +547,7 @@ func TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads(t *testing.T)
 
 func TestBuildEncodeBaseArgs_AMFMapsFastPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "fast")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", 8, 4, "fast")
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-preset speed") {
@@ -559,7 +560,7 @@ func TestBuildEncodeBaseArgs_AMFMapsFastPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_AMFMapsMediumPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_amf", 2000000, "copy", true, 8, 4, "medium")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_amf", 2000000, "copy", 8, 4, "medium")
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-preset balanced") {
@@ -569,7 +570,7 @@ func TestBuildEncodeBaseArgs_AMFMapsMediumPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", true, 8, 4, "p4")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_amf", 2000000, "copy", 8, 4, "p4")
 	joined := strings.Join(args, " ")
 
 	if strings.Contains(joined, "-preset") {
@@ -579,7 +580,7 @@ func TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "fast")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", 8, 4, "fast")
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-preset fast") {
@@ -589,7 +590,7 @@ func TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "ultrafast")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", 8, 4, "ultrafast")
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-preset veryfast") {
@@ -599,7 +600,7 @@ func TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_qsv", 2000000, "copy", true, 8, 4, "placebo")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "hevc_qsv", 2000000, "copy", 8, 4, "placebo")
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-preset veryslow") {
@@ -609,7 +610,7 @@ func TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", true, 8, 4, "p4")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_qsv", 2000000, "copy", 8, 4, "p4")
 	joined := strings.Join(args, " ")
 
 	if strings.Contains(joined, "-preset") {
@@ -619,7 +620,7 @@ func TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset(t *testing.T) {
 
 func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
 	video := &VideoSpecs{File: "input.mp4"}
-	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", true, 4, 0, "slow")
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", 4, 0, "slow")
 
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "-x265-params log-level=error") {
@@ -1019,5 +1020,162 @@ func TestUIHandlerInterface_WithMock(t *testing.T) {
 
 	if err := video.Validate(); err != nil {
 		t.Errorf("Video validation failed: %v", err)
+	}
+}
+
+// errReader returns a non-EOF error on every Read. It reproduces the condition
+// of a broken progress pipe (regression guard for the infinite read loop).
+type errReader struct{ err error }
+
+func (r *errReader) Read(_ []byte) (int, error) { return 0, r.err }
+func (r *errReader) Close() error               { return nil }
+
+func TestEncodeVideo_ProgressReaderNonEOFErrorDoesNotHang(t *testing.T) {
+	if err := InitEncodingSession(); err != nil {
+		t.Fatalf("failed to init session: %v", err)
+	}
+	defer func() {
+		if err := CleanUp(); err != nil {
+			t.Errorf("failed to cleanup session: %v", err)
+		}
+	}()
+
+	video := &VideoSpecs{
+		File: "input.mp4",
+		Streams: []VideoStream{{
+			Codec:         "h264",
+			Width:         1920,
+			Height:        1080,
+			Duration:      "60",
+			DurationFloat: 60,
+			Bitrate:       "5000000",
+			BitrateInt:    5000000,
+		}},
+	}
+
+	oldStdoutPipe := commandStdoutPipe
+	defer func() {
+		commandStdoutPipe = oldStdoutPipe
+	}()
+
+	// Anything other than io.EOF used to make the reader goroutine spin
+	// forever, so readDone was never closed and EncodeVideo blocked for good.
+	commandStdoutPipe = func(_ *exec.Cmd) (io.ReadCloser, error) {
+		return &errReader{err: errors.New("pipe closed unexpectedly")}, nil
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- EncodeVideo(video, "libx264", 2000000, filepath.Join(t.TempDir(), "out.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
+	}()
+
+	select {
+	case <-done:
+		// Returning at all is the point; ffmpeg itself fails on the fake input.
+	case <-time.After(20 * time.Second):
+		t.Fatal("EncodeVideo hung on a non-EOF progress read error")
+	}
+}
+
+func TestParseFFmpegVersion(t *testing.T) {
+	cases := []struct {
+		name, input, want string
+	}{
+		{"standard", "ffmpeg version 6.1.1 Copyright (c) 2000-2023\nbuilt with gcc", "6.1.1"},
+		{"distro build", "ffmpeg version n7.0.2-ubuntu1 Copyright", "n7.0.2-ubuntu1"},
+		{"truncated", "ffmpeg version", "unknown"},
+		{"single token", "ffmpeg", "unknown"},
+		{"empty", "", "unknown"},
+		{"only newlines", "\n\n", "unknown"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := parseFFmpegVersion(c.input); got != c.want {
+				t.Errorf("parseFFmpegVersion(%q) = %q, want %q", c.input, got, c.want)
+			}
+		})
+	}
+}
+
+func TestParseFFmpegEncoders(t *testing.T) {
+	listing := `Encoders:
+ V..... = Video
+ A..... = Audio
+ ------
+ V....D libx264              H.264 / AVC
+ V....D libx265              H.265 / HEVC
+ V....D h264_nvenc           NVIDIA NVENC H.264
+ A....D aac                  AAC audio
+ V....D libvpx-vp9           VP9 video
+`
+	got := parseFFmpegEncoders(listing, []string{"264", "265", "hevc"})
+	want := []string{"libx264", "libx265", "h264_nvenc"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFFmpegEncoders_MalformedInputDoesNotPanic(t *testing.T) {
+	// Each of these used to index past the end of a split slice.
+	for _, input := range []string{
+		"",
+		" V",
+		" V\n",
+		"------\n V",
+		"no separator at all\n V....D libx264 H.264",
+		"\r\n------\r\n V....D libx265 HEVC\r\n",
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("panic on input %q: %v", input, r)
+				}
+			}()
+			parseFFmpegEncoders(input, []string{"264", "265"})
+		}()
+	}
+}
+
+func TestParseFFmpegEncoders_NoSeparatorStillParses(t *testing.T) {
+	// A build whose banner is not 10 lines long, and with no "------" marker.
+	listing := " V....D libx264              H.264 / AVC\n V....D libx265              H.265\n"
+	got := parseFFmpegEncoders(listing, []string{"264"})
+	if len(got) != 1 || got[0] != "libx264" {
+		t.Errorf("got %v, want [libx264]", got)
+	}
+}
+
+func TestResolveToolBinary_DoesNotCacheFailures(t *testing.T) {
+	ResetToolResolutionCache()
+	defer ResetToolResolutionCache()
+
+	const missing = "superview-definitely-not-a-real-tool"
+
+	if got := resolveToolBinary(missing); got != missing {
+		t.Fatalf("expected the bare name back, got %q", got)
+	}
+	// A failure must not be memoised: the user typically installs ffmpeg while
+	// the app is running, and a cached miss would require a restart.
+	if _, cached := toolResolveCache.Load(missing); cached {
+		t.Error("a failed resolution must not be cached")
+	}
+}
+
+func TestResolveToolBinary_CachesSuccess(t *testing.T) {
+	ResetToolResolutionCache()
+	defer ResetToolResolutionCache()
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	first := resolveToolBinary("ffmpeg")
+	if !filepath.IsAbs(first) {
+		t.Fatalf("expected an absolute path, got %q", first)
+	}
+	if _, cached := toolResolveCache.Load("ffmpeg"); !cached {
+		t.Error("a successful resolution should be cached")
+	}
+	if second := resolveToolBinary("ffmpeg"); second != first {
+		t.Errorf("cached lookup returned %q, want %q", second, first)
 	}
 }

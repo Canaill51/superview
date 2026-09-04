@@ -1,37 +1,41 @@
-# golangci-lint configuration for superview
-# See: https://golangci-lint.run/usage/configuration/
+# golangci-lint configuration for superview (schema v2)
+# See: https://golangci-lint.run/docs/configuration/file/
+version: "2"
 
 run:
   timeout: 5m
   modules-download-mode: readonly
   allow-parallel-runners: true
 
-output:
-  formats:
-    - format: line-number
-      path: stdout
-
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
-    - typecheck
+    - staticcheck
     - unused
+  settings:
+    staticcheck:
+      # Faithful equivalent of the previous v1 setup (staticcheck "SA" +
+      # gosimple "S1"). "QF" quickfixes are editor refactoring hints, not
+      # correctness checks -- one of them would rewrite the GeneratePGM
+      # math.Pow calls, which mirror the reference algorithm and must stay
+      # readable against it. "ST" style checks are left off for now.
+      checks:
+        - SA*
+        - S1*
+  exclusions:
+    rules:
+      # Test helpers may legitimately look unused to the analysers.
+      - path: _test\.go
+        linters:
+          - unused
+          - ineffassign
 
 issues:
-  exclude-rules:
-    # Allow unused code in test files
-    - path: _test\.go
-      linters:
-        - unused
-        - ineffassign
-
-  # Global max issues per linter
   max-issues-per-linter: 0
   max-same-issues: 0
 
 severity:
-  default-severity: error
+  default: error

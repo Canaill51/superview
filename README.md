@@ -28,7 +28,12 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Dynamic Scaling**: Outer areas stretched more aggressively, center maintains aspect ratio
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
-- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs on Windows
+- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs
+- **Squeeze Mode**: tick *Source already stretched (GoPro SuperView)* when the input is a 4:3
+  frame already stretched to 16:9 by the camera; Superview un-stretches the centre instead of
+  widening the frame
+- **System Diagnostic**: the *Diagnostic* button reports ffmpeg/ffprobe availability, free disk
+  space, memory and CPU -- attach its output to any bug report
 
 Superview now shows a hardware diagnostic in the GUI:
 
@@ -178,7 +183,7 @@ Windows (PowerShell):
 Official local build flow (Windows GUI):
 
 ```powershell
-go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+go build -ldflags="-H=windowsgui" -o superview-gui.exe .
 ```
 
 Then launch:
@@ -228,16 +233,22 @@ If you get `Cannot find ffmpeg/ffprobe`, fix your `PATH` and retry.
 
 ### Configuration
 
-Edit `superview.yaml` to customize:
+Superview looks for `superview.yaml` in this order, and uses the first file it finds:
+
+1. `$SUPERVIEW_CONFIG` (explicit path, wins over everything)
+2. next to the executable
+3. `~/.config/superview/superview.yaml` (Linux) or `%AppData%\superview\superview.yaml` (Windows)
+4. the current working directory
+
+If none exists, built-in defaults apply. Edit `superview.yaml` to customize:
 
 ```yaml
 min_bitrate: 102400       # ~0.1 Mbps minimum
 max_bitrate: 209715200    # ~200 Mbps maximum
-quality_preset: balanced  # balanced | fast
 temp_dir_prefix: "superview-*"
 encoder_codecs: ["264", "265", "hevc"]
 log_level: info
-performance_mode: safe_performance    # safe | safe_performance
+performance_mode: safe_performance    # safe = re-encode audio to AAC | safe_performance = copy audio
 video_preset: ""         # optional: ultrafast..veryslow (empty = ffmpeg default)
 filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
@@ -248,7 +259,6 @@ Override with environment variables:
 ```bash
 export SUPERVIEW_MIN_BITRATE=262144
 export SUPERVIEW_MAX_BITRATE=209715200
-export SUPERVIEW_QUALITY_PRESET=balanced
 export SUPERVIEW_LOG_LEVEL=debug
 export SUPERVIEW_PERFORMANCE_MODE=safe_performance
 export SUPERVIEW_VIDEO_PRESET=fast
@@ -274,9 +284,10 @@ superview/
 │   ├── security.go         # Path and input validation helpers
 │   ├── command-*.go        # OS-specific process setup
 │   └── *_test.go           # Unit tests for the common package
-├── superview-gui.go        # GUI entry point (Fyne)
+├── gui_main.go             # GUI entry point (Fyne)
+├── gui_native_dialog_*.go  # Native file dialogs (zenity/kdialog, PowerShell)
 ├── superview.yaml          # Default configuration
-├── build.sh                # Release / cross-build helper
+├── build.sh                # Deprecated; releases are built by .github/workflows/release.yml
 └── FyneApp.toml            # Fyne packaging metadata
 ```
 
@@ -365,7 +376,7 @@ go test ./common -cover
 go test ./common
 
 # Build GUI binary
-go build -ldflags="-H=windowsgui" -o superview-gui.exe superview-gui.go
+go build -ldflags="-H=windowsgui" -o superview-gui.exe .
 
 # Linux
 go build -o superview-gui .

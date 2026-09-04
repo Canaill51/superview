@@ -61,8 +61,17 @@ func resolveToolBinary(tool string) string {
 		}
 	}
 
-	toolResolveCache.Store(tool, tool)
+	// Deliberately not cached: the GUI shows an install link when ffmpeg is
+	// missing, so the user very often installs it while the app is running.
+	// Caching the failure would force a restart with no hint that one is needed.
 	return tool
+}
+
+// ResetToolResolutionCache forgets previously resolved ffmpeg/ffprobe paths so
+// the next call re-runs discovery. Call it when the user asks to retry after
+// installing the tools.
+func ResetToolResolutionCache() {
+	toolResolveCache.Clear()
 }
 
 func findWindowsToolBinary(tool string) string {
@@ -164,22 +173,9 @@ func GetLogger() *slog.Logger {
 	return logger
 }
 
-// EncodingOptions contains all parameters for a video encoding job.
-// InputFile and OutputFile are the source and destination video paths.
-// Encoder selects the output video codec (empty string uses input codec).
-// Bitrate is in bytes/second; 0 means use input video's bitrate.
-// Squeeze applies special scaling for 4:3 video stretched to 16:9 aspect ratio.
-// FfmpegInfo contains version, accelerators, and available encoders from ffmpeg.
-// ProgressFunc is called with progress percentage (0-100) during encoding.
-type EncodingOptions struct {
-	InputFile    string
-	OutputFile   string
-	Encoder      string // empty string means use input codec
-	Bitrate      int    // bytes/second, 0 means use input bitrate
-	Squeeze      bool
-	FfmpegInfo   map[string]string
-	ProgressFunc func(float64)
-}
+// exitCodeUnavailable is recorded when a stage fails before ffmpeg ever ran,
+// so there is no process exit code to report.
+const exitCodeUnavailable = -1
 
 // UIHandler abstracts user interface interactions between GUI components and the core pipeline.
 // It allows the core encoding pipeline to be UI-agnostic and testable.
@@ -273,7 +269,7 @@ func CheckFfmpeg() (map[string]string, error) {
 		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Canaill51/superview?tab=readme-ov-file#requirements")
 	}
 
-	ret["version"] = strings.Split(string(version), " ")[2]
+	ret["version"] = parseFFmpegVersion(string(version))
 
 	// split on newline, skip first line
 	cmd = newFFmpegCommand("-hwaccels", "-hide_banner")
@@ -296,24 +292,63 @@ func CheckFfmpeg() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query ffmpeg encoders: %w", err)
 	}
-	encodersArr := strings.Split(strings.ReplaceAll(string(encoders), "\r\n", "\n"), "\n")
-	for i := 10; i < len(encodersArr); i++ {
-		if strings.Index(encodersArr[i], " V") == 0 {
-			enc := strings.Split(encodersArr[i], " ")
-			// Filter encoders based on configured codec preferences
-			for _, codec := range GetConfig().EncoderCodecs {
-				if strings.Contains(enc[2], codec) {
-					ret["encoders"] += enc[2] + ","
-					break
-				}
-			}
+	ret["encoders"] = strings.Join(parseFFmpegEncoders(string(encoders), GetConfig().EncoderCodecs), ",")
+
+	ret["accels"] = strings.Trim(ret["accels"], ",")
+
+	return ret, nil
+}
+
+// parseFFmpegVersion extracts the version token from "ffmpeg version N.N.N ...".
+//
+// It never panics on an unexpected layout: a custom, patched or localised build
+// must degrade to "unknown" rather than take the whole app down at startup.
+func parseFFmpegVersion(output string) string {
+	line, _, _ := strings.Cut(output, "\n")
+	fields := strings.Fields(line)
+	if len(fields) < 3 {
+		return "unknown"
+	}
+	return fields[2]
+}
+
+// parseFFmpegEncoders extracts video encoder names matching any of the given
+// codec fragments from the output of "ffmpeg -encoders".
+//
+// The listing is "<header>\n ------\n <flags> <name> <description>". Rather
+// than skipping a hard-coded number of header lines, this scans for the "------"
+// separator and falls back to accepting every well-formed entry when it is
+// absent, so a build with a differently sized banner still works.
+func parseFFmpegEncoders(output string, codecs []string) []string {
+	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
+
+	start := 0
+	for i, line := range lines {
+		if strings.Contains(line, "------") {
+			start = i + 1
+			break
 		}
 	}
 
-	ret["accels"] = strings.Trim(ret["accels"], ",")
-	ret["encoders"] = strings.Trim(ret["encoders"], ",")
-
-	return ret, nil
+	var found []string
+	for _, line := range lines[start:] {
+		// A video encoder row starts with a space then the "V" capability flag.
+		if !strings.HasPrefix(line, " V") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name := fields[1]
+		for _, codec := range codecs {
+			if strings.Contains(name, codec) {
+				found = append(found, name)
+				break
+			}
+		}
+	}
+	return found
 }
 
 // GetHeader returns a formatted string with ffmpeg information for display to the user.
@@ -384,7 +419,7 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 	prepareBackgroundCommand(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("Error running ffprobe, output is:\n%s", out)
+		return nil, fmt.Errorf("ffprobe failed, output:\n%s", out)
 	}
 
 	// Parse ffprobe output
@@ -433,7 +468,7 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 // The maps are saved as PGM (Portable Graymap) files in the current encoding session's temp directory.
 // If squeeze is true, applies asymmetric scaling for 4:3 video stretched to 16:9.
 // If squeeze is false, applies symmetric barrel-distortion correction.
-func GeneratePGM(video *VideoSpecs, squeeze bool) error {
+func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 	// Validate video before processing
 	if err := video.Validate(); err != nil {
 		return err
@@ -471,18 +506,27 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 	}
 	fY, err := os.Create(yPath)
 	if err != nil {
-		fX.Close()
+		_ = fX.Close()
 		return fmt.Errorf("failed to create temp file y.pgm: %w", err)
 	}
-	defer fX.Close()
-	defer fY.Close()
+	// Close errors matter here: a remap map truncated at flush time makes ffmpeg
+	// fail much later with an opaque message. Surface it at the source instead.
+	defer func() {
+		if closeErr := fX.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close x.pgm: %w", closeErr)
+		}
+		if closeErr := fY.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close y.pgm: %w", closeErr)
+		}
+	}()
 
-	// Pre-allocate buffers for efficient line generation (optimization for Étape 9)
-	// Estimate: each number ~5 chars + space = 6 bytes per pixel, plus newline
-	bufXCapacity := outX * 8
-	bufYCapacity := outX * 8
+	// Buffer both files: the maps run to tens of megabytes and were previously
+	// written one line at a time straight to the file descriptor.
+	wX := bufio.NewWriterSize(fX, 1<<20)
+	wY := bufio.NewWriterSize(fY, 1<<20)
 
-	var bufX, bufY []byte
+	// Estimate: each number ~5 chars + a space, plus the trailing newline.
+	lineCapacity := outX*8 + 1
 
 	// Write PGM headers
 	headerX := fmt.Sprintf("P2 %d %d 65535\n", outX, outY)
@@ -495,59 +539,68 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) error {
 		return fmt.Errorf("failed to write header to y.pgm: %w", err)
 	}
 
-	for y := 0; y < outY; y++ {
-		// Reset buffers for this line (optimization: reuse allocation)
-		bufX = bufX[:0]
-		bufY = bufY[:0]
+	// The X map is row-invariant: sx, tx and offset are functions of x alone,
+	// so every row of x.pgm is byte-for-byte identical. Build it once instead
+	// of recomputing the same math outY times.
+	bufX := make([]byte, 0, lineCapacity)
+	for x := 0; x < outX; x++ {
+		sx := float64(x) - float64(outX-video.Streams[0].Width)/2.0 // x - width diff/2
+		tx := (float64(x)/float64(outX) - 0.5) * 2.0                // (x/width - 0.5) * 2
 
-		// Ensure buffer capacity before appending
-		if cap(bufX) < bufXCapacity {
-			bufX = make([]byte, 0, bufXCapacity)
-		}
-		if cap(bufY) < bufYCapacity {
-			bufY = make([]byte, 0, bufYCapacity)
-		}
+		var offset float64
 
-		for x := 0; x < outX; x++ {
-			sx := float64(x) - float64(outX-video.Streams[0].Width)/2.0 // x - width diff/2
-			tx := (float64(x)/float64(outX) - 0.5) * 2.0                // (x/width - 0.5) * 2
+		if squeeze {
+			inv := 1 - math.Abs(tx)
 
-			var offset float64
+			offset = inv*(float64((outX/16)*7)/2.0) - math.Pow((inv/16)*7, 2)*(float64((outX/7)*16)/2.0)
 
-			if squeeze {
-				inv := 1 - math.Abs(tx)
-
-				offset = inv*(float64((outX/16)*7)/2.0) - math.Pow((inv/16)*7, 2)*(float64((outX/7)*16)/2.0)
-
-				if tx < 0 {
-					offset *= -1
-				}
-
-				bufX = strconv.AppendInt(bufX, int64(int(sx+offset)), 10)
-			} else {
-				offset = math.Pow(tx, 2) * (float64(outX-video.Streams[0].Width) / 2.0) // tx^2 * width diff/2
-
-				if tx < 0 {
-					offset *= -1
-				}
-
-				bufX = strconv.AppendInt(bufX, int64(int(sx-offset)), 10)
+			if tx < 0 {
+				offset *= -1
 			}
 
-			bufX = append(bufX, ' ')
+			bufX = strconv.AppendInt(bufX, int64(int(sx+offset)), 10)
+		} else {
+			offset = math.Pow(tx, 2) * (float64(outX-video.Streams[0].Width) / 2.0) // tx^2 * width diff/2
 
-			bufY = strconv.AppendInt(bufY, int64(y), 10)
-			bufY = append(bufY, ' ')
+			if tx < 0 {
+				offset *= -1
+			}
+
+			bufX = strconv.AppendInt(bufX, int64(int(sx-offset)), 10)
 		}
-		bufX = append(bufX, '\n')
-		bufY = append(bufY, '\n')
 
-		if _, err := fX.Write(bufX); err != nil {
+		bufX = append(bufX, ' ')
+	}
+	bufX = append(bufX, '\n')
+
+	bufY := make([]byte, 0, lineCapacity)
+	numBuf := make([]byte, 0, 8)
+
+	for y := 0; y < outY; y++ {
+		if _, err := wX.Write(bufX); err != nil {
 			return fmt.Errorf("failed to write x.pgm: %w", err)
 		}
-		if _, err := fY.Write(bufY); err != nil {
+
+		// A row of the Y map is the row index repeated outX times; format the
+		// number once rather than once per pixel.
+		num := strconv.AppendInt(numBuf[:0], int64(y), 10)
+		bufY = bufY[:0]
+		for x := 0; x < outX; x++ {
+			bufY = append(bufY, num...)
+			bufY = append(bufY, ' ')
+		}
+		bufY = append(bufY, '\n')
+
+		if _, err := wY.Write(bufY); err != nil {
 			return fmt.Errorf("failed to write y.pgm: %w", err)
 		}
+	}
+
+	if err := wX.Flush(); err != nil {
+		return fmt.Errorf("failed to flush x.pgm: %w", err)
+	}
+	if err := wY.Flush(); err != nil {
+		return fmt.Errorf("failed to flush y.pgm: %w", err)
 	}
 
 	logger.Info("Filter files generated successfully")
@@ -618,19 +671,24 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 // It reads PGM filter maps from the current session and encodes using the specified encoder and quality settings.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
-func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, safePerformanceMode bool, encoderThreads int, filterThreads int, videoPreset string) []string {
+func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, encoderThreads int, filterThreads int, videoPreset string) []string {
 	baseArgs := []string{
 		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
 	}
-	if !safePerformanceMode {
-		baseArgs = append(baseArgs, "-re")
-	}
+	// No "-re" here on purpose. It throttles reading the input to its native
+	// frame rate, which only makes sense when streaming to a realtime sink. For
+	// a file-to-file transcode it just caps the run at the clip's duration, so a
+	// 10-minute video could never convert in less than 10 minutes regardless of
+	// the hardware. It offered no safety, only a slowdown.
+	// PerformanceMode now only drives the audio codec strategy, in EncodeVideo.
 
 	baseArgs = append(baseArgs,
-		"-threads", strconv.Itoa(encoderThreads),
 		"-i", video.File, "-i", xPath, "-i", yPath,
 		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
 		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate),
+		// After -c:v so it applies to the encoder. Placed before -i it would
+		// have configured the input decoder instead, which is not the intent.
+		"-threads", strconv.Itoa(encoderThreads),
 	)
 
 	baseArgs = append(baseArgs, "-c:a", audioCodec)
@@ -710,7 +768,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 	}
 
 	run := func(hwaccel string, audioCodec string) error {
-		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, safePerformanceMode, encoderThreads, filterThreads, videoPreset)
+		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, encoderThreads, filterThreads, videoPreset)
 		args := make([]string, 0, len(baseArgs)+4)
 		if hwaccel != "" {
 			args = append(args, "-hwaccel", hwaccel)
@@ -731,7 +789,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 
 		err = cmd.Start()
 		if err != nil {
-			return fmt.Errorf("Error starting ffmpeg, output is:\n%s", err)
+			return fmt.Errorf("failed to start ffmpeg: %w", err)
 		}
 
 		// Stop ffmpeg on Ctrl+C and return a clean interruption error.
@@ -770,8 +828,17 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 			for {
 				line, _, err := rd.ReadLine()
 
-				if err == io.EOF {
-					logger.Debug("Encoding complete")
+				if err != nil {
+					// Any error terminates the reader. Looping on a non-EOF error
+					// would spin forever and never close readDone, freezing the
+					// encode with no diagnostic (the pipe is already broken).
+					if errors.Is(err, io.EOF) {
+						logger.Debug("Encoding complete")
+					} else {
+						logger.Warn("Progress reader stopped on error",
+							slog.String("error", err.Error()),
+						)
+					}
 					break
 				}
 
@@ -807,9 +874,9 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 			default:
 			}
 			if stderrBytes.Len() > 0 {
-				return fmt.Errorf("Error running ffmpeg, output is:\n%s\nffmpeg stderr:\n%s", err, stderrBytes.String())
+				return fmt.Errorf("ffmpeg failed: %w\nffmpeg stderr:\n%s", err, stderrBytes.String())
 			}
-			return fmt.Errorf("Error running ffmpeg, output is:\n%s", err)
+			return fmt.Errorf("ffmpeg failed: %w", err)
 		}
 
 		return nil
@@ -932,14 +999,14 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	// ==== SECURITY VALIDATION ====
 	// Validate input file path (prevents directory traversal, symlink attacks, etc.)
 	if err := isValidInputPath(inputFile); err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("invalid input file: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("invalid input file: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "input_validation"})
 		return fmt.Errorf("invalid input file: %w", err)
 	}
 
 	// Validate output file path (prevents directory traversal, checks parent writable)
 	if err := isValidOutputPath(outputFile); err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("invalid output file: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("invalid output file: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "output_validation"})
 		return fmt.Errorf("invalid output file: %w", err)
 	}
@@ -949,7 +1016,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	video, err := CheckVideo(inputFile)
 	stageDurations["video_check"] = time.Since(videoCheckStart)
 	if err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("video validation failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("video validation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
 			"stage":             "video_check",
 			"stage_duration_ms": stageDurations["video_check"].Milliseconds(),
@@ -969,7 +1036,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	encoderInput := ui.GetEncoder()
 	encoderSanitized, err := SanitizeEncoderInput(encoderInput, ffmpeg["encoders"])
 	if err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("invalid encoder selection: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("invalid encoder selection: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "encoder_sanitization"})
 		return fmt.Errorf("invalid encoder selection: %w", err)
 	}
@@ -989,7 +1056,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 
 	// Validate bitrate using configured constraints
 	if err := ValidateBitrate(bitrate, cfg.MinBitrate, cfg.MaxBitrate); err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("bitrate validation failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("bitrate validation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "bitrate_validation"})
 		return err
 	}
@@ -997,7 +1064,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	// Get encoder with full validation (uses sanitized input)
 	encoder, err := FindEncoder(encoderSanitized, ffmpeg, video)
 	if err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("encoder selection failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("encoder selection failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "encoder_selection"})
 		return err
 	}
@@ -1015,7 +1082,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 
 	// Initialize encoding session
 	if err := InitEncodingSession(); err != nil {
-		metrics.RecordError(-1, fmt.Sprintf("session initialization failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("session initialization failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "session_init"})
 		return err
 	}
@@ -1031,7 +1098,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	pgmStart := time.Now()
 	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
 		stageDurations["pgm_generation"] = time.Since(pgmStart)
-		metrics.RecordError(-1, fmt.Sprintf("filter generation failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("filter generation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
 			"stage":             "pgm_generation",
 			"stage_duration_ms": stageDurations["pgm_generation"].Milliseconds(),
@@ -1050,7 +1117,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	encodeStart := time.Now()
 	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc, cancel); err != nil {
 		stageDurations["encoding"] = time.Since(encodeStart)
-		metrics.RecordError(-1, fmt.Sprintf("encoding failed: %v", err))
+		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
 			"stage":             "encoding",
 			"stage_duration_ms": stageDurations["encoding"].Milliseconds(),

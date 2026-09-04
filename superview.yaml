@@ -7,10 +7,6 @@
 min_bitrate: 102400
 max_bitrate: 209715200
 
-# Quality preset for CLI/advanced users (balanced, fast)
-# Used by GUI profiles to pick bitrate/preset strategy.
-quality_preset: balanced
-
 # Temporary directory prefix for encoding sessions (absolute temp dir)
 temp_dir_prefix: "superview-*"
 
@@ -24,9 +20,12 @@ encoder_codecs:
 # Logging level: debug, info, warn, error
 log_level: info
 
-# Performance mode:
-# - safe: keep legacy behavior (realtime throttle + AAC re-encode)
-# - safe_performance: remove realtime throttle and try audio copy first
+# Performance mode (audio handling only):
+# - safe: always re-encode audio to AAC (maximum container compatibility)
+# - safe_performance: copy the audio stream untouched, falling back to AAC if
+#   the copy is rejected -- faster and lossless for audio
+# Note: neither mode throttles the encode. The "-re" realtime input flag was
+# removed because it only applies to streaming, not to file output.
 performance_mode: safe_performance
 
 # Optional ffmpeg tuning (safe defaults)
@@ -41,7 +40,3 @@ filter_threads: 0
 # encoder_threads: number of threads for ffmpeg encoder
 # 0 means auto/default behavior
 encoder_threads: 0
-
-# Minimum video dimensions in pixels
-min_video_width: 320
-min_video_height: 240

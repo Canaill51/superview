@@ -4,3 +4,5 @@ superview-gui.exe
 superview-gui-windows-*.exe
 build/
 fyne-cross/
+coverage.out
+coverage.html
