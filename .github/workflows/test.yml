@@ -41,6 +41,22 @@ jobs:
       if: runner.os == 'Linux'
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
 
+    # Windows is an officially supported platform with a published build, yet
+    # every test that shells out to ffmpeg was skipping here -- only Linux got
+    # it installed. So the PowerShell file dialogs, the winget/scoop binary
+    # discovery in findWindowsToolBinary and the whole encode path had never
+    # run in CI on the platform half the users are on.
+    #
+    # ffmpeg -version is not decoration: choco can report success while leaving
+    # nothing on PATH, and a silent absence would put the tests straight back to
+    # skipping without anyone noticing.
+    - name: Install ffmpeg (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install ffmpeg --no-progress -y
+        ffmpeg -version
+        ffprobe -version
+
     - name: Download dependencies
       run: go mod download
     

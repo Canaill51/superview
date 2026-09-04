@@ -180,11 +180,20 @@ jobs:
         echo "=== Release Artifacts ==="
         find artifacts -type f | sort
     
+    # Record bare filenames, not the artifact directory layout.
+    #
+    # The paths used to come out as artifacts/gui-linux-artifacts/<file>, so the
+    # "sha256sum -c checksums.txt" the release notes advertise failed for anyone
+    # who downloaded the assets: they arrive flat, not under that tree. v0.2.0
+    # shipped with a checksums file that had to be corrected by hand before
+    # publication.
     - name: Calculate checksums
       run: |
-        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.tar.xz" \) | while read -r file; do
-          sha256sum "$file"
-        done > artifacts/checksums.txt
+        set -euo pipefail
+        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.tar.xz" \) -print0 |
+          while IFS= read -r -d '' file; do
+            ( cd "$(dirname "$file")" && sha256sum "$(basename "$file")" )
+          done > artifacts/checksums.txt
         echo "=== Checksums ===" && cat artifacts/checksums.txt
     
     - name: Create release summary
