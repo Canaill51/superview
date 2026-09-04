@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"image/color"
 	"io"
 	"log/slog"
 	"net/url"
@@ -26,10 +27,32 @@ var appIconPNG []byte
 
 const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#requirements"
 
+// maxLogFileBytes caps the diagnostic log; past this size it restarts empty.
+const maxLogFileBytes = 5 << 20 // 5 MiB
+
 const (
 	prefQualityProfile   = "ui.quality_profile"
 	prefEncoderSelection = "ui.encoder_selection"
+	prefSqueezeSource    = "ui.squeeze_source"
 )
+
+// ensureMP4Extension appends ".mp4" unless the path already carries it.
+// The comparison is case-insensitive so "CLIP.MP4" is left alone.
+func ensureMP4Extension(path string) string {
+	if path == "" {
+		return path
+	}
+	if strings.EqualFold(filepath.Ext(path), ".mp4") {
+		return path
+	}
+	return path + ".mp4"
+}
+
+// isMissingFFmpegError reports whether an error is the "ffmpeg not installed"
+// case, which gets a dedicated dialog carrying an install link.
+func isMissingFFmpegError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "cannot find ffmpeg/ffprobe")
+}
 
 func containsString(values []string, target string) bool {
 	for _, value := range values {
@@ -41,7 +64,7 @@ func containsString(values []string, target string) bool {
 }
 
 func showPrerequisiteDialog(window fyne.Window, err error) bool {
-	if err == nil || !strings.Contains(err.Error(), "cannot find ffmpeg/ffprobe") {
+	if !isMissingFFmpegError(err) {
 		return false
 	}
 
@@ -60,12 +83,28 @@ func showPrerequisiteDialog(window fyne.Window, err error) bool {
 	return true
 }
 
+// forcedDarkTheme pins the app to the dark variant.
+//
+// theme.DarkTheme() does the same thing but is deprecated (it ignores the user's
+// system preference and is slated for removal in Fyne v3). The documented
+// replacement is a custom theme that resolves colors against a fixed variant,
+// which is what this does while inheriting every other theme value.
+type forcedDarkTheme struct{ fyne.Theme }
+
+func newForcedDarkTheme() fyne.Theme {
+	return &forcedDarkTheme{Theme: theme.DefaultTheme()}
+}
+
+func (t *forcedDarkTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
+	return t.Theme.Color(name, theme.VariantDark)
+}
+
 // GUIHandler implements UIHandler for GUI interface
 type GUIHandler struct {
 	window    fyne.Window
 	bitrate   int
 	encoder   *widget.Select
-	progress  *dialog.ProgressDialog
+	squeeze   bool
 	inlineBar *widget.ProgressBar
 	ffmpeg    map[string]string
 	video     *common.VideoSpecs
@@ -89,9 +128,6 @@ func (h *GUIHandler) ShowInfo(msg string) {
 
 func (h *GUIHandler) ShowProgress(percent float64) {
 	fyne.Do(func() {
-		if h.progress != nil {
-			h.progress.SetValue(percent / 100)
-		}
 		if h.inlineBar != nil {
 			h.inlineBar.SetValue(percent / 100)
 		}
@@ -110,7 +146,7 @@ func (h *GUIHandler) GetEncoder() string {
 }
 
 func (h *GUIHandler) GetSqueeze() bool {
-	return false
+	return h.squeeze
 }
 
 func formatResultsPanel(metrics *common.EncodingMetrics) string {
@@ -145,15 +181,33 @@ func main() {
 	var encodingInProgress bool
 	var cancelEncoding chan struct{}
 
-	// Initialize logger for GUI (suppress to avoid cluttering the UI)
-	gui_logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+	// Diagnostics go to a capped log file under the user cache directory, not
+	// to stdout (there is no console) and not to io.Discard (which made every
+	// failure unreportable). Falls back to discarding if the file cannot be
+	// opened -- never block startup over logging.
+	logWriter := io.Discard
+	logPath := ""
+	if logFile, path, logErr := common.OpenLogFile("superview", maxLogFileBytes); logErr == nil {
+		logWriter = logFile
+		logPath = path
+		defer func() { _ = logFile.Close() }()
+	}
+
+	gui_logger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
 	}))
 	common.SetLogger(gui_logger)
 	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
+	if logPath != "" {
+		gui_logger.Info("Superview starting", slog.String("log_file", logPath))
+	}
 
-	// Load configuration (from superview.yaml or env vars)
-	cfg, err := common.LoadConfig("superview.yaml")
+	// Load configuration (from superview.yaml or env vars).
+	// The path is resolved against the executable directory and the per-user
+	// config directory, not just the working directory, which is arbitrary when
+	// the app is started from a desktop launcher.
+	configPath := common.ResolveConfigPath()
+	cfg, err := common.LoadConfig(configPath)
 	if err != nil {
 		gui_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
 		// Continue with current/default configuration to avoid nil dereference.
@@ -162,14 +216,31 @@ func main() {
 		common.SetConfig(cfg)
 	}
 
+	// Re-create the logger now that the configured level is known.
+	gui_logger = slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+		Level: common.ParseLogLevel(cfg.LogLevel),
+	}))
+	common.SetLogger(gui_logger)
+	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
+	gui_logger.Info("Configuration resolved",
+		slog.String("config_file", configPath),
+		slog.String("log_level", cfg.LogLevel),
+	)
+
 	app := app.NewWithID("com.canaill51.superview")
 	iconResource := fyne.NewStaticResource("Icon.png", appIconPNG)
 	app.SetIcon(iconResource)
-	app.Settings().SetTheme(theme.DarkTheme())
+	app.Settings().SetTheme(newForcedDarkTheme())
 
 	window := app.NewWindow("Superview")
 	window.SetIcon(iconResource)
 	prefs := app.Preferences()
+
+	// Single idempotent cancellation path, shared by the Cancel button and the
+	// window close intercept. Closing the channel twice panics, so the only
+	// place allowed to close it sets it to nil in the same breath.
+	// Assigned below, once the status label exists; every caller runs later.
+	var requestCancel func()
 
 	// Interception de la fermeture de la fenêtre principale
 	window.SetCloseIntercept(func() {
@@ -181,11 +252,10 @@ func main() {
 				widget.NewLabel("An encoding is in progress. Do you want to cancel and quit?"),
 				func(confirm bool) {
 					if confirm {
-						// Demande d'annulation
-						if cancelEncoding != nil {
-							close(cancelEncoding)
+						if requestCancel != nil {
+							requestCancel()
 						}
-						// On laisse la goroutine d'encodage nettoyer, puis on ferme l'app après un court délai
+						// Let the encoding goroutine clean up, then quit.
 						go func() {
 							time.Sleep(1 * time.Second)
 							app.Quit()
@@ -242,6 +312,16 @@ func main() {
 	qualityProfileLabel := widget.NewLabel("Quality")
 	qualityProfileLabel.Alignment = fyne.TextAlignLeading
 
+	// Squeeze mode: the source is already stretched to 16:9 (GoPro's own
+	// SuperView recording modes). GeneratePGM then un-stretches the centre
+	// instead of widening the frame.
+	squeezeSource := prefs.Bool(prefSqueezeSource)
+	squeezeCheck := widget.NewCheck("Source already stretched (GoPro SuperView)", func(checked bool) {
+		squeezeSource = checked
+		prefs.SetBool(prefSqueezeSource, checked)
+	})
+	squeezeCheck.SetChecked(squeezeSource)
+
 	var open *widget.Button
 	var selectOutput *widget.Button
 	var cancel *widget.Button
@@ -249,8 +329,10 @@ func main() {
 
 	ffmpegAvailable := true
 
-	refreshStart := func() {}
-	updateHardwareStatus := func() {}
+	// Declared up front because the button callbacks below close over them;
+	// both are assigned before any callback can run.
+	var refreshStart func()
+	var updateHardwareStatus func()
 
 	setEncodingState := func(inProgress bool) {
 		encodingInProgress = inProgress
@@ -259,7 +341,7 @@ func main() {
 		}
 	}
 
-	requestCancel := func() {
+	requestCancel = func() {
 		if !encodingInProgress || cancelEncoding == nil {
 			return
 		}
@@ -282,16 +364,14 @@ func main() {
 			effectiveCfg := *cfg
 
 			// GPU-friendly quality strategy: keep hardware encoders and scale bitrate by profile.
-			profileBitrate := video.Streams[0].BitrateInt
+			inputBitrate := video.Streams[0].BitrateInt
+			var profileBitrate int
 			switch selectedQualityProfile {
 			case "Fast":
-				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.0)
+				profileBitrate = inputBitrate
 				effectiveCfg.VideoPreset = "fast"
-			case "Balanced":
-				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.6)
-				effectiveCfg.VideoPreset = "medium"
-			default:
-				profileBitrate = int(float64(video.Streams[0].BitrateInt) * 1.6)
+			default: // "Balanced" and any unexpected value
+				profileBitrate = int(float64(inputBitrate) * 1.6)
 				effectiveCfg.VideoPreset = "medium"
 			}
 
@@ -309,6 +389,7 @@ func main() {
 			open.Disable()
 			selectOutput.Disable()
 			qualityProfileSelect.Disable()
+			squeezeCheck.Disable()
 			encoder.Disable()
 			start.Disable()
 			cancel.Enable()
@@ -322,7 +403,7 @@ func main() {
 					window:    window,
 					bitrate:   profileBitrate,
 					encoder:   encoder,
-					progress:  nil,
+					squeeze:   squeezeSource,
 					inlineBar: progressBar,
 					ffmpeg:    ffmpeg,
 					video:     video,
@@ -339,6 +420,7 @@ func main() {
 						open.Enable()
 						selectOutput.Enable()
 						qualityProfileSelect.Enable()
+						squeezeCheck.Enable()
 						encoder.Enable()
 						cancel.Disable()
 						refreshStart()
@@ -425,7 +507,9 @@ func main() {
 					return
 				}
 
-				fallbackURI := strings.ReplaceAll(file.URI().String(), "file://", "")
+				// URI().Path() is the documented accessor; it yields "/home/u/a.mp4"
+				// on Unix and "C:/Users/u/a.mp4" on Windows, both usable as-is.
+				fallbackURI := file.URI().Path()
 				err = file.Close()
 				if err != nil {
 					fyne.LogError("Failed to close stream", err)
@@ -476,15 +560,12 @@ func main() {
 					return
 				}
 
-				path := strings.ReplaceAll(file.URI().String(), "file://", "")
+				path := file.URI().Path()
 				err = file.Close()
 				if err != nil {
 					fyne.LogError("Failed to close stream", err)
 				}
-				if filepath.Ext(strings.ToLower(path)) != ".mp4" {
-					path += ".mp4"
-				}
-				outputPath = path
+				outputPath = ensureMP4Extension(path)
 				selectedOutput.SetText(filepath.Base(outputPath))
 				status.SetText("Status: Output selected")
 				refreshStart()
@@ -495,10 +576,7 @@ func main() {
 			common.GetLogger().Debug("File saving cancelled by user")
 			return
 		}
-		if filepath.Ext(strings.ToLower(uri)) != ".mp4" {
-			uri += ".mp4"
-		}
-		outputPath = uri
+		outputPath = ensureMP4Extension(uri)
 		selectedOutput.SetText(filepath.Base(outputPath))
 		status.SetText("Status: Output selected")
 		refreshStart()
@@ -513,13 +591,21 @@ func main() {
 		open.Disable()
 		selectOutput.Disable()
 		qualityProfileSelect.Disable()
+		squeezeCheck.Disable()
 		status.SetText("Status: ffmpeg unavailable")
 		hardwareStatus.SetText("Hardware: ffmpeg unavailable")
 	}
 
 	encoderOptions := []string{"Use same video codec as input file"}
 
+	// strings.Split("", ",") yields [""], not an empty slice: without this
+	// filter a bogus " encoder" entry shows up whenever ffmpeg is missing or
+	// exposes no encoder matching the configured codecs.
 	for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
+		enc = strings.TrimSpace(enc)
+		if enc == "" {
+			continue
+		}
 		encoderOptions = append(encoderOptions, enc+" encoder")
 	}
 	encoder = widget.NewSelect(encoderOptions, func(s string) {
@@ -535,12 +621,33 @@ func main() {
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading
 
-	buttonSize := fyne.NewSize(200, 34)
+	buttonSize := fyne.NewSize(150, 34)
 	alignActionButton := func(btn *widget.Button) fyne.CanvasObject {
 		return container.NewGridWrap(buttonSize, btn)
 	}
 
 	header := container.NewVBox(title, subtitle)
+
+	// System diagnostics: ffmpeg/ffprobe availability, free disk, memory, CPU.
+	// Runs off the UI thread because the checks shell out to ffmpeg.
+	diagnosticBtn := widget.NewButtonWithIcon("Diagnostic", theme.InfoIcon(), func() {
+		status.SetText("Status: Running diagnostic...")
+		go func() {
+			report := common.GetHealthReport(common.CheckHealth())
+			common.GetLogger().Info("System health check requested from the GUI")
+
+			reportLabel := widget.NewLabel(report)
+			reportLabel.TextStyle = fyne.TextStyle{Monospace: true}
+			reportLabel.Wrapping = fyne.TextWrapWord
+
+			fyne.Do(func() {
+				status.SetText("Status: Ready")
+				content := container.NewVScroll(reportLabel)
+				content.SetMinSize(fyne.NewSize(520, 300))
+				dialog.NewCustom("System diagnostic", "Close", content, window).Show()
+			})
+		}()
+	})
 
 	quitBtn := widget.NewButton("Quit", func() {
 		app.Quit()
@@ -550,6 +657,7 @@ func main() {
 		alignActionButton(selectOutput),
 		alignActionButton(start),
 		alignActionButton(cancel),
+		alignActionButton(diagnosticBtn),
 		alignActionButton(quitBtn),
 	)
 
@@ -561,6 +669,7 @@ func main() {
 	optionsForm := widget.NewForm(
 		widget.NewFormItem("Quality profile", qualityProfileSelect),
 		widget.NewFormItem("Video codec", encoder),
+		widget.NewFormItem("Input format", squeezeCheck),
 	)
 
 	leftPanel := container.NewVBox(
@@ -595,7 +704,7 @@ func main() {
 
 	window.SetContent(content)
 
-	window.Resize(fyne.NewSize(900, 420))
+	window.Resize(fyne.NewSize(980, 470))
 	window.SetFixedSize(true)
 
 	window.ShowAndRun()
