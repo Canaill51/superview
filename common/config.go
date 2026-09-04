@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -30,10 +31,14 @@ type Config struct {
 	// LogLevel controls the verbosity of logging (debug, info, warn, error)
 	LogLevel string `yaml:"log_level" default:"info"`
 
-	// PerformanceMode controls ffmpeg safety/performance tradeoffs.
+	// PerformanceMode controls the audio handling tradeoff.
 	// Supported values:
-	// - "safe": preserve historical behavior.
-	// - "safe_performance": remove realtime input throttle and prefer audio copy with safe fallback.
+	// - "safe": always re-encode audio to AAC (maximum container compatibility).
+	// - "safe_performance": try to copy the audio stream untouched, falling back
+	//   to AAC when the copy is rejected. Faster and lossless for audio.
+	//
+	// Neither mode throttles the encode any more: the "-re" realtime input flag
+	// was removed because it only applies to streaming, not file output.
 	PerformanceMode string `yaml:"performance_mode" default:"safe"`
 
 	// VideoPreset controls ffmpeg encoder preset (optional).
@@ -47,14 +52,6 @@ type Config struct {
 	// EncoderThreads controls ffmpeg encoder thread count.
 	// 0 means auto (or runtime defaults where explicitly configured).
 	EncoderThreads int `yaml:"encoder_threads" default:"0"`
-
-	// MinVideoWidth and MinVideoHeight enforce minimum input video dimensions
-	MinVideoWidth  int `yaml:"min_video_width" default:"320"`
-	MinVideoHeight int `yaml:"min_video_height" default:"240"`
-
-	// QualityPreset defines standard GPU bitrate quality profiles.
-	// Accessible via environment: SUPERVIEW_QUALITY_PRESET
-	QualityPreset string `yaml:"quality_preset" default:"balanced"` // balanced, fast
 }
 
 var defaultConfig = &Config{
@@ -67,9 +64,6 @@ var defaultConfig = &Config{
 	VideoPreset:     "",
 	FilterThreads:   0,
 	EncoderThreads:  0,
-	MinVideoWidth:   320,
-	MinVideoHeight:  240,
-	QualityPreset:   "balanced",
 }
 
 var currentConfig = defaultConfig
@@ -90,6 +84,59 @@ func SetConfig(cfg *Config) {
 			slog.String("log_level", cfg.LogLevel),
 		)
 	}
+}
+
+// ConfigFileName is the name of the YAML configuration file looked up by ResolveConfigPath.
+const ConfigFileName = "superview.yaml"
+
+// configCandidatePaths returns the config file locations to probe, in priority order.
+// It is split out from ResolveConfigPath so the ordering can be unit tested.
+func configCandidatePaths() []string {
+	var candidates []string
+
+	// 1. Explicit override always wins.
+	if explicit := strings.TrimSpace(os.Getenv("SUPERVIEW_CONFIG")); explicit != "" {
+		candidates = append(candidates, explicit)
+	}
+
+	// 2. Next to the executable: this is where a packaged install keeps it.
+	if exe, err := os.Executable(); err == nil {
+		if resolved, linkErr := filepath.EvalSymlinks(exe); linkErr == nil {
+			exe = resolved
+		}
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), ConfigFileName))
+	}
+
+	// 3. Per-user config directory (~/.config/superview on Linux,
+	//    %AppData%\superview on Windows).
+	if userCfg, err := os.UserConfigDir(); err == nil {
+		candidates = append(candidates, filepath.Join(userCfg, "superview", ConfigFileName))
+	}
+
+	// 4. Current working directory: developer runs from the repository root.
+	candidates = append(candidates, ConfigFileName)
+
+	return candidates
+}
+
+// ResolveConfigPath returns the first configuration file that actually exists.
+//
+// A bare relative name is resolved against the process working directory, which
+// is arbitrary when the GUI is started from a desktop launcher or the Start
+// menu. Probing the executable directory and the per-user config directory first
+// is what makes the file reachable in a real installation.
+//
+// Returns "" when no candidate exists; LoadConfig("") yields the defaults.
+func ResolveConfigPath() string {
+	for _, candidate := range configCandidatePaths() {
+		if candidate == "" {
+			continue
+		}
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // LoadConfig loads configuration from a YAML file and applies environment variable overrides.
@@ -186,10 +233,6 @@ func LoadConfig(filepath string) (*Config, error) {
 		} else {
 			config.EncoderThreads = val
 		}
-	}
-
-	if qualityPreset := os.Getenv("SUPERVIEW_QUALITY_PRESET"); qualityPreset != "" {
-		config.QualityPreset = qualityPreset
 	}
 
 	config.PerformanceMode = normalizePerformanceMode(config.PerformanceMode)

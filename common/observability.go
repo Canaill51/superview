@@ -4,9 +4,68 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
+
+// OpenLogFile opens (creating it if needed) the application log file under the
+// user cache directory and returns it together with its path.
+//
+// Diagnostics used to be written to io.Discard, which made the whole metrics
+// and event machinery unobservable: when a conversion failed on a user's
+// machine there was simply nothing to look at. The file is capped: once it
+// exceeds maxLogBytes it is truncated, so it cannot grow without bound.
+//
+// The caller owns the returned file and must close it. On any failure the
+// error is returned and the caller should fall back to a discarding logger
+// rather than refuse to start.
+func OpenLogFile(appName string, maxLogBytes int64) (*os.File, string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot locate user cache directory: %w", err)
+	}
+
+	dir := filepath.Join(cacheDir, appName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, "", fmt.Errorf("cannot create log directory %s: %w", dir, err)
+	}
+
+	path := filepath.Join(dir, appName+".log")
+
+	// Simple size cap: start over rather than carry an unbounded file around.
+	if info, statErr := os.Stat(path); statErr == nil && maxLogBytes > 0 && info.Size() > maxLogBytes {
+		if truncErr := os.Truncate(path, 0); truncErr != nil {
+			logger.Warn("Could not truncate oversized log file",
+				slog.String("path", path),
+				slog.String("error", truncErr.Error()),
+			)
+		}
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot open log file %s: %w", path, err)
+	}
+	return file, path, nil
+}
+
+// ParseLogLevel maps a configuration string to an slog level.
+// Unknown values fall back to info.
+func ParseLogLevel(level string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
 
 // EncodingEvent represents a discrete event during the encoding lifecycle.
 // Events are recorded for observability and debugging purposes.

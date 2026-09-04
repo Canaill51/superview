@@ -38,10 +38,6 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 		t.Errorf("Expected VideoPreset empty, got %s", cfg.VideoPreset)
 	}
 
-	if cfg.QualityPreset != "balanced" {
-		t.Errorf("Expected QualityPreset=balanced, got %s", cfg.QualityPreset)
-	}
-
 	if cfg.FilterThreads != 0 {
 		t.Errorf("Expected FilterThreads=0, got %d", cfg.FilterThreads)
 	}
@@ -69,7 +65,7 @@ func TestLoadConfig_FromYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	// Write test config
 	configContent := `
@@ -193,7 +189,7 @@ func TestLoadConfig_EnvironmentOverridesYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	configContent := `
 min_bitrate: 102400
@@ -335,4 +331,60 @@ func TestValidateBitrate_WithConfig(t *testing.T) {
 
 	// Reset to default
 	SetConfig(defaultConfig)
+}
+
+func TestConfigCandidatePaths_OrderAndOverride(t *testing.T) {
+	t.Setenv("SUPERVIEW_CONFIG", "/explicit/override.yaml")
+
+	candidates := configCandidatePaths()
+	if len(candidates) < 2 {
+		t.Fatalf("expected at least 2 candidates, got %d: %v", len(candidates), candidates)
+	}
+	if candidates[0] != "/explicit/override.yaml" {
+		t.Errorf("SUPERVIEW_CONFIG must win, got %q", candidates[0])
+	}
+	if candidates[len(candidates)-1] != ConfigFileName {
+		t.Errorf("cwd fallback must come last, got %q", candidates[len(candidates)-1])
+	}
+	for _, c := range candidates[1 : len(candidates)-1] {
+		if !filepath.IsAbs(c) {
+			t.Errorf("intermediate candidate %q should be absolute", c)
+		}
+	}
+}
+
+func TestResolveConfigPath_FindsExplicitOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "custom.yaml")
+	if err := os.WriteFile(cfgPath, []byte("log_level: debug\n"), 0600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	t.Setenv("SUPERVIEW_CONFIG", cfgPath)
+
+	if got := ResolveConfigPath(); got != cfgPath {
+		t.Errorf("expected %q, got %q", cfgPath, got)
+	}
+}
+
+func TestResolveConfigPath_IgnoresDirectoryAndMissingFile(t *testing.T) {
+	// A directory named superview.yaml must not be mistaken for the config file.
+	t.Setenv("SUPERVIEW_CONFIG", t.TempDir())
+
+	got := ResolveConfigPath()
+	if got != "" && filepath.Base(got) != ConfigFileName {
+		t.Errorf("unexpected resolution %q", got)
+	}
+	if got == os.Getenv("SUPERVIEW_CONFIG") {
+		t.Error("a directory must not be resolved as the config file")
+	}
+}
+
+func TestLoadConfig_EmptyPathYieldsDefaults(t *testing.T) {
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Fatalf("LoadConfig(\"\") returned error: %v", err)
+	}
+	if cfg.MinBitrate != defaultConfig.MinBitrate || cfg.MaxBitrate != defaultConfig.MaxBitrate {
+		t.Errorf("expected defaults, got min=%d max=%d", cfg.MinBitrate, cfg.MaxBitrate)
+	}
 }
