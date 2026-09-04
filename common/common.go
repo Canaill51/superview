@@ -1567,7 +1567,7 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	logger.Info("Encoding completed successfully",
 		slog.String("output_file", filepath.Base(outputFile)),
 		slog.String("encoder", encoder),
-		slog.Int("bitrate_bytes_sec", bitrate),
+		slog.Int("bitrate_bits_sec", bitrate),
 		slog.String("elapsed_time", metrics.ElapsedTime().String()),
 	)
 

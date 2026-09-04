@@ -128,6 +128,10 @@ Sévérité : 🔴 haute · 🟠 moyenne · 🟡 basse.
 > `### X-nn ✅ — ~~titre barré~~ — **CORRIGÉ**`.
 >
 > **La source de vérité sur l'état d'un constat reste le § 4bis, « État d'avancement ».**
+>
+> Enfin, le préfixe **Q-xx** (§ 5bis) ne désigne **pas** un constat mais une **question
+> ouverte** : quelque chose dont on ne sait pas encore si c'est un défaut. Ne pas les mélanger
+> aux N-xx et P-xx, qui sont des défauts établis.
 > Ces deux conventions n'étaient pas écrites, et quatre titres des § 3bis/3ter avaient dérivé en
 > conséquence : corrigés le 2026-09-04, voir L-47.
 
@@ -1193,6 +1197,19 @@ par ne pas l'être.
 regénérer un gabarit vide. À vérifier localement avant de taguer — l'étape ne tourne que sur un
 tag, voir plus bas.
 
+### R-03 ✅ — ~~Le journal annonce `bitrate_bytes_sec` pour une valeur en bits~~ — **CORRIGÉ**
+
+`common/common.go`
+
+P-05 avait remplacé « bytes/second » par « bits/second » partout — sauf à une ligne, la clé du
+journal de fin d'encodage. Elle annonçait donc un facteur 8 dans **le seul journal que le README
+demande de joindre aux rapports de bug**. Trouvé en lisant la sortie d'un encodage lancé pour
+Q-01, pas par relecture : le défaut ne se voit qu'à l'exécution.
+
+*Correction* : `bitrate_bits_sec`. Aucun test ni document ne s'y référait, et un nom de clé de
+journal ne se garde pas utilement par un test — c'est dit ici plutôt que d'ajouter un test qui
+n'épingle rien.
+
 ### Deux prédictions confrontées aux faits
 
 **Le rouge Windows annoncé par #32 n'a pas eu lieu.** Le message de la PR pariait sur un échec de
@@ -1243,8 +1260,9 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-01 |
-| ⏸️ **Ouvert — 5ᵉ passe** (1) | R-02 — notes de version vides, découvert en publiant v0.2.1 |
-| ⏸️ **Ouvert** | R-02 |
+| ⏸️ **Ouvert** (1) | R-02 — notes de version vides, découvert en publiant v0.2.1 |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-03 — `bitrate_bytes_sec` pour une valeur en bits, reliquat de P-05 |
+| ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
 `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
@@ -1281,6 +1299,104 @@ Détail des mesures obtenues :
 
 ---
 
+## 5bis. Questions ouvertes
+
+Convention : **Q-xx**. Ce ne sont **pas** des constats. Une question ouverte est un point dont on
+ignore encore s'il constitue un défaut — la consigner évite qu'elle se reperde, sans l'inscrire
+au passif du projet.
+
+### Q-01 — D'où vient le facteur 1,6 du profil de qualité « Balanced » ?
+
+[`gui_main.go:58-65`](../gui_main.go#L58-L65)
+
+```go
+case "Fast":
+    return inputBitrate, "fast"
+default: // "Balanced"
+    return int(float64(inputBitrate) * 1.6), "medium"
+```
+
+Le commentaire déclare l'intention : *« the output is widened from 4:3 to 16:9, so Balanced
+raises the bitrate to keep the perceived quality of the source »*. Or l'élargissement 4:3 → 16:9
+**à hauteur constante** multiplie le nombre de pixels par exactement **4/3 ≈ 1,333**, pas par 1,6.
+
+Une décomposition rend la question plus intéressante qu'un simple écart :
+
+```
+1,6 = 4/3 × 1,2   (exactement)
+```
+
+Le facteur est donc le ratio géométrique **plus 20 %**. Cela ressemble davantage à un choix
+délibéré qu'à une constante posée au hasard — mais rien ne le documente, et la marge de 20 %
+n'est justifiée nulle part.
+
+**Sous-questions, aucune tranchée :**
+
+1. Les 20 % compensent-ils quelque chose de réel ? La distorsion étire les bords, et du contenu
+   agrandi demande plus de bits pour ne pas s'adoucir visiblement. C'est plausible ; ce n'est pas
+   mesuré.
+2. Le profil **« Fast » ne relève pas le débit du tout**, pour 4/3 de pixels en plus — soit
+   **0,75 fois** les bits par pixel de la source. À qualité perçue constante, il dégrade
+   forcément. Est-ce assumé, et l'utilisateur le sait-il ?
+3. **Interaction avec N-06.** Depuis l'ajout de `-maxrate`, ce débit n'est plus une cible moyenne
+   dépassable mais un **plafond effectif**. Le sens de la constante a changé sans qu'elle soit
+   revue.
+4. Le résultat est ensuite écrêté par `cfg.MinBitrate` / `cfg.MaxBitrate` dans la callback
+   *Start*, ce qui peut masquer l'effet du facteur sur les sources à haut débit.
+
+**Méthode employée** — celle qui a fait tomber P-12 : confronter la constante à l'**intention
+déclarée**. Ici l'intention est mesurable, donc elle a été mesurée.
+
+### Q-01 — Réponse, mesurée le 2026-09-04 — **TRANCHÉE**
+
+**Dispositif.** Un pilote Go appelant `common.PerformEncoding`, donc le chemin réel de
+l'application et non une ligne ffmpeg recopiée ; cartes de remappage produites par
+`common.GeneratePGM`. Source : un clip FPV DJI de 18 s, 3840×2880 (4:3 exact), HEVC 10 bits,
+59,94 fps, 99,9 Mb/s — intérieur, faible lumière, mouvement rapide, détail fin répétitif au
+plafond et au sol, donc un cas défavorable. Métriques SSIM et XPSNR : **le ffmpeg de la machine
+n'a pas libvmaf**, ce qui est dit plutôt que contourné.
+
+**La référence qui rend la question décidable.** Chercher un coude sur la courbe débit/qualité ne
+donne rien — le contenu est exigeant, la qualité monte encore de +1,26 dB entre 1,6 et 2,0. La
+bonne référence est l'intention elle-même : *« keep the perceived quality of the source »*. On la
+matérialise en réencodant la source **sans remappage**, même encodeur, à son propre débit, et en
+mesurant l'écart à la source. C'est la qualité que cet encodeur atteint sur ce contenu à ce coût.
+
+**Résultat** (`hevc_nvenc`, 18 s, référence à 43,350 dB XPSNR / 0,981918 SSIM) :
+
+| k | débit | XPSNR Y | écart | images au-dessus de la référence |
+| --- | --- | --- | --- | --- |
+| 1,00 « Fast » | 99,9 Mb/s | 42,414 | **−0,94 dB** | 2,6 % |
+| 4/3 | 133,2 Mb/s | 43,964 | +0,61 dB | 92,2 % |
+| 1,60 « Balanced » | 159,8 Mb/s | 45,008 | **+1,66 dB** | 99,4 % |
+| 2,00 | 199,8 Mb/s | 46,267 | +2,92 dB | — |
+
+Par interpolation logarithmique, le multiplicateur qui **égale** la référence vaut **1,190**
+(XPSNR) et **1,304** (SSIM).
+
+**Contre-essai sur un second encodeur.** Le même protocole avec `libx265` sur un segment de 4 s —
+contrôle de débit sans rapport avec celui de NVENC — donne **1,189** et **1,285**. Deux
+encodeurs, l'un matériel l'autre logiciel, s'accordent au millième sur XPSNR. Le résultat est une
+propriété de la transformation, pas de l'encodeur.
+
+**Conclusion.** L'intention déclarée est tenue autour de **1,19 à 1,30**. Le ratio géométrique
+**4/3 = 1,333 la couvre déjà avec une petite marge**. Les 20 % supplémentaires du 1,6 ne
+compensaient rien de mesurable : ils achetaient de la qualité **au-delà** de la source, pour 20 %
+de fichier en plus (365 Mo contre 304 Mo sur cet échantillon). Et le sens de l'écart confirme
+l'intuition géométrique — la sortie remappée demande un peu *moins* de bits par pixel que la
+source, parce que l'étirement magnifie la périphérie et en abaisse les fréquences spatiales.
+
+Sur « Fast » : il dégradait réellement, de 0,94 dB sous la qualité de la source sur 97,4 % des
+images, sans que rien dans l'interface le signale.
+
+**Arbitrage rendu par l'utilisateur le 2026-09-04** : les deux profils passent à 4/3 et ne
+diffèrent plus que par le préréglage d'encodage — ce que « Fast » laisse entendre, plus rapide
+et non plus grossier. Constante nommée `widenedPixelRatio`, test mis à jour et vérifié en
+contre-épreuve (les quatre cas rougissent sur 1,6), README corrigé.
+
+**Portée.** Un seul clip, un seul type de contenu, deux encodeurs HEVC ; H.264 non testé. La marge
+réelle est probablement plus large que mesurée, le contenu choisi étant défavorable.
+
 ## 5. Journal des révisions de ce document
 
 | Date | Modification |
@@ -1296,3 +1412,4 @@ Détail des mesures obtenues :
 | 2026-09-04 | **N-07 révisé.** La mesure d'origine (~5 %) était faite sur une mire à 2 Mbps, qui se décode quasi gratuitement. Refaite sur une source type GoPro à 127 Mbps : décodage matériel **+9,9 %**, encodage matériel **×3,18**. L'arbitrage s'inverse — recommandation : conserver. Leçon L-46. |
 | 2026-09-04 | Cohérence du document : quatre titres (N-03, N-04, N-05, P-11) portaient encore leur pastille de sévérité alors que le § 4bis les donnait corrigés. Restylés, et les **deux conventions de marquage sont maintenant écrites** en tête du § 3 — elles ne l'étaient pas, d'où la dérive. Leçon L-47. |
 | 2026-09-04 | **P-12** et **P-13**, trouvés en cherchant ce qui du mode squeeze était vérifiable sans fichier GoPro. La formule squeeze est conçue pour valoir zéro au centre — démontré algébriquement — mais des divisions entières y laissaient une couture de 1 à 2,6 px. Défaut hérité de l'amont, identique caractère pour caractère. Le libellé de la case promettait par ailleurs une compatibilité GoPro que l'amont dément. Leçon L-48. |
+| 2026-09-04 | Ajout du § 5bis « Questions ouvertes » et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
