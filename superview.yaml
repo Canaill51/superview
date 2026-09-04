@@ -1,9 +1,11 @@
 # Superview Configuration File
 # All values can be overridden with environment variables prefixed with SUPERVIEW_
 
-# Bitrate constraints in bytes/second (used by GPU-friendly quality profiles)
-# 100k bytes/sec = ~0.1 Mbps (minimum quality)
-# 209M bytes/sec = ~200 Mbps (excellent quality, large files)
+# Bitrate constraints in BITS per second, the unit ffprobe reports and ffmpeg's
+# -b:v expects. The values below have always been bits; only the wording was
+# wrong, so a configuration written against the old comments was off by 8x.
+# 102400 bits/sec    = ~0.1 Mbps (minimum quality)
+# 209715200 bits/sec = ~200 Mbps (excellent quality, large files)
 min_bitrate: 102400
 max_bitrate: 209715200
 

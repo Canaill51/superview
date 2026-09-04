@@ -229,8 +229,12 @@ func (r *EventRecorder) RecordEvent(event *EncodingEvent) {
 		event.Timestamp = time.Now().UTC()
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// A read lock: this only iterates the slice. It used to take the write lock,
+	// which serialised every progress event -- several a second -- against each
+	// other for no reason. RecordProgress, RecordError and RecordCompletion just
+	// below already use RLock for the same traversal.
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	// Dispatch to all handlers
 	for _, handler := range r.handlers {

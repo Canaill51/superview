@@ -29,6 +29,8 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
 - **MP4 in, MP4 out**: the file pickers offer MP4 only, and the output extension is enforced
+- **Faithful to the source**: 10-bit footage stays 10-bit when encoding to H.265 (HERO 10 and
+  later record 10-bit), every audio track is carried over, and the recording date is preserved
 - **Simplified GUI Flow**: 3-step guided workflow with native file dialogs
 - **Squeeze Mode**: tick *Source already stretched (GoPro SuperView)* when the input is a 4:3
   frame already stretched to 16:9 by the camera; Superview un-stretches the centre instead of

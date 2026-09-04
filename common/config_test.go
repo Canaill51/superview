@@ -23,7 +23,7 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	}
 
 	if cfg.MaxBitrate != 209715200 {
-		t.Errorf("Expected MaxBitrate=209715200 (200M bytes/sec), got %d", cfg.MaxBitrate)
+		t.Errorf("Expected MaxBitrate=209715200 (~200 Mbps), got %d", cfg.MaxBitrate)
 	}
 
 	if cfg.LogLevel != "info" {

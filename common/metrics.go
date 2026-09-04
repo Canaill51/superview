@@ -9,7 +9,8 @@ import (
 )
 
 // EncodingMetrics tracks performance metrics throughout the encoding lifecycle.
-// All timestamps are recorded in UTC. All sizes are in bytes. All bitrates in bytes/sec.
+// All timestamps are recorded in UTC. Sizes are in bytes; bitrates are in
+// bits/second, the unit ffprobe and ffmpeg both use.
 // This structure is thread-safe via internal mutex.
 type EncodingMetrics struct {
 	mu sync.RWMutex
@@ -20,18 +21,19 @@ type EncodingMetrics struct {
 	ProgressUpdates int       // Number of progress updates
 
 	// Input file information
-	InputFile     string  // Source file path
-	InputFileSize int64   // File size in bytes
-	InputDuration float64 // Duration in seconds
-	InputBitrate  int     // bytes/second (from video metadata)
-	InputCodec    string  // Video codec name
-	InputWidth    int     // Video width in pixels
-	InputHeight   int     // Video height in pixels
+	InputFile      string  // Source file path
+	InputFileSize  int64   // File size in bytes
+	InputDuration  float64 // Duration in seconds
+	InputBitrate   int     // bits/second (from video metadata)
+	InputCodec     string  // Video codec name
+	InputWidth     int     // Video width in pixels
+	InputHeight    int     // Video height in pixels
+	InputFrameRate float64 // Frames per second, 0 when ffprobe did not report it
 
 	// Output file information
 	OutputFile     string // Destination file path
 	OutputFileSize int64  // File size in bytes (0 until encoding complete)
-	OutputBitrate  int    // bytes/second (configured output bitrate)
+	OutputBitrate  int    // bits/second (configured output bitrate)
 	OutputCodec    string // Output encoder name
 
 	// Encoding progress
@@ -94,6 +96,7 @@ func (m *EncodingMetrics) RecordInputMetadata(video *VideoSpecs, fileSize int64)
 	m.InputCodec = stream.Codec
 	m.InputWidth = stream.Width
 	m.InputHeight = stream.Height
+	m.InputFrameRate = stream.FrameRate
 }
 
 // RecordOutputMetadata captures configured output parameters.
@@ -158,6 +161,18 @@ func (m *EncodingMetrics) RecordError(exitCode int, message string) {
 
 // EllapsedTime returns total encoding duration.
 // Returns 0 if encoding hasn't completed.
+// Remaining returns the current estimate of the time left in the encode, or 0
+// when there is not enough progress data to form one.
+//
+// The value has been maintained on every progress update since this file was
+// written; until P-07 nothing ever read it, so the GUI showed a bare
+// percentage for a job that runs for minutes on 4K footage.
+func (m *EncodingMetrics) Remaining() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.EstimatedRemaining
+}
+
 func (m *EncodingMetrics) ElapsedTime() time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -256,9 +271,16 @@ func (m *EncodingMetrics) computeMetrics() {
 
 	elapsedSeconds := m.EndTime.Sub(m.StartTime).Seconds()
 
-	// Encoding speed: total frame count / elapsed time
-	if elapsedSeconds > 0 && m.InputDuration > 0 {
-		totalFrames := m.InputDuration * 30 // Assuming ~30fps average
+	// Encoding speed: total frame count / elapsed time.
+	//
+	// The frame count used to be InputDuration * 30, with the comment "assuming
+	// ~30fps average". GoPros routinely record at 60, 120 or 240, so the figure
+	// this published was wrong by up to a factor of 8 -- and it was reported
+	// with the same confidence as the measured values around it. The real rate
+	// now comes from ffprobe; when it is unavailable the metric is left at zero
+	// rather than invented.
+	if elapsedSeconds > 0 && m.InputDuration > 0 && m.InputFrameRate > 0 {
+		totalFrames := m.InputDuration * m.InputFrameRate
 		m.EncodingSpeed = totalFrames / elapsedSeconds
 	}
 
