@@ -1173,6 +1173,26 @@ n'a pas d'équivalent d'un fichier non régulier à ouvrir ainsi.
 environnement où ffmpeg est réellement introuvable**. La première contre-épreuve concluait à tort
 que `TestEncodeVideo_InterruptedByUser` passait à vide, voir L-49.
 
+### R-02 🟡 — Le workflow de release ne produit aucune note de version — **OUVERT**
+
+`.github/workflows/release.yml`
+
+L'étape « Create release summary » écrit toujours le même corps : le titre, « Windows: native
+runner arch », « Linux: ... », et le bloc `sha256sum -c`. Rien sur ce qui change. Pour v0.2.1,
+dont l'objet **est** un correctif d'image, un utilisateur lisant les notes n'avait aucune raison
+de mettre à jour. Les notes de v0.2.0 ne tiennent que par le changelog que GitHub ajoute à la
+publication : une liste de titres de PR, dont « Make the finding status consistent between
+headings and the status table » — vrai, et sans intérêt pour qui convertit des vidéos.
+
+Les deux releases ont donc été rédigées à la main dans le draft. C'est exactement le motif que
+#32 a corrigé pour les checksums : un artefact de release réparé à la main à chaque fois finit
+par ne pas l'être.
+
+*Piste* : le tag est annoté et son message est déjà écrit pour des utilisateurs
+(`git tag -l --format='%(contents)'`). Le workflow pourrait le prendre comme corps au lieu de
+regénérer un gabarit vide. À vérifier localement avant de taguer — l'étape ne tourne que sur un
+tag, voir plus bas.
+
 ### Deux prédictions confrontées aux faits
 
 **Le rouge Windows annoncé par #32 n'a pas eu lieu.** Le message de la PR pariait sur un échec de
@@ -1186,7 +1206,10 @@ L'hypothèse était explicite et raisonnable ; elle est infirmée, et c'est le b
 corrigée du workflow a été rejouée localement sur un faux arbre d'artefacts : elle produit des
 noms nus, et la vérification depuis un dossier plat passe. Mais elle **n'a jamais tourné en CI** —
 `create-release` est gardé par `startsWith(github.ref, 'refs/tags/v')`, donc un
-`workflow_dispatch` la saute entièrement. Son premier vrai passage sera celui de v0.2.1.
+`workflow_dispatch` la saute entièrement. **Son premier vrai passage a eu lieu avec v0.2.1** :
+`checksums.txt` sort avec des noms nus et `sha256sum -c` passe sur les assets téléchargés depuis
+la release, sans aucune retouche manuelle. Le correctif de #32 est validé en production, cinq
+heures après avoir été écrit.
 
 ---
 
@@ -1220,7 +1243,8 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-01 |
-| ⏸️ **Ouvert** | *aucun.* |
+| ⏸️ **Ouvert — 5ᵉ passe** (1) | R-02 — notes de version vides, découvert en publiant v0.2.1 |
+| ⏸️ **Ouvert** | R-02 |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
 `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
