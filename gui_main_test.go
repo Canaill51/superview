@@ -318,7 +318,7 @@ func TestEncodingControls_RoundTripReEnablesEverything(t *testing.T) {
 	open := widget.NewButton("Choose input file", func() {})
 	selectOutput := widget.NewButton("Choose output file", func() {})
 	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
-	squeeze := widget.NewCheck("Source already stretched (GoPro SuperView)", func(bool) {})
+	squeeze := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {})
 	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
 
 	controls := encodingControls{open, selectOutput, quality, squeeze, encoder}
@@ -422,7 +422,7 @@ func newTestAppState(t *testing.T) *appState {
 	open := widget.NewButton("Choose input file", func() {})
 	selectOutput := widget.NewButton("Choose output file", func() {})
 	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
-	squeeze := widget.NewCheck("Source already stretched (GoPro SuperView)", func(bool) {})
+	squeeze := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {})
 	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
 
 	state := &appState{

@@ -137,6 +137,25 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-48 — Une empreinte fige des octets ; elle ne dit rien des propriétés — 2026-09-04
+`TestGeneratePGM_Golden` verrouillait la carte de remappage au bit près depuis trois passes. Elle
+contenait pourtant une couture de 1 à 2,6 px au milieu de l'image (P-12), et le test ne pouvait
+pas la voir : il certifiait que les octets ne changeaient pas, pas qu'ils étaient bons. Le défaut
+a été trouvé en posant des questions que l'empreinte ne pose jamais — la courbe est-elle
+monotone ? les bords tombent-ils sur les bords ? le centre reste-t-il le centre ?
+→ Une empreinte est un test de **non-régression**, pas un test de **correction**. Elle a toute
+sa valeur — elle a certifié le passage en PGM P5 — mais elle doit être accompagnée de tests de
+propriétés, sinon elle fige aussi fidèlement les défauts que le reste.
+
+Corollaire utile : quand une formule a une **forme fermée**, la calculer en arithmétique exacte
+tranche ce qu'aucune mesure ne tranche. Ici les deux termes valent tous deux `7/32 × outX × inv`
+au centre : l'intention de l'auteur était démontrable, et l'écart du code avec elle aussi. Sans
+cela je serais resté sur « je ne peux pas savoir si c'est fidèle à la référence ».
+
+Et une chose à ne pas confondre : le code était **fidèle à l'amont**, caractère pour caractère.
+Fidèle ne veut pas dire correct. Vérifier la conformité à une référence ne dispense pas de
+vérifier la référence.
+
 ### L-47 — Une convention non écrite n'est pas une convention — 2026-09-04
 Ce document marque le statut d'un constat de deux façons : le § 3 garde les sévérités d'origine
 (c'est une analyse datée, le § 4bis fait foi), les § 3bis et 3ter barrent le titre et le passent
@@ -396,6 +415,51 @@ Constat O-01.
 ---
 
 ## 3. Corrections appliquées
+
+### [2026-09-04] P-12, P-13 — Couture au centre en mode squeeze, et libellé trompeur
+
+| | |
+| --- | --- |
+| **Constats** | P-12, P-13 ([§ 3ter](ANALYSE_PROJET.md)) |
+| **Fichiers** | `common/common.go` · `common/pgm_golden_test.go` · `gui_main.go` · `gui_main_test.go` · `README.md` |
+| **Commit** | non commité |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve ✅ |
+
+**Contexte** — l'utilisateur n'a pas de fichier GoPro en mode squeeze sous la main. Plutôt que
+d'attendre, j'ai cherché ce qui restait vérifiable sans : la santé géométrique de la carte de
+remappage, que le test doré ne couvre pas.
+
+**P-12, symptôme** — une couture verticale de 1 à 2,6 px au milieu de l'image, en mode squeeze
+uniquement, d'amplitude erratique selon la résolution.
+
+**P-12, cause racine** — les deux termes du décalage squeeze valent tous deux `7/32 × outX × inv`
+au centre : la courbe est **conçue** pour y passer par zéro. Mais `outX/16` et `outX/7` étaient
+des divisions entières, dont la troncature laissait un résidu que le miroir de la moitié gauche
+transformait en saut. Preuve directe : sur une largeur multiple de 112 (16×7), aucune troncature
+n'a lieu et la couture disparaît entièrement.
+
+**P-12, correctif** — diviser en flottant, en conservant la forme de l'expression pour rester
+lisible face à l'implémentation de référence (contrainte inscrite dans `.golangci.yml`).
+Amplitude maximale inchangée à 0,1 % près : raffinement sous-pixel, pas changement d'intention.
+
+**Une fausse piste, corrigée en chemin** — j'avais d'abord annoncé une compression de 2,09× au
+centre. C'était une erreur de mesure : ma différence centrée enjambait l'axe de symétrie et
+intégrait la discontinuité. La pente réelle y est de 1,43. L'erreur a néanmoins mis le défaut au
+jour.
+
+**P-13** — la case s'intitulait « Source already stretched (GoPro SuperView) », alors que le
+README amont documente l'option pour des caméras comme la Caddx Tarsier et déclare l'algorithme
+« not a 1-1 copy of the GoPro algorithm ». Renommée « Source already stretched to 16:9
+(un-squeeze) », README aligné sur le périmètre réel.
+
+**Ce que je n'ai pas pu trancher** — l'implémentation Python de Banelle est inaccessible (403,
+archive web refusée), donc j'ignore si la couture y existait déjà ou si elle est née au portage
+Python → Go. Sans importance pour la décision : l'intention est démontrable depuis la formule.
+
+**Leçon** — L-48.
+
+---
+
 
 ### [2026-09-04] Cohérence du document — quatre titres contredisaient le tableau d'avancement
 
@@ -1277,3 +1341,4 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
 | 2026-09-04 | **P-10** : `appState`, 11 méthodes couvertes à 100 %, 18 sous-tests. `beginEncoding()` rend P-02 inexprimable (L-44). Découvert en chemin : le sélecteur de codec restait actif quand ffmpeg manque. Leçons L-44, L-45. **File d'attente vide ; reste N-07, arbitrage produit.** |
 | 2026-09-04 | PR #28 fusionnée (`ab8b8a8`). **N-07 révisé** : la mesure d'origine sous-estimait le gain d'un facteur deux ; l'arbitrage s'inverse, recommandation « conserver », aucun code touché. Leçon L-46. **Plus aucun constat ouvert.** |
 | 2026-09-04 | PR #29 fusionnée (`50bd9e9`). Cohérence du document : quatre titres contredisaient le tableau d'avancement ; restylés, et les deux conventions de marquage enfin écrites. Leçon L-47. |
+| 2026-09-04 | v0.2.0 publiée. PR #30, #31, #32 fusionnées (docs, workflow de release, CI). **P-12 et P-13** trouvés en explorant ce qui du mode squeeze était vérifiable sans fichier GoPro : couture de 1 à 2,6 px au centre, et libellé promettant du GoPro que l'amont dément. Leçon L-48. |

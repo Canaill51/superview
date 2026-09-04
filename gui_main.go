@@ -574,11 +574,17 @@ func main() {
 	qualityProfileLabel := widget.NewLabel("Quality")
 	qualityProfileLabel.Alignment = fyne.TextAlignLeading
 
-	// Squeeze mode: the source is already stretched to 16:9 (GoPro's own
-	// SuperView recording modes). GeneratePGM then un-stretches the centre
-	// instead of widening the frame.
+	// Squeeze mode: the source already holds a 4:3 capture stretched to 16:9,
+	// so GeneratePGM un-stretches the centre instead of widening the frame.
+	//
+	// The label used to name GoPro SuperView specifically. That promised more
+	// than the code delivers: upstream documents this option for cameras like
+	// the Caddx Tarsier and states plainly that the algorithm is not a 1:1 copy
+	// of GoPro's. The curve is an approximation of the inverse stretch, useful
+	// for any camera that stores a stretched 4:3 frame -- which does include
+	// GoPro's SuperView modes, just not with GoPro's own maths.
 	squeezeSource := prefs.Bool(prefSqueezeSource)
-	squeezeCheck := widget.NewCheck("Source already stretched (GoPro SuperView)", func(checked bool) {
+	squeezeCheck := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(checked bool) {
 		squeezeSource = checked
 		prefs.SetBool(prefSqueezeSource, checked)
 	})
