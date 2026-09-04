@@ -1177,7 +1177,7 @@ n'a pas d'équivalent d'un fichier non régulier à ouvrir ainsi.
 environnement où ffmpeg est réellement introuvable**. La première contre-épreuve concluait à tort
 que `TestEncodeVideo_InterruptedByUser` passait à vide, voir L-49.
 
-### R-02 🟡 — Le workflow de release ne produit aucune note de version — **OUVERT**
+### R-02 🟡 — ~~Le workflow de release ne produit aucune note de version~~ — **CORRIGÉ**
 
 `.github/workflows/release.yml`
 
@@ -1192,10 +1192,22 @@ Les deux releases ont donc été rédigées à la main dans le draft. C'est exac
 #32 a corrigé pour les checksums : un artefact de release réparé à la main à chaque fois finit
 par ne pas l'être.
 
-*Piste* : le tag est annoté et son message est déjà écrit pour des utilisateurs
-(`git tag -l --format='%(contents)'`). Le workflow pourrait le prendre comme corps au lieu de
-regénérer un gabarit vide. À vérifier localement avant de taguer — l'étape ne tourne que sur un
-tag, voir plus bas.
+*Correction* : le message du tag annoté devient le corps de la release — `%(contents:subject)`
+en titre, `%(contents:body)` en corps. Le job `create-release` ne faisait aucun `checkout` (il ne
+téléchargeait que des artefacts) ; il en a un maintenant, en `fetch-depth: 0`, pour disposer de
+l'objet tag. Un tag **léger** n'a pas de message propre — git rendrait celui du commit, qui n'est
+pas des notes de version — donc ce cas retombe sur l'ancien gabarit **et l'annonce par un
+`::warning::`** plutôt que de publier une release vide.
+
+*Vérification, sans taguer.* L'étape ne tourne que sur un tag (c'est tout le problème), donc le
+script a été **extrait du YAML et exécuté en local** contre trois cas réels du dépôt : `v0.2.1`
+(annoté) rend ses notes complètes sans avertissement, `v0.1.5` (léger) et un tag inexistant
+retombent sur le gabarit avec l'avertissement.
+
+*Défaut attrapé par cette vérification* : le `::warning::` était d'abord **à l'intérieur** du
+groupe redirigé vers `/tmp/release.md`, donc il aurait été écrit dans les notes publiées au lieu
+du journal d'exécution. Sorti du groupe. C'est précisément ce qu'un essai à blanc sert à trouver,
+et il n'aurait pas été possible sans extraire le script du YAML.
 
 ### R-03 ✅ — ~~Le journal annonce `bitrate_bytes_sec` pour une valeur en bits~~ — **CORRIGÉ**
 
@@ -1259,8 +1271,8 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
-| ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-01 |
-| ⏸️ **Ouvert** (1) | R-02 — notes de version vides, découvert en publiant v0.2.1 |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (2) | R-01, R-02 |
+| ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-03 — `bitrate_bytes_sec` pour une valeur en bits, reliquat de P-05 |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 

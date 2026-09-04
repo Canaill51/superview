@@ -141,6 +141,22 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-53 — Un script enfermé dans un YAML s'extrait pour être essayé — 2026-09-05
+L'étape qui écrit les notes de release ne tourne que sur un tag poussé : l'essayer « pour de
+vrai » coûterait un tag, et c'est exactement ce qui avait laissé le workflow cassé de juillet à
+septembre. La sortie a été d'extraire le `run:` du YAML avec un parseur, puis de l'exécuter
+localement sur trois tags réels du dépôt — un annoté, un léger, un inexistant.
+
+Ça a payé immédiatement : le `::warning::` du cas dégradé était **à l'intérieur** du groupe
+redirigé vers le fichier de notes, donc il serait parti dans le corps publié de la release au
+lieu du journal d'exécution. Relire le YAML ne l'aurait pas montré — la ligne est correcte en
+soi, c'est sa **place dans une redirection** qui ne l'est pas.
+→ Un script dans un YAML de CI reste un script. Il s'extrait (`yaml.safe_load`, puis le champ
+`run`), il s'exécute, et il se vérifie sur les cas dégradés autant que sur le cas nominal. Cela
+vaut particulièrement quand le déclencheur réel est coûteux ou irréversible — un tag, un déploiement,
+un envoi. Même famille que L-48 : ce qui n'est jamais exécuté n'est pas vérifié, quelle que soit
+l'attention portée à sa lecture.
+
 ### L-52 — Quand l'intention est mesurable, la mesurer bat toute relecture — 2026-09-04
 Le facteur 1,6 avait traversé quatre passes d'analyse. Le lire une cinquième fois n'aurait rien
 donné de plus : le code était clair, le commentaire cohérent avec lui-même, les tests verts —
@@ -1401,7 +1417,8 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 
 - [x] **R-01** Faux ffmpeg en `.bat` sur Windows, helper partagé avec
       `TestEncodeVideo_InterruptedByUser` (L-49, L-50) → appliqué le 2026-09-04
-- [ ] **R-02** Faire du message du tag annoté le corps de la release, au lieu du gabarit vide
+- [x] **R-02** Le message du tag annoté devient le corps de la release ; script extrait du
+      YAML et essayé en local sur trois tags réels (L-53) → appliqué le 2026-09-05
 - [x] **R-03** `bitrate_bytes_sec` → `bitrate_bits_sec`, reliquat de P-05 (L-51)
       → appliqué le 2026-09-04
 - [x] **v0.2.1** Taguée sur `90b02a8`, draft vérifié, **publiée** le 2026-09-04 →
@@ -1430,3 +1447,4 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-04 | Ouverture du palier 11 et de la convention **Q-xx** pour les questions ouvertes, distinctes des constats. Première entrée : Q-01 (le facteur 1,6). Aucun code touché. |
 | 2026-09-04 | **5ᵉ passe, vérification d'après-release** : les checksums de v0.2.0 vérifiés sur les assets publiés (bons), le rouge Windows annoncé par #32 infirmé sur pièces, et **R-01** corrigé — le faux ffmpeg sautait sur Windows et emportait le test qui épingle P-03. Leçons L-49, L-50. **v0.2.1 publiée**, avec le premier passage réel de l'étape des checksums corrigée : noms nus, `sha256sum -c` vert sur les assets publics, sans retouche. PR #34 fusionnée. |
 | 2026-09-04 | **Q-01 tranchée par la mesure** : l'intention déclarée du facteur de débit est tenue à k ≈ 1,19–1,30, `hevc_nvenc` et `libx265` d'accord au millième. Les deux profils passent à 4/3 (arbitrage utilisateur). **R-03** trouvé en chemin : reliquat de P-05 dans le journal. Leçons L-51, L-52. |
+| 2026-09-05 | **R-02** corrigé : le message du tag annoté devient le corps de la release, avec repli bruyant sur un tag léger. Script extrait du YAML et essayé en local sur trois tags, ce qui a démasqué un `::warning::` qui serait parti dans les notes publiées. Leçon L-53. |
