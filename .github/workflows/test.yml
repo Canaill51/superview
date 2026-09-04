@@ -37,11 +37,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.go-version }}-
     
+    - name: Install GUI build dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev ffmpeg
+
     - name: Download dependencies
       run: go mod download
     
     - name: Run tests with coverage
-      run: go test ./common -v -coverprofile=coverage.out -covermode=atomic
+      run: go test ./... -v -coverprofile=coverage.out -covermode=atomic
     
     - name: Display coverage summary
       run: go tool cover -func=coverage.out | tail -5
@@ -72,13 +76,18 @@ jobs:
       with:
         go-version: '1.26.x'
     
+    - name: Install GUI build dependencies
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev ffmpeg
+
     - name: Run tests with coverage
-      run: go test ./common -coverprofile=coverage.out -covermode=atomic
+      run: go test ./... -coverprofile=coverage.out -covermode=atomic
     
-    - name: Check coverage threshold (30%)
+    - name: Check coverage threshold (50%)
       run: |
         coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        threshold=30.0
+        # Module-wide floor. Measured 54.6% on 2026-09-04
+        # (was 30% while the real figure was already above it); raise as coverage grows.
+        threshold=50.0
         if (( $(echo "$coverage < $threshold" | bc -l) )); then
           echo "❌ Coverage ${coverage}% is below threshold ${threshold}%"
           exit 1
@@ -157,7 +166,7 @@ jobs:
 
     - name: Install GUI build dependencies (Linux)
       if: matrix.expected_goos == 'linux'
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev ffmpeg
 
     - name: Validate native runner architecture (Linux)
       if: matrix.expected_goos == 'linux'

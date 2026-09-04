@@ -25,15 +25,18 @@ jobs:
       with:
         go-version: '1.26.x'
     
+    - name: Install GUI build dependencies
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+
     - name: Run tests
-      run: go test ./common -v
+      run: go test ./... -v
     
     - name: Run coverage check
       run: |
-        go test ./common -coverprofile=coverage.out
+        go test ./... -coverprofile=coverage.out
         coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        if (( $(echo "$coverage < 30" | bc -l) )); then
-          echo "❌ Coverage ${coverage}% below 30% gate"
+        if (( $(echo "$coverage < 50" | bc -l) )); then
+          echo "❌ Coverage ${coverage}% below 50% gate"
           exit 1
         fi
         echo "✅ Coverage ${coverage}% passes gate"
@@ -169,7 +172,7 @@ jobs:
         cat /tmp/release.md
 
     - name: Publish release assets
-      uses: softprops/action-gh-release@v3
+      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
       with:
         tag_name: ${{ github.ref_name }}
         draft: true
@@ -191,9 +194,9 @@ jobs:
       run: |
         echo "✅ Release workflow completed"
         echo "  - Tests: PASSED"
-        echo "### GUI Application" >> /tmp/release.md
-        echo "- Windows: native runner arch" >> /tmp/release.md
-        echo "- Linux: native runner arch (requires libgl1-mesa-dev, xorg-dev at runtime; zenity or kdialog recommended for native file dialogs)" >> /tmp/release.md
+        echo "  - Windows: native runner arch"
+        echo "  - Linux: native runner arch (needs libgl1-mesa-dev, xorg-dev at runtime;"
+        echo "           zenity or kdialog recommended for native file dialogs)"
         echo ""
         echo "📦 Artifacts ready in: GitHub Release page"
         echo "📝 Next: Manual publish of draft release"
