@@ -6,6 +6,10 @@
 > correspondante dans la file d'attente § 4, (3) si la correction révèle une règle réutilisable,
 > l'ajouter en § 2.
 
+Les identifiants `Q-xx` renvoient aux **questions ouvertes** de
+[ANALYSE_PROJET.md § 5bis](ANALYSE_PROJET.md) : ce ne sont pas des constats, mais des points dont
+on ignore encore s'ils constituent un défaut.
+
 Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 [ANALYSE_PROJET.md § 3](ANALYSE_PROJET.md) (1ʳᵉ et 2ᵉ passes), `N-xx` à
 [§ 3bis](ANALYSE_PROJET.md) (3ᵉ passe, empirique) et `P-xx` à
@@ -1349,17 +1353,24 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
       volontairement** : coût négligeable, risque de perdre des événements du journal.
 
 
-### Palier 12 — 5ᵉ passe : vérification d'après-release
+### Palier 11 — questions ouvertes (pas des constats)
 
-> Le palier 11 est réservé à Q-01 (facteur 1,6 du débit), qui vit sur la branche
-> `record-open-question-bitrate`, non fusionnée.
+À traiter en session dédiée. Une question n'est cochée que lorsqu'elle est **tranchée** — que la
+réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi ».
+
+- [ ] **Q-01** D'où vient le facteur 1,6 du profil « Balanced » ? Il vaut exactement le ratio
+      géométrique 4/3 majoré de 20 %, marge que rien ne documente. Voir aussi le profil « Fast »,
+      qui ne relève pas le débit malgré 4/3 de pixels en plus, et l'interaction avec N-06 qui a
+      transformé cette cible en plafond. Détail en [ANALYSE_PROJET.md § 5bis](ANALYSE_PROJET.md).
+
+### Palier 12 — 5ᵉ passe : vérification d'après-release
 
 - [x] **R-01** Faux ffmpeg en `.bat` sur Windows, helper partagé avec
       `TestEncodeVideo_InterruptedByUser` (L-49, L-50) → appliqué le 2026-09-04
 - [ ] **R-02** Faire du message du tag annoté le corps de la release, au lieu du gabarit vide
 - [x] **v0.2.1** Taguée sur `90b02a8`, draft vérifié, **publiée** le 2026-09-04 →
       checksums générés corrects du premier coup, notes rédigées à la main parce que le
-      workflow n'en produit aucune (voir ci-dessous)
+      workflow n'en produit aucune (R-02)
 
 ---
 
@@ -1380,4 +1391,5 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
 | 2026-09-04 | PR #28 fusionnée (`ab8b8a8`). **N-07 révisé** : la mesure d'origine sous-estimait le gain d'un facteur deux ; l'arbitrage s'inverse, recommandation « conserver », aucun code touché. Leçon L-46. **Plus aucun constat ouvert.** |
 | 2026-09-04 | PR #29 fusionnée (`50bd9e9`). Cohérence du document : quatre titres contredisaient le tableau d'avancement ; restylés, et les deux conventions de marquage enfin écrites. Leçon L-47. |
 | 2026-09-04 | v0.2.0 publiée. PR #30, #31, #32 fusionnées (docs, workflow de release, CI). **P-12 et P-13** trouvés en explorant ce qui du mode squeeze était vérifiable sans fichier GoPro : couture de 1 à 2,6 px au centre, et libellé promettant du GoPro que l'amont dément. Leçon L-48. |
+| 2026-09-04 | Ouverture du palier 11 et de la convention **Q-xx** pour les questions ouvertes, distinctes des constats. Première entrée : Q-01 (le facteur 1,6). Aucun code touché. |
 | 2026-09-04 | **5ᵉ passe, vérification d'après-release** : les checksums de v0.2.0 vérifiés sur les assets publiés (bons), le rouge Windows annoncé par #32 infirmé sur pièces, et **R-01** corrigé — le faux ffmpeg sautait sur Windows et emportait le test qui épingle P-03. Leçons L-49, L-50. **v0.2.1 publiée**, avec le premier passage réel de l'étape des checksums corrigée : noms nus, `sha256sum -c` vert sur les assets publics, sans retouche. PR #34 fusionnée. |
