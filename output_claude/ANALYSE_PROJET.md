@@ -1209,6 +1209,11 @@ groupe redirigé vers `/tmp/release.md`, donc il aurait été écrit dans les no
 du journal d'exécution. Sorti du groupe. C'est précisément ce qu'un essai à blanc sert à trouver,
 et il n'aurait pas été possible sans extraire le script du YAML.
 
+*Confirmé en conditions réelles avec v0.2.2* : les notes publiées sont le message du tag, sans
+retouche — première release du dépôt dont le corps décrit ce qui change. Aucun `::warning::` dans
+le corps, tableau de mesures préservé en bloc de code (indentation de six espaces), sections
+« Downloads » et « Verify integrity » ajoutées, `sha256sum -c` vert sur les assets publics.
+
 ### R-03 ✅ — ~~Le journal annonce `bitrate_bytes_sec` pour une valeur en bits~~ — **CORRIGÉ**
 
 `common/common.go`

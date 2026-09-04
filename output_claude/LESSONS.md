@@ -1419,6 +1419,8 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
       `TestEncodeVideo_InterruptedByUser` (L-49, L-50) → appliqué le 2026-09-04
 - [x] **R-02** Le message du tag annoté devient le corps de la release ; script extrait du
       YAML et essayé en local sur trois tags réels (L-53) → appliqué le 2026-09-05
+- [x] **v0.2.2** Taguée sur `b6c7955`, **publiée** le 2026-09-05 → première release dont les
+      notes viennent du tag et décrivent ce qui change ; checksums corrects, aucune retouche
 - [x] **R-03** `bitrate_bytes_sec` → `bitrate_bits_sec`, reliquat de P-05 (L-51)
       → appliqué le 2026-09-04
 - [x] **v0.2.1** Taguée sur `90b02a8`, draft vérifié, **publiée** le 2026-09-04 →
@@ -1448,3 +1450,4 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-04 | **5ᵉ passe, vérification d'après-release** : les checksums de v0.2.0 vérifiés sur les assets publiés (bons), le rouge Windows annoncé par #32 infirmé sur pièces, et **R-01** corrigé — le faux ffmpeg sautait sur Windows et emportait le test qui épingle P-03. Leçons L-49, L-50. **v0.2.1 publiée**, avec le premier passage réel de l'étape des checksums corrigée : noms nus, `sha256sum -c` vert sur les assets publics, sans retouche. PR #34 fusionnée. |
 | 2026-09-04 | **Q-01 tranchée par la mesure** : l'intention déclarée du facteur de débit est tenue à k ≈ 1,19–1,30, `hevc_nvenc` et `libx265` d'accord au millième. Les deux profils passent à 4/3 (arbitrage utilisateur). **R-03** trouvé en chemin : reliquat de P-05 dans le journal. Leçons L-51, L-52. |
 | 2026-09-05 | **R-02** corrigé : le message du tag annoté devient le corps de la release, avec repli bruyant sur un tag léger. Script extrait du YAML et essayé en local sur trois tags, ce qui a démasqué un `::warning::` qui serait parti dans les notes publiées. Leçon L-53. |
+| 2026-09-05 | **v0.2.2 publiée** : la baisse de débit de Q-01 atteint les utilisateurs (Balanced ~20 % plus léger, Fast qui cesse de dégrader). Première release dont le corps décrit ce qui change, généré depuis le tag sans retouche. |
