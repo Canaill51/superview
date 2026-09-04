@@ -137,6 +137,31 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-50 — Un `t.Skip` est une plateforme entière qui ne teste rien — 2026-09-04
+`fakeHangingFFmpeg` sautait sur Windows avec un motif qui sonnait comme un détail de fixture :
+« the stand-in ffmpeg relies on a POSIX shell ». Ce qu'il disait vraiment, c'est que le test
+épinglant P-03 — l'annulation ne doit pas relancer la cascade de repli — ne s'exécutait que sur
+Linux, sur un chemin (kill de processus) dont le comportement Windows est justement celui dont
+on doute. Et la solution dormait à quinze lignes de là : un autre test du même fichier installait
+le même stand-in en `.bat` et passait sur Windows depuis toujours.
+→ Un saut se lit comme un constat, pas comme une note de bas de page : **quel comportement
+n'est plus vérifié, et sur quelle plateforme ?** Avant d'accepter un `t.Skip`, chercher si le
+fichier ne contient pas déjà le contournement. Deux sauts restaient ici ; l'un était de la dette,
+l'autre (`/dev/zero`) est réel. Les distinguer demande de les lire un par un.
+
+### L-49 — Une contre-épreuve peut être fausse par contamination de l'environnement — 2026-09-04
+En vérifiant que les deux tests dépendaient bien du faux ffmpeg, je l'ai renommé et relancé avec
+`PATH=/usr/bin:/bin`. `TestEncodeVideo_InterruptedByUser` a continué de passer, et j'en ai conclu
+à voix haute qu'il passait à vide. C'était faux : `/usr/bin/ffmpeg` existe sur cette machine, le
+test retombait dessus. Avec un `PATH` réellement vide de ffmpeg il échoue en trois secondes sur
+« timeout waiting for signal registration ». Le test était porteur ; c'est la contre-épreuve qui
+ne l'était pas.
+→ Une contre-épreuve n'est valide que si l'environnement rend le défaut **observable**. Quand
+elle consiste à retirer une dépendance, vérifier que la dépendance a bien disparu — ici un
+`which ffmpeg` avant de conclure. Même piège que L-37 d'un cran plus haut : là c'était le test
+qui passait à vide, ici c'est la vérification du test. Rien ne dispense de se demander *pourquoi*
+un résultat tombe comme il tombe, surtout quand il confirme ce qu'on soupçonnait.
+
 ### L-48 — Une empreinte fige des octets ; elle ne dit rien des propriétés — 2026-09-04
 `TestGeneratePGM_Golden` verrouillait la carte de remappage au bit près depuis trois passes. Elle
 contenait pourtant une couture de 1 à 2,6 px au milieu de l'image (P-12), et le test ne pouvait
@@ -1323,6 +1348,17 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
       → appliqué le 2026-09-04. Court-circuit des événements de progression **écarté
       volontairement** : coût négligeable, risque de perdre des événements du journal.
 
+
+### Palier 12 — 5ᵉ passe : vérification d'après-release
+
+> Le palier 11 est réservé à Q-01 (facteur 1,6 du débit), qui vit sur la branche
+> `record-open-question-bitrate`, non fusionnée.
+
+- [x] **R-01** Faux ffmpeg en `.bat` sur Windows, helper partagé avec
+      `TestEncodeVideo_InterruptedByUser` (L-49, L-50) → appliqué le 2026-09-04
+- [ ] **v0.2.1** Tag créé en local sur `90b02a8` ; reste à pousser, vérifier le draft
+      et publier
+
 ---
 
 ## 5. Journal des révisions de ce document
@@ -1342,3 +1378,4 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
 | 2026-09-04 | PR #28 fusionnée (`ab8b8a8`). **N-07 révisé** : la mesure d'origine sous-estimait le gain d'un facteur deux ; l'arbitrage s'inverse, recommandation « conserver », aucun code touché. Leçon L-46. **Plus aucun constat ouvert.** |
 | 2026-09-04 | PR #29 fusionnée (`50bd9e9`). Cohérence du document : quatre titres contredisaient le tableau d'avancement ; restylés, et les deux conventions de marquage enfin écrites. Leçon L-47. |
 | 2026-09-04 | v0.2.0 publiée. PR #30, #31, #32 fusionnées (docs, workflow de release, CI). **P-12 et P-13** trouvés en explorant ce qui du mode squeeze était vérifiable sans fichier GoPro : couture de 1 à 2,6 px au centre, et libellé promettant du GoPro que l'amont dément. Leçon L-48. |
+| 2026-09-04 | **5ᵉ passe, vérification d'après-release** : les checksums de v0.2.0 vérifiés sur les assets publiés (bons), le rouge Windows annoncé par #32 infirmé sur pièces, et **R-01** corrigé — le faux ffmpeg sautait sur Windows et emportait le test qui épingle P-03. Leçons L-49, L-50. Tag `v0.2.1` créé en local. |

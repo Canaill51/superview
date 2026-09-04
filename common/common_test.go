@@ -633,41 +633,7 @@ func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
 func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a fake ffmpeg executable that keeps running until killed.
-	ffmpegPath := filepath.Join(tempDir, "ffmpeg")
-	if runtime.GOOS == "windows" {
-		ffmpegPath += ".bat"
-		script := "@echo off\r\n" +
-			":loop\r\n" +
-			"echo out_time_ms=1000\r\n" +
-			"ping -n 2 127.0.0.1 >nul\r\n" +
-			"goto loop\r\n"
-		if err := os.WriteFile(ffmpegPath, []byte(script), 0644); err != nil {
-			t.Fatalf("failed to create fake ffmpeg script: %v", err)
-		}
-	} else {
-		script := "#!/bin/sh\n" +
-			"while true; do\n" +
-			"  echo out_time_ms=1000\n" +
-			"  sleep 0.2\n" +
-			"done\n"
-		if err := os.WriteFile(ffmpegPath, []byte(script), 0755); err != nil {
-			t.Fatalf("failed to create fake ffmpeg script: %v", err)
-		}
-	}
-
-	oldPath := os.Getenv("PATH")
-	sep := string(os.PathListSeparator)
-	if err := os.Setenv("PATH", tempDir+sep+oldPath); err != nil {
-		t.Fatalf("failed to set PATH: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("PATH", oldPath); err != nil {
-			t.Errorf("failed to restore PATH: %v", err)
-		}
-	}()
-
-	toolResolveCache.Delete("ffmpeg")
+	fakeHangingFFmpeg(t, tempDir)
 
 	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
@@ -1346,19 +1312,33 @@ func TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped(t *testing.T) {
 
 // fakeHangingFFmpeg installs a stand-in ffmpeg on PATH that reports progress
 // and then runs until it is killed.
+//
+// Windows gets a .bat, because LookPath honours PATHEXT and so still resolves
+// the bare name "ffmpeg" to it. This used to skip on Windows instead, which
+// left every test built on the helper running on Linux only -- on a platform
+// that has a published build and, since the runner started installing ffmpeg,
+// nothing left stopping it. TestEncodeVideo_InterruptedByUser had been using
+// the same .bat successfully all along.
 func fakeHangingFFmpeg(t *testing.T, dir string) {
 	t.Helper()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("the stand-in ffmpeg relies on a POSIX shell")
-	}
-
+	name, mode := "ffmpeg", os.FileMode(0o755)
 	script := "#!/bin/sh\n" +
 		"while true; do\n" +
 		"  echo out_time_ms=1000\n" +
 		"  sleep 0.2\n" +
 		"done\n"
-	if err := os.WriteFile(filepath.Join(dir, "ffmpeg"), []byte(script), 0o755); err != nil {
+	if runtime.GOOS == "windows" {
+		// cmd.exe has no sleep builtin; pinging the loopback twice is the
+		// customary stand-in for a short pause in a .bat.
+		name, mode = "ffmpeg.bat", os.FileMode(0o644)
+		script = "@echo off\r\n" +
+			":loop\r\n" +
+			"echo out_time_ms=1000\r\n" +
+			"ping -n 2 127.0.0.1 >nul\r\n" +
+			"goto loop\r\n"
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), mode); err != nil {
 		t.Fatalf("failed to create the stand-in ffmpeg: %v", err)
 	}
 
