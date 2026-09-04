@@ -125,6 +125,24 @@ révélé 4 défauts réels qu'aucun outil ne voyait. Sans cela, étendre la CI 
 un pari à l'aveugle susceptible de faire rougir la CI du projet.
 Procédure complète : [SOURCES.md § 1](SOURCES.md).
 
+### L-22 — Ne pas introduire d'API en prévision d'un usage futur — 2026-09-04
+J'ai ajouté `ResetToolResolutionCache` en 1ʳᵉ passe « pour un futur bouton Réessayer », avec un
+test mais aucun appelant. Résultat : elle est ressortie comme code mort à la passe suivante, et
+surtout le correctif O-04 dont elle faisait partie était **incomplet** — cesser de cacher les
+échecs ne sert à rien si rien ne re-sonde. Soit on branche l'API dans le même changement, soit
+on ne l'écrit pas. Constat C-06.
+
+### L-23 — Un test de concurrence se conçoit pour échouer sous `-race` — 2026-09-04
+Pour figer le dispatch synchrone (O-05), le handler de test accumule les appels dans une slice
+**sans verrou**. Si quelqu'un rétablit `go handler.OnEvent(...)`, le test ne se contente pas de
+devenir instable : `go test -race` le signale de façon déterministe. Un test qui se protège
+lui-même de la concurrence ne détecterait pas la régression.
+
+### L-24 — Supprimer du code mort testé fait baisser la couverture — 2026-09-04
+Retirer les neuf symboles sans appelant a fait passer la couverture de 54,7 % à 53,8 % : leurs
+tests disparaissaient avec eux. C'est sain, mais à anticiper quand un seuil de CI est proche —
+ici la marge restait de 3,8 points. Ne pas conserver du code mort pour flatter une métrique.
+
 ### L-20 — Dans une fenêtre à taille fixe, ajouter un widget est un changement de mise en page — 2026-09-04
 `window.SetFixedSize(true)` n'adapte rien : un contenu trop large est rogné sans erreur ni
 avertissement. Le 6e bouton de la barre d'outils portait celle-ci à ~1220 px pour 900 px
@@ -176,6 +194,73 @@ Constat O-01.
 ## 3. Corrections appliquées
 
 <!-- Les entrées les plus récentes vont en tête de cette section, juste sous ce commentaire. -->
+
+### [2026-09-04] 2ᵉ passe — C-05, C-06, et deux constats découverts en chemin
+
+Vérifié en exécution : suite CI complète, `go test ./... -race`, démarrage de la GUI avec
+inspection du journal, conversion réelle de bout en bout.
+
+#### C-05 — La configuration ne transite plus par un global mutable
+
+| | |
+| --- | --- |
+| **Fichiers** | `common/config.go`, `common/common.go`, `common/health.go`, `gui_main.go` |
+
+**Cause racine** — `var currentConfig` avec `GetConfig()`/`SetConfig()`. La GUI y écrivait avant
+chaque encodage, ce qui produisait trois défauts distincts : (1) le `video_preset` de
+l'utilisateur était **systématiquement écrasé** par le profil qualité, sans que rien ne le
+signale ; (2) le global n'était jamais restauré, donc l'état divergeait après le premier
+encodage ; (3) il était lu depuis la goroutine d'encodage pendant que le fil UI pouvait encore
+y écrire.
+
+**Correctif** — `Config` passée en paramètre à `CheckFfmpeg`, `InitEncodingSession`,
+`EncodeVideo`, `PerformEncoding` et `CheckHealth`. `configOrDefault` évite aux appelants de
+tester `nil`. Les trois symboles globaux ont disparu.
+
+**Règle de résolution du preset, désormais explicite et testée** : un `video_preset` renseigné
+dans la configuration l'emporte sur celui du profil qualité ; le profil ne s'applique que si
+l'utilisateur n'a rien précisé.
+
+#### C-06 — Élaguer, mais aussi brancher
+
+Neuf symboles exportés sans appelant. La bonne réponse n'était pas « tout supprimer » : trois
+d'entre eux comblaient un vrai manque une fois branchés.
+
+| Symbole | Décision |
+| --- | --- |
+| `GetHeader` | supprimé — vestige de la CLI retirée |
+| `ValidateVideoFile` | supprimé — redondant avec ce que fait déjà `PerformEncoding` |
+| `EncodingMetrics.ToJSON` | supprimé — `LogMetrics` écrit déjà dans le journal |
+| `CreateDefaultConfig` | supprimé — `LoadConfig("")` fournit déjà les défauts |
+| `GetEventHistory`, `ClearHistory` | supprimés avec l'historique lui-même (voir O-06) |
+| `LogHealth` | **branché** — le bouton Diagnostic écrit aussi le rapport dans le journal |
+| `ResetToolResolutionCache` | **branché** — bouton « Retry » sur le dialogue d'absence de ffmpeg |
+| `RecordEncodingEvent` | **branché** — émet enfin l'événement « start », absent du cycle de vie |
+
+Le cas `ResetToolResolutionCache` mérite d'être noté : je l'avais **moi-même introduite sans
+appelant** lors de la 1ʳᵉ passe (O-04), en prévision d'un bouton « Réessayer ». C'était de
+l'API spéculative. Sans re-sondage, cesser de mettre en cache les échecs ne servait à rien : le
+correctif O-04 était incomplet. Le dialogue propose désormais « Retry », qui vide le cache,
+re-sonde ffmpeg et réactive l'interface si l'outil vient d'être installé.
+
+**Leçon** — [[L-22]].
+
+#### O-05 — Dispatch des événements en goroutines *(constat découvert en traitant C-06)*
+
+Les quatre méthodes de `EventRecorder` faisaient `go handler.OnX(...)`. Comme
+`RecordEncodingProgress` est appelé plusieurs fois par seconde, cela créait une goroutine par
+événement et **ne garantissait aucun ordre** ; les derniers événements pouvaient être perdus si
+le processus se terminait avant leur exécution. Inoffensif tant que les journaux allaient dans
+`io.Discard`, gênant depuis O-02.
+
+Dispatch rendu synchrone. `TestEventRecorder_DispatchIsSynchronousAndOrdered` enregistre les
+appels **sans verrou** : un retour à l'asynchrone déclencherait le détecteur de courses.
+
+#### O-06 — Historique d'événements en écriture seule
+
+`EventRecorder` retenait 1000 événements que rien ne lisait. Le fichier de journal contient la
+même information, persistée. Supprimé.
+
 
 ### [2026-09-04] Arbitrages utilisateur — S-02, C-01, C-03, C-04
 
@@ -571,8 +656,8 @@ renseigner la date + le lien vers l'entrée § 3.
 - [x] **C-03** Appliquer `min_video_*` / `quality_preset`, ou les retirer de `superview.yaml`
       et du README
 - [x] **C-04** ⚠️ *décision* : exposer « squeeze » dans la GUI ou documenter son absence
-- [ ] **C-05** Passer la configuration en paramètre plutôt que par le global mutable
-- [ ] **C-06** Élaguer l'API exportée sans appelant
+- [x] **C-05** Passer la configuration en paramètre plutôt que par le global mutable
+- [x] **C-06** Élaguer l'API exportée sans appelant
 - [x] **C-07** Messages d'erreur en minuscule initiale (+ activer `stylecheck`)
 - [x] **C-08** Constante nommée à la place du code de sortie `-1`
 - [x] **B-04** Déplacer `-threads` après `-c:v` — **mesurer le débit avant/après**
@@ -595,3 +680,4 @@ renseigner la date + le lien vers l'entrée § 3.
 | 2026-09-04 | Création. Gabarit, 9 leçons permanentes issues de l'analyse initiale, file d'attente de 30 constats en 9 paliers. Aucune correction de code encore appliquée. |
 | 2026-09-04 | Passe d'application par priorité : 28 constats traités et vérifiés en exécution, 1 invalidé (B-03), 5 en attente d'arbitrage, 1 reporté (C-05). Leçons L-10 à L-19 ajoutées. |
 | 2026-09-04 | Arbitrages utilisateur appliqués (S-02, C-01, C-03, C-04). Leçons L-20, L-21. Restent C-05 (reporté) et C-06 (non tranché). |
+| 2026-09-04 | 2ᵉ passe : C-05 et C-06 traités, plus O-05 et O-06 découverts en chemin. Leçons L-22 à L-24. **File d'attente vide.** |

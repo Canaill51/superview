@@ -164,6 +164,19 @@ ffprobe -v error -select_streams v:0 \
 Le second appel reproduit **exactement** celui de `CheckVideo` (`common/common.go:383`) : il
 permet de vérifier qu'un fichier passera la validation avant de lancer la GUI.
 
+### Contrat de configuration (depuis la 2ᵉ passe)
+
+Il n'existe plus de configuration globale. `GetConfig()` et `SetConfig()` ont été supprimés.
+`*Config` se passe explicitement à `CheckFfmpeg`, `InitEncodingSession`, `EncodeVideo`,
+`PerformEncoding` et `CheckHealth` ; `nil` signifie « valeurs par défaut ».
+
+> N'introduisez pas de nouveau global mutable pour contourner ce passage de paramètre : c'est
+> précisément ce que la refactorisation C-05 a supprimé, et la cause de l'écrasement silencieux
+> du `video_preset` utilisateur.
+
+Règle de priorité du preset : un `video_preset` renseigné dans la configuration l'emporte sur
+celui du profil qualité de la GUI. Testée par `TestConfiguredPresetWinsOverQualityProfile`.
+
 ### Cas limites à retester systématiquement
 
 | Chemin | Pourquoi |
@@ -239,4 +252,5 @@ permet de vérifier qu'un fichier passera la validation avant de lancer la GUI.
 | Date | Modification |
 | --- | --- |
 | 2026-09-04 | Création. Pré-requis toolchain, hiérarchie des sources internes avec indice de fiabilité, procédure de vérification, références FFmpeg/Go/Fyne/CI. |
+| 2026-09-04 | Ajout du contrat de configuration explicite (C-05) : plus de global mutable, `*Config` passée en paramètre. |
 | 2026-09-04 | § 1 réécrit : environnement installé et éprouvé (Go dans `~/.local`, sysroot GUI sans sudo). Indices de fiabilité mis à jour après correction des fichiers. Procédure de vérification alignée sur la CI étendue à `./...`. |
