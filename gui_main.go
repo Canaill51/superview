@@ -52,15 +52,33 @@ func encoderOptionsFor(encoderList string) []string {
 	return options
 }
 
+// widenedPixelRatio is how much the conversion multiplies the pixel count.
+//
+// Widening 4:3 to 16:9 at constant height takes the width from 4h/3 to 16h/9,
+// so the frame carries exactly 4/3 as many pixels. Asking for 4/3 of the input
+// bitrate is therefore what preserves the bits per pixel of the source.
+//
+// It used to be 1.6 here -- the geometric ratio plus 20%, a margin nothing
+// documented. Measurement (Q-01) put the multiplier that actually matches the
+// source's own quality at 1.19 by XPSNR and 1.30 by SSIM, agreeing to the third
+// decimal between hevc_nvenc and libx265. So 4/3 already carries a small margin
+// of its own, and 1.6 was buying quality *beyond* the source for 20% more file.
+const widenedPixelRatio = 4.0 / 3.0
+
 // qualityProfileSettings maps a GUI quality profile onto an output bitrate and
-// an ffmpeg preset. The output is widened from 4:3 to 16:9, so "Balanced"
-// raises the bitrate to keep the perceived quality of the source.
+// an ffmpeg preset.
+//
+// Both profiles ask for the same bitrate. They differ by encoder preset alone,
+// which is what "Fast" claims to be: quicker, not coarser. Leaving the bitrate
+// at the input's measured 0.94 dB below the source's own quality on 97% of
+// frames, with nothing in the interface saying so.
 func qualityProfileSettings(profile string, inputBitrate int) (bitrate int, preset string) {
+	bitrate = int(float64(inputBitrate) * widenedPixelRatio)
 	switch profile {
 	case "Fast":
-		return inputBitrate, "fast"
+		return bitrate, "fast"
 	default: // "Balanced" and any unexpected value
-		return int(float64(inputBitrate) * 1.6), "medium"
+		return bitrate, "medium"
 	}
 }
 

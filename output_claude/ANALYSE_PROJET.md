@@ -1197,6 +1197,19 @@ par ne pas l'être.
 regénérer un gabarit vide. À vérifier localement avant de taguer — l'étape ne tourne que sur un
 tag, voir plus bas.
 
+### R-03 ✅ — ~~Le journal annonce `bitrate_bytes_sec` pour une valeur en bits~~ — **CORRIGÉ**
+
+`common/common.go`
+
+P-05 avait remplacé « bytes/second » par « bits/second » partout — sauf à une ligne, la clé du
+journal de fin d'encodage. Elle annonçait donc un facteur 8 dans **le seul journal que le README
+demande de joindre aux rapports de bug**. Trouvé en lisant la sortie d'un encodage lancé pour
+Q-01, pas par relecture : le défaut ne se voit qu'à l'exécution.
+
+*Correction* : `bitrate_bits_sec`. Aucun test ni document ne s'y référait, et un nom de clé de
+journal ne se garde pas utilement par un test — c'est dit ici plutôt que d'ajouter un test qui
+n'épingle rien.
+
 ### Deux prédictions confrontées aux faits
 
 **Le rouge Windows annoncé par #32 n'a pas eu lieu.** Le message de la PR pariait sur un échec de
@@ -1248,7 +1261,8 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-01 |
 | ⏸️ **Ouvert** (1) | R-02 — notes de version vides, découvert en publiant v0.2.1 |
-| ❓ **Question ouverte** (1) | Q-01 — le facteur 1,6 du débit, § 5bis |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-03 — `bitrate_bytes_sec` pour une valeur en bits, reliquat de P-05 |
+| ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
 `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
@@ -1330,15 +1344,58 @@ n'est justifiée nulle part.
 4. Le résultat est ensuite écrêté par `cfg.MinBitrate` / `cfg.MaxBitrate` dans la callback
    *Start*, ce qui peut masquer l'effet du facteur sur les sources à haut débit.
 
-**Méthode suggérée** — celle qui a fait tomber P-12 après trois passes : confronter la constante
-à l'**intention déclarée**, en arithmétique exacte quand c'est possible, plutôt que relire le code
-ou se fier aux tests. Puis mesurer sur du contenu représentatif, jamais sur une mire (L-25, L-42).
-Une comparaison de qualité perçue à débit contraint demanderait un vrai échantillon.
+**Méthode employée** — celle qui a fait tomber P-12 : confronter la constante à l'**intention
+déclarée**. Ici l'intention est mesurable, donc elle a été mesurée.
 
-> Soulevée le 2026-09-04 en clôture de la 4ᵉ passe. L'utilisateur souhaite la traiter dans une
-> session dédiée. **Aucune action n'a été prise sur le code.**
+### Q-01 — Réponse, mesurée le 2026-09-04 — **TRANCHÉE**
 
----
+**Dispositif.** Un pilote Go appelant `common.PerformEncoding`, donc le chemin réel de
+l'application et non une ligne ffmpeg recopiée ; cartes de remappage produites par
+`common.GeneratePGM`. Source : un clip FPV DJI de 18 s, 3840×2880 (4:3 exact), HEVC 10 bits,
+59,94 fps, 99,9 Mb/s — intérieur, faible lumière, mouvement rapide, détail fin répétitif au
+plafond et au sol, donc un cas défavorable. Métriques SSIM et XPSNR : **le ffmpeg de la machine
+n'a pas libvmaf**, ce qui est dit plutôt que contourné.
+
+**La référence qui rend la question décidable.** Chercher un coude sur la courbe débit/qualité ne
+donne rien — le contenu est exigeant, la qualité monte encore de +1,26 dB entre 1,6 et 2,0. La
+bonne référence est l'intention elle-même : *« keep the perceived quality of the source »*. On la
+matérialise en réencodant la source **sans remappage**, même encodeur, à son propre débit, et en
+mesurant l'écart à la source. C'est la qualité que cet encodeur atteint sur ce contenu à ce coût.
+
+**Résultat** (`hevc_nvenc`, 18 s, référence à 43,350 dB XPSNR / 0,981918 SSIM) :
+
+| k | débit | XPSNR Y | écart | images au-dessus de la référence |
+| --- | --- | --- | --- | --- |
+| 1,00 « Fast » | 99,9 Mb/s | 42,414 | **−0,94 dB** | 2,6 % |
+| 4/3 | 133,2 Mb/s | 43,964 | +0,61 dB | 92,2 % |
+| 1,60 « Balanced » | 159,8 Mb/s | 45,008 | **+1,66 dB** | 99,4 % |
+| 2,00 | 199,8 Mb/s | 46,267 | +2,92 dB | — |
+
+Par interpolation logarithmique, le multiplicateur qui **égale** la référence vaut **1,190**
+(XPSNR) et **1,304** (SSIM).
+
+**Contre-essai sur un second encodeur.** Le même protocole avec `libx265` sur un segment de 4 s —
+contrôle de débit sans rapport avec celui de NVENC — donne **1,189** et **1,285**. Deux
+encodeurs, l'un matériel l'autre logiciel, s'accordent au millième sur XPSNR. Le résultat est une
+propriété de la transformation, pas de l'encodeur.
+
+**Conclusion.** L'intention déclarée est tenue autour de **1,19 à 1,30**. Le ratio géométrique
+**4/3 = 1,333 la couvre déjà avec une petite marge**. Les 20 % supplémentaires du 1,6 ne
+compensaient rien de mesurable : ils achetaient de la qualité **au-delà** de la source, pour 20 %
+de fichier en plus (365 Mo contre 304 Mo sur cet échantillon). Et le sens de l'écart confirme
+l'intuition géométrique — la sortie remappée demande un peu *moins* de bits par pixel que la
+source, parce que l'étirement magnifie la périphérie et en abaisse les fréquences spatiales.
+
+Sur « Fast » : il dégradait réellement, de 0,94 dB sous la qualité de la source sur 97,4 % des
+images, sans que rien dans l'interface le signale.
+
+**Arbitrage rendu par l'utilisateur le 2026-09-04** : les deux profils passent à 4/3 et ne
+diffèrent plus que par le préréglage d'encodage — ce que « Fast » laisse entendre, plus rapide
+et non plus grossier. Constante nommée `widenedPixelRatio`, test mis à jour et vérifié en
+contre-épreuve (les quatre cas rougissent sur 1,6), README corrigé.
+
+**Portée.** Un seul clip, un seul type de contenu, deux encodeurs HEVC ; H.264 non testé. La marge
+réelle est probablement plus large que mesurée, le contenu choisi étant défavorable.
 
 ## 5. Journal des révisions de ce document
 

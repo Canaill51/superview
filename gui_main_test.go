@@ -183,17 +183,22 @@ func TestToolbarFitsWindow(t *testing.T) {
 func TestQualityProfileSettings(t *testing.T) {
 	const input = 10_000_000
 
+	// 4/3 of the input: the conversion multiplies the pixel count by exactly
+	// that, so this is the request that holds the source's bits per pixel.
+	// Both profiles ask for it; only the preset separates them.
+	const widened = 13_333_333
+
 	cases := []struct {
 		profile     string
 		wantBitrate int
 		wantPreset  string
 	}{
-		{"Fast", input, "fast"},
-		{"Balanced", 16_000_000, "medium"},
+		{"Fast", widened, "fast"},
+		{"Balanced", widened, "medium"},
 		// An unexpected value must behave like Balanced, not yield a zero
 		// bitrate that would later fail validation.
-		{"", 16_000_000, "medium"},
-		{"Nonsense", 16_000_000, "medium"},
+		{"", widened, "medium"},
+		{"Nonsense", widened, "medium"},
 	}
 
 	for _, c := range cases {

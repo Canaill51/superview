@@ -230,9 +230,12 @@ GUI workflow:
 6. Wait for encoding completion
 
 Notes:
-- GUI quality is profile-driven (GPU-friendly bitrate + preset strategy).
-- `Fast`: faster encode, smaller output.
-- `Balanced`: best visual quality.
+- Both quality profiles request the same bitrate: 4/3 of the source's, which is
+  exactly how much the pixel count grows when a 4:3 frame is widened to 16:9, so
+  the output holds the bits per pixel of the source. They differ by encoder
+  preset alone.
+- `Fast`: quicker encode, same bitrate.
+- `Balanced`: slower preset, slightly better detail at the same size.
 - The app asks for confirmation before overwriting an existing output file.
 - The GUI shows the planned hardware path before launch and the actual path used after encoding completes.
 
