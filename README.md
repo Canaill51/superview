@@ -5,6 +5,8 @@
 
 Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
 
+> It is an *approximation* of GoPro's SuperView, not a reproduction of it: the distortion curve comes from [Banelle's original implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview) and aims for a comparable result, not identical output.
+
 > Officially supported platforms: **Windows** and **Linux** (Ubuntu 24.04 LTS+).
 > Superview is distributed and maintained as a **GUI-only** application.
 > The current codebase targets **Go 1.26+**.
@@ -32,9 +34,10 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Faithful to the source**: 10-bit footage stays 10-bit when encoding to H.265 (HERO 10 and
   later record 10-bit), every audio track is carried over, and the recording date is preserved
 - **Simplified GUI Flow**: 3-step guided workflow with native file dialogs
-- **Squeeze Mode**: tick *Source already stretched (GoPro SuperView)* when the input is a 4:3
-  frame already stretched to 16:9 by the camera; Superview un-stretches the centre instead of
-  widening the frame
+- **Squeeze Mode**: tick *Source already stretched to 16:9 (un-squeeze)* when the camera already
+  stored a 4:3 capture stretched to 16:9 -- GoPro's SuperView recording modes, the Caddx Tarsier
+  and similar. Superview then un-stretches the centre instead of widening the frame. The curve is
+  an approximation of the inverse stretch, not a reproduction of any camera's own algorithm
 - **System Diagnostic**: the *Diagnostic* button reports ffmpeg/ffprobe availability, free disk
   space, memory and CPU -- attach its output to any bug report
 

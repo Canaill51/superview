@@ -15,6 +15,13 @@ import (
 
 // TestGeneratePGM_Golden pins the exact bytes of the remap maps.
 //
+// The two squeeze hashes were re-recorded on 2026-09-04 when the integer
+// divisions in the squeeze offset were corrected to floating point. The
+// non-squeeze hashes did not move, which is the expected blast radius: only the
+// squeeze branch had the defect. See TestGeneratePGM_SqueezeMapIsContinuous for
+// what the change actually fixed -- these hashes record that the bytes changed,
+// not why the new ones are right.
+//
 // The distortion math comes from Banelle's reference Python implementation
 // (https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview);
 // its integer divisions and float truncations are part of the algorithm, not
@@ -49,7 +56,7 @@ func TestGeneratePGM_Golden(t *testing.T) {
 		{
 			name: "1440x1080_squeeze", width: 1440, height: 1080, squeeze: true,
 			xSize: 3110419, ySize: 3110419,
-			xHash: "ae3bc19d0bc919973801b5f29075e8b77c050c96b4c2342decc6dbc93c50b035",
+			xHash: "f9c97781445026e2d306e05b521df416e77bca843e66b04ea3c60a44e31c6421",
 			yHash: "38cb195cc83f764cab65cd5c3db87de8a4a66b16bdaf2e68b55b994ef807a33e",
 		},
 		{
@@ -62,7 +69,7 @@ func TestGeneratePGM_Golden(t *testing.T) {
 		{
 			name: "641x481_squeeze", width: 641, height: 481, squeeze: true,
 			xSize: 616659, ySize: 616659,
-			xHash: "d9252fff3e69741ee4a7499802debf4f4b8834e6b59aa69c82875a8a6ba99339",
+			xHash: "a10aa7c6ead73b685b651cb4e04d338ae3ebda4e2e6144b533705667de5f1e46",
 			yHash: "aace303c7eb5336eba6bdec932e263f3610a377731e01cdbdffde248380abb72",
 		},
 	}
@@ -416,5 +423,132 @@ func TestCheckTempSpaceForMaps_PassesWhenThereIsRoom(t *testing.T) {
 
 	if err := checkTempSpaceForMaps(video, false); err != nil {
 		t.Errorf("a 640x480 job was refused for lack of space: %v", err)
+	}
+}
+
+// TestGeneratePGM_SqueezeMapIsContinuous is the test that actually guards the
+// fix; the golden hashes only record that bytes moved.
+//
+// The squeeze offset is built from two terms that are algebraically identical
+// at the centre of the frame -- both reduce to 7/32 * outX * inv -- so the
+// curve is meant to pass through zero there. It did not, because outX/16 and
+// outX/7 were integer divisions: the truncation left a residue which, mirrored
+// for the left half, became a jump of 0.9 to 2.6 px straight down the middle of
+// the image. It varied erratically with the resolution and vanished entirely
+// when the width happened to be divisible by 112 (16*7), which is what
+// identified the cause.
+//
+// The widths below are deliberately not multiples of 112: on those, the bug
+// could not reproduce.
+func TestGeneratePGM_SqueezeMapIsContinuous(t *testing.T) {
+	widths := []struct {
+		width, height int
+	}{
+		{640, 480}, {1440, 1080}, {1920, 1440}, {2880, 2160}, {4064, 3048},
+	}
+
+	for _, tc := range widths {
+		t.Run(fmt.Sprintf("%dx%d", tc.width, tc.height), func(t *testing.T) {
+			if tc.width%112 == 0 {
+				t.Fatalf("width %d is a multiple of 112, on which the defect cannot appear", tc.width)
+			}
+
+			video := &VideoSpecs{File: "seam.mp4", Streams: []VideoStream{{
+				Codec: "h264", Width: tc.width, Height: tc.height,
+				Duration: "1", DurationFloat: 1, Bitrate: "100000", BitrateInt: 100000,
+			}}}
+
+			if err := InitEncodingSession(nil); err != nil {
+				t.Fatalf("InitEncodingSession: %v", err)
+			}
+			defer func() { _ = CleanUp() }()
+
+			if err := GeneratePGM(video, true); err != nil {
+				t.Fatalf("GeneratePGM: %v", err)
+			}
+			xPath, _, err := getSessionPaths()
+			if err != nil {
+				t.Fatalf("getSessionPaths: %v", err)
+			}
+			data, err := os.ReadFile(xPath)
+			if err != nil {
+				t.Fatalf("read x.pgm: %v", err)
+			}
+
+			_, body, width, _ := parsePGMP5(t, data)
+			sample := func(x int) int {
+				return int(body[x*2])<<8 | int(body[x*2+1])
+			}
+
+			// Across the centre line, the map must step like it does anywhere
+			// else. A seam shows up as one step several times larger than its
+			// neighbours.
+			mid := width / 2
+			seam := sample(mid) - sample(mid-1)
+			before := sample(mid-1) - sample(mid-2)
+			after := sample(mid+1) - sample(mid)
+
+			neighbour := before
+			if after > neighbour {
+				neighbour = after
+			}
+			if seam > neighbour+1 {
+				t.Errorf("discontinuity at the centre: the step across it is %d px against %d px on either side",
+					seam, neighbour)
+			}
+		})
+	}
+}
+
+// TestGeneratePGM_SqueezeMapStaysWellFormed pins the properties the golden
+// hashes cannot express: the curve must never fold back on itself, must stay
+// inside the source frame, and must leave the centre pixel where it is.
+func TestGeneratePGM_SqueezeMapStaysWellFormed(t *testing.T) {
+	for _, tc := range []struct{ width, height int }{
+		{640, 480}, {1440, 1080}, {2880, 2160}, {4064, 3048},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", tc.width, tc.height), func(t *testing.T) {
+			video := &VideoSpecs{File: "shape.mp4", Streams: []VideoStream{{
+				Codec: "h264", Width: tc.width, Height: tc.height,
+				Duration: "1", DurationFloat: 1, Bitrate: "100000", BitrateInt: 100000,
+			}}}
+
+			if err := InitEncodingSession(nil); err != nil {
+				t.Fatalf("InitEncodingSession: %v", err)
+			}
+			defer func() { _ = CleanUp() }()
+
+			if err := GeneratePGM(video, true); err != nil {
+				t.Fatalf("GeneratePGM: %v", err)
+			}
+			xPath, _, err := getSessionPaths()
+			if err != nil {
+				t.Fatalf("getSessionPaths: %v", err)
+			}
+			data, err := os.ReadFile(xPath)
+			if err != nil {
+				t.Fatalf("read x.pgm: %v", err)
+			}
+
+			_, body, width, _ := parsePGMP5(t, data)
+			sample := func(x int) int { return int(body[x*2])<<8 | int(body[x*2+1]) }
+
+			// Monotonic: a step backwards would fold the image onto itself.
+			for x := 1; x < width; x++ {
+				if sample(x) < sample(x-1) {
+					t.Fatalf("map goes backwards at x=%d (%d after %d): the image would fold",
+						x, sample(x), sample(x-1))
+				}
+			}
+			if got := sample(0); got != 0 {
+				t.Errorf("left edge samples %d, want 0", got)
+			}
+			if got := sample(width - 1); got != tc.width-1 {
+				t.Errorf("right edge samples %d, want %d", got, tc.width-1)
+			}
+			if got, want := sample(width/2), tc.width/2; got != want {
+				t.Errorf("centre samples %d, want %d: the middle of the frame must stay put", got, want)
+			}
+		})
 	}
 }

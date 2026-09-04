@@ -274,6 +274,23 @@ inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 > `appState` complet avec de vrais widgets sous `test.NewApp()`. Un `appState` dont les widgets
 > sont nuls ne prouve rien : les assertions porteraient sur des sorties inexistantes.
 
+### La formule de distorsion — ce qu'on sait d'elle (depuis P-12)
+
+| Fait | Conséquence |
+| --- | --- |
+| Le décalage **squeeze** vaut **zéro au centre par construction** : ses deux termes se réduisent tous deux à `7/32 × outX × inv` | Toute couture au milieu de l'image est un défaut d'implémentation, pas une intention. Vérifiable en arithmétique exacte, sans mesure. |
+| Le décalage **non-squeeze** vaut `tx² × diff/2`, donc 0 en `tx=0` | Le miroir de la moitié gauche y est continu ; ce mode n'a jamais eu de couture. |
+| Les divisions doivent être **flottantes** | `outX/16` et `outX/7` en entiers tronquent et cassent l'annulation des deux termes (P-12). Une largeur multiple de 112 masque le défaut. |
+| Le code est **identique caractère pour caractère** à `Niek/superview` | Fidèle ne veut pas dire correct : la couture y était aussi. Vérifier la conformité à la référence ne dispense pas de vérifier la référence (L-48). |
+| L'algorithme **n'est pas** celui de GoPro | Le README amont le dit explicitement, et documente l'option squeeze pour des caméras comme la Caddx Tarsier. Ne pas promettre une compatibilité GoPro dans l'interface (P-13). |
+| L'implémentation Python de Banelle est **inaccessible** | 403 sur intofpv.com, archive web refusée. Ne pas la citer comme vérifiable. |
+
+> **Le test doré ne suffit pas.** `TestGeneratePGM_Golden` fige des octets : il certifie la
+> non-régression, jamais la correction — il a figé la couture de P-12 pendant trois passes.
+> Toute modification de la formule doit passer *aussi* par
+> `TestGeneratePGM_SqueezeMapIsContinuous` et `TestGeneratePGM_SqueezeMapStaysWellFormed`, qui
+> testent des propriétés : continuité, monotonie, bornes, centre préservé.
+
 ### Contrat des cartes de remappage (depuis la 4ᵉ passe)
 
 `GeneratePGM` écrit du **PGM P5**, binaire, 16 bits, **gros-boutiste** — l'ordre des octets est
@@ -375,3 +392,4 @@ Trois tests le verrouillent, et ils ne sont pas interchangeables :
 | 2026-09-04 | Second lot de correctifs : ajout du « Contrat du pipeline » (7 invariants tenus par des tests), de la mesure du dépassement de débit et du format de cadence au contrat FFmpeg, et de la recette d'écriture d'un test d'annulation. |
 | 2026-09-04 | P-10 appliqué : ajout du « Contrat de l'état de la GUI » (5 règles) et du point d'entrée `newTestAppState` pour tester une transition. |
 | 2026-09-04 | N-07 révisé : ajout au contrat FFmpeg de la dépendance du gain matériel au débit de la source, et du coût du rapatriement GPU→RAM. Une mesure d'accélération matérielle faite sur une mire ne vaut rien. |
+| 2026-09-04 | Ajout de « La formule de distorsion — ce qu'on sait d'elle » après P-12 : l'annulation des deux termes au centre, l'exigence d'arithmétique flottante, et l'avertissement que le test doré fige les défauts aussi fidèlement que le reste. |

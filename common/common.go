@@ -706,7 +706,19 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 		if squeeze {
 			inv := 1 - math.Abs(tx)
 
-			offset = inv*(float64((outX/16)*7)/2.0) - math.Pow((inv/16)*7, 2)*(float64((outX/7)*16)/2.0)
+			// The two terms are algebraically identical at the centre --
+			// both reduce to 7/32 * outX * inv -- so the curve is meant to
+			// pass through zero there, exactly as the non-squeeze branch does.
+			//
+			// They only failed to cancel because outX/16 and outX/7 were
+			// integer divisions: the truncation left a residue, mirrored into
+			// a jump of 0.9 to 2.6 px straight down the middle of the frame,
+			// varying erratically with the resolution. A width divisible by
+			// 112 (16*7) produced no seam at all, which is what pointed at the
+			// truncation. Dividing in floating point is the whole fix; the
+			// shape of the expression is kept recognisable against the
+			// reference implementation, which spells it this way.
+			offset = inv*(float64(outX)/16.0*7.0/2.0) - math.Pow((inv/16)*7, 2)*(float64(outX)/7.0*16.0/2.0)
 
 			if tx < 0 {
 				offset *= -1

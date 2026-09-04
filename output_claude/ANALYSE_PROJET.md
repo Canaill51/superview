@@ -1050,6 +1050,79 @@ précédentes n'avaient pu l'observer.
 Les autres encodeurs se limitent eux-mêmes au lieu d'échouer, on ne les touche pas.
 Tests : `TestClampEncoderThreads`, `TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped`.
 
+### P-12 🟠 — ~~Couture de 1 à 2,6 px au centre de l'image en mode squeeze~~ — **CORRIGÉ**
+
+`common/common.go` — `GeneratePGM`, branche `squeeze`
+
+Trouvé le 2026-09-04 en cherchant ce qui pouvait être vérifié du mode squeeze **sans fichier
+GoPro réel**. Le test doré fige des octets, pas des propriétés : personne n'avait jamais vérifié
+que la carte de remappage était géométriquement saine.
+
+#### Le défaut
+
+Le décalage squeeze est bâti sur deux termes qui, **en arithmétique exacte, sont rigoureusement
+égaux au centre** — tous deux valent `7/32 × outX × inv` :
+
+| | |
+| --- | --- |
+| terme 1 | `inv × (outX/16) × 7 / 2` = `7/32 × outX × inv` |
+| terme 2 | `((inv/16)×7)² × (outX/7) × 16 / 2` = `7/32 × outX × inv` |
+
+L'auteur a donc conçu une courbe continue, ancrée à zéro au centre comme aux bords. Mais
+`outX/16` et `outX/7` étaient des **divisions entières** : la troncature laissait un résidu, que
+le miroir de la moitié gauche transformait en saut au milieu de l'image.
+
+| Largeur | Couture avant | Après |
+| --- | --- | --- |
+| 1440 px | 2,19 px | **0,00 px** |
+| 1920 px | 0,88 px | 0,00 px |
+| 2880 px | 1,31 px | 0,00 px |
+| 4064 px | 1,75 px | 0,00 px |
+| **multiple de 112** (16×7) | **0,00 px** | 0,00 px |
+
+C'est la dernière ligne qui a identifié la cause : quand aucune troncature n'a lieu, la couture
+disparaît. Le mode non-squeeze n'était pas touché — son décalage vaut `tx² × diff/2`, soit
+exactement 0 en `tx=0`, donc le miroir y est continu.
+
+#### Ce n'est pas un défaut du portage
+
+Le code du dépôt amont `Niek/superview`, dont ce projet est un fork, porte la ligne
+**identique caractère pour caractère**. Le défaut est hérité et présent en amont depuis
+l'origine ; aucune issue ne l'y mentionne. L'implémentation Python de Banelle est inaccessible
+(403 sur intofpv.com, archive web refusée), mais cela n'a plus d'importance pour la décision :
+**l'intention mathématique se démontre depuis la formule elle-même**, et le code s'en écartait.
+
+#### Correctif
+
+Diviser en flottant. La forme de l'expression est conservée pour rester lisible face à
+l'implémentation de référence, comme l'exige `.golangci.yml`. Amplitude maximale du décalage
+inchangée à 0,1 % près (157,66 → 157,50 px) : c'est un raffinement sous-pixel, pas un changement
+d'intention. Corrige aussi un décalage d'un pixel du centre en 1440 px de large.
+
+Deux tests ajoutés, tous deux vérifiés en contre-épreuve — ils rougissent avec l'ancienne
+formule (« saut de 4 px contre 1 px de part et d'autre », « centre échantillonne 721, attendu
+720 ») :
+
+- `TestGeneratePGM_SqueezeMapIsContinuous` — largeurs délibérément non multiples de 112
+- `TestGeneratePGM_SqueezeMapStaysWellFormed` — monotonie, bornes, centre préservé
+
+### P-13 🟡 — ~~Le libellé de la case squeeze promet du GoPro que le code ne tient pas~~ — **CORRIGÉ**
+
+`gui_main.go`, `README.md`
+
+La case s'intitulait *« Source already stretched (GoPro SuperView) »*. Or le README du dépôt
+amont documente la même option ainsi :
+
+> `-s, --squeeze    Squeeze 4:3 video stretched to 16:9 (e.g. **Caddx Tarsier 2.7k60**)`
+
+et précise par ailleurs que l'algorithme **n'est pas une copie 1:1 de celui de GoPro**, seulement
+une approximation. L'étiquette promettait donc une compatibilité GoPro que ni l'amont ni la
+mesure ne soutiennent — et elle était visible par l'utilisateur, dans l'interface.
+
+*Correction* : « Source already stretched to 16:9 (un-squeeze) ». Le README explique désormais
+le périmètre réel (GoPro SuperView, Caddx Tarsier et similaires) et que la courbe est une
+approximation de l'étirement inverse, pas la reproduction de l'algorithme d'une caméra.
+
 ### Priorités de cette passe
 
 | Ordre | Constats | Justification |
@@ -1093,7 +1166,7 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 2ᵉ passe** (4) | C-05, C-06, O-05, O-06 |
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
-| ✅ **Corrigé et vérifié — 4ᵉ passe** (11) | P-01 à P-11 *(P-09 partiellement, voir ci-dessus)* |
+| ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ⏸️ **Ouvert** | *aucun.* |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
@@ -1145,3 +1218,4 @@ Détail des mesures obtenues :
 | 2026-09-04 | **P-10** : état de `main()` extrait dans `appState` (11 méthodes, toutes à 100 % de couverture), 18 sous-tests, chacun vérifié en contre-épreuve. `beginEncoding()` rend P-02 inexprimable. Leçons L-44, L-45. **Plus aucun constat technique ouvert ; reste N-07, arbitrage produit.** |
 | 2026-09-04 | **N-07 révisé.** La mesure d'origine (~5 %) était faite sur une mire à 2 Mbps, qui se décode quasi gratuitement. Refaite sur une source type GoPro à 127 Mbps : décodage matériel **+9,9 %**, encodage matériel **×3,18**. L'arbitrage s'inverse — recommandation : conserver. Leçon L-46. |
 | 2026-09-04 | Cohérence du document : quatre titres (N-03, N-04, N-05, P-11) portaient encore leur pastille de sévérité alors que le § 4bis les donnait corrigés. Restylés, et les **deux conventions de marquage sont maintenant écrites** en tête du § 3 — elles ne l'étaient pas, d'où la dérive. Leçon L-47. |
+| 2026-09-04 | **P-12** et **P-13**, trouvés en cherchant ce qui du mode squeeze était vérifiable sans fichier GoPro. La formule squeeze est conçue pour valoir zéro au centre — démontré algébriquement — mais des divisions entières y laissaient une couture de 1 à 2,6 px. Défaut hérité de l'amont, identique caractère pour caractère. Le libellé de la case promettait par ailleurs une compatibilité GoPro que l'amont dément. Leçon L-48. |
