@@ -29,7 +29,7 @@ jobs:
 
     # Required to type-check the root package (Fyne GUI, cgo).
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
     - name: Run golangci-lint
       run: |
@@ -50,7 +50,7 @@ jobs:
         go-version: '1.26.x'
 
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
     - name: Run go vet
       run: go vet ./...
@@ -69,7 +69,7 @@ jobs:
         go-version: '1.26.x'
 
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
     - name: Run govulncheck
       run: |
@@ -90,7 +90,7 @@ jobs:
         go-version: '1.26.x'
 
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
     - name: Run staticcheck
       run: |
