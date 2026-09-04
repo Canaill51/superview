@@ -116,6 +116,21 @@ Convention : **B** bug/correction · **S** sécurité · **C** qualité/architec
 **X** build/CI/doc · **O** observabilité/performance · **T** tests.
 Sévérité : 🔴 haute · 🟠 moyenne · 🟡 basse.
 
+> **Marquage du statut — deux conventions, et c'est délibéré.**
+>
+> Ce § 3 **conserve les sévérités telles qu'évaluées à l'époque** : c'est l'analyse d'origine,
+> pas un tableau de bord. Un constat n'y est restylé que s'il s'est révélé **faux**, parce que
+> le laisser paraître valide induirait en erreur (B-03). Tous les constats de cette section sont
+> corrigés ; leur pastille dit ce qu'ils pesaient, pas où ils en sont.
+>
+> Les § 3bis et § 3ter, plus récents, sont ceux qu'on ouvre pour connaître l'état courant : ils
+> **marquent la correction dans le titre**, sous la forme
+> `### X-nn ✅ — ~~titre barré~~ — **CORRIGÉ**`.
+>
+> **La source de vérité sur l'état d'un constat reste le § 4bis, « État d'avancement ».**
+> Ces deux conventions n'étaient pas écrites, et quatre titres des § 3bis/3ter avaient dérivé en
+> conséquence : corrigés le 2026-09-04, voir L-47.
+
 ### B — Bugs et correction
 
 #### 🔴 B-01 — Boucle infinie sur erreur de lecture non-EOF du pipe de progression
@@ -591,7 +606,7 @@ crée pour recopier stderr n'est jamais libérée.
 `_ = cmd.Wait()` ramène le compte à **0**. Dans une GUI où l'utilisateur peut annuler
 plusieurs fois, ils s'accumulent jusqu'à la fermeture de l'application.
 
-### N-03 🟠 — Les sources 10 bits sont ramenées à 8 bits sans avertissement
+### N-03 ✅ — ~~Les sources 10 bits sont ramenées à 8 bits sans avertissement~~ — **CORRIGÉ**
 
 `common/common.go` — `"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p"`
 
@@ -605,7 +620,7 @@ quand la source est en 10 bits.
 > ✅ **Correctif écrit et vérifié le 2026-09-04**, commun à N-03, N-04 et N-05 : voir
 > § 3ter, « N-03 / N-04 / N-05 — un correctif unique, vérifié ».
 
-### N-04 🟠 — Les pistes audio supplémentaires sont supprimées
+### N-04 ✅ — ~~Les pistes audio supplémentaires sont supprimées~~ — **CORRIGÉ**
 
 **Mesuré** : 2 pistes AAC en entrée, **1 seule** en sortie. Faute de `-map`, FFmpeg applique sa
 sélection automatique et ne retient qu'un flux audio par type. Une caméra enregistrant plusieurs
@@ -614,7 +629,7 @@ pistes, ou un fichier post-produit, y perd du contenu sans message.
 > ✅ Correctif commun à N-03/N-04/N-05, vérifié : voir
 > § 3ter, « N-03 / N-04 / N-05 — un correctif unique, vérifié ».
 
-### N-05 🟡 — La date de prise de vue est perdue
+### N-05 ✅ — ~~La date de prise de vue est perdue~~ — **CORRIGÉ**
 
 **Mesuré** : `creation_time=2026-01-15T10:30:00Z` présent en entrée, **absent** en sortie (le
 tag `comment`, lui, survit). Avec trois entrées dans le `-filter_complex`, FFmpeg ne sait pas de
@@ -767,8 +782,10 @@ Convention : **P-xx** pour les constats de cette passe.
 >
 > *Troisième lot* : **P-10**, la refactorisation de `main()`.
 >
-> Il ne reste ouvert **aucun constat technique**. **N-07** est un arbitrage produit — conserver
-> ou non le décodage matériel, qui ne vaut que ~5 % — et attend une décision, pas un correctif.
+> *Quatrième lot* : **N-07**, dont la mesure a été refaite — le décodage matériel vaut ~10 % et
+> non ~5 %, ce qui inverse l'arbitrage vers « conserver ». Aucun code touché.
+>
+> **Plus aucun constat ouvert, toutes passes confondues.**
 
 ### État vérifié du dépôt au moment de la passe
 
@@ -1000,7 +1017,7 @@ actif parmi quatre contrôles grisés.
 > constat — le défaut n'était pas la longueur mais le fait que les *décisions* soient
 > inatteignables. La construction de widgets, elle, n'a rien à gagner à être découpée.
 
-### P-11 🔴 — `libx265` échoue systématiquement au-delà de 16 cœurs — **découvert et corrigé le 2026-09-04**
+### P-11 ✅ — ~~`libx265` échoue systématiquement au-delà de 16 cœurs~~ — **DÉCOUVERT ET CORRIGÉ**
 
 [`common/common.go`](../common/common.go) — `buildEncodeBaseArgs`, option `-threads`
 
@@ -1127,3 +1144,4 @@ Détail des mesures obtenues :
 | 2026-09-04 | Second lot : P-01 à P-07 et P-09, plus N-06, N-08, N-09, N-10. `-maxrate`/`-bufsize` calibrés par la mesure (+83 % → +24 % de dépassement). Leçons L-40 à L-43. Restent ouverts : **P-10** et **N-07** seulement. |
 | 2026-09-04 | **P-10** : état de `main()` extrait dans `appState` (11 méthodes, toutes à 100 % de couverture), 18 sous-tests, chacun vérifié en contre-épreuve. `beginEncoding()` rend P-02 inexprimable. Leçons L-44, L-45. **Plus aucun constat technique ouvert ; reste N-07, arbitrage produit.** |
 | 2026-09-04 | **N-07 révisé.** La mesure d'origine (~5 %) était faite sur une mire à 2 Mbps, qui se décode quasi gratuitement. Refaite sur une source type GoPro à 127 Mbps : décodage matériel **+9,9 %**, encodage matériel **×3,18**. L'arbitrage s'inverse — recommandation : conserver. Leçon L-46. |
+| 2026-09-04 | Cohérence du document : quatre titres (N-03, N-04, N-05, P-11) portaient encore leur pastille de sévérité alors que le § 4bis les donnait corrigés. Restylés, et les **deux conventions de marquage sont maintenant écrites** en tête du § 3 — elles ne l'étaient pas, d'où la dérive. Leçon L-47. |
