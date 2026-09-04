@@ -1,7 +1,6 @@
 package common
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -79,24 +78,5 @@ func TestEncodingMetrics_RecordErrorAndSummary(t *testing.T) {
 	summary := m.Summary()
 	if !strings.Contains(summary, "FAILED") || !strings.Contains(summary, "ffmpeg failed") {
 		t.Fatalf("summary missing error info: %s", summary)
-	}
-}
-
-func TestEncodingMetrics_ToJSON(t *testing.T) {
-	m := NewEncodingMetrics("in.mp4", "out.mp4")
-	video := &VideoSpecs{Streams: []VideoStream{{Codec: "h264", DurationFloat: 1, BitrateInt: 800000}}}
-	m.RecordInputMetadata(video, 1000)
-	m.RecordOutputMetadata(400000, "libx264")
-	m.RecordCompletion(500)
-
-	payload := m.ToJSON()
-	var parsed map[string]interface{}
-	if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
-		t.Fatalf("invalid json: %v", err)
-	}
-
-	success, ok := parsed["success"].(bool)
-	if !ok || !success {
-		t.Fatalf("expected success=true in json, got %v", parsed["success"])
 	}
 }

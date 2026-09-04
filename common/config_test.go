@@ -226,54 +226,21 @@ log_level: info
 	}
 }
 
-func TestCreateDefaultConfig(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "superview.yaml")
-
-	err := CreateDefaultConfig(configPath)
-	if err != nil {
-		t.Errorf("CreateDefaultConfig failed: %v", err)
+func TestConfigOrDefault(t *testing.T) {
+	// The mutable package-level config was removed: callers now pass a *Config
+	// explicitly, and nil means "use the built-in defaults".
+	custom := &Config{MinBitrate: 512000, MaxBitrate: 10000000, LogLevel: "debug"}
+	if got := configOrDefault(custom); got != custom {
+		t.Error("a non-nil config must be returned unchanged")
 	}
 
-	// Verify file was created
-	if _, err := os.Stat(configPath); err != nil {
-		t.Errorf("Config file not created: %v", err)
+	fallback := configOrDefault(nil)
+	if fallback == nil {
+		t.Fatal("configOrDefault(nil) must not return nil")
 	}
-
-	// Load the created file
-	cfg, err := LoadConfig(configPath)
-	if err != nil {
-		t.Errorf("Failed to load created config: %v", err)
-	}
-
-	if cfg.MinBitrate != 102400 {
-		t.Errorf("Created config has wrong MinBitrate: %d", cfg.MinBitrate)
-	}
-}
-
-func TestGetConfig_SetConfig(t *testing.T) {
-	// Create custom config
-	customCfg := &Config{
-		MinBitrate: 512000,
-		MaxBitrate: 10000000,
-		LogLevel:   "debug",
-	}
-
-	SetConfig(customCfg)
-	retrieved := GetConfig()
-
-	if retrieved.MinBitrate != customCfg.MinBitrate {
-		t.Errorf("GetConfig returned different MinBitrate")
-	}
-
-	if retrieved.LogLevel != customCfg.LogLevel {
-		t.Errorf("GetConfig returned different LogLevel")
-	}
-
-	// Reset to default
-	SetConfig(nil) // Setting nil should not change config
-	if GetConfig().MinBitrate != 512000 {
-		t.Errorf("SetConfig(nil) should not change config")
+	if fallback.MinBitrate != defaultConfig.MinBitrate ||
+		fallback.TempDirPrefix != defaultConfig.TempDirPrefix {
+		t.Errorf("configOrDefault(nil) should yield the defaults, got %+v", fallback)
 	}
 }
 
@@ -300,12 +267,10 @@ func TestConfig_String(t *testing.T) {
 }
 
 func TestValidateBitrate_WithConfig(t *testing.T) {
-	// Set custom config
 	customCfg := &Config{
 		MinBitrate: 256000,
 		MaxBitrate: 10000000,
 	}
-	SetConfig(customCfg)
 
 	// Test with config values
 	tests := []struct {
@@ -328,9 +293,6 @@ func TestValidateBitrate_WithConfig(t *testing.T) {
 			}
 		})
 	}
-
-	// Reset to default
-	SetConfig(defaultConfig)
 }
 
 func TestConfigCandidatePaths_OrderAndOverride(t *testing.T) {
@@ -386,5 +348,53 @@ func TestLoadConfig_EmptyPathYieldsDefaults(t *testing.T) {
 	}
 	if cfg.MinBitrate != defaultConfig.MinBitrate || cfg.MaxBitrate != defaultConfig.MaxBitrate {
 		t.Errorf("expected defaults, got min=%d max=%d", cfg.MinBitrate, cfg.MaxBitrate)
+	}
+}
+
+// TestPipelineHonoursExplicitConfig checks the configuration actually reaches
+// the pipeline. It used to be read from a mutable package-level global that the
+// GUI overwrote before each run, so the effective settings depended on call
+// order and could be written from the UI thread while the encoding goroutine
+// read them.
+func TestPipelineHonoursExplicitConfig(t *testing.T) {
+	cfg := &Config{
+		MinBitrate:    1000,
+		MaxBitrate:    9_000_000,
+		TempDirPrefix: "superview-explicit-*",
+		EncoderCodecs: []string{"264"},
+		LogLevel:      "info",
+	}
+
+	if err := InitEncodingSession(cfg); err != nil {
+		t.Fatalf("InitEncodingSession: %v", err)
+	}
+	defer func() {
+		if err := CleanUp(); err != nil {
+			t.Errorf("CleanUp: %v", err)
+		}
+	}()
+
+	xPath, _, err := getSessionPaths()
+	if err != nil {
+		t.Fatalf("getSessionPaths: %v", err)
+	}
+	// The temp directory must come from the config we passed, not from a global.
+	if !strings.Contains(xPath, "superview-explicit-") {
+		t.Errorf("session path %q does not use the supplied TempDirPrefix", xPath)
+	}
+}
+
+func TestInitEncodingSession_NilConfigUsesDefaults(t *testing.T) {
+	if err := InitEncodingSession(nil); err != nil {
+		t.Fatalf("InitEncodingSession(nil): %v", err)
+	}
+	defer func() { _ = CleanUp() }()
+
+	xPath, _, err := getSessionPaths()
+	if err != nil {
+		t.Fatalf("getSessionPaths: %v", err)
+	}
+	if !strings.Contains(xPath, "superview-") {
+		t.Errorf("session path %q does not use the default TempDirPrefix", xPath)
 	}
 }

@@ -66,24 +66,22 @@ var defaultConfig = &Config{
 	EncoderThreads:  0,
 }
 
-var currentConfig = defaultConfig
-
-// GetConfig returns the current global configuration used by the encoding pipeline.
-func GetConfig() *Config {
-	return currentConfig
-}
-
-// SetConfig sets the global configuration.
-// If nil is passed, the configuration is unchanged.
-func SetConfig(cfg *Config) {
-	if cfg != nil {
-		currentConfig = cfg
-		logger.Debug("Configuration updated",
-			slog.Int("min_bitrate", cfg.MinBitrate),
-			slog.Int("max_bitrate", cfg.MaxBitrate),
-			slog.String("log_level", cfg.LogLevel),
-		)
+// configOrDefault returns cfg, or the built-in defaults when cfg is nil.
+//
+// The pipeline used to read a mutable package-level global instead of taking
+// the configuration as an argument. The GUI wrote to it before every run, so
+// the effective settings depended on call order, the user's video_preset was
+// silently overwritten, and the value was read from the encoding goroutine
+// while the UI thread could still write it. Configuration is now passed
+// explicitly; this helper only keeps callers from having to nil-check.
+//
+// The returned value must be treated as read-only when cfg is nil: it is the
+// shared defaults instance, not a copy.
+func configOrDefault(cfg *Config) *Config {
+	if cfg == nil {
+		return defaultConfig
 	}
+	return cfg
 }
 
 // ConfigFileName is the name of the YAML configuration file looked up by ResolveConfigPath.
@@ -286,32 +284,6 @@ func (c *Config) IsSafePerformanceMode() bool {
 		return false
 	}
 	return normalizePerformanceMode(c.PerformanceMode) == "safe_performance"
-}
-
-// CreateDefaultConfig creates a default configuration file at the specified path.
-// The file includes commented documentation for all configuration options.
-// Useful for generating initial configuration templates for users.
-func CreateDefaultConfig(filepath string) error {
-	data, err := yaml.Marshal(defaultConfig)
-	if err != nil {
-		return fmt.Errorf("failed to marshal default config: %w", err)
-	}
-
-	// Add comments
-	commentedData := []byte(`# Superview Configuration File
-# All values can be overridden with environment variables prefixed with SUPERVIEW_
-
-`)
-	commentedData = append(commentedData, data...)
-
-	if err := os.WriteFile(filepath, commentedData, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	logger.Info("Default config file created",
-		slog.String("path", filepath),
-	)
-	return nil
 }
 
 // String returns a formatted representation of the config

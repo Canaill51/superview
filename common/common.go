@@ -258,7 +258,9 @@ func (v *VideoSpecs) Validate() error {
 // CheckFfmpeg discovers the installed ffmpeg version, hardware accelerators, and available H.264/H.265 encoders.
 // This function must be called before encoding to verify ffmpeg is installed and identify encoder options.
 // Returns a map with keys: "version", "accels" (comma-separated), and "encoders" (comma-separated).
-func CheckFfmpeg() (map[string]string, error) {
+// cfg supplies EncoderCodecs; nil means the built-in defaults.
+func CheckFfmpeg(cfg *Config) (map[string]string, error) {
+	cfg = configOrDefault(cfg)
 	ret := make(map[string]string)
 
 	cmd := newFFmpegCommand("-version")
@@ -292,7 +294,7 @@ func CheckFfmpeg() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query ffmpeg encoders: %w", err)
 	}
-	ret["encoders"] = strings.Join(parseFFmpegEncoders(string(encoders), GetConfig().EncoderCodecs), ",")
+	ret["encoders"] = strings.Join(parseFFmpegEncoders(string(encoders), cfg.EncoderCodecs), ",")
 
 	ret["accels"] = strings.Trim(ret["accels"], ",")
 
@@ -351,15 +353,11 @@ func parseFFmpegEncoders(output string, codecs []string) []string {
 	return found
 }
 
-// GetHeader returns a formatted string with ffmpeg information for display to the user.
-func GetHeader(ffmpeg map[string]string) string {
-	return fmt.Sprintf("- ffmpeg version: %s\n- Hardware accelerators: %s\n- H.264/H.265 encoders: %s\n\n", ffmpeg["version"], ffmpeg["accels"], ffmpeg["encoders"])
-}
-
 // InitEncodingSession creates a new secure temporary directory for this encoding job.
 // Call this before GeneratePGM and EncodeVideo.
 // Always use defer common.CleanUp() to guarantee cleanup even on error.
-func InitEncodingSession() error {
+// cfg supplies TempDirPrefix; nil means the built-in defaults.
+func InitEncodingSession(cfg *Config) error {
 	sessionMutex.Lock()
 	defer sessionMutex.Unlock()
 
@@ -367,7 +365,7 @@ func InitEncodingSession() error {
 		return errors.New("encoding session already active")
 	}
 
-	tempDir, err := os.MkdirTemp("", GetConfig().TempDirPrefix)
+	tempDir, err := os.MkdirTemp("", configOrDefault(cfg).TempDirPrefix)
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -743,7 +741,7 @@ func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
 	return preset
 }
 
-func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
+func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
 	SetLastHardwareAccelerationSummary("")
 
 	// Get the session paths for PGM files
@@ -752,20 +750,14 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 		return err
 	}
 
-	safePerformanceMode := GetConfig().IsSafePerformanceMode()
-	cfg := GetConfig()
+	cfg = configOrDefault(cfg)
+	safePerformanceMode := cfg.IsSafePerformanceMode()
 	encoderThreads := runtime.NumCPU()
-	if cfg != nil && cfg.EncoderThreads > 0 {
+	if cfg.EncoderThreads > 0 {
 		encoderThreads = cfg.EncoderThreads
 	}
-	filterThreads := 0
-	if cfg != nil && cfg.FilterThreads > 0 {
-		filterThreads = cfg.FilterThreads
-	}
-	videoPreset := ""
-	if cfg != nil {
-		videoPreset = cfg.VideoPreset
-	}
+	filterThreads := cfg.FilterThreads
+	videoPreset := cfg.VideoPreset
 
 	run := func(hwaccel string, audioCodec string) error {
 		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, encoderThreads, filterThreads, videoPreset)
@@ -949,7 +941,7 @@ func EncodeVideo(video *VideoSpecs, encoder string, bitrate int, output string, 
 				slog.String("failed_encoder", encoder),
 				slog.String("fallback_encoder", fallbackEncoder),
 			)
-			fallbackErr := EncodeVideo(video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
+			fallbackErr := EncodeVideo(cfg, video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
 			if fallbackErr == nil {
 				SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: %s failed; used CPU encode (%s) + CPU decode", encoder, fallbackEncoder))
 			}
@@ -971,7 +963,8 @@ func CleanUp() error {
 // Call this from GUI entry points only; the logic is pipeline-agnostic.
 // Security: Validates input/output paths and encoder selection for defensive programming.
 // Observability: Records metrics and events throughout the pipeline.
-func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string, cancel <-chan struct{}) error {
+func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHandler, ffmpeg map[string]string, cancel <-chan struct{}) error {
+	cfg = configOrDefault(cfg)
 	// ==== OBSERVABILITY: Initialize metrics collection ====
 	metrics := NewEncodingMetrics(inputFile, outputFile)
 	stageDurations := make(map[string]time.Duration)
@@ -1011,6 +1004,16 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 		return fmt.Errorf("invalid output file: %w", err)
 	}
 
+	// The EncodingEvent lifecycle documents a "start" event, but nothing ever
+	// emitted one: the log jumped straight to progress, with no record of what
+	// run those percentages belonged to.
+	RecordEncodingEvent(&EncodingEvent{
+		EventType:  "start",
+		Message:    "encoding started",
+		InputFile:  inputFile,
+		OutputFile: outputFile,
+	})
+
 	// Load and validate video metadata (includes security checks)
 	videoCheckStart := time.Now()
 	video, err := CheckVideo(inputFile)
@@ -1042,7 +1045,6 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	// Get encoding quality options from UI (bitrate)
-	cfg := GetConfig()
 	bitrate := 0
 
 	// Bitrate mode: get bitrate from UI
@@ -1081,7 +1083,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	metrics.RecordOutputMetadata(bitrate, encoder)
 
 	// Initialize encoding session
-	if err := InitEncodingSession(); err != nil {
+	if err := InitEncodingSession(cfg); err != nil {
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("session initialization failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "session_init"})
 		return err
@@ -1115,7 +1117,7 @@ func PerformEncoding(inputFile string, outputFile string, ui UIHandler, ffmpeg m
 	}
 
 	encodeStart := time.Now()
-	if err := EncodeVideo(video, encoder, bitrate, outputFile, ffmpeg, progressFunc, cancel); err != nil {
+	if err := EncodeVideo(cfg, video, encoder, bitrate, outputFile, ffmpeg, progressFunc, cancel); err != nil {
 		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{

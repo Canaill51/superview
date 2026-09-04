@@ -461,6 +461,34 @@ l'application — cas très probable, puisque la GUI lui affiche justement un li
 (`gui_main.go:43-61`) — il doit redémarrer sans qu'on le lui dise. Ne pas mettre en cache les
 échecs, ou proposer un bouton « Réessayer ».
 
+#### 🟠 O-05 — Chaque événement d'observabilité était dispatché dans sa propre goroutine
+`common/observability.go` (constat ajouté le 2026-09-04, découvert en traitant C-06)
+
+```go
+for _, handler := range r.handlers {
+    // Non-blocking dispatch
+    go handler.OnEvent(event)
+}
+```
+
+Le même motif existait sur les quatre méthodes (`OnEvent`, `OnProgress`, `OnError`,
+`OnComplete`). Or `RecordEncodingProgress` est appelé depuis le callback de progression, soit
+plusieurs fois par seconde pendant tout l'encodage : une goroutine par événement, et surtout
+**aucune garantie d'ordre**. Les lignes du journal pouvaient donc s'écrire dans le désordre, et
+les derniers événements être perdus si le processus se terminait avant l'exécution de leur
+goroutine.
+
+Sans conséquence tant que les journaux partaient dans `io.Discard` ; devenu un vrai problème
+depuis O-02, puisque ce fichier est précisément ce qu'on lira pour diagnostiquer un incident.
+
+*Correction* : dispatch synchrone. Les handlers ne font que journaliser, l'appel direct est
+donc peu coûteux et rend l'enregistrement fidèle.
+
+#### 🟡 O-06 — Historique d'événements en écriture seule
+`EventRecorder` conservait jusqu'à 1000 événements que **rien ne lisait** : `GetEventHistory`
+et `ClearHistory` n'avaient aucun appelant. Depuis O-02, le fichier de journal contient déjà
+la même information, persistée. L'historique en mémoire a été supprimé.
+
 ### T — Tests et couverture
 
 #### 🟠 T-01 — Zéro test sur le paquet `main`
@@ -506,7 +534,8 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | --- | --- |
 | ✅ **Corrigé et vérifié** (32) | B-01, B-02, B-04, B-05, B-06, B-07, B-08, S-01, S-02, S-03, S-04, C-01, C-02, C-03, C-04, C-07, C-08, X-01, X-02, X-03, X-04, X-05, X-06, X-07, X-08, O-01, O-02, O-03, O-04, T-01, T-02, T-03 |
 | ⬜ **Invalidé** (1) | B-03 — le constat était faux, voir ci-dessus |
-| ⏸️ **Restant** (2) | C-05 (refactorisation de la config globale, périmètre large) · C-06 (élagage de l'API exportée, non tranché) |
+| ✅ **Corrigé et vérifié — 2ᵉ passe** (4) | C-05, C-06, O-05, O-06 |
+| ⏸️ **Restant** | aucun |
 
 Les quatre arbitrages de périmètre ont été soumis à l'utilisateur le 2026-09-04 et tranchés :
 S-02 → résoudre les liens symboliques puis valider la cible · C-01 → brancher `health.go` sur un
@@ -527,6 +556,9 @@ Détail des mesures obtenues :
 | Tests d'intégration FFmpeg | 0 | **2** |
 | Fonctionnalités inatteignables | squeeze, `health.go` | **exposées dans la GUI** |
 | Options de config sans effet | 3 | **0** |
+| Configuration | globale mutable, écrasée à chaque run | **passée en paramètre** |
+| API exportée sans appelant | 9 symboles | **0** |
+| Dispatch des événements | 1 goroutine par événement, ordre non garanti | **synchrone et ordonné** |
 
 ---
 

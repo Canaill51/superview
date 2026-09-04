@@ -32,7 +32,8 @@ type SystemHealth struct {
 
 // CheckHealth performs comprehensive system health checks.
 // Returns detailed results for each system component required for encoding.
-func CheckHealth() *SystemHealth {
+// cfg is forwarded to the ffmpeg probe; nil means the built-in defaults.
+func CheckHealth(cfg *Config) *SystemHealth {
 	health := &SystemHealth{
 		AllChecks: make([]HealthCheckResult, 0),
 	}
@@ -40,7 +41,7 @@ func CheckHealth() *SystemHealth {
 	now := time.Now().Unix()
 
 	// Check FFmpeg
-	health.FFmpeg = checkFFmpegHealth(now)
+	health.FFmpeg = checkFFmpegHealth(cfg, now)
 	health.AllChecks = append(health.AllChecks, health.FFmpeg)
 
 	// Check FFprobe
@@ -66,13 +67,13 @@ func CheckHealth() *SystemHealth {
 }
 
 // checkFFmpegHealth verifies ffmpeg availability and version.
-func checkFFmpegHealth(timestamp int64) HealthCheckResult {
+func checkFFmpegHealth(cfg *Config, timestamp int64) HealthCheckResult {
 	result := HealthCheckResult{
 		Name:      "ffmpeg",
 		Timestamp: timestamp,
 	}
 
-	ffmpeg, err := CheckFfmpeg()
+	ffmpeg, err := CheckFfmpeg(cfg)
 	if err != nil {
 		result.Healthy = false
 		result.Message = err.Error()

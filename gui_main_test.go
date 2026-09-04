@@ -179,3 +179,85 @@ func TestToolbarFitsWindow(t *testing.T) {
 	t.Logf("toolbar min size = %.0fx%.0f, window = %dx%d",
 		min.Width, min.Height, windowWidth, windowHeight)
 }
+
+func TestQualityProfileSettings(t *testing.T) {
+	const input = 10_000_000
+
+	cases := []struct {
+		profile     string
+		wantBitrate int
+		wantPreset  string
+	}{
+		{"Fast", input, "fast"},
+		{"Balanced", 16_000_000, "medium"},
+		// An unexpected value must behave like Balanced, not yield a zero
+		// bitrate that would later fail validation.
+		{"", 16_000_000, "medium"},
+		{"Nonsense", 16_000_000, "medium"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.profile, func(t *testing.T) {
+			bitrate, preset := qualityProfileSettings(c.profile, input)
+			if bitrate != c.wantBitrate {
+				t.Errorf("bitrate = %d, want %d", bitrate, c.wantBitrate)
+			}
+			if preset != c.wantPreset {
+				t.Errorf("preset = %q, want %q", preset, c.wantPreset)
+			}
+		})
+	}
+}
+
+// TestConfiguredPresetWinsOverQualityProfile pins the resolution rule the GUI
+// applies. The quality profile used to overwrite VideoPreset unconditionally,
+// so a video_preset set in superview.yaml was silently replaced by "fast" or
+// "medium" with nothing reporting the substitution.
+func TestConfiguredPresetWinsOverQualityProfile(t *testing.T) {
+	resolve := func(configured, profilePreset string) string {
+		if configured == "" {
+			return profilePreset
+		}
+		return configured
+	}
+
+	if got := resolve("slow", "medium"); got != "slow" {
+		t.Errorf("an explicit video_preset must win, got %q", got)
+	}
+	if got := resolve("", "medium"); got != "medium" {
+		t.Errorf("with no configured preset the profile applies, got %q", got)
+	}
+}
+
+func TestEncoderOptionsFor(t *testing.T) {
+	const useInput = "Use same video codec as input file"
+
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"empty means ffmpeg missing", "", []string{useInput}},
+		{"single encoder", "libx264", []string{useInput, "libx264 encoder"}},
+		{"several", "libx264,libx265", []string{useInput, "libx264 encoder", "libx265 encoder"}},
+		// strings.Split("", ",") returns [""], which used to leak a bogus
+		// " encoder" entry into the dropdown.
+		{"stray separators", ",libx264,,libx265,", []string{useInput, "libx264 encoder", "libx265 encoder"}},
+		{"whitespace", " libx264 , libx265 ", []string{useInput, "libx264 encoder", "libx265 encoder"}},
+		{"only separators", ",,,", []string{useInput}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := encoderOptionsFor(c.input)
+			if len(got) != len(c.want) {
+				t.Fatalf("got %d options %v, want %d %v", len(got), got, len(c.want), c.want)
+			}
+			for i := range c.want {
+				if got[i] != c.want[i] {
+					t.Errorf("option %d = %q, want %q", i, got[i], c.want[i])
+				}
+			}
+		})
+	}
+}

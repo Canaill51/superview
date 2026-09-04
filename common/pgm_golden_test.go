@@ -62,7 +62,7 @@ func TestGeneratePGM_Golden(t *testing.T) {
 				Bitrate: "5000000", BitrateInt: 5000000,
 			}}}
 
-			if err := InitEncodingSession(); err != nil {
+			if err := InitEncodingSession(nil); err != nil {
 				t.Fatalf("InitEncodingSession: %v", err)
 			}
 			defer func() {
@@ -113,7 +113,7 @@ func TestGeneratePGM_XMapIsRowInvariant(t *testing.T) {
 		Bitrate: "100000", BitrateInt: 100000,
 	}}}
 
-	if err := InitEncodingSession(); err != nil {
+	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("InitEncodingSession: %v", err)
 	}
 	defer func() { _ = CleanUp() }()

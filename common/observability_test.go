@@ -44,35 +44,63 @@ func (h *testObsHandler) OnComplete(metrics *EncodingMetrics) {
 	h.ch <- "complete"
 }
 
-func TestEventRecorder_RecordEventAndHistory(t *testing.T) {
+func TestEventRecorder_FillsTimestamp(t *testing.T) {
 	r := NewEventRecorder()
+	h := &testObsHandler{ch: make(chan string, 4)}
+	r.RegisterHandler(h)
+
 	e := &EncodingEvent{EventType: "start", Message: "start"}
 	r.RecordEvent(e)
 
-	history := r.GetEventHistory()
-	if len(history) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(history))
+	if e.Timestamp.IsZero() {
+		t.Fatal("expected the timestamp to be filled in")
 	}
-	if history[0].Timestamp.IsZero() {
-		t.Fatal("expected timestamp to be auto-filled")
+	select {
+	case <-h.ch:
+	default:
+		t.Fatal("handler should have been called synchronously")
 	}
 }
 
-func TestEventRecorder_MaxHistory(t *testing.T) {
+// TestEventRecorder_DispatchIsSynchronousAndOrdered pins the behaviour that
+// replaced the previous "go handler.OnEvent(...)" fan-out. One goroutine per
+// event meant progress events -- emitted several times a second -- could be
+// logged out of order, and events recorded just before exit could be lost.
+func TestEventRecorder_DispatchIsSynchronousAndOrdered(t *testing.T) {
 	r := NewEventRecorder()
-	r.maxEvents = 2
-	r.RecordEvent(&EncodingEvent{EventType: "e1"})
-	r.RecordEvent(&EncodingEvent{EventType: "e2"})
-	r.RecordEvent(&EncodingEvent{EventType: "e3"})
 
-	history := r.GetEventHistory()
-	if len(history) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(history))
+	var seen []string
+	r.RegisterHandler(&orderRecordingHandler{onEvent: func(e *EncodingEvent) {
+		seen = append(seen, e.EventType)
+	}})
+
+	for _, kind := range []string{"start", "progress", "progress", "complete"} {
+		r.RecordEvent(&EncodingEvent{EventType: kind})
 	}
-	if history[0].EventType != "e2" || history[1].EventType != "e3" {
-		t.Fatalf("unexpected retained history: %+v", history)
+
+	// No synchronisation here on purpose: if dispatch were still asynchronous,
+	// this slice would be racy and incomplete.
+	want := []string{"start", "progress", "progress", "complete"}
+	if len(seen) != len(want) {
+		t.Fatalf("expected %d events delivered inline, got %d (%v)", len(want), len(seen), seen)
+	}
+	for i := range want {
+		if seen[i] != want[i] {
+			t.Fatalf("event %d = %q, want %q (order not preserved: %v)", i, seen[i], want[i], seen)
+		}
 	}
 }
+
+// orderRecordingHandler records calls without any locking, so a regression to
+// asynchronous dispatch shows up under -race.
+type orderRecordingHandler struct {
+	onEvent func(*EncodingEvent)
+}
+
+func (h *orderRecordingHandler) OnEvent(e *EncodingEvent)              { h.onEvent(e) }
+func (h *orderRecordingHandler) OnProgress(float64, string)            {}
+func (h *orderRecordingHandler) OnError(error, map[string]interface{}) {}
+func (h *orderRecordingHandler) OnComplete(*EncodingMetrics)           {}
 
 func TestEventRecorder_DispatchHandlers(t *testing.T) {
 	r := NewEventRecorder()
@@ -139,9 +167,5 @@ func TestGlobalRecorderFunctions(t *testing.T) {
 		case <-deadline:
 			t.Fatalf("timeout waiting global callbacks, got %d", received)
 		}
-	}
-
-	if len(r.GetEventHistory()) != 4 {
-		t.Fatalf("expected 4 events in history, got %d", len(r.GetEventHistory()))
 	}
 }

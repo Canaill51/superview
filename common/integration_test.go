@@ -84,7 +84,7 @@ func TestIntegration_PerformEncoding(t *testing.T) {
 	const inW, inH = 640, 480
 	input := makeTestClip(t, inW, inH, 3)
 
-	ffmpeg, err := CheckFfmpeg()
+	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
 		t.Skipf("CheckFfmpeg failed: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestIntegration_PerformEncoding(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "output.mp4")
 	ui := &integrationUI{bitrate: 2_000_000, encoder: "libx264"}
 
-	if err := PerformEncoding(input, output, ui, ffmpeg, make(chan struct{})); err != nil {
+	if err := PerformEncoding(nil, input, output, ui, ffmpeg, make(chan struct{})); err != nil {
 		t.Fatalf("PerformEncoding: %v", err)
 	}
 
@@ -141,7 +141,7 @@ func TestIntegration_CancelDuringEncoding(t *testing.T) {
 
 	input := makeTestClip(t, 640, 480, 3)
 
-	ffmpeg, err := CheckFfmpeg()
+	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
 		t.Skipf("CheckFfmpeg failed: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestIntegration_CancelDuringEncoding(t *testing.T) {
 	cancel := make(chan struct{})
 	close(cancel) // already cancelled before we start
 
-	err = PerformEncoding(input, output, ui, ffmpeg, cancel)
+	err = PerformEncoding(nil, input, output, ui, ffmpeg, cancel)
 	if err == nil {
 		t.Fatal("expected an error when cancelled, got nil")
 	}

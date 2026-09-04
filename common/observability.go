@@ -186,19 +186,23 @@ func (h *DefaultObservabilityHandler) OnComplete(metrics *EncodingMetrics) {
 
 // EventRecorder manages multiple observability handlers and formats event recording.
 // It allows plugins/handlers to receive encoding events for custom processing.
+// EventRecorder fans encoding events out to the registered handlers.
+//
+// Handlers are invoked synchronously and in registration order. They used to be
+// called with "go handler.OnEvent(...)", one goroutine per event: progress
+// events fire several times a second, so log lines could be written out of
+// order and the last few could be lost when the process exited before their
+// goroutines ran. Handlers here only log, so calling them inline is cheap and
+// keeps the diagnostic record faithful.
 type EventRecorder struct {
-	mu        sync.RWMutex
-	handlers  []ObservabilityHandler
-	events    []*EncodingEvent // Event history (last 1000)
-	maxEvents int
+	mu       sync.RWMutex
+	handlers []ObservabilityHandler
 }
 
 // NewEventRecorder creates a new event recorder with default capacity.
 func NewEventRecorder() *EventRecorder {
 	return &EventRecorder{
-		handlers:  make([]ObservabilityHandler, 0),
-		events:    make([]*EncodingEvent, 0, 1000),
-		maxEvents: 1000,
+		handlers: make([]ObservabilityHandler, 0),
 	}
 }
 
@@ -228,16 +232,9 @@ func (r *EventRecorder) RecordEvent(event *EncodingEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Add to history
-	r.events = append(r.events, event)
-	if len(r.events) > r.maxEvents {
-		r.events = r.events[1:]
-	}
-
 	// Dispatch to all handlers
 	for _, handler := range r.handlers {
-		// Non-blocking dispatch
-		go handler.OnEvent(event)
+		handler.OnEvent(event)
 	}
 }
 
@@ -257,7 +254,7 @@ func (r *EventRecorder) RecordProgress(percent float64, message string) {
 	r.mu.RUnlock()
 
 	for _, handler := range handlers {
-		go handler.OnProgress(percent, message)
+		handler.OnProgress(percent, message)
 	}
 }
 
@@ -284,7 +281,7 @@ func (r *EventRecorder) RecordError(err error, context map[string]interface{}) {
 	r.mu.RUnlock()
 
 	for _, handler := range handlers {
-		go handler.OnError(err, context)
+		handler.OnError(err, context)
 	}
 }
 
@@ -311,28 +308,8 @@ func (r *EventRecorder) RecordCompletion(metrics *EncodingMetrics) {
 	r.mu.RUnlock()
 
 	for _, handler := range handlers {
-		go handler.OnComplete(metrics)
+		handler.OnComplete(metrics)
 	}
-}
-
-// GetEventHistory returns the recorded event history (last 1000 events).
-// This is useful for diagnostics and replay.
-func (r *EventRecorder) GetEventHistory() []*EncodingEvent {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	// Return copy to prevent external modification
-	result := make([]*EncodingEvent, len(r.events))
-	copy(result, r.events)
-	return result
-}
-
-// ClearHistory clears the recorded event history.
-func (r *EventRecorder) ClearHistory() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.events = r.events[:0]
 }
 
 // Global event recorder instance

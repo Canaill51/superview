@@ -1,7 +1,6 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -219,35 +218,6 @@ Output           : %.1f Mb/s
 	}
 
 	return summary
-}
-
-// ToJSON returns metrics as JSON for structured logging and export.
-func (m *EncodingMetrics) ToJSON() string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	elapsed := m.ElapsedTime()
-	if m.EndTime.IsZero() {
-		elapsed = time.Since(m.StartTime)
-	}
-
-	data := map[string]interface{}{
-		"success":            m.Success,
-		"status":             map[string]interface{}{"input_codec": m.InputCodec, "output_codec": m.OutputCodec},
-		"files":              map[string]interface{}{"input_size": m.InputFileSize, "output_size": m.OutputFileSize},
-		"timing":             map[string]interface{}{"elapsed_seconds": elapsed.Seconds()},
-		"encoding_speed_fps": m.EncodingSpeed,
-		"compression_ratio":  m.CompressionRatio,
-		"progress_updates":   m.ProgressUpdates,
-		"bitrates":           map[string]float64{"input": float64(m.InputBitrate) / 1024 / 1024, "output": float64(m.OutputBitrate) / 1024 / 1024},
-	}
-
-	if !m.Success {
-		data["error"] = map[string]interface{}{"message": m.ErrorMessage, "exit_code": m.FfmpegExitCode}
-	}
-
-	jsonBytes, _ := json.MarshalIndent(data, "", "  ")
-	return string(jsonBytes)
 }
 
 // LogMetrics logs the metrics using the global logger at appropriate levels.
