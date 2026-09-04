@@ -304,3 +304,436 @@ func TestEnsureMP4ExtensionMatchesTheInputFilter(t *testing.T) {
 		}
 	}
 }
+
+// TestEncodingControls_RoundTripReEnablesEverything pins the property P-01
+// broke: after a conversion finishes, every control it locked must come back.
+//
+// The regression was a missing squeezeCheck.Enable() in the success branch,
+// which left the squeeze option greyed out for the rest of the session. Walking
+// one list in both directions is what makes that impossible; this test is what
+// keeps the round trip honest if someone unrolls it again.
+func TestEncodingControls_RoundTripReEnablesEverything(t *testing.T) {
+	test.NewApp()
+
+	open := widget.NewButton("Choose input file", func() {})
+	selectOutput := widget.NewButton("Choose output file", func() {})
+	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
+	squeeze := widget.NewCheck("Source already stretched (GoPro SuperView)", func(bool) {})
+	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
+
+	controls := encodingControls{open, selectOutput, quality, squeeze, encoder}
+
+	controls.setEnabled(false)
+	for i, w := range controls {
+		if !w.Disabled() {
+			t.Errorf("control %d is still enabled while an encoding runs", i)
+		}
+	}
+
+	controls.setEnabled(true)
+	for i, w := range controls {
+		if w.Disabled() {
+			t.Errorf("control %d was never re-enabled after the encoding finished", i)
+		}
+	}
+}
+
+// TestEncodingControls_ToleratesNilEntries guards the construction order: the
+// group is populated once every widget exists, but a future reordering that
+// leaves an entry unassigned must not take the whole window down.
+func TestEncodingControls_ToleratesNilEntries(t *testing.T) {
+	test.NewApp()
+
+	button := widget.NewButton("Choose input file", func() {})
+	controls := encodingControls{nil, button}
+
+	controls.setEnabled(false)
+	if !button.Disabled() {
+		t.Error("a nil entry stopped the rest of the group from being disabled")
+	}
+	controls.setEnabled(true)
+	if button.Disabled() {
+		t.Error("a nil entry stopped the rest of the group from being re-enabled")
+	}
+}
+
+func TestFormatEncodingStatus(t *testing.T) {
+	cases := []struct {
+		name      string
+		percent   float64
+		remaining time.Duration
+		want      string
+	}{
+		{
+			// At the very start there is nothing to extrapolate from. Showing
+			// "about 0s left" there would read as "nearly done".
+			name: "no estimate yet", percent: 0, remaining: 0,
+			want: "Status: Transforming... 0%",
+		},
+		{
+			name: "negative estimate is treated as none", percent: 5, remaining: -3 * time.Second,
+			want: "Status: Transforming... 5%",
+		},
+		{
+			name: "seconds", percent: 42.4, remaining: 25 * time.Second,
+			want: "Status: Transforming... 42% - about 25s left",
+		},
+		{
+			name: "minutes are rounded to the second", percent: 71.6,
+			remaining: 80*time.Second + 400*time.Millisecond,
+			want:      "Status: Transforming... 72% - about 1m20s left",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatEncodingStatus(tc.percent, tc.remaining); got != tc.want {
+				t.Errorf("formatEncodingStatus(%v, %v) = %q, want %q", tc.percent, tc.remaining, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestGUIHandler_ImplementsProgressDetail keeps the optional interface wired
+// up. It is satisfied by a type assertion, so nothing would fail to compile if
+// the method were renamed -- the window would just silently go back to showing
+// a bare percentage.
+func TestGUIHandler_ImplementsProgressDetail(t *testing.T) {
+	var handler interface{} = &GUIHandler{}
+	if _, ok := handler.(common.ProgressDetailHandler); !ok {
+		t.Fatal("GUIHandler no longer implements common.ProgressDetailHandler, so the pipeline will stop reporting the time remaining")
+	}
+}
+
+func TestGUIHandler_ShowProgressDetailWithoutLabelDoesNotPanic(t *testing.T) {
+	// The handler is built in one place, but a nil status label must degrade to
+	// "no detail shown" rather than take the encoding goroutine down.
+	handler := &GUIHandler{}
+	handler.ShowProgressDetail(50, 10*time.Second)
+}
+
+// newTestAppState builds a fully wired appState with real widgets, the way
+// main() does. Tests that exercise a transition need every widget present:
+// asserting on a state machine whose outputs are nil proves nothing.
+func newTestAppState(t *testing.T) *appState {
+	t.Helper()
+	test.NewApp()
+
+	open := widget.NewButton("Choose input file", func() {})
+	selectOutput := widget.NewButton("Choose output file", func() {})
+	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
+	squeeze := widget.NewCheck("Source already stretched (GoPro SuperView)", func(bool) {})
+	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
+
+	state := &appState{
+		ffmpegAvailable: true,
+		start:           widget.NewButton("Start transformation", func() {}),
+		cancelButton:    widget.NewButton("Cancel", func() {}),
+		encoder:         encoder,
+		locked:          encodingControls{open, selectOutput, quality, squeeze, encoder},
+		status:          widget.NewLabel("Status: Ready"),
+		hardwareStatus:  widget.NewLabel("Hardware: waiting for input video"),
+		progress:        widget.NewProgressBar(),
+	}
+	state.start.Disable()
+	state.cancelButton.Disable()
+	return state
+}
+
+func testVideo() *common.VideoSpecs {
+	return &common.VideoSpecs{File: "/tmp/clip.mp4", Streams: []common.VideoStream{{
+		Codec: "h264", Width: 1440, Height: 1080,
+		Duration: "10", DurationFloat: 10, Bitrate: "5000000", BitrateInt: 5000000,
+	}}}
+}
+
+func TestAppState_CanStart(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(*appState)
+		want bool
+	}{
+		{"nothing chosen", func(*appState) {}, false},
+		{"input only", func(s *appState) { s.video = testVideo() }, false},
+		{"output only", func(s *appState) { s.outputPath = "/tmp/out.mp4" }, false},
+		{
+			name: "input and output",
+			set:  func(s *appState) { s.video = testVideo(); s.outputPath = "/tmp/out.mp4" },
+			want: true,
+		},
+		{
+			// Without ffmpeg there is nothing to start, however complete the
+			// rest of the selection is.
+			name: "everything but ffmpeg",
+			set: func(s *appState) {
+				s.video = testVideo()
+				s.outputPath = "/tmp/out.mp4"
+				s.ffmpegAvailable = false
+			},
+			want: false,
+		},
+		{
+			// Starting a second conversion on top of a running one must not be
+			// offered.
+			name: "already encoding",
+			set: func(s *appState) {
+				s.video = testVideo()
+				s.outputPath = "/tmp/out.mp4"
+				s.encoding = true
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := newTestAppState(t)
+			tc.set(state)
+
+			if got := state.canStart(); got != tc.want {
+				t.Errorf("canStart() = %v, want %v", got, tc.want)
+			}
+
+			state.refreshStart()
+			if state.start.Disabled() == tc.want {
+				t.Errorf("Start button disabled = %v, want %v", state.start.Disabled(), !tc.want)
+			}
+		})
+	}
+}
+
+// TestAppState_EncodingRoundTripRestoresEveryControl is the regression test for
+// P-01, now on the real transition rather than on the helper alone.
+//
+// The success and failure completion paths used to be separate hand-written
+// sequences of Enable calls; the success one had lost the squeeze checkbox,
+// which then stayed greyed out for the rest of the session.
+func TestAppState_EncodingRoundTripRestoresEveryControl(t *testing.T) {
+	state := newTestAppState(t)
+	state.video = testVideo()
+	state.outputPath = "/tmp/out.mp4"
+	state.refreshStart()
+
+	if state.start.Disabled() {
+		t.Fatal("Start should be available before the conversion begins")
+	}
+
+	state.beginEncoding()
+
+	if !state.isEncoding() {
+		t.Error("isEncoding() = false after beginEncoding()")
+	}
+	for i, w := range state.locked {
+		if !w.Disabled() {
+			t.Errorf("control %d is still enabled while the conversion runs", i)
+		}
+	}
+	if !state.start.Disabled() {
+		t.Error("Start should be unavailable while a conversion runs")
+	}
+	if state.cancelButton.Disabled() {
+		t.Error("Cancel should be available while a conversion runs")
+	}
+
+	state.finishEncoding()
+
+	if state.isEncoding() {
+		t.Error("isEncoding() = true after finishEncoding()")
+	}
+	for i, w := range state.locked {
+		if w.Disabled() {
+			t.Errorf("control %d was never re-enabled after the conversion ended", i)
+		}
+	}
+	if !state.cancelButton.Disabled() {
+		t.Error("Cancel should go back to unavailable once the conversion ends")
+	}
+	if state.start.Disabled() {
+		t.Error("Start should come back: the input and output are still selected")
+	}
+}
+
+// TestAppState_BeginEncodingReturnsTheChannel pins P-02.
+//
+// The goroutine must hold its own reference. Reading the field back raced with
+// requestCancel nulling it on the UI thread, and a cancellation landing in that
+// window handed the pipeline a nil channel: a conversion nothing could stop.
+func TestAppState_BeginEncodingReturnsTheChannel(t *testing.T) {
+	state := newTestAppState(t)
+	held := state.beginEncoding()
+
+	if held == nil {
+		t.Fatal("beginEncoding() returned a nil channel")
+	}
+
+	state.requestCancel()
+
+	if state.cancel != nil {
+		t.Error("the field should be cleared once the channel is closed")
+	}
+	// The reference the caller took must still be usable, and closed.
+	select {
+	case <-held:
+	default:
+		t.Error("the channel handed to the caller was never closed by requestCancel()")
+	}
+}
+
+func TestAppState_RequestCancel(t *testing.T) {
+	t.Run("does nothing when idle", func(t *testing.T) {
+		state := newTestAppState(t)
+		if state.requestCancel() {
+			t.Error("requestCancel() reported a cancellation with nothing running")
+		}
+	})
+
+	t.Run("cancels a running conversion", func(t *testing.T) {
+		state := newTestAppState(t)
+		held := state.beginEncoding()
+
+		if !state.requestCancel() {
+			t.Fatal("requestCancel() reported no cancellation while a conversion was running")
+		}
+		select {
+		case <-held:
+		default:
+			t.Error("the cancellation channel was not closed")
+		}
+		if state.status.Text != "Status: Cancelling..." {
+			t.Errorf("status = %q, want the cancelling message", state.status.Text)
+		}
+	})
+
+	t.Run("is idempotent", func(t *testing.T) {
+		// The Cancel button and the window close intercept can both fire.
+		// Closing a channel twice panics, so this must be safe by construction.
+		state := newTestAppState(t)
+		state.beginEncoding()
+
+		if !state.requestCancel() {
+			t.Fatal("the first call should have cancelled")
+		}
+		if state.requestCancel() {
+			t.Error("the second call reported a cancellation it did not perform")
+		}
+	})
+
+	t.Run("a cancelled conversion still finishes cleanly", func(t *testing.T) {
+		// requestCancel leaves encoding true: the pipeline is still winding
+		// down. finishEncoding is what the completion path calls afterwards,
+		// and it must restore the window even though the channel is gone.
+		state := newTestAppState(t)
+		state.video = testVideo()
+		state.outputPath = "/tmp/out.mp4"
+		state.beginEncoding()
+		state.requestCancel()
+
+		state.finishEncoding()
+
+		if state.isEncoding() {
+			t.Error("still marked as encoding after finishEncoding()")
+		}
+		for i, w := range state.locked {
+			if w.Disabled() {
+				t.Errorf("control %d was not restored after a cancelled conversion", i)
+			}
+		}
+	})
+}
+
+func TestAppState_SetInputAndOutputRefreshStart(t *testing.T) {
+	state := newTestAppState(t)
+
+	state.setInput(testVideo())
+	if !state.start.Disabled() {
+		t.Error("Start should stay unavailable until a destination is chosen")
+	}
+
+	state.setOutput("/tmp/out.mp4")
+	if state.start.Disabled() {
+		t.Error("Start should become available once input and output are both set")
+	}
+}
+
+func TestAppState_RefreshHardwareStatus(t *testing.T) {
+	t.Run("reports ffmpeg missing", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.ffmpegAvailable = false
+
+		state.refreshHardwareStatus()
+
+		if state.hardwareStatus.Text != "Hardware: ffmpeg unavailable" {
+			t.Errorf("hardware status = %q, want the ffmpeg-unavailable message", state.hardwareStatus.Text)
+		}
+	})
+
+	t.Run("describes the planned path", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.ffmpeg = map[string]string{"accels": "cuda", "encoders": "h264_nvenc,libx264"}
+		state.video = testVideo()
+
+		state.refreshHardwareStatus()
+
+		if !strings.HasPrefix(state.hardwareStatus.Text, "Hardware: ") {
+			t.Errorf("hardware status = %q, want a Hardware: line", state.hardwareStatus.Text)
+		}
+		if strings.Contains(state.hardwareStatus.Text, "unavailable") {
+			t.Errorf("hardware status = %q, want a real plan", state.hardwareStatus.Text)
+		}
+	})
+}
+
+// TestAppState_NilWidgetsAreTolerated guards the construction order in main():
+// the widgets are assigned as the window is built, so a transition firing
+// before one of them exists must degrade to "no update", not crash.
+func TestAppState_NilWidgetsAreTolerated(t *testing.T) {
+	state := &appState{ffmpegAvailable: true}
+
+	state.refreshStart()
+	state.refreshHardwareStatus()
+	state.setInput(testVideo())
+	state.setOutput("/tmp/out.mp4")
+	state.beginEncoding()
+	state.requestCancel()
+	state.finishEncoding()
+}
+
+// TestAppState_SetFFmpegUnblocksTheWindow covers the retry path: the user
+// installs ffmpeg while the application is already open, presses Retry, and
+// everything must come back to life.
+func TestAppState_SetFFmpegUnblocksTheWindow(t *testing.T) {
+	state := newTestAppState(t)
+	state.ffmpegAvailable = false
+	state.locked.setEnabled(false)
+	state.video = testVideo()
+	state.outputPath = "/tmp/out.mp4"
+
+	state.refreshStart()
+	if !state.start.Disabled() {
+		t.Fatal("Start must stay unavailable while ffmpeg is missing")
+	}
+	state.refreshHardwareStatus()
+	if state.hardwareStatus.Text != "Hardware: ffmpeg unavailable" {
+		t.Fatalf("hardware status = %q, want the ffmpeg-unavailable message", state.hardwareStatus.Text)
+	}
+
+	state.setFFmpeg(map[string]string{"accels": "cuda", "encoders": "h264_nvenc,libx264"})
+	state.locked.setEnabled(true)
+	state.refreshStart()
+	state.refreshHardwareStatus()
+
+	if !state.ffmpegAvailable {
+		t.Error("ffmpegAvailable = false after a successful probe")
+	}
+	if state.start.Disabled() {
+		t.Error("Start should become available once ffmpeg is found and both files are chosen")
+	}
+	if strings.Contains(state.hardwareStatus.Text, "unavailable") {
+		t.Errorf("hardware status = %q, want a real plan after the retry", state.hardwareStatus.Text)
+	}
+	for i, w := range state.locked {
+		if w.Disabled() {
+			t.Errorf("control %d was not restored after ffmpeg was found", i)
+		}
+	}
+}
