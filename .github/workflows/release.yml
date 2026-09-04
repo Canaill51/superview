@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
       - 'RC-*'
+  # A tag push was the only trigger, so the only way to test a change to this
+  # file was to cut a release. The v0.1.5 and v0.1.6 runs failed in July, were
+  # "fixed" over four commits, and those fixes were never run: no tag has been
+  # pushed since. Manual dispatch builds and uploads the artifacts without
+  # publishing anything -- create-release stays gated on the ref being a tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,8 +31,12 @@ jobs:
       with:
         go-version: '1.26.x'
     
+    # ffmpeg matters here, and not only to run more tests: without it every
+    # integration test skips and module coverage measures 51.4% instead of
+    # 59.3%. The gate is 50%, so this job was one small change away from
+    # failing a release for a reason that had nothing to do with the release.
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
 
     - name: Run tests
       run: go test ./... -v
@@ -55,13 +65,18 @@ jobs:
       with:
         go-version: '1.26.x'
     
+    # The packaging tool is pinned, like every action in this repository is
+    # pinned by SHA. Fetching @latest at release time meant an upstream change
+    # to the tool's output name or location could break a release with no change
+    # on our side -- which is the exact shape of the failure that kept v0.1.5
+    # and v0.1.6 from ever being published.
     - name: Build GUI (native arch)
       shell: bash
       run: |
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@latest package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}"
+        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}"
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
     
     - name: Create archives
@@ -82,6 +97,9 @@ jobs:
       with:
         name: gui-windows-artifacts
         path: superview-gui-${{ github.ref_name }}-windows-*.zip
+        # Uploading nothing is not success: without this the release job would
+        # publish an empty draft.
+        if-no-files-found: error
 
   build-gui-linux:
     name: Build GUI (Linux)
@@ -100,19 +118,28 @@ jobs:
     - name: Install GUI build dependencies
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
+    # "fyne package" writes its archive in the working directory, not in a
+    # build/ subdirectory. The previous version created build/, packaged, then
+    # looked for the result inside build/ -- which is what killed v0.1.5 and
+    # v0.1.6 with "mv: cannot stat 'superview-gui-linux-amd64'".
+    #
+    # The check below is the point of this step as much as the packaging is: if
+    # the tool ever changes its output name or location again, this says so, in
+    # this step, with a directory listing -- instead of failing two steps later
+    # on a message that names the wrong thing.
     - name: Build GUI (native arch)
       run: |
         set -euo pipefail
-        mkdir -p build
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@latest package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
-        
-    - name: Inspect build directory
-      run: |
-        echo "ARCH=$(go env GOARCH)"
-        ls -lah build
+        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
+        if [ ! -f "superview-gui-linux-${ARCH}.tar.xz" ]; then
+          echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
+          echo "Working directory contains:"
+          ls -lah
+          exit 1
+        fi
 
-    - name: Create archive
+    - name: Name the archive for the release
       run: |
         set -euo pipefail
         version="${{ github.ref_name }}"
@@ -123,13 +150,18 @@ jobs:
           arm64) archLabel="aarch64" ;;
           *) archLabel="$arch" ;;
         esac
-        tar -C build -czf "superview-gui-${version}-linux-${archLabel}.tar.gz" "superview-gui-linux-${arch}"
+        # Keep the .tar.xz fyne produces rather than repacking it as .tar.gz:
+        # it already carries the binary, the .desktop entry and the icon, which
+        # is what makes the archive installable rather than just a loose binary.
+        mv "superview-gui-linux-${arch}.tar.xz" "superview-gui-${version}-linux-${archLabel}.tar.xz"
+        ls -lah "superview-gui-${version}-linux-${archLabel}.tar.xz"
 
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: gui-linux-artifacts
-        path: superview-gui-${{ github.ref_name }}-linux-*.tar.gz
+        path: superview-gui-${{ github.ref_name }}-linux-*.tar.xz
+        if-no-files-found: error
 
   create-release:
     name: Create GitHub Release
@@ -150,7 +182,7 @@ jobs:
     
     - name: Calculate checksums
       run: |
-        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) | while read file; do
+        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.tar.xz" \) | while read -r file; do
           sha256sum "$file"
         done > artifacts/checksums.txt
         echo "=== Checksums ===" && cat artifacts/checksums.txt
@@ -181,6 +213,7 @@ jobs:
         files: |
           artifacts/**/*.zip
           artifacts/**/*.tar.gz
+          artifacts/**/*.tar.xz
           artifacts/checksums.txt
 
   notify:
@@ -190,13 +223,44 @@ jobs:
     if: always()
     
     steps:
-    - name: Check release status
+    # This step used to print "✅ Release workflow completed / Tests: PASSED"
+    # unconditionally, under if: always(). So the v0.1.5 and v0.1.6 runs ended
+    # on a green, congratulatory summary while the Linux build had failed and no
+    # release had been created at all. Nobody noticed for over a month, and the
+    # published version stayed three tags behind. A summary that cannot report
+    # failure is worse than no summary.
+    - name: Report what actually happened
       run: |
-        echo "✅ Release workflow completed"
-        echo "  - Tests: PASSED"
-        echo "  - Windows: native runner arch"
-        echo "  - Linux: native runner arch (needs libgl1-mesa-dev, xorg-dev at runtime;"
-        echo "           zenity or kdialog recommended for native file dialogs)"
+        set -uo pipefail
+        echo "Tests:          ${{ needs.test.result }}"
+        echo "Windows build:  ${{ needs.build-gui-windows.result }}"
+        echo "Linux build:    ${{ needs.build-gui-linux.result }}"
+        echo "Draft release:  ${{ needs.create-release.result }}"
         echo ""
-        echo "📦 Artifacts ready in: GitHub Release page"
-        echo "📝 Next: Manual publish of draft release"
+
+        failed=0
+        for result in "${{ needs.test.result }}" \
+                      "${{ needs.build-gui-windows.result }}" \
+                      "${{ needs.build-gui-linux.result }}"; do
+          [ "$result" = "success" ] || failed=1
+        done
+
+        case "${{ needs.create-release.result }}" in
+          success)
+            echo "A draft release was created. Publishing it is still a manual step."
+            ;;
+          skipped)
+            # Expected on a manual dispatch: the run is a dry run, artifacts are
+            # built and uploaded but nothing is published.
+            echo "No release created: this run is not on a tag."
+            ;;
+          *)
+            failed=1
+            ;;
+        esac
+
+        if [ "$failed" -ne 0 ]; then
+          echo "::error::the release run did not complete successfully -- see the job results above"
+          exit 1
+        fi
+        echo "Release run completed successfully."
