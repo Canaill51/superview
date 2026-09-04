@@ -1,12 +1,16 @@
 # Superview — Analyse complète du projet
 
 > Dernière mise à jour : 2026-09-04
-> Branche analysée : `Fix-Claude-Code` (identique à `master` @ `e3269e7`)
-> **Statut de vérification : VÉRIFIÉ.** Go 1.26.8 a été installé le 2026-09-04
-> (`~/.local/go`, sans `sudo`), ainsi que les en-têtes GUI dans un sysroot local — le module
-> entier compile, se teste et se lint localement. Les constats ci-dessous ont été confrontés au
-> code en exécution : **B-03 s'est révélé faux** et **X-04 surévalué**, les deux sont corrigés
-> ci-dessous. Voir [SOURCES.md](SOURCES.md) § 1 pour reproduire l'environnement.
+> Branche analysée : `master` @ `001d250` (4ᵉ passe). Les § 3 et § 3bis portaient sur `e3269e7`.
+> **Statut de vérification : VÉRIFIÉ.** Go 1.26.8 est installé (`~/.local/go`, sans `sudo`) et
+> `./common` compile, se teste sous `-race` et se lint localement. Les constats ont été
+> confrontés au code en exécution : **B-03 s'est révélé faux** et **X-04 surévalué**, les deux
+> sont corrigés ci-dessous.
+> ⚠️ Le sysroot GUI vivant dans `/tmp` **n'a pas survécu au dernier redémarrage** : le paquet
+> `main` ne compile pas en l'état. Voir [SOURCES.md](SOURCES.md) § 1 pour le reconstruire.
+>
+> **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique, N-xx) →
+> **§ 3ter (4ᵉ passe, la plus récente, P-xx)** → § 4bis (état d'avancement).
 
 ---
 
@@ -16,10 +20,10 @@
 | --- | --- |
 | Module Go | `superview` |
 | Version Go ciblée | `1.26.0` |
-| Nature | Application **GUI uniquement** (Fyne v2.7.3) |
+| Nature | Application **GUI uniquement** (Fyne v2.8.1) |
 | Plateformes officielles | Windows, Linux (Ubuntu 24.04 LTS+) |
 | Dépendance runtime | FFmpeg + FFprobe (binaires externes) |
-| Lignes de Go | ~5 880 (dont ~2 220 de tests) |
+| Lignes de Go | 9 049 (dont ~3 200 de tests) — mesuré à `001d250` |
 | Licence | voir `LICENSE` |
 
 ### Rôle fonctionnel
@@ -30,20 +34,24 @@ au format PGM P2 (`x.pgm`, `y.pgm`) puis les passe au filtre `remap` de FFmpeg.
 
 ### Cartographie des fichiers
 
+Comptes de lignes mesurés à `001d250` (la CI qualité couvre désormais `./...`, cf. X-01) :
+
 ```
-/                            paquet main (GUI) — NON couvert par la CI qualité
-├── gui_main.go              602 l. — fenêtre Fyne, orchestration, état d'encodage
+/                            paquet main (GUI) — 14 tests, tous sur fonctions pures (P-10)
+├── gui_main.go              798 l. — fenêtre Fyne, orchestration, état d'encodage
+│                                     dont ~600 l. dans main() : état non testable (P-10)
+├── gui_main_test.go         306 l.
 ├── gui_native_dialog_linux.go    81 l. — zenity / kdialog
 ├── gui_native_dialog_windows.go  60 l. — PowerShell WinForms
 │
-common/                      paquet métier — seul paquet testé/linté
-├── common.go               1080 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
-├── config.go                290 l. — Config YAML + surcharges SUPERVIEW_*
-├── security.go              185 l. — validation de chemins, whitelist encodeur
+common/                      paquet métier — couverture 71,6 %, vert sous -race
+├── common.go               1155 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
+├── observability.go         387 l. — bus d'événements + dernier état publié
+├── config.go                305 l. — Config YAML + surcharges SUPERVIEW_*
+├── health.go                278 l. — diagnostics système  ✅ branché sur le bouton Diagnostic
+├── metrics.go               274 l. — métriques d'encodage
+├── security.go              231 l. — validation de chemins, whitelist encodeur
 ├── hardware.go              200 l. — profil machine, choix encodeur/hwaccel
-├── health.go                277 l. — diagnostics système  ⚠️ jamais appelé
-├── metrics.go               304 l. — métriques d'encodage
-├── observability.go         351 l. — bus d'événements + état global partagé
 ├── gui_helpers.go            40 l. — helpers parsing GUI
 └── command-{windows,other}.go     — SysProcAttr HideWindow
 ```
@@ -51,12 +59,12 @@ common/                      paquet métier — seul paquet testé/linté
 ### Flux principal
 
 ```
-main() ──► LoadConfig("superview.yaml")   ⚠️ chemin relatif (voir B-07)
-       ──► CheckFfmpeg()                  → version / accels / encoders
+main() ──► ResolveConfigPath() ──► LoadConfig()   ✅ exécutable / ~/.config / cwd (B-02)
+       ──► CheckFfmpeg(cfg)               → version / accels / encoders
        ──► [UI] choix entrée ──► CheckVideo()  → VideoSpecs + Validate()
-       ──► [UI] choix sortie
-       ──► [UI] profil qualité ──► SetConfig(effectiveCfg)   ⚠️ mute le global (C-05)
-       └─► goroutine ──► common.PerformEncoding(...)
+       ──► [UI] choix sortie ──► ensureMP4Extension()
+       ──► [UI] profil qualité ──► copie locale de *Config   ✅ plus de global (C-05)
+       └─► goroutine ──► common.PerformEncoding(cfg, ..., cancelEncoding)   ⚠️ lecture en course (P-02)
                           ├─ isValidInputPath / isValidOutputPath      (security.go)
                           ├─ CheckVideo                                (ffprobe)
                           ├─ SanitizeEncoderInput                      (whitelist)
@@ -94,10 +102,11 @@ Le résultat effectif est publié via `SetLastHardwareAccelerationSummary()` et 
 - **Injection de paramètres FFmpeg verrouillée** : `SanitizeEncoderInput` valide contre la liste
   effectivement retournée par `ffmpeg -encoders`, et tous les appels passent par
   `exec.Command` sans shell — pas de surface d'injection de commande.
-- **CI substantielle** : build, tests multi-OS, couverture avec seuil, `go vet`, `staticcheck`,
-  `govulncheck`, `gofmt`, actions épinglées par SHA (à une exception près, cf. X-05).
-- **92 fonctions de test + 4 benchmarks** sur `common/`, avec des points d'injection prévus pour
-  la testabilité (`signalNotify`, `signalStop`, `commandStdoutPipe`).
+- **CI substantielle** : build, tests multi-OS, couverture avec seuil à 50 % sur `./...`,
+  `go vet`, `staticcheck`, `govulncheck`, `gofmt`, toutes les actions épinglées par SHA.
+- **Tests nombreux sur `common/`** — 71,6 % de couverture, verts sous `-race`, 4 benchmarks,
+  avec des points d'injection prévus pour la testabilité (`signalNotify`, `signalStop`,
+  `commandStdoutPipe`). Le paquet `main` reste l'angle mort (P-10).
 
 ---
 
@@ -512,9 +521,9 @@ GitHub Ubuntu.
 
 ---
 
-## 3bis. Deuxième passe d'analyse (2026-09-04) — axes non couverts
+## 3bis. Troisième passe d'analyse (2026-09-04) — axes non couverts
 
-Passe menée **empiriquement** : corpus de fichiers difficiles fabriqué avec FFmpeg, mesures de
+Passe menée **empiriquement**, à `e3269e7` : corpus de fichiers difficiles fabriqué avec FFmpeg, mesures de
 mémoire et de débit, tests de fuite de processus, et — fait nouveau — validation du chemin
 d'accélération matérielle sur une **NVIDIA RTX 4070 avec NVENC fonctionnel**.
 
@@ -593,11 +602,17 @@ précisément le public visé. La perte est silencieuse.
 Le filtre `remap` impose une conversion, mais elle pourrait viser `yuv444p10le,yuv420p10le`
 quand la source est en 10 bits.
 
+> ✅ **Correctif écrit et vérifié le 2026-09-04**, commun à N-03, N-04 et N-05 : voir
+> § 3ter, « N-03 / N-04 / N-05 — un correctif unique, vérifié ».
+
 ### N-04 🟠 — Les pistes audio supplémentaires sont supprimées
 
 **Mesuré** : 2 pistes AAC en entrée, **1 seule** en sortie. Faute de `-map`, FFmpeg applique sa
 sélection automatique et ne retient qu'un flux audio par type. Une caméra enregistrant plusieurs
 pistes, ou un fichier post-produit, y perd du contenu sans message.
+
+> ✅ Correctif commun à N-03/N-04/N-05, vérifié : voir
+> § 3ter, « N-03 / N-04 / N-05 — un correctif unique, vérifié ».
 
 ### N-05 🟡 — La date de prise de vue est perdue
 
@@ -606,7 +621,10 @@ tag `comment`, lui, survit). Avec trois entrées dans le `-filter_complex`, FFmp
 laquelle hériter les métadonnées globales. `-map_metadata 0` réglerait le cas. Pour de la vidéo
 d'action-cam, trier une bibliothèque par date devient impossible.
 
-### N-06 🟡 — Le débit demandé n'est pas borné : dépassement mesuré jusqu'à +56 %
+> ✅ Correctif commun à N-03/N-04/N-05, vérifié : voir
+> § 3ter, « N-03 / N-04 / N-05 — un correctif unique, vérifié ».
+
+### N-06 ✅ — ~~Le débit demandé n'est pas borné~~ — **CORRIGÉ**
 
 `-b:v` est posé sans `-maxrate` ni `-bufsize`, c'est donc une cible **moyenne** sans limite
 haute. Mesuré sur contenu incompressible (bruit), consigne 40 Mbps :
@@ -643,7 +661,7 @@ encodage à perdre si l'échec survient tardivement (un échec d'initialisation,
 coûte peu). À arbitrer : conserver, ou ne tenter le décodage matériel que si un gain réel est
 constaté sur la plateforme.
 
-### N-08 🟡 — Jusqu'à 146 Mo de fichiers temporaires, en RAM, sans vérification préalable
+### N-08 ✅ — ~~Jusqu'à 146 Mo de fichiers temporaires, en RAM, sans vérification préalable~~ — **CORRIGÉ**
 
 Empreinte mesurée des deux cartes PGM :
 
@@ -662,17 +680,22 @@ bouton Diagnostic — jamais avant un encodage. `InitEncodingSession` crée son 
 rien vérifier. Sur une machine modeste au tmpfs réduit, l'échec surviendra en cours de route,
 avec un message d'écriture peu parlant.
 
-### N-09 🟡 — Entrée identique à la sortie : message incompréhensible
+> ✅ **Le passage au PGM P5 binaire réduit ces 146 Mo à 66 Mo**, sortie identique au bit près.
+> Mesure et vérification en § 3ter, constat P-08.
+
+### N-09 ✅ — ~~Entrée identique à la sortie : message incompréhensible~~ — **CORRIGÉ**
 
 Aucune garde dans le code. **Mesuré** : FFmpeg refuse de lui-même et **le fichier source reste
 intact** — pas de perte de données. Mais l'utilisateur reçoit `ffmpeg failed: exit status 234`.
 Une comparaison des chemins avant lancement produirait un message clair.
 
-### N-10 🟡 — Retour utilisateur pauvre pendant un encodage long
+### N-10 ✅ — ~~Retour utilisateur pauvre pendant un encodage long~~ — **CORRIGÉ**
 
 - Aucune estimation de temps restant ni de débit : une barre de pourcentage seule, pour une
   opération qui peut durer plusieurs minutes en 4K. Les métriques nécessaires (`EncodingSpeed`,
   temps écoulé) sont pourtant déjà calculées dans `metrics.go`.
+  → Précisé en 4ᵉ passe : `EstimatedRemaining` est **déjà calculé et stocké** à chaque tick
+  (P-07), et `EncodingSpeed` est **faux** car il suppose 30 fps en dur (P-06).
 - Le chemin du fichier de journal n'est écrit **que dans le journal lui-même**
   (`gui_logger.Info("Superview starting", slog.String("log_file", logPath))`). Un utilisateur qui
   veut joindre ses logs à un rapport d'incident ne peut pas les trouver. Le dialogue Diagnostic
@@ -680,7 +703,309 @@ Une comparaison des chemins avant lancement produirait un message clair.
 
 ---
 
-## 4. Priorités recommandées
+## 3ter. Quatrième passe d'analyse (2026-09-04) — relecture complète à `001d250`
+
+Passe menée sur `master` @ `001d250`, soit **trois commits après** l'état analysé en § 3 et
+§ 3bis (`e3269e7`). Relecture intégrale des 9 049 lignes du module, puis vérification empirique
+avec le FFmpeg local (8.0.1-3ubuntu2) de chaque hypothèse retenue.
+
+Convention : **P-xx** pour les constats de cette passe.
+
+> **Suite donnée le 2026-09-04, sur décision de l'utilisateur.**
+>
+> *Premier lot* : le `-filter_complex` unique (N-03 + N-04 + N-05) et le passage des cartes de
+> remappage en PGM P5 binaire (P-08). Le travail a fait apparaître **P-11**, corrigé dans la
+> foulée.
+>
+> *Second lot* : **P-01 à P-07, P-09** et **N-06, N-08, N-09, N-10**.
+>
+> *Troisième lot* : **P-10**, la refactorisation de `main()`.
+>
+> Il ne reste ouvert **aucun constat technique**. **N-07** est un arbitrage produit — conserver
+> ou non le décodage matériel, qui ne vaut que ~5 % — et attend une décision, pas un correctif.
+
+### État vérifié du dépôt au moment de la passe
+
+| Contrôle | Résultat |
+| --- | --- |
+| `go test -race -count=1 ./common` | ✅ `ok superview/common 3,9 s` |
+| Couverture de `./common` | **71,6 %** (le 54,6 % de la CI est la moyenne module, tirée vers le bas par `main`) |
+| `gofmt -l .` | ✅ aucun fichier |
+| `TODO` / `FIXME` dans le code | ✅ aucun (les deux occurrences sont des `context.TODO()`) |
+| `go build ./...` | ❌ **non vérifiable** : le sysroot GUI de `/tmp` n'a pas survécu au redémarrage. `./common` compile. |
+
+### N-03 / N-04 / N-05 — un correctif unique, vérifié
+
+Les trois pertes de contenu relevées en § 3bis proviennent de la **même ligne**
+([`common/common.go:685`](../common/common.go#L685)) et se corrigent ensemble. Reproduction et
+correction validées ce jour :
+
+| Entrée | Sortie actuelle | Avec le correctif |
+| --- | --- | --- |
+| `yuv420p10le` | `yuv420p` — 8 bits (N-03) | `yuv420p10le` |
+| 2 pistes audio | 1 seule piste (N-04) | 2 pistes |
+| `creation_time` présent | **absent** (N-05) | préservé |
+
+Chaîne corrigée, exécutée et vérifiée :
+
+```
+-filter_complex "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p10le,format=yuv420p10le[v]"
+-map "[v]" -map "0:a?" -map_metadata 0
+```
+
+Le `?` de `0:a?` est indispensable : sans lui, une source muette fait échouer FFmpeg. Le choix
+entre la variante 8 bits et la variante 10 bits doit suivre le `pix_fmt` de la source, que
+`CheckVideo` **ne demande pas encore** à ffprobe : il faut l'ajouter au `-show_entries`
+([`common/common.go`, `CheckVideo`](../common/common.go)).
+
+### P-01 ✅ — ~~La case « squeeze » n'est jamais réactivée après un encodage réussi~~ — **CORRIGÉ**
+
+[`gui_main.go:469`](../gui_main.go#L469) (échec) contre
+[`gui_main.go:487-492`](../gui_main.go#L487-L492) (succès)
+
+Les deux branches de fin d'encodage réactivent les widgets une par une. La branche d'échec
+appelle `squeezeCheck.Enable()` ; **la branche de succès l'a oublié**. Après un premier
+encodage réussi, la case *Source already stretched (GoPro SuperView)* reste grisée jusqu'au
+redémarrage de l'application — c'est-à-dire que la fonctionnalité exposée par C-04 devient
+inatteignable dès le second fichier traité.
+
+C'est une conséquence directe de P-10 : la transition d'état est dupliquée à la main dans deux
+branches, sans rien pour garantir qu'elles restent symétriques.
+
+### P-02 ✅ — ~~Course de données sur le canal d'annulation~~ — **CORRIGÉ**
+
+`cancelEncoding` est écrit depuis le fil UI ([`gui_main.go:397`](../gui_main.go#L397),
+`cancelEncoding = nil`) et lu depuis la goroutine d'encodage
+([`gui_main.go:459`](../gui_main.go#L459)) :
+
+```go
+if err := common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
+```
+
+C'est une course au sens du modèle mémoire Go. Conséquence fonctionnelle : une annulation
+déclenchée avant que la goroutine n'ait lu la variable peut faire passer `nil` à
+`PerformEncoding`, et le run devient **définitivement non annulable** — le bouton *Cancel*
+sort immédiatement par la garde `cancelEncoding == nil`.
+
+*Correction* : capturer le canal dans une variable locale **avant** de lancer la goroutine, et
+passer cette locale.
+
+### P-03 ✅ — ~~L'annulation ne court-circuite pas la cascade de repli~~ — **CORRIGÉ**
+
+[`common/common.go:903-955`](../common/common.go#L903-L955)
+
+`run` signale l'annulation par `errors.New("encoding interrupted by user")` — une erreur
+indistinguable d'un échec d'encodeur. La cascade la traite donc comme un motif de repli et
+relance FFmpeg : décodage CPU, puis récursion sur l'encodeur CPU équivalent, chacun avec sa
+propre retentative audio. **Jusqu'à trois processus FFmpeg supplémentaires sont démarrés après
+que l'utilisateur a demandé l'arrêt.**
+
+Chaque relance ressort vite (le canal est déjà fermé, le `select` la coupe au démarrage), donc
+il n'y a pas de blocage — mais il y a démarrage de processus et réécriture du fichier de sortie.
+
+*Correction* : un type d'erreur de domaine (`ErrCancelled`, ou un `errCancelled` sentinelle)
+testé avec `errors.Is` avant chaque repli, dans `runWithAudioFallback` comme dans `EncodeVideo`.
+
+### P-04 ✅ — ~~Le fichier de sortie partiel survit à une annulation ou à un échec~~ — **CORRIGÉ**
+
+Aucun chemin d'erreur de `PerformEncoding` ne supprime `outputFile`. FFmpeg tourne avec `-y` et
+écrit directement à destination : après une annulation, l'utilisateur retrouve un `.mp4`
+tronqué, d'apparence valide, à l'emplacement qu'il avait choisi.
+
+Recoupe N-09 : là, FFmpeg se protégeait lui-même (entrée = sortie, code 234, source intacte).
+Ici rien ne protège la sortie.
+
+*Correction* : encoder vers un fichier temporaire voisin puis renommer en fin de course
+(`os.Rename` est atomique sur le même système de fichiers), ou à défaut supprimer la sortie sur
+les chemins d'annulation et d'échec.
+
+### P-05 ✅ — ~~Les débits sont en bits/s, documentés en octets/s partout~~ — **CORRIGÉ**
+
+Le code est **cohérent** : ffprobe renvoie `bit_rate` en bits/s, FFmpeg attend `-b:v` en bits/s,
+et les valeurs par défaut sont correctes comme bits (209 715 200 → 209,7 Mbps, ce que dit bien
+`Config.String()`). Mais le mot « bytes » est écrit partout :
+
+| Emplacement | Texte |
+| --- | --- |
+| [`common/config.go:19-23`](../common/config.go#L19-L23) | `// Bitrate constraints in bytes/second`, `// 100k bytes/sec (~0.1 Mbps)` |
+| [`common/config.go:293-295`](../common/config.go#L293-L295) | `"  Min Bitrate: %d bytes/sec (%.2f Mbps)"` |
+| [`common/common.go:189`](../common/common.go#L189) | `// GetBitrate returns the desired output bitrate in bytes/second.` |
+| [`common/common.go:618-621`](../common/common.go#L618-L621) | messages d'erreur **montrés à l'utilisateur** : `"bitrate %d is below minimum %d bytes/second"` |
+| [`common/metrics.go:12`](../common/metrics.go#L12), `:26`, `:34` | `All bitrates in bytes/sec` |
+| [`superview.yaml`](../superview.yaml) | `# Bitrate constraints in bytes/second` |
+
+Un utilisateur qui règle `max_bitrate` en croyant écrire des octets se trompe d'un facteur 8.
+Correction purement textuelle, sans aucun changement de comportement — mais elle touche aussi
+`common/common_test.go:29` et `common/config_test.go:26`.
+
+### P-06 ✅ — ~~`EncodingSpeed` repose sur un 30 fps codé en dur~~ — **CORRIGÉ**
+
+[`common/metrics.go:261`](../common/metrics.go#L261)
+
+```go
+totalFrames := m.InputDuration * 30 // Assuming ~30fps average
+```
+
+La cadence réelle n'est jamais lue. Sur du 120 fps GoPro — cas courant pour la cible produit —
+la « vitesse d'encodage » rapportée dans le journal et dans les événements d'observabilité est
+fausse d'un facteur 4. Une métrique dérivée d'une constante inventée induit en erreur plus
+qu'une métrique absente.
+
+`r_frame_rate` est disponible auprès de ffprobe et se récupère dans le même appel que le
+`pix_fmt` du correctif N-03.
+
+### P-07 ✅ — ~~`EstimatedRemaining` est calculé à chaque tick et jamais affiché~~ — **CORRIGÉ**
+
+[`common/metrics.go:125`](../common/metrics.go#L125) calcule le temps restant à chaque mise à
+jour de progression. Aucun appelant ne le lit. La GUI n'affiche qu'un pourcentage, pour une
+opération qui dure plusieurs minutes en 4K.
+
+Précision apportée à N-10 : la donnée n'est pas seulement « calculable », elle est **déjà
+calculée et stockée**. Il ne manque qu'un accesseur et un `SetText` dans le rappel de
+progression.
+
+### P-08 ✅ — ~~Les cartes PGM peuvent passer en P5 binaire~~ — **CORRIGÉ**
+
+`GeneratePGM` écrit du **P2 ASCII**. Le format **P5 binaire** 16 bits est accepté tel quel par
+le filtre `remap`. Vérifié ce jour en produisant les deux jeux de cartes pour la même
+transformation et en comparant les trames décodées :
+
+```
+out_p2  a63565f315931b2caad0b851765b313f0bcd86180f0c04707446e1b08df50487
+out_p5  a63565f315931b2caad0b851765b313f0bcd86180f0c04707446e1b08df50487
+```
+
+**Même SHA-256** — le changement de format est neutre sur le résultat.
+
+| Source GoPro 4064×3048 (12 Mpx) | Deux cartes |
+| --- | --- |
+| P2 ASCII (actuel) | **146,6 Mo** |
+| P5 binaire | **66,1 Mo** (−55 %) |
+
+Gain double : l'empreinte (en RAM quand `/tmp` est un tmpfs, cf. N-08) et le temps de
+génération, puisqu'on supprime le formatage décimal de ~33 millions d'entiers.
+
+À coupler avec N-08 : appeler `checkDiskSpaceHealth` — qui existe déjà et n'est utilisé que par
+le bouton Diagnostic — **avant** `InitEncodingSession`, avec le besoin réel
+(`outX × outY × 2 × 2` octets en P5) plutôt qu'un seuil fixe de 10 Go.
+
+> ⚠️ Le PGM binaire est **gros-boutiste** par spécification. Une implémentation qui écrirait
+> du petit-boutiste produirait des cartes silencieusement fausses, pas une erreur.
+
+### P-09 ✅ — ~~Verrouillage trop large et coût par événement de progression~~ — **PARTIELLEMENT CORRIGÉ**
+
+- [`common/observability.go:232`](../common/observability.go#L232) : `RecordEvent` prend
+  `r.mu.Lock()` (verrou d'**écriture**) pour une simple itération en lecture sur `r.handlers`.
+  `RLock` suffit, et c'est déjà ce que font `RecordProgress`, `RecordError` et
+  `RecordCompletion` juste en dessous.
+- Chaque ligne de progression FFmpeg — plusieurs par seconde — traverse
+  `RecordEncodingProgress`, qui alloue une `map[string]interface{}`, formate une chaîne et
+  prend deux verrous, pour finir le plus souvent ignorée par un handler réglé sur `info`.
+  Un court-circuit sur `logger.Enabled(ctx, slog.LevelDebug)` supprime ce coût.
+- [`common/common.go`](../common/common.go) : `-threads runtime.NumCPU()` est posé même quand
+  l'encodeur est NVENC, AMF ou QSV, où l'option n'a pas de sens.
+
+> ✅ **Corrigé le 2026-09-04** : `RecordEvent` prend un `RLock`, et `encoderThreadArgs` n'émet
+> plus `-threads` pour un encodeur matériel.
+>
+> ⏸️ **Volontairement non fait** : le court-circuit d'allocation sur les événements de
+> progression. Le coût réel — une `map` et deux verrous quelques fois par seconde — est
+> négligeable devant un encodage vidéo, et l'optimisation risquait de faire disparaître des
+> événements du journal. Optimiser ce qui ne coûte rien, au prix d'un comportement observable,
+> n'est pas un gain.
+
+### P-10 ✅ — ~~`main()` reste une fonction de 600 lignes : l'état de la GUI n'est pas testable~~ — **CORRIGÉ**
+
+`gui_main.go` fait 798 lignes dont ~600 dans `main()`. Tout l'état applicatif — `video`,
+`outputPath`, `encodingInProgress`, `cancelEncoding`, la liste des widgets à réactiver — vit en
+variables capturées par closure. Rien de tout cela n'est atteignable depuis un test.
+
+`gui_main_test.go` compte 14 tests, mais **tous** portent sur des fonctions pures
+(`ensureMP4Extension`, `qualityProfileSettings`, `encoderOptionsFor`, `formatResultsPanel`…).
+C'est exactement pour cela que **P-01 et P-02 ont survécu à T-01** : ils vivent dans la zone
+qu'aucun test ne peut atteindre.
+
+*Correction appliquée le 2026-09-04* : l'état est extrait dans un type `appState` porteur de
+onze méthodes — `canStart`, `refreshStart`, `setInput`, `setOutput`, `setFFmpeg`,
+`refreshHardwareStatus`, `setEncoding`, `beginEncoding`, `finishEncoding`, `requestCancel`,
+`isEncoding` — **toutes couvertes à 100 %**.
+
+Deux choix de conception portent la correction au-delà d'un simple déplacement :
+
+- `beginEncoding()` **retourne** le canal d'annulation au lieu de laisser l'appelant le relire
+  dans la structure. La goroutine d'encodage ne *peut plus* commettre P-02 : la course n'est pas
+  corrigée, elle est rendue inexprimable.
+- `requestCancel()` est le seul endroit autorisé à fermer le canal et le met à `nil` dans le
+  même geste, donc l'appeler deux fois — bouton *Cancel* puis interception de fermeture — est
+  inoffensif au lieu de paniquer.
+
+La dernière séquence de `Disable` écrite à la main a disparu au passage : le chemin « ffmpeg
+indisponible » en oubliait le sélecteur de codec, créé plus loin dans `main()`, qui restait donc
+actif parmi quatre contrôles grisés.
+
+| | Avant | Après |
+| --- | --- | --- |
+| `main()` | 600 lignes | **524 lignes** — le reste est de la construction de widgets et de la mise en page, ce qui est le rôle légitime de cette fonction |
+| État applicatif | 6 variables capturées par closure | **1 type, 11 méthodes** |
+| Tests atteignant l'état | 0 | **18 sous-tests**, chacun vérifié en contre-épreuve |
+| Couverture du paquet `main` | 12,6 % | **21,8 %** |
+
+> Ce que la refactorisation ne fait **pas** : `main()` reste longue. Ce n'est pas l'objet du
+> constat — le défaut n'était pas la longueur mais le fait que les *décisions* soient
+> inatteignables. La construction de widgets, elle, n'a rien à gagner à être découpée.
+
+### P-11 🔴 — `libx265` échoue systématiquement au-delà de 16 cœurs — **découvert et corrigé le 2026-09-04**
+
+[`common/common.go`](../common/common.go) — `buildEncodeBaseArgs`, option `-threads`
+
+Découvert en écrivant le test de non-régression de N-03 : il exige un encodeur HEVC, et
+`libx265` refusait de démarrer sur cette machine.
+
+`encoderThreads` vaut `runtime.NumCPU()` par défaut. FFmpeg fait correspondre `-threads` à
+`--frame-threads` de x265, qui **refuse toute valeur supérieure à 16** :
+
+```
+x265 [error]: frameNumThreads (--frame-threads) must be [0 .. X265_MAX_FRAME_THREADS)
+[libx265] Cannot open libx265 encoder.
+```
+
+Mesuré sur cette machine (24 cœurs logiques, FFmpeg 8.0.1) :
+
+| `-threads` | Résultat |
+| --- | --- |
+| 4, 8, 16 | ✅ ok |
+| 17, 24, 32 | ❌ **l'encodeur ne s'ouvre pas** |
+
+Gravité 🔴 : ce n'est pas une dégradation, c'est un **échec dur**. Et comme `libx265` est un
+encodeur CPU, `isHardwareEncoder` est faux, donc la cascade de repli d'`EncodeVideo` ne
+s'applique pas — l'utilisateur reçoit directement un mur de texte x265. Sur toute machine à 17
+cœurs logiques ou plus, **aucun encodage H.265 ne pouvait aboutir**. Les machines à 16 cœurs et
+moins ne voient rien : c'est pourquoi ni la CI (runners GitHub à 4 cœurs) ni les passes
+précédentes n'avaient pu l'observer.
+
+*Correctif appliqué* : `clampEncoderThreads` plafonne `-threads` à 16 pour `libx265` seulement.
+Les autres encodeurs se limitent eux-mêmes au lieu d'échouer, on ne les touche pas.
+Tests : `TestClampEncoderThreads`, `TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped`.
+
+### Priorités de cette passe
+
+| Ordre | Constats | Justification |
+| --- | --- | --- |
+| 1 | **N-03 + N-04 + N-05** | Trois pertes de contenu produit, un seul correctif de quelques lignes, déjà validé bout en bout |
+| 2 | **P-01**, **P-02** | Deux défauts visibles par l'utilisateur, correctifs triviaux |
+| 3 | **P-03**, **P-04** | L'annulation relance FFmpeg et laisse un fichier corrompu à l'emplacement choisi par l'utilisateur |
+| 4 | **P-05** | Correction textuelle sans risque, évite une mauvaise configuration d'un facteur 8 |
+| 5 | **P-08** + **N-08**, **N-06** | Robustesse : empreinte mémoire et respect de la consigne de débit |
+| 6 | **P-10** | Filet durable — à poser avant d'ajouter d'autres fonctionnalités à la GUI |
+| 7 | **P-06**, **P-07** + **N-10**, **P-09**, **N-09** | Confort utilisateur et hygiène |
+| — | **N-07** | Arbitrage produit : conserver ou non le décodage matériel, qui ne vaut que ~5 % |
+
+---
+
+## 4. Priorités recommandées — 1ʳᵉ passe (historique)
+
+> Tableau d'origine, conservé pour la traçabilité : **tous ces constats sont traités**.
+> Les priorités en vigueur sont celles de § 3ter, « Priorités de cette passe ».
 
 | Ordre | Constats | Justification |
 | --- | --- | --- |
@@ -700,10 +1025,23 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 
 | Statut | Constats |
 | --- | --- |
-| ✅ **Corrigé et vérifié** (32) | B-01, B-02, B-04, B-05, B-06, B-07, B-08, S-01, S-02, S-03, S-04, C-01, C-02, C-03, C-04, C-07, C-08, X-01, X-02, X-03, X-04, X-05, X-06, X-07, X-08, O-01, O-02, O-03, O-04, T-01, T-02, T-03 |
+| ✅ **Corrigé et vérifié — 1ʳᵉ passe** (32) | B-01, B-02, B-04, B-05, B-06, B-07, B-08, S-01, S-02, S-03, S-04, C-01, C-02, C-03, C-04, C-07, C-08, X-01, X-02, X-03, X-04, X-05, X-06, X-07, X-08, O-01, O-02, O-03, O-04, T-01, T-02, T-03 |
 | ⬜ **Invalidé** (1) | B-03 — le constat était faux, voir ci-dessus |
 | ✅ **Corrigé et vérifié — 2ᵉ passe** (4) | C-05, C-06, O-05, O-06 |
-| ⏸️ **Restant** | aucun |
+| ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
+| ⏸️ **Ouvert — 3ᵉ passe** (1) | N-07 *(arbitrage produit : conserver ou non le décodage matériel, qui ne vaut que ~5 %)* |
+| ✅ **Corrigé et vérifié — 4ᵉ passe** (11) | P-01 à P-11 *(P-09 partiellement, voir ci-dessus)* |
+| ⏸️ **Ouvert** | *aucun constat technique.* Reste **N-07**, qui est un arbitrage produit, pas un défaut. |
+
+Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
+`gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
+`go test -race ./...` ✅ · GUI démarrée et vivante ✅ · couverture module **59,3 %** pour un
+seuil CI de 50 % (33,7 % au début du chantier).
+
+**Chaque correctif a été validé en contre-épreuve** : le défaut est réintroduit et le test doit
+rougir. Deux tests ont ainsi été réécrits parce qu'ils passaient à vide (L-37) — un compteur
+d'invocations qui ne discriminait pas, et une annulation déclenchée trop tôt pour que ffmpeg ait
+créé son fichier.
 
 Les quatre arbitrages de périmètre ont été soumis à l'utilisateur le 2026-09-04 et tranchés :
 S-02 → résoudre les liens symboliques puis valider la cible · C-01 → brancher `health.go` sur un
@@ -736,3 +1074,9 @@ Détail des mesures obtenues :
 | --- | --- |
 | 2026-09-04 | Création. Analyse statique complète de `Fix-Claude-Code` @ `e3269e7`. 30 constats. |
 | 2026-09-04 | Application des correctifs par priorité. Toolchain installée, tout vérifié en exécution. B-03 invalidé, X-04 revu à la baisse. Ajout du § 4bis. |
+| 2026-09-04 | 3ᵉ passe empirique : § 3bis, 10 constats N-01 à N-10. |
+| 2026-09-04 | N-01 et N-02 corrigés. |
+| 2026-09-04 | **4ᵉ passe, à `001d250`** : ajout du § 3ter, 10 constats P-01 à P-10. Correctif unique N-03/N-04/N-05 écrit et vérifié bout en bout ; passage PGM P5 binaire vérifié identique au bit près (P-08). § 1 (carte des fichiers, flux, métriques) rafraîchi sur le code réel. Aucune modification de code. |
+| 2026-09-04 | Application des deux correctifs demandés : N-03+N-04+N-05 (chaîne de filtres, `-map`, `-map_metadata`) et P-08 (cartes PGM en P5 binaire). **P-11 découvert et corrigé en chemin** — `libx265` échouait sur toute machine de plus de 16 cœurs. 3 tests unitaires de format, 3 tests PGM et 1 test d'intégration bout en bout ajoutés, chacun vérifié en contre-épreuve. Leçons L-36 à L-39. |
+| 2026-09-04 | Second lot : P-01 à P-07 et P-09, plus N-06, N-08, N-09, N-10. `-maxrate`/`-bufsize` calibrés par la mesure (+83 % → +24 % de dépassement). Leçons L-40 à L-43. Restent ouverts : **P-10** et **N-07** seulement. |
+| 2026-09-04 | **P-10** : état de `main()` extrait dans `appState` (11 méthodes, toutes à 100 % de couverture), 18 sous-tests, chacun vérifié en contre-épreuve. `beginEncoding()` rend P-02 inexprimable. Leçons L-44, L-45. **Plus aucun constat technique ouvert ; reste N-07, arbitrage produit.** |

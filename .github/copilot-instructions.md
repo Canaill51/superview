@@ -34,7 +34,7 @@
   - `CheckVideo` reads stream metadata via `ffprobe` with full error handling.
   - `GeneratePGM` creates remap maps in session's temp directory.
   - `EncodeVideo` runs ffmpeg with remap filtering and reports progress.
-  - `ValidateBitrate()`: validates bitrate against `Config.MinBitrate`/`MaxBitrate` (defaults 100k-200M bytes/sec).
+  - `ValidateBitrate()`: validates bitrate against `Config.MinBitrate`/`MaxBitrate` (defaults 102400-209715200 **bits**/sec, i.e. ~0.1-200 Mbps).
   - `FindEncoder()`: selects encoder with error validation.
   - `CleanUp` removes session's entire temp directory.
 - OS-specific process behavior is isolated in `common/command-other.go` and `common/command-windows.go`.
@@ -59,7 +59,7 @@
   - Default to input codec unless user selects/sets a supported encoder.
 - Validation patterns required for all major operations:
   - `VideoSpecs.Validate()`: checks stream data completeness before encoding.
-  - `ValidateBitrate()`: ensures bitrate is within the configured range (defaults: min 100k, max 200M bytes/sec).
+  - `ValidateBitrate()`: ensures bitrate is within the configured range (defaults ~0.1-200 Mbps, expressed in **bits**/sec).
   - Always check error returns from `FindEncoder()`.
 - Temporary remap files lifecycle: initialize session → generate files → encode → cleanup in isolated temp directory.
   - Always call `InitEncodingSession()` before encoding and `defer common.CleanUp()` for guaranteed cleanup.
@@ -78,7 +78,7 @@
 - Treat file paths from GUI file pickers as untrusted input; validate before processing.
 - Validate all user input before processing:
   - Video metadata via `VideoSpecs.Validate()`.
-  - Bitrate ranges via `ValidateBitrate()` (configured range, defaults 100k-200M bytes/sec).
+  - Bitrate ranges via `ValidateBitrate()` (configured range, defaults ~0.1-200 Mbps, expressed in **bits**/sec).
   - Encoder selection via `FindEncoder()` which checks availability.
 - Temporary files are managed in isolated directories via `EncodingSession` (not in working directory).
   - Use `InitEncodingSession()` / `CloseEncodingSession()` for safe session lifecycle.

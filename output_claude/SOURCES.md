@@ -8,9 +8,19 @@
 
 ## 1. Environnement de vérification — **installé et éprouvé**
 
-État au 2026-09-04 : **opérationnel**. Le module entier compile, se teste et se lint
-localement. `sudo` n'étant pas disponible (authentification interactive impossible), tout a été
-installé dans l'espace utilisateur.
+État au 2026-09-04 : **partiellement opérationnel**. `sudo` n'étant pas disponible
+(authentification interactive impossible), tout a été installé dans l'espace utilisateur.
+
+| Composant | Emplacement | Survit au redémarrage |
+| --- | --- | --- |
+| Toolchain Go 1.26.8 | `~/.local/go` | ✅ oui |
+| Sysroot GUI (en-têtes GL/X11/Wayland) | `/tmp/glue/sysroot` | ❌ **non — à reconstruire** |
+| `ffmpeg` 8.0.1, `ffprobe`, `zenity` | système | ✅ oui |
+
+Conséquence pratique en début de session : `./common` se compile, se teste sous `-race` et se
+lint immédiatement ; le paquet `main` échoue sur `wayland-client-core.h: No such file or
+directory` tant que le sysroot n'est pas refait. **Ne pas annoncer une modification de la GUI
+comme vérifiée dans cet état** (L-01).
 
 ### Rétablir l'environnement depuis zéro
 
@@ -177,16 +187,120 @@ Il n'existe plus de configuration globale. `GetConfig()` et `SetConfig()` ont é
 Règle de priorité du preset : un `video_preset` renseigné dans la configuration l'emporte sur
 celui du profil qualité de la GUI. Testée par `TestConfiguredPresetWinsOverQualityProfile`.
 
+### Contrat FFmpeg — faits établis par mesure (4ᵉ passe, 2026-09-04)
+
+Vérifiés en exécutant FFmpeg 8.0.1, pas déduits de la documentation. À traiter comme acquis.
+
+| Fait | Conséquence |
+| --- | --- |
+| `-filter_complex` sans `-map` ne conserve **qu'une piste audio** | Il faut `-map "[v]" -map "0:a?"`. Le `?` est **obligatoire** : sans lui, une source muette fait échouer FFmpeg. |
+| Avec trois entrées, les métadonnées globales sont **perdues** | Il faut `-map_metadata 0` pour garder `creation_time`. |
+| `format=yuv444p,format=yuv420p` **ramène le 10 bits à 8 bits** | Les variantes `yuv444p10le,yuv420p10le` préservent la profondeur — vérifié : `yuv420p10le` en entrée ressort `yuv420p10le`. |
+| Le filtre `remap` accepte le **PGM P5 binaire** 16 bits | Sortie **identique au bit près** au P2 ASCII (même SHA-256 sur les trames décodées), pour 55 % d'empreinte en moins. |
+| Le PGM binaire est **gros-boutiste** par spécification | Un écrivain petit-boutiste produirait des cartes fausses **sans erreur**. |
+| `-b:v` seul est une cible **moyenne**, sans plafond | Dépassement mesuré à +56 % (`libx264`). `-maxrate` et `-bufsize` sont nécessaires. |
+| Une carte de remappage d'une seule trame est réutilisée pour toutes les trames | Pas besoin de boucler l'entrée. |
+| **`libx265` refuse `-threads` au-delà de 16** | FFmpeg le fait correspondre à `--frame-threads` de x265. 17 et plus : `Cannot open libx265 encoder`, échec dur. `runtime.NumCPU()` ne peut donc pas être passé tel quel — voir `clampEncoderThreads` (P-11). |
+| **`-b:v` seul dépasse jusqu'à +83 %** | Mesuré sur bruit incompressible à 8 Mbps : 14,7 Mbps sans plafond, 10,0 Mbps avec `-maxrate` égal à la consigne et `-bufsize` au double (+24 %), 10,4 Mbps avec la recommandation habituelle de 1,5× (+29 %). Le plafond retenu est **1×** — la valeur « standard » était la moins bonne. |
+| `ffprobe` donne la cadence en rationnel (`30000/1001`) | Et `0/0` quand il ne sait pas ; `parseFrameRate` rend 0, que tous les appelants lisent comme « inconnu ». |
+| Le filtre `remap` accepte des cartes 16 bits pour une source 10 bits | La profondeur des cartes et celle de la vidéo sont indépendantes. |
+
+Recette de vérification d'un changement de chaîne de filtres — comparer la **sortie décodée**,
+jamais le fichier de sortie (les en-têtes de conteneur diffèrent toujours) :
+
+```bash
+ffmpeg -v error -i avant.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
+ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
+```
+
+> ⚠️ **Ne jamais figer une de ces empreintes dans un test.** Elle dépend du build de l'encodeur
+> et rougirait sur un autre runner pour une raison étrangère au code. Le patron correct est
+> `TestGeneratePGM_RemapOutputIsStable` : comparer **deux exécutions du FFmpeg présent** plutôt
+> qu'inscrire le résultat de l'un d'eux. Voir [LESSONS.md](LESSONS.md) L-36.
+
+### Contrat de la chaîne de filtres (depuis la 4ᵉ passe)
+
+`buildEncodeBaseArgs` doit émettre, dans cet ordre, après les trois `-i` :
+
+```
+-filter_complex "[0:v:0][1:v:0][2:v:0]remap,format=<inter>,format=<sortie>[v]"
+-map "[v]" -map "0:a?" -map_metadata 0
+```
+
+- Le label `[v]` et les trois options qui suivent forment un tout : retirer l'un casse les deux
+  autres. Sans eux, une piste audio et la date de prise de vue disparaissent (N-04, N-05).
+- Le `?` de `0:a?` rend la sélection audio facultative — sans lui, une source muette échoue.
+- `<inter>`/`<sortie>` valent `yuv444p10le`/`yuv420p10le` **uniquement** si la source dépasse
+  8 bits *et* l'encodeur est de la famille HEVC (`remapFilterChain`). `h264_nvenc` ne sait pas
+  encoder en 10 bits, et le High 10 de `libx264` se lit mal (N-03).
+- Un `pix_fmt` vide ou non reconnu vaut 8 bits : c'est la direction qui préserve l'existant.
+
+### Contrat du pipeline (depuis les correctifs de la 4ᵉ passe)
+
+Invariants à ne pas casser, chacun tenu par un test :
+
+| Invariant | Où | Pourquoi |
+| --- | --- | --- |
+| L'annulation se transporte par `ErrCancelled`, testée avec `errors.Is` | `EncodeVideo` | Une erreur non typée relançait la cascade de repli : 3 ffmpeg au lieu de 0 après un Cancel |
+| L'encodage écrit dans un fichier de travail, renommé en place au succès | `PerformEncoding` | Sinon une annulation laisse un `.mp4` tronqué à destination et détruit le fichier précédent |
+| L'entrée ne peut pas être la sortie | `sameOutputAsInput` | **Conséquence directe du point précédent** : ffmpeg ne voit plus le conflit, rien n'empêcherait le renommage d'écraser la source |
+| Les débits sont en **bits**/seconde | partout | ffprobe `bit_rate` et ffmpeg `-b:v` sont en bits ; le code était juste, les commentaires faux |
+| `-threads` n'est pas émis pour un encodeur matériel, et est plafonné à 16 pour `libx265` | `encoderThreadArgs` | Au-delà de 16, `libx265` refuse de s'ouvrir (P-11) |
+| La géométrie des cartes est calculée par `remapOutputSize`, jamais recopiée | `GeneratePGM`, `checkTempSpaceForMaps` | Deux calculs divergent ; la vérification d'espace réserverait pour une carte qui n'est pas celle qu'on écrit |
+| Une cadence d'images inconnue laisse `EncodingSpeed` à zéro | `computeMetrics` | Une métrique dérivée d'une constante inventée trompe plus qu'une métrique absente |
+
+> **Écrire un test d'annulation** : fermer le canal *avant* l'appel ne teste rien — ffmpeg est
+> tué avant d'exécuter sa première ligne, donc avant de créer son fichier. Déclencher
+> l'annulation depuis le **rappel de progression**, et compter les lancements depuis
+> `commandStdoutPipe` plutôt que depuis le processus qu'on va tuer. Voir L-40 et L-41.
+
+### Contrat de l'état de la GUI (depuis P-10)
+
+Tout l'état de session vit dans `appState` (`gui_main.go`), et **rien ne doit revenir en
+variable capturée par closure dans `main()`** : c'est ce qui rendait les décisions
+inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
+
+| Règle | Pourquoi |
+| --- | --- |
+| `beginEncoding()` **retourne** le canal d'annulation ; la goroutine ne relit jamais `state.cancel` | La relecture était la course P-02. La signature est ce qui l'empêche de revenir (L-44) |
+| `requestCancel()` est le seul endroit qui ferme le canal, et le met à `nil` dans le même geste | Le bouton *Cancel* et l'interception de fermeture peuvent tous deux tirer ; fermer deux fois panique |
+| Un contrôle qui doit être inerte pendant un encodage va dans `state.locked`, jamais dans une séquence d'`Enable`/`Disable` écrite à la main | Deux séquences parallèles divergent toujours — c'est P-01, et le sélecteur de codec oublié dans le chemin « ffmpeg indisponible » |
+| Les widgets sont nil-vérifiés dans les méthodes | Ils sont assignés au fil de la construction de la fenêtre ; une réorganisation doit dégrader en « pas de mise à jour », pas en panique |
+| Toute nouvelle transition d'état est une **méthode**, avec son test | Les onze méthodes actuelles sont à 100 % de couverture ; ne pas laisser ce filet se percer |
+
+> Pour tester une transition, `newTestAppState(t)` (dans `gui_main_test.go`) construit un
+> `appState` complet avec de vrais widgets sous `test.NewApp()`. Un `appState` dont les widgets
+> sont nuls ne prouve rien : les assertions porteraient sur des sorties inexistantes.
+
+### Contrat des cartes de remappage (depuis la 4ᵉ passe)
+
+`GeneratePGM` écrit du **PGM P5**, binaire, 16 bits, **gros-boutiste** — l'ordre des octets est
+imposé par la spécification PGM, et un écrivain petit-boutiste produirait des cartes fausses
+sans aucune erreur. `putMapSample` est le **seul** endroit qui encode un échantillon : les deux
+cartes doivent y passer, sinon l'invariant est défini deux fois et le test d'ordre devient
+inopérant (c'est arrivé, voir L-37).
+
+Trois tests le verrouillent, et ils ne sont pas interchangeables :
+
+| Test | Ce qu'il prouve |
+| --- | --- |
+| `TestGeneratePGM_Golden` | Les octets exacts des cartes n'ont pas bougé par accident |
+| `TestGeneratePGM_MapsAreBigEndianP5` | Le format sur le fil : magie P5, maxval 65535, ordre des octets |
+| `TestGeneratePGM_RemapOutputIsStable` | Ce que FFmpeg **fait** des cartes, seule mesure qui parle du rendu |
+
 ### Cas limites à retester systématiquement
 
 | Chemin | Pourquoi |
 | --- | --- |
-| FFmpeg absent du `PATH` | `CheckFfmpeg` retourne `nil` → la GUI manipule une map nulle (B-05) |
-| Dialogue natif indisponible (pas de zenity/kdialog) | Bascule sur le repli Fyne, buggé sous Windows (B-03) |
-| Annulation en cours d'encodage | Deux chemins d'annulation concurrents (B-06) |
+| FFmpeg absent du `PATH` | `CheckFfmpeg` retourne `nil` → la GUI manipule une map nulle (B-05, corrigé — non-régression) |
+| Dialogue natif indisponible (pas de zenity/kdialog) | Bascule sur le repli Fyne |
+| **Second encodage dans la même session** | Les widgets doivent tous revenir actifs — `squeezeCheck` ne l'est pas (P-01) |
+| **Annulation immédiate, avant le premier octet de progression** | Course sur `cancelEncoding` (P-02) ; la cascade de repli relance FFmpeg (P-03) ; le fichier partiel reste (P-04) |
 | Encodeur matériel refusé par le pilote | Cascade de repli à trois niveaux dans `EncodeVideo` |
+| **Source 10 bits, ou à plusieurs pistes audio, ou horodatée** | Trois pertes silencieuses (N-03, N-04, N-05) |
+| **Source à 60/120/240 fps** | `EncodingSpeed` suppose 30 fps en dur (P-06) |
 | Chemin contenant `..` ou un lien symbolique | Rejeté par `security.go` (S-01, S-02) |
-| Lancement hors du répertoire du dépôt | `superview.yaml` introuvable (B-02) |
+| Lancement hors du répertoire du dépôt | Résolution du `superview.yaml` (B-02, corrigé — non-régression) |
 
 ---
 
@@ -254,3 +368,7 @@ celui du profil qualité de la GUI. Testée par `TestConfiguredPresetWinsOverQua
 | 2026-09-04 | Création. Pré-requis toolchain, hiérarchie des sources internes avec indice de fiabilité, procédure de vérification, références FFmpeg/Go/Fyne/CI. |
 | 2026-09-04 | Ajout du contrat de configuration explicite (C-05) : plus de global mutable, `*Config` passée en paramètre. |
 | 2026-09-04 | § 1 réécrit : environnement installé et éprouvé (Go dans `~/.local`, sysroot GUI sans sudo). Indices de fiabilité mis à jour après correction des fichiers. Procédure de vérification alignée sur la CI étendue à `./...`. |
+| 2026-09-04 | 4ᵉ passe : § 1 requalifié (le sysroot de `/tmp` ne survit pas au redémarrage, le paquet `main` ne compile pas en l'état). Ajout du « Contrat FFmpeg — faits établis par mesure » et de la recette de comparaison par empreinte de sortie décodée. Cas limites étendus aux chemins où vivent P-01 à P-04, P-06 et N-03/N-04/N-05. |
+| 2026-09-04 | Correctifs N-03/N-04/N-05, P-08 et P-11 appliqués : ajout des contrats « chaîne de filtres » et « cartes de remappage », du plafond `-threads` de `libx265` au contrat FFmpeg, et de la mise en garde contre les empreintes figées dépendant d'un build externe. |
+| 2026-09-04 | Second lot de correctifs : ajout du « Contrat du pipeline » (7 invariants tenus par des tests), de la mesure du dépassement de débit et du format de cadence au contrat FFmpeg, et de la recette d'écriture d'un test d'annulation. |
+| 2026-09-04 | P-10 appliqué : ajout du « Contrat de l'état de la GUI » (5 règles) et du point d'entrée `newTestAppState` pour tester une transition. |
