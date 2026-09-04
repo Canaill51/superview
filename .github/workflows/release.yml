@@ -170,6 +170,14 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/RC-')
     
     steps:
+    # This job never checked anything out -- it only downloaded artifacts. The
+    # tag message is needed here now, and reading it needs the repository and
+    # the tag object, hence fetch-depth 0.
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        fetch-depth: 0
+
     - name: Download all artifacts
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
@@ -196,21 +204,42 @@ jobs:
           done > artifacts/checksums.txt
         echo "=== Checksums ===" && cat artifacts/checksums.txt
     
+    # Release notes come from the annotated tag, not from a fixed template.
+    #
+    # This step used to write the same body every time: the title, two
+    # runner-arch lines and the sha256sum block. Nothing about what changed. So
+    # v0.2.0 and v0.2.1 both had their notes written by hand in the draft --
+    # the very pattern that the checksum step above was fixed for. A release
+    # artifact repaired by hand every time eventually is not.
+    #
+    # The tag message is already addressed to users, so it is the body. A
+    # lightweight tag has no message of its own -- git would hand back the
+    # commit's, which is not release notes -- so that case falls back to the
+    # old template and says so loudly rather than shipping an empty release.
     - name: Create release summary
       run: |
+        set -euo pipefail
         version="${GITHUB_REF_NAME}"
-        echo "## Release ${version} - Superview" > /tmp/release.md
-        echo "" >> /tmp/release.md
-        echo "### GUI Application" >> /tmp/release.md
-        echo "- Windows: native runner arch" >> /tmp/release.md
-        echo "" >> /tmp/release.md
-        echo "- Linux: native runner arch (Ubuntu 24.04 compatible)" >> /tmp/release.md
-        echo "" >> /tmp/release.md
-        echo "### Verify Integrity" >> /tmp/release.md
-        echo "\`\`\`bash" >> /tmp/release.md
-        echo "sha256sum -c checksums.txt" >> /tmp/release.md
-        echo "\`\`\`" >> /tmp/release.md
-        cat /tmp/release.md
+        kind="$(git cat-file -t "$version" 2>/dev/null || echo none)"
+        # Outside the redirected group on purpose: inside it, the warning would
+        # be written into the release notes instead of the run log.
+        if [ "$kind" != "tag" ]; then
+          echo "::warning::${version} is not an annotated tag, so the release has no notes. Tag with 'git tag -a' to write them."
+        fi
+        {
+          if [ "$kind" = "tag" ]; then
+            printf '## %s\n\n' "$(git tag -l --format='%(contents:subject)' "$version")"
+            git tag -l --format='%(contents:body)' "$version"
+          else
+            printf '## Release %s - Superview\n' "$version"
+          fi
+          printf '\n### Downloads\n\n'
+          printf -- '- Windows: `superview-gui-%s-windows-x86_64.zip`\n' "$version"
+          printf -- '- Linux (Ubuntu 24.04+): `superview-gui-%s-linux-x86_64.tar.xz`\n' "$version"
+          printf '\n### Verify integrity\n\n'
+          printf '```bash\nsha256sum -c checksums.txt\n```\n'
+        } > /tmp/release.md
+        echo "=== Release notes ===" && cat /tmp/release.md
 
     - name: Publish release assets
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
