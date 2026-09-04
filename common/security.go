@@ -229,26 +229,3 @@ func SanitizeEncoderInput(encoder string, availableEncoders string) (string, err
 
 	return "", fmt.Errorf("encoder %q not in approved list", encoder)
 }
-
-// ValidateVideoFile performs comprehensive security validation on input video file.
-// It combines path validation with ffprobe metadata validation.
-func ValidateVideoFile(filePath string) error {
-	// First validate the path itself
-	if err := isValidInputPath(filePath); err != nil {
-		return err
-	}
-
-	// Then validate it's actually a video file by checking with ffprobe
-	// This is done implicitly by CheckVideo() which will fail if not a valid video
-	specs, err := CheckVideo(filePath)
-	if err != nil {
-		return fmt.Errorf("invalid video file: %w", err)
-	}
-
-	// Perform security validation of video metadata
-	if err := specs.Validate(); err != nil {
-		return fmt.Errorf("video validation failed: %w", err)
-	}
-
-	return nil
-}
