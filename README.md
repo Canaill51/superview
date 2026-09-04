@@ -68,8 +68,11 @@ Install FFmpeg and the system libraries required to build/run the Fyne GUI:
 
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev
+sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 ```
+
+> `libwayland-dev` and `libxkbcommon-dev` are needed since Fyne 2.8, which moved
+> to GLFW 3.4 and its Wayland backend. They are build-time requirements only.
 
 Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
 
