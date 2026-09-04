@@ -16,11 +16,14 @@ import (
 // Values can be loaded from YAML files and overridden via environment variables.
 // See superview.yaml for an example configuration file with documentation.
 type Config struct {
-	// Bitrate constraints in bytes/second
+	// Bitrate constraints in bits/second -- the unit ffprobe reports for
+	// bit_rate and the one ffmpeg's -b:v expects. These fields were documented
+	// as bytes/second for a long time while holding bits, so anyone who sized
+	// them from the comment was off by a factor of 8.
 	// MinBitrate: minimum acceptable output bitrate (prevents lossy compression)
 	// MaxBitrate: maximum acceptable output bitrate (controls file size)
-	MinBitrate int `yaml:"min_bitrate" default:"102400"`    // 100k bytes/sec (~0.1 Mbps)
-	MaxBitrate int `yaml:"max_bitrate" default:"209715200"` // 200M bytes/sec (~200 Mbps)
+	MinBitrate int `yaml:"min_bitrate" default:"102400"`    // ~0.1 Mbps
+	MaxBitrate int `yaml:"max_bitrate" default:"209715200"` // ~200 Mbps
 
 	// TempDirPrefix is the template for temporary directory creation
 	TempDirPrefix string `yaml:"temp_dir_prefix" default:"superview-*"`
@@ -55,8 +58,8 @@ type Config struct {
 }
 
 var defaultConfig = &Config{
-	MinBitrate:      102400,    // 100k bytes/sec
-	MaxBitrate:      209715200, // 200M bytes/sec
+	MinBitrate:      102400,    // bits/sec, ~0.1 Mbps
+	MaxBitrate:      209715200, // bits/sec, ~200 Mbps
 	TempDirPrefix:   "superview-*",
 	EncoderCodecs:   []string{"264", "265", "hevc"},
 	LogLevel:        "info",
@@ -290,9 +293,9 @@ func (c *Config) IsSafePerformanceMode() bool {
 func (c *Config) String() string {
 	var buf bytes.Buffer
 	buf.WriteString("Configuration:\n")
-	buf.WriteString(fmt.Sprintf("  Min Bitrate: %d bytes/sec (%.2f Mbps)\n",
+	buf.WriteString(fmt.Sprintf("  Min Bitrate: %d bits/sec (%.2f Mbps)\n",
 		c.MinBitrate, float64(c.MinBitrate)/1000000))
-	buf.WriteString(fmt.Sprintf("  Max Bitrate: %d bytes/sec (%.2f Mbps)\n",
+	buf.WriteString(fmt.Sprintf("  Max Bitrate: %d bits/sec (%.2f Mbps)\n",
 		c.MaxBitrate, float64(c.MaxBitrate)/1000000))
 	buf.WriteString(fmt.Sprintf("  Temp Dir Prefix: %s\n", c.TempDirPrefix))
 	buf.WriteString(fmt.Sprintf("  Encoder Codecs: %s\n", strings.Join(c.EncoderCodecs, ",")))

@@ -148,6 +148,17 @@ func (e *EncoderError) Error() string {
 	return fmt.Sprintf("encoder error: %s", e.Msg)
 }
 
+// ErrCancelled is returned when the user stops a conversion, either through the
+// Cancel button or with Ctrl+C.
+//
+// It has to be a sentinel rather than a bare errors.New string. EncodeVideo
+// retries a failed encode on progressively safer paths -- CPU decode, then the
+// equivalent CPU encoder -- and it decides by looking at the error. With an
+// untyped error a cancellation was indistinguishable from an encoder failure,
+// so asking to stop started up to three more ffmpeg processes instead of none.
+// Callers should test it with errors.Is, never by matching the message.
+var ErrCancelled = errors.New("encoding interrupted by user")
+
 // SessionError is returned when encoding session initialization or cleanup fails.
 // It indicates problems with temporary directory management.
 type SessionError struct {
@@ -186,7 +197,7 @@ type UIHandler interface {
 	ShowInfo(msg string)
 	// ShowProgress updates the progress indicator (0-100 percent).
 	ShowProgress(percent float64)
-	// GetBitrate returns the desired output bitrate in bytes/second.
+	// GetBitrate returns the desired output bitrate in bits/second.
 	// Returns 0 to use the input video's bitrate.
 	GetBitrate() (int, error)
 	// GetEncoder returns the encoder selection (e.g., "libx265").
@@ -194,6 +205,24 @@ type UIHandler interface {
 	GetEncoder() string
 	// GetSqueeze returns true to apply squeeze filter for 4:3 to 16:9 scaling.
 	GetSqueeze() bool
+}
+
+// ProgressDetailHandler is an optional companion to UIHandler.
+//
+// A UIHandler that also implements it receives the estimated time remaining
+// alongside the raw percentage. EncodingMetrics has been computing that
+// estimate on every progress update since it was written and nothing ever read
+// it: the GUI showed a bare percentage for an operation that runs for minutes
+// on 4K footage.
+//
+// It is deliberately a separate interface rather than another method on
+// UIHandler: UIHandler is what the pipeline requires, this is what it uses if
+// the caller offers it.
+type ProgressDetailHandler interface {
+	// ShowProgressDetail reports progress together with the estimated time
+	// left. remaining is zero when there is not enough data to estimate yet,
+	// which callers should render as "no estimate", not as "no time left".
+	ShowProgressDetail(percent float64, remaining time.Duration)
 }
 
 // EncodingSession manages temporary files for a single encoding job.
@@ -225,6 +254,40 @@ type VideoStream struct {
 	DurationFloat float64 `json:"-"`
 	Bitrate       string  `json:"bit_rate"`
 	BitrateInt    int     `json:"-"`
+	// PixFmt is ffprobe's pixel format name, e.g. "yuv420p" or "yuv420p10le".
+	// It is what tells the filter chain whether the source carries more than 8
+	// bits per sample. Absent on very old ffprobe builds, which is handled as
+	// 8-bit rather than guessed at.
+	PixFmt string `json:"pix_fmt"`
+	// RFrameRate is ffprobe's frame rate as a rational string, e.g. "30/1" or
+	// "30000/1001". FrameRate holds it parsed, or 0 when it is missing or
+	// unusable -- the encoding speed metric is then simply not published rather
+	// than computed from a guess.
+	RFrameRate string  `json:"r_frame_rate"`
+	FrameRate  float64 `json:"-"`
+}
+
+// parseFrameRate turns ffprobe's rational frame rate into frames per second.
+//
+// Returns 0 for anything it cannot make sense of, including the "0/0" ffprobe
+// reports for streams whose rate it could not determine. 0 means "unknown" to
+// every caller; none of them substitutes a default.
+func parseFrameRate(rational string) float64 {
+	numText, denText, found := strings.Cut(strings.TrimSpace(rational), "/")
+	if !found {
+		value, err := strconv.ParseFloat(strings.TrimSpace(rational), 64)
+		if err != nil || value <= 0 {
+			return 0
+		}
+		return value
+	}
+
+	num, numErr := strconv.ParseFloat(strings.TrimSpace(numText), 64)
+	den, denErr := strconv.ParseFloat(strings.TrimSpace(denText), 64)
+	if numErr != nil || denErr != nil || den == 0 || num <= 0 {
+		return 0
+	}
+	return num / den
 }
 
 // Validate checks if video specs contain all required and valid information.
@@ -413,7 +476,7 @@ func getSessionPaths() (xPath, yPath string, err error) {
 // Returns InvalidVideoError if required metadata is missing or invalid.
 func CheckVideo(file string) (*VideoSpecs, error) {
 	// Check specs of the input video (codec, dimensions, duration, bitrate)
-	cmd := newFFprobeCommand("-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate", "-print_format", "json")
+	cmd := newFFprobeCommand("-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate,pix_fmt,r_frame_rate", "-print_format", "json")
 	prepareBackgroundCommand(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -454,6 +517,10 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 	}
 	specs.Streams[0].BitrateInt = bitrateInt
 
+	// Optional: a missing or unusable frame rate is not a reason to reject a
+	// file, it only means the encoding-speed metric stays unpublished.
+	specs.Streams[0].FrameRate = parseFrameRate(specs.Streams[0].RFrameRate)
+
 	// Validate all required data is present
 	if err := specs.Validate(); err != nil {
 		return nil, err
@@ -462,8 +529,97 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 	return specs, nil
 }
 
+// remapOutputSize returns the dimensions of the remapped frame, which are also
+// the dimensions of each remap map.
+//
+// Shared by GeneratePGM and by the space check that runs before it: computing
+// the geometry twice is exactly how the two would drift apart, and the check
+// would then be reserving space for a map of a different size than the one
+// about to be written.
+func remapOutputSize(video *VideoSpecs, squeeze bool) (outX, outY int) {
+	if squeeze {
+		outX = video.Streams[0].Width
+	} else {
+		outX = int(float64(video.Streams[0].Height)*(16.0/9.0)) / 2 * 2 // multiplier of 2
+	}
+	return outX, video.Streams[0].Height
+}
+
+// remapMapBytes returns the number of bytes the two remap maps will take.
+//
+// Two files, one 16-bit sample per pixel, plus a short ASCII header each. Exact
+// rather than approximate: TestRemapMapBytes_MatchesWhatGeneratePGMWrites
+// compares it against the files actually produced.
+func remapMapBytes(video *VideoSpecs, squeeze bool) int64 {
+	if video == nil || len(video.Streams) == 0 {
+		return 0
+	}
+	outX, outY := remapOutputSize(video, squeeze)
+	header := int64(len(fmt.Sprintf("P5 %d %d 65535\n", outX, outY)))
+	perMap := header + int64(outX)*int64(outY)*2
+	return perMap * 2
+}
+
+// checkTempSpaceForMaps refuses to start when the temporary filesystem cannot
+// hold the remap maps.
+//
+// A 12 Mpx GoPro frame needs 66 MB of maps, and on most current distributions
+// the temporary directory is a tmpfs -- which is to say RAM. Without this the
+// shortfall surfaced halfway through as an opaque write error from a stage the
+// user has no reason to know exists.
+//
+// A failed probe is not a refusal: if the free space cannot be read, the encode
+// goes ahead and fails later at worst, exactly as it did before.
+func checkTempSpaceForMaps(video *VideoSpecs, squeeze bool) error {
+	required := remapMapBytes(video, squeeze)
+	if required <= 0 {
+		return nil
+	}
+
+	tempDir := os.TempDir()
+	freeGB, err := getFreeDiskGB(tempDir)
+	if err != nil {
+		logger.Warn("Could not check free space before encoding",
+			slog.String("path", tempDir),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+
+	free := int64(freeGB * 1024 * 1024 * 1024)
+	// A fifth of headroom: the maps are not the only thing written there while
+	// ffmpeg runs, and landing exactly at the limit is its own kind of failure.
+	needed := required + required/5
+	if free >= needed {
+		return nil
+	}
+
+	return &SessionError{Msg: fmt.Sprintf(
+		"not enough space in %s: the remap maps need %d MB (%d MB with headroom) but only %d MB is free. On many systems this directory lives in RAM; set TMPDIR to a location with more room",
+		tempDir, required/(1024*1024), needed/(1024*1024), free/(1024*1024))}
+}
+
+// putMapSample writes one remap coordinate into dst as the big-endian 16-bit
+// sample the PGM P5 format mandates. Little-endian would produce maps that are
+// silently wrong rather than rejected, so the order is not an implementation
+// detail.
+//
+// The clamp is a guard, not a behaviour: for every input size the distortion
+// math lands in [0, inputWidth-1], well inside the range. It exists so a future
+// change to the offset formula degrades into a fill pixel instead of a wrapped
+// coordinate pointing somewhere arbitrary in the frame.
+func putMapSample(dst []byte, value int) {
+	if value < 0 {
+		value = 0
+	} else if value > 65535 {
+		value = 65535
+	}
+	dst[0] = byte(value >> 8)
+	dst[1] = byte(value)
+}
+
 // GeneratePGM creates the remap filter maps for ffmpeg that apply the superview distortion.
-// The maps are saved as PGM (Portable Graymap) files in the current encoding session's temp directory.
+// The maps are saved as binary PGM (P5) files in the current encoding session's temp directory.
 // If squeeze is true, applies asymmetric scaling for 4:3 video stretched to 16:9.
 // If squeeze is false, applies symmetric barrel-distortion correction.
 func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
@@ -472,14 +628,7 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 		return err
 	}
 
-	var outX int
-
-	if squeeze {
-		outX = video.Streams[0].Width
-	} else {
-		outX = int(float64(video.Streams[0].Height)*(16.0/9.0)) / 2 * 2 // multiplier of 2
-	}
-	outY := video.Streams[0].Height
+	outX, outY := remapOutputSize(video, squeeze)
 
 	logger.Info("Scaling video",
 		slog.String("file", video.File),
@@ -492,7 +641,15 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 		slog.Bool("squeeze", squeeze),
 	)
 
-	// Generate PGM P2 files for remap filter, see https://trac.ffmpeg.org/wiki/RemapFilter
+	// Generate PGM P5 files for remap filter, see https://trac.ffmpeg.org/wiki/RemapFilter
+	//
+	// P5 is the binary flavour of PGM: two bytes per sample instead of a decimal
+	// number and a separator. FFmpeg's remap filter reads it exactly like the P2
+	// ASCII form these maps used to use -- verified byte for byte on the decoded
+	// output -- but a 12 Mpx GoPro frame drops from 146 MB of maps to 66 MB, and
+	// generation no longer has to format 33 million integers. That matters more
+	// than it looks: /tmp is a tmpfs on most current distributions, so those
+	// megabytes are RAM.
 	xPath, yPath, err := getSessionPaths()
 	if err != nil {
 		return err
@@ -523,24 +680,23 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 	wX := bufio.NewWriterSize(fX, 1<<20)
 	wY := bufio.NewWriterSize(fY, 1<<20)
 
-	// Estimate: each number ~5 chars + a space, plus the trailing newline.
-	lineCapacity := outX*8 + 1
+	// Write PGM headers. Everything goes through the buffered writers, headers
+	// included, so there is no ordering to reason about between the two.
+	header := fmt.Sprintf("P5 %d %d 65535\n", outX, outY)
 
-	// Write PGM headers
-	headerX := fmt.Sprintf("P2 %d %d 65535\n", outX, outY)
-	headerY := fmt.Sprintf("P2 %d %d 65535\n", outX, outY)
-
-	if _, err := fX.WriteString(headerX); err != nil {
+	if _, err := wX.WriteString(header); err != nil {
 		return fmt.Errorf("failed to write header to x.pgm: %w", err)
 	}
-	if _, err := fY.WriteString(headerY); err != nil {
+	if _, err := wY.WriteString(header); err != nil {
 		return fmt.Errorf("failed to write header to y.pgm: %w", err)
 	}
+
+	rowBytes := outX * 2
 
 	// The X map is row-invariant: sx, tx and offset are functions of x alone,
 	// so every row of x.pgm is byte-for-byte identical. Build it once instead
 	// of recomputing the same math outY times.
-	bufX := make([]byte, 0, lineCapacity)
+	bufX := make([]byte, rowBytes)
 	for x := 0; x < outX; x++ {
 		sx := float64(x) - float64(outX-video.Streams[0].Width)/2.0 // x - width diff/2
 		tx := (float64(x)/float64(outX) - 0.5) * 2.0                // (x/width - 0.5) * 2
@@ -556,7 +712,7 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 				offset *= -1
 			}
 
-			bufX = strconv.AppendInt(bufX, int64(int(sx+offset)), 10)
+			putMapSample(bufX[x*2:], int(sx+offset))
 		} else {
 			offset = math.Pow(tx, 2) * (float64(outX-video.Streams[0].Width) / 2.0) // tx^2 * width diff/2
 
@@ -564,30 +720,26 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 				offset *= -1
 			}
 
-			bufX = strconv.AppendInt(bufX, int64(int(sx-offset)), 10)
+			putMapSample(bufX[x*2:], int(sx-offset))
 		}
-
-		bufX = append(bufX, ' ')
 	}
-	bufX = append(bufX, '\n')
 
-	bufY := make([]byte, 0, lineCapacity)
-	numBuf := make([]byte, 0, 8)
+	bufY := make([]byte, rowBytes)
+	var sample [2]byte
 
 	for y := 0; y < outY; y++ {
 		if _, err := wX.Write(bufX); err != nil {
 			return fmt.Errorf("failed to write x.pgm: %w", err)
 		}
 
-		// A row of the Y map is the row index repeated outX times; format the
-		// number once rather than once per pixel.
-		num := strconv.AppendInt(numBuf[:0], int64(y), 10)
-		bufY = bufY[:0]
-		for x := 0; x < outX; x++ {
-			bufY = append(bufY, num...)
-			bufY = append(bufY, ' ')
+		// A row of the Y map is the row index repeated outX times; encode the
+		// sample once rather than once per pixel. It goes through putMapSample
+		// like the X map so the byte order is defined in exactly one place --
+		// inlining it here would let the two maps drift apart silently.
+		putMapSample(sample[:], y)
+		for i := 0; i < rowBytes; i += 2 {
+			bufY[i], bufY[i+1] = sample[0], sample[1]
 		}
-		bufY = append(bufY, '\n')
 
 		if _, err := wY.Write(bufY); err != nil {
 			return fmt.Errorf("failed to write y.pgm: %w", err)
@@ -607,7 +759,7 @@ func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 }
 
 // ValidateBitrate checks if the given bitrate is within acceptable constraints.
-// minBitrate and maxBitrate define the valid range in bytes/second.
+// minBitrate and maxBitrate define the valid range in bits/second.
 // If either constraint is 0, that constraint is not applied.
 // Returns an error describing the validation failure.
 func ValidateBitrate(bitrate int, minBitrate int, maxBitrate int) error {
@@ -615,10 +767,10 @@ func ValidateBitrate(bitrate int, minBitrate int, maxBitrate int) error {
 		return fmt.Errorf("bitrate must be positive, got %d", bitrate)
 	}
 	if minBitrate > 0 && bitrate < minBitrate {
-		return fmt.Errorf("bitrate %d is below minimum %d bytes/second", bitrate, minBitrate)
+		return fmt.Errorf("bitrate %d is below minimum %d bits/second", bitrate, minBitrate)
 	}
 	if maxBitrate > 0 && bitrate > maxBitrate {
-		return fmt.Errorf("bitrate %d exceeds maximum %d bytes/second", bitrate, maxBitrate)
+		return fmt.Errorf("bitrate %d exceeds maximum %d bits/second", bitrate, maxBitrate)
 	}
 	return nil
 }
@@ -669,6 +821,123 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 // It reads PGM filter maps from the current session and encodes using the specified encoder and quality settings.
 // The callback function is called with progress percentage (0-100) for UI updates.
 // Returns nil on successful completion, or an error if ffmpeg fails.
+// sourcePixelFormat returns the pixel format ffprobe reported for the input, or
+// "" when it is unknown. "" is read as 8-bit everywhere, which is the previous
+// behaviour and the safe answer: no encoder can reject a format we did not ask
+// for.
+func sourcePixelFormat(video *VideoSpecs) string {
+	if video == nil || len(video.Streams) == 0 {
+		return ""
+	}
+	return video.Streams[0].PixFmt
+}
+
+// isHighBitDepth reports whether an ffprobe pixel format name carries more than
+// 8 bits per sample.
+//
+// Two conditions, and both are needed. A sample wider than a byte has a byte
+// order, so ffmpeg always suffixes those names with "le" or "be" -- no 8-bit
+// format has one. And the digits just before that suffix are the depth, which
+// must land in 9..16.
+//
+// Each condition alone gets it wrong. Looking only for a depth substring reads
+// "nv12" and "yuv410p" -- both plainly 8-bit -- as high depth. Looking only for
+// the endianness suffix accepts packed formats like "rgb565le", where the digits
+// are a channel layout rather than a depth. Anything unrecognised is reported as
+// 8-bit, which is the direction that preserves the existing behaviour.
+func isHighBitDepth(pixFmt string) bool {
+	name := strings.ToLower(strings.TrimSpace(pixFmt))
+
+	trimmed := strings.TrimSuffix(name, "le")
+	if trimmed == name {
+		trimmed = strings.TrimSuffix(name, "be")
+	}
+	if trimmed == name {
+		return false // no byte order, so a single-byte sample
+	}
+
+	digits := 0
+	for digits < len(trimmed) && trimmed[len(trimmed)-1-digits] >= '0' && trimmed[len(trimmed)-1-digits] <= '9' {
+		digits++
+	}
+	if digits == 0 {
+		return false
+	}
+	depth, err := strconv.Atoi(trimmed[len(trimmed)-digits:])
+	if err != nil {
+		return false
+	}
+	return depth > 8 && depth <= 16
+}
+
+// isHEVCEncoder reports whether the encoder belongs to the H.265/HEVC family.
+func isHEVCEncoder(encoder string) bool {
+	name := strings.ToLower(encoder)
+	return strings.Contains(name, "hevc") || strings.Contains(name, "265")
+}
+
+// remapFilterChain builds the filter graph, choosing the working and output
+// pixel formats from the source depth and the target encoder.
+//
+// The remap filter needs a planar 4:4:4 intermediate, so a conversion is
+// unavoidable; the question is only what it converts *to*. The chain used to be
+// pinned to 8-bit, which silently flattened every 10-bit source -- and HERO 10
+// and later GoPros, the cameras this tool exists for, record 10-bit.
+//
+// Ten bits are kept only for HEVC encoders. HEVC Main10 is supported by libx265
+// and by every consumer hardware HEVC encoder, whereas h264_nvenc cannot encode
+// 10-bit at all and libx264's High 10 profile plays back poorly. GoPro's 10-bit
+// modes record HEVC, so the case that matters is covered without risking a
+// failed encode on the H.264 path. Sources deeper than 10 bits are brought to
+// 10, not to their native depth: nothing in this pipeline targets Main12.
+func remapFilterChain(pixFmt, encoder string) string {
+	intermediate, output := "yuv444p", "yuv420p"
+	if isHighBitDepth(pixFmt) && isHEVCEncoder(encoder) {
+		intermediate, output = "yuv444p10le", "yuv420p10le"
+	}
+	return fmt.Sprintf("[0:v:0][1:v:0][2:v:0]remap,format=%s,format=%s[v]", intermediate, output)
+}
+
+// x265MaxFrameThreads is the largest -threads value libx265 accepts.
+//
+// ffmpeg maps -threads onto x265's --frame-threads, which rejects anything
+// higher with "frameNumThreads (--frame-threads) must be
+// [0 .. X265_MAX_FRAME_THREADS)" and then fails to open the encoder at all.
+// Since the default thread count is runtime.NumCPU(), every H.265 encode failed
+// outright on a machine with more than 16 logical cores -- and libx265 is a CPU
+// encoder, so the hardware-to-CPU fallback in EncodeVideo never fires for it:
+// the user just got a wall of x265 errors. Verified against ffmpeg 8.0.1: 16
+// works, 17 does not.
+const x265MaxFrameThreads = 16
+
+// clampEncoderThreads lowers the requested thread count to what the encoder can
+// actually accept. Only libx265 has a ceiling low enough to matter; x264 clamps
+// internally instead of failing.
+func clampEncoderThreads(encoder string, threads int) int {
+	if encoder == "libx265" && threads > x265MaxFrameThreads {
+		logger.Debug("Capping encoder threads for libx265",
+			slog.Int("requested", threads),
+			slog.Int("capped", x265MaxFrameThreads),
+		)
+		return x265MaxFrameThreads
+	}
+	return threads
+}
+
+// encoderThreadArgs returns the -threads option for the chosen encoder, or
+// nothing at all.
+//
+// A hardware encoder does its work on the GPU's dedicated block; the CPU thread
+// count says nothing about it, and passing the host core count was only ever
+// noise in the command line. Software encoders get the value, clamped to what
+// they accept.
+func encoderThreadArgs(encoder string, threads int) []string {
+	if isHardwareEncoder(encoder) {
+		return nil
+	}
+	return []string{"-threads", strconv.Itoa(clampEncoderThreads(encoder, threads))}
+}
+
 func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrate int, audioCodec string, encoderThreads int, filterThreads int, videoPreset string) []string {
 	baseArgs := []string{
 		"-hide_banner", "-progress", "pipe:1", "-loglevel", "error", "-y",
@@ -682,12 +951,31 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 
 	baseArgs = append(baseArgs,
 		"-i", video.File, "-i", xPath, "-i", yPath,
-		"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p",
+		"-filter_complex", remapFilterChain(sourcePixelFormat(video), encoder),
+		// Explicit maps. Left to itself with three inputs, ffmpeg picks one
+		// stream per type and keeps a single audio track -- a camera or an
+		// edit carrying two of them silently lost one. "0:a?" is optional on
+		// purpose: the "?" is what keeps a clip with no audio from failing.
+		"-map", "[v]", "-map", "0:a?",
+		// With three inputs ffmpeg cannot tell which one holds the global
+		// metadata, so it kept none and the recording date was dropped. Point
+		// it at the source explicitly.
+		"-map_metadata", "0",
 		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate),
-		// After -c:v so it applies to the encoder. Placed before -i it would
-		// have configured the input decoder instead, which is not the intent.
-		"-threads", strconv.Itoa(encoderThreads),
+		// -b:v on its own is an *average* target with no ceiling, so a demanding
+		// scene overshoots freely: measured at +83% on incompressible content
+		// (8 Mbps requested, 14.7 Mbps produced). Constraining the VBV brings that
+		// to +24% for the same request. maxrate equal to the target with a buffer
+		// of twice it measured better than the usual 1.5x headroom (+24% against
+		// +29%) and keeps the resulting file size predictable, which is the point:
+		// the quality profile already builds its own headroom into the request.
+		"-maxrate", strconv.Itoa(bitrate),
+		"-bufsize", strconv.Itoa(bitrate*2),
 	)
+
+	// After -c:v so it applies to the encoder. Placed before -i it would have
+	// configured the input decoder instead, which is not the intent.
+	baseArgs = append(baseArgs, encoderThreadArgs(encoder, encoderThreads)...)
 
 	baseArgs = append(baseArgs, "-c:a", audioCodec)
 
@@ -861,14 +1149,14 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 			// times would accumulate both. The error is discarded on purpose:
 			// we killed it, so a non-zero status is expected.
 			_ = cmd.Wait()
-			return errors.New("encoding interrupted by user")
+			return ErrCancelled
 		case <-readDone:
 		}
 
 		if err := cmd.Wait(); err != nil {
 			select {
 			case <-interrupted:
-				return errors.New("encoding interrupted by user")
+				return ErrCancelled
 			default:
 			}
 			if stderrBytes.Len() > 0 {
@@ -890,6 +1178,9 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		if err == nil {
 			return nil
 		}
+		if errors.Is(err, ErrCancelled) {
+			return err
+		}
 
 		if safePerformanceMode && preferredAudioCodec == "copy" {
 			logger.Warn("Audio stream copy failed, retrying with AAC",
@@ -908,9 +1199,15 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 			slog.String("encoder", encoder),
 			slog.String("hwaccel", hwaccel),
 		)
-		if err := runWithAudioFallback(hwaccel); err == nil {
+		err := runWithAudioFallback(hwaccel)
+		if err == nil {
 			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + %s decode", encoder, strings.ToUpper(hwaccel)))
 			return nil
+		}
+		// A cancellation is not a reason to try another path: the user asked for
+		// the work to stop, not for it to be attempted differently.
+		if errors.Is(err, ErrCancelled) {
+			return err
 		}
 		logger.Warn("Hardware decode path failed, falling back to CPU decode",
 			slog.String("encoder", encoder),
@@ -925,6 +1222,9 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		slog.String("video_preset", videoPreset),
 	)
 	err = runWithAudioFallback("")
+	if errors.Is(err, ErrCancelled) {
+		return err
+	}
 	if err == nil {
 		if isHardwareEncoder(encoder) {
 			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + CPU decode fallback", encoder))
@@ -960,6 +1260,56 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 
 func CleanUp() error {
 	return CloseEncodingSession()
+}
+
+// canonicalPath resolves a path as far as the filesystem allows, so two
+// spellings of the same location compare equal. Falls back to an absolute,
+// cleaned form when the file does not exist yet, which is the normal case for a
+// destination.
+func canonicalPath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return filepath.Clean(resolved)
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(path)
+}
+
+// sameOutputAsInput reports whether the destination is the source file.
+//
+// FFmpeg used to catch this on its own: it refuses to read and write the same
+// file and exits 234, which left the source intact but told the user nothing
+// useful. Now that the encode goes to a temporary file first, FFmpeg no longer
+// sees a conflict at all -- and the final rename would happily destroy the
+// source. The guard is what keeps that from happening, and it can say something
+// comprehensible while it is at it.
+func sameOutputAsInput(inputFile, outputFile string) bool {
+	inInfo, inErr := os.Stat(inputFile)
+	outInfo, outErr := os.Stat(outputFile)
+	if inErr == nil && outErr == nil {
+		return os.SameFile(inInfo, outInfo)
+	}
+	return pathEqual(canonicalPath(inputFile), canonicalPath(outputFile))
+}
+
+// newPartialOutputPath creates the file ffmpeg writes into while it works.
+//
+// It keeps the .mp4 extension, because ffmpeg picks its muxer from it, and it
+// sits in the destination directory so the final rename stays on one filesystem
+// and is therefore atomic. The name comes from os.CreateTemp: two conversions
+// targeting the same folder must not collide.
+func newPartialOutputPath(outputFile string) (string, error) {
+	file, err := os.CreateTemp(filepath.Dir(outputFile), ".superview-partial-*.mp4")
+	if err != nil {
+		return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, err)
+	}
+	name := file.Name()
+	if closeErr := file.Close(); closeErr != nil {
+		_ = os.Remove(name)
+		return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, closeErr)
+	}
+	return name, nil
 }
 
 // PerformEncoding orchestrates the complete encoding workflow from input file to output file.
@@ -1008,6 +1358,13 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("invalid output file: %v", err))
 		RecordEncodingError(err, map[string]interface{}{"stage": "output_validation"})
 		return fmt.Errorf("invalid output file: %w", err)
+	}
+
+	if sameOutputAsInput(inputFile, outputFile) {
+		err := errors.New("the output file is the input file; choose a different destination")
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "output_validation"})
+		return err
 	}
 
 	// The EncodingEvent lifecycle documents a "start" event, but nothing ever
@@ -1088,6 +1445,16 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	// ==== OBSERVABILITY: Record output metadata ====
 	metrics.RecordOutputMetadata(bitrate, encoder)
 
+	// Ask the UI once and reuse the answer: the space check below and the map
+	// generation further down must agree on which geometry is being produced.
+	squeeze := ui.GetSqueeze()
+
+	if err := checkTempSpaceForMaps(video, squeeze); err != nil {
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "space_check"})
+		return err
+	}
+
 	// Initialize encoding session
 	if err := InitEncodingSession(cfg); err != nil {
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("session initialization failed: %v", err))
@@ -1104,7 +1471,7 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 
 	// Generate remap filters
 	pgmStart := time.Now()
-	if err := GeneratePGM(video, ui.GetSqueeze()); err != nil {
+	if err := GeneratePGM(video, squeeze); err != nil {
 		stageDurations["pgm_generation"] = time.Since(pgmStart)
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("filter generation failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
@@ -1116,14 +1483,45 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	stageDurations["pgm_generation"] = time.Since(pgmStart)
 
 	// Perform encoding with progress callback + metrics recording
+	detailUI, wantsDetail := ui.(ProgressDetailHandler)
 	progressFunc := func(percent float64) {
-		ui.ShowProgress(percent)
+		// Record before reporting: RecordProgress is what refreshes the
+		// remaining-time estimate, and the UI should see the estimate that goes
+		// with the percentage it is being handed.
 		metrics.RecordProgress(percent)
+		ui.ShowProgress(percent)
+		if wantsDetail {
+			detailUI.ShowProgressDetail(percent, metrics.Remaining())
+		}
 		RecordEncodingProgress(percent, fmt.Sprintf("Encoding: %.1f%%", percent))
 	}
 
+	// Encode into a working file and only move it into place once ffmpeg has
+	// finished. ffmpeg runs with -y and used to write straight to the
+	// destination, so a cancellation or a failure left a truncated .mp4 sitting
+	// exactly where the user expected a finished one -- and, when overwriting,
+	// destroyed the file that was already there before producing nothing.
+	partialOutput, err := newPartialOutputPath(outputFile)
+	if err != nil {
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "encoding"})
+		return err
+	}
+	keepPartial := false
+	defer func() {
+		if keepPartial {
+			return
+		}
+		if rmErr := os.Remove(partialOutput); rmErr != nil && !os.IsNotExist(rmErr) {
+			logger.Warn("Failed to remove the partial output file",
+				slog.String("path", partialOutput),
+				slog.String("error", rmErr.Error()),
+			)
+		}
+	}()
+
 	encodeStart := time.Now()
-	if err := EncodeVideo(cfg, video, encoder, bitrate, outputFile, ffmpeg, progressFunc, cancel); err != nil {
+	if err := EncodeVideo(cfg, video, encoder, bitrate, partialOutput, ffmpeg, progressFunc, cancel); err != nil {
 		stageDurations["encoding"] = time.Since(encodeStart)
 		metrics.RecordError(exitCodeUnavailable, fmt.Sprintf("encoding failed: %v", err))
 		RecordEncodingError(err, map[string]interface{}{
@@ -1133,6 +1531,16 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 		return err
 	}
 	stageDurations["encoding"] = time.Since(encodeStart)
+
+	// Same directory, so this is atomic: the destination is either the previous
+	// file or the finished one, never a half-written mixture.
+	if err := os.Rename(partialOutput, outputFile); err != nil {
+		err = fmt.Errorf("failed to move the finished file to %s: %w", outputFile, err)
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "finalize"})
+		return err
+	}
+	keepPartial = true
 
 	// ==== OBSERVABILITY: Record successful completion ====
 	outputFileInfo, _ := os.Stat(outputFile)

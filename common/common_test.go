@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -26,7 +28,7 @@ func TestValidateBitrate_ValidBitrate(t *testing.T) {
 	}{
 		{
 			name:    "valid bitrate in range",
-			bitrate: 5000000,  // 5M bytes/sec
+			bitrate: 5000000,  // 5 Mbps
 			minBits: 100000,   // 100k (recommended minimum)
 			maxBits: 50000000, // 50M (recommended maximum)
 			wantErr: false,
@@ -1177,5 +1179,370 @@ func TestResolveToolBinary_CachesSuccess(t *testing.T) {
 	}
 	if second := resolveToolBinary("ffmpeg"); second != first {
 		t.Errorf("cached lookup returned %q, want %q", second, first)
+	}
+}
+
+func TestIsHighBitDepth(t *testing.T) {
+	cases := []struct {
+		pixFmt string
+		want   bool
+	}{
+		{"yuv420p", false},
+		{"yuvj420p", false},
+		{"", false},
+		// No endianness suffix means a single-byte sample, whatever digits the
+		// name happens to contain.
+		{"nv12", false},
+		{"nv16", false},
+		{"nv21", false},
+		{"rgb24", false},
+		{"gray", false},
+		// The trap: yuv410p is a genuine 8-bit 4:1:0 format whose name contains
+		// "10". A substring test would read it as 10-bit and ask an encoder for
+		// a depth the source does not have.
+		{"yuv410p", false},
+		{"yuv411p", false},
+		{"yuv420p10le", true},
+		{"YUV420P10LE", true},
+		{"  yuv422p10be  ", true},
+		{"p010le", true},
+		{"yuv420p12le", true},
+		{"yuv420p9le", true},
+		{"gray16be", true},
+		{"p016le", true},
+		// Packed formats carry a byte order but their digits are a channel
+		// layout, not a depth.
+		{"rgb565le", false},
+		{"rgb444le", false},
+	}
+
+	for _, tc := range cases {
+		if got := isHighBitDepth(tc.pixFmt); got != tc.want {
+			t.Errorf("isHighBitDepth(%q) = %v, want %v", tc.pixFmt, got, tc.want)
+		}
+	}
+}
+
+func TestIsHEVCEncoder(t *testing.T) {
+	for _, enc := range []string{"libx265", "hevc_nvenc", "hevc_qsv", "hevc_vaapi", "HEVC_AMF"} {
+		if !isHEVCEncoder(enc) {
+			t.Errorf("isHEVCEncoder(%q) = false, want true", enc)
+		}
+	}
+	for _, enc := range []string{"libx264", "h264_nvenc", "h264_amf", ""} {
+		if isHEVCEncoder(enc) {
+			t.Errorf("isHEVCEncoder(%q) = true, want false", enc)
+		}
+	}
+}
+
+func TestRemapFilterChain(t *testing.T) {
+	cases := []struct {
+		name    string
+		pixFmt  string
+		encoder string
+		want    string
+	}{
+		{
+			name: "8-bit source stays 8-bit", pixFmt: "yuv420p", encoder: "libx265",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p[v]",
+		},
+		{
+			name:   "10-bit source with an HEVC encoder keeps its depth",
+			pixFmt: "yuv420p10le", encoder: "libx265",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p10le,format=yuv420p10le[v]",
+		},
+		{
+			name:   "10-bit source with hardware HEVC keeps its depth",
+			pixFmt: "yuv420p10le", encoder: "hevc_nvenc",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p10le,format=yuv420p10le[v]",
+		},
+		{
+			// h264_nvenc cannot encode 10-bit at all; asking for it would turn a
+			// working conversion into a hard failure.
+			name:   "10-bit source with an H.264 encoder falls back to 8-bit",
+			pixFmt: "yuv420p10le", encoder: "h264_nvenc",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p[v]",
+		},
+		{
+			// Old ffprobe builds do not report pix_fmt; 8-bit is the safe read.
+			name:   "unknown pixel format is treated as 8-bit",
+			pixFmt: "", encoder: "libx265",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p[v]",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := remapFilterChain(tc.pixFmt, tc.encoder); got != tc.want {
+				t.Errorf("remapFilterChain(%q, %q) =\n  %s\nwant\n  %s", tc.pixFmt, tc.encoder, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildEncodeBaseArgs_MapsStreamsAndMetadata(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4", Streams: []VideoStream{{
+		Codec: "hevc", Width: 1440, Height: 1080, PixFmt: "yuv420p10le",
+		Duration: "1", DurationFloat: 1, Bitrate: "2000000", BitrateInt: 2000000,
+	}}}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", 6, 0, "")
+
+	joined := strings.Join(args, " ")
+
+	// Without these three, ffmpeg keeps one audio track and no global metadata.
+	if !strings.Contains(joined, "-map [v] -map 0:a?") {
+		t.Errorf("expected explicit stream maps, args: %v", args)
+	}
+	if !strings.Contains(joined, "-map_metadata 0") {
+		t.Errorf("expected -map_metadata 0 so the recording date survives, args: %v", args)
+	}
+	// The "?" is what makes a clip with no audio work rather than fail.
+	if strings.Contains(joined, "-map 0:a ") {
+		t.Errorf("the audio map must be optional (0:a?), args: %v", args)
+	}
+	if !strings.Contains(joined, "format=yuv420p10le[v]") {
+		t.Errorf("expected the 10-bit chain for a 10-bit source on libx265, args: %v", args)
+	}
+}
+
+func TestBuildEncodeBaseArgs_NoStreamsFallsBackToEightBit(t *testing.T) {
+	// sourcePixelFormat must not panic on a VideoSpecs without streams.
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", 6, 0, "")
+
+	if joined := strings.Join(args, " "); !strings.Contains(joined, "format=yuv444p,format=yuv420p[v]") {
+		t.Errorf("expected the 8-bit chain when the pixel format is unknown, args: %v", args)
+	}
+}
+
+func TestClampEncoderThreads(t *testing.T) {
+	// libx265 maps -threads onto --frame-threads and refuses more than 16,
+	// failing to open the encoder at all. runtime.NumCPU() routinely exceeds
+	// that, so without the clamp every H.265 encode died on a big machine.
+	if got := clampEncoderThreads("libx265", 24); got != x265MaxFrameThreads {
+		t.Errorf("clampEncoderThreads(libx265, 24) = %d, want %d", got, x265MaxFrameThreads)
+	}
+	if got := clampEncoderThreads("libx265", 8); got != 8 {
+		t.Errorf("clampEncoderThreads(libx265, 8) = %d, want 8 (below the cap, leave it alone)", got)
+	}
+	// Everything else clamps internally instead of failing; do not second-guess it.
+	if got := clampEncoderThreads("libx264", 24); got != 24 {
+		t.Errorf("clampEncoderThreads(libx264, 24) = %d, want 24", got)
+	}
+	if got := clampEncoderThreads("hevc_nvenc", 24); got != 24 {
+		t.Errorf("clampEncoderThreads(hevc_nvenc, 24) = %d, want 24", got)
+	}
+}
+
+func TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx265", 2000000, "aac", 32, 0, "")
+
+	if joined := strings.Join(args, " "); !strings.Contains(joined, "-threads 16") {
+		t.Errorf("expected libx265 threads capped at 16, args: %v", args)
+	}
+}
+
+// fakeHangingFFmpeg installs a stand-in ffmpeg on PATH that reports progress
+// and then runs until it is killed.
+func fakeHangingFFmpeg(t *testing.T, dir string) {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in ffmpeg relies on a POSIX shell")
+	}
+
+	script := "#!/bin/sh\n" +
+		"while true; do\n" +
+		"  echo out_time_ms=1000\n" +
+		"  sleep 0.2\n" +
+		"done\n"
+	if err := os.WriteFile(filepath.Join(dir, "ffmpeg"), []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to create the stand-in ffmpeg: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", dir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatalf("failed to set PATH: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Setenv("PATH", oldPath); err != nil {
+			t.Errorf("failed to restore PATH: %v", err)
+		}
+		toolResolveCache.Delete("ffmpeg")
+	})
+	toolResolveCache.Delete("ffmpeg")
+}
+
+// countFFmpegLaunches counts how many times EncodeVideo starts an ffmpeg
+// process, by hooking the stdout-pipe wrapper it calls once per launch.
+//
+// Counting from inside the stand-in process instead looks simpler and does not
+// work: once the cancel channel is closed, each subsequent process is killed
+// within microseconds of Start, usually before the shell has run a single line.
+// The count would then read 1 whether the cascade stopped or not -- a test that
+// passes for the wrong reason.
+func countFFmpegLaunches(t *testing.T) *atomic.Int32 {
+	t.Helper()
+
+	var launches atomic.Int32
+	previous := commandStdoutPipe
+	commandStdoutPipe = func(cmd *exec.Cmd) (io.ReadCloser, error) {
+		launches.Add(1)
+		return previous(cmd)
+	}
+	t.Cleanup(func() { commandStdoutPipe = previous })
+	return &launches
+}
+
+// TestEncodeVideo_CancellationStopsTheFallbackCascade pins P-03.
+//
+// EncodeVideo retries a failed encode on safer paths: CPU decode, then the
+// equivalent CPU encoder. It decides by looking at the error, and a
+// cancellation used to be indistinguishable from an encoder failure -- so
+// asking to stop launched the whole cascade instead of stopping it. With a
+// hardware encoder and a matching decode path available, that is three ffmpeg
+// processes started after the user pressed Cancel. It must be one.
+func TestEncodeVideo_CancellationStopsTheFallbackCascade(t *testing.T) {
+	tempDir := t.TempDir()
+	fakeHangingFFmpeg(t, tempDir)
+	launches := countFFmpegLaunches(t)
+
+	if err := InitEncodingSession(nil); err != nil {
+		t.Fatalf("InitEncodingSession: %v", err)
+	}
+	defer func() { _ = CleanUp() }()
+
+	video := &VideoSpecs{File: filepath.Join(tempDir, "input.mp4"), Streams: []VideoStream{{
+		Codec: "h264", Width: 1920, Height: 1080,
+		Duration: "60", DurationFloat: 60, Bitrate: "5000000", BitrateInt: 5000000,
+	}}}
+
+	// A hardware encoder with a matching decode accel: this is what opens the
+	// three-level cascade in the first place.
+	ffmpeg := map[string]string{"accels": "cuda", "encoders": "h264_nvenc,libx264"}
+
+	// Cancel from the progress callback rather than up front, so the first
+	// ffmpeg is provably running when the request lands.
+	cancel := make(chan struct{})
+	var cancelOnce sync.Once
+	progress := func(float64) {
+		cancelOnce.Do(func() { close(cancel) })
+	}
+
+	err := EncodeVideo(nil, video, "h264_nvenc", 2000000,
+		filepath.Join(tempDir, "output.mp4"), ffmpeg, progress, cancel)
+
+	if !errors.Is(err, ErrCancelled) {
+		t.Fatalf("error = %v, want ErrCancelled", err)
+	}
+	if got := launches.Load(); got != 1 {
+		t.Errorf("ffmpeg was launched %d time(s), want 1: the fallback cascade did not stop on cancellation", got)
+	}
+}
+
+func TestPerformEncoding_RefusesOutputEqualToInput(t *testing.T) {
+	dir := t.TempDir()
+	clip := filepath.Join(dir, "clip.mp4")
+	if err := os.WriteFile(clip, []byte("pretend this is a video"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	handler := &MockHandler{}
+	err := PerformEncoding(nil, clip, clip, handler, map[string]string{}, make(chan struct{}))
+
+	if err == nil {
+		t.Fatal("expected an error when the output is the input, got nil")
+	}
+	if !strings.Contains(err.Error(), "input file") {
+		t.Errorf("error should name the problem in plain words, got: %v", err)
+	}
+
+	// The guard exists because the encode now goes through a working file:
+	// ffmpeg no longer sees a conflict, so nothing else would stop the final
+	// rename from destroying the source.
+	data, readErr := os.ReadFile(clip)
+	if readErr != nil {
+		t.Fatalf("the source file is gone: %v", readErr)
+	}
+	if string(data) != "pretend this is a video" {
+		t.Error("the source file was modified")
+	}
+}
+
+func TestParseFrameRate(t *testing.T) {
+	cases := []struct {
+		in   string
+		want float64
+	}{
+		{"30/1", 30},
+		{"60/1", 60},
+		{"25/1", 25},
+		{" 120/1 ", 120},
+		{"30", 30},
+		// NTSC rates are the reason this is a rational and not a number.
+		{"30000/1001", 30000.0 / 1001.0},
+		{"24000/1001", 24000.0 / 1001.0},
+		// ffprobe reports 0/0 when it cannot determine the rate; every caller
+		// reads 0 as "unknown" and none of them substitutes a default.
+		{"0/0", 0},
+		{"0/1", 0},
+		{"30/0", 0},
+		{"", 0},
+		{"N/A", 0},
+		{"abc/def", 0},
+	}
+
+	for _, tc := range cases {
+		got := parseFrameRate(tc.in)
+		if (tc.want == 0 && got != 0) || (tc.want != 0 && (got < tc.want-0.001 || got > tc.want+0.001)) {
+			t.Errorf("parseFrameRate(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestBuildEncodeBaseArgs_ConstrainsTheBitrateCeiling(t *testing.T) {
+	// -b:v alone is an average with no ceiling: measured +83% overshoot on
+	// incompressible content. The VBV constraint brings it to +24%.
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 8_000_000, "aac", 6, 0, "")
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-b:v 8000000") {
+		t.Errorf("expected the requested bitrate, args: %v", args)
+	}
+	if !strings.Contains(joined, "-maxrate 8000000") {
+		t.Errorf("expected -maxrate to cap the bitrate, args: %v", args)
+	}
+	if !strings.Contains(joined, "-bufsize 16000000") {
+		t.Errorf("expected -bufsize at twice the target, args: %v", args)
+	}
+}
+
+func TestEncoderThreadArgs(t *testing.T) {
+	// Software encoders get the value, capped where the encoder needs it.
+	if got := strings.Join(encoderThreadArgs("libx264", 24), " "); got != "-threads 24" {
+		t.Errorf("libx264 thread args = %q, want \"-threads 24\"", got)
+	}
+	if got := strings.Join(encoderThreadArgs("libx265", 24), " "); got != "-threads 16" {
+		t.Errorf("libx265 thread args = %q, want \"-threads 16\" (its ceiling)", got)
+	}
+
+	// Hardware encoders run on a dedicated block; the host core count says
+	// nothing about them, so the option is simply not emitted.
+	for _, enc := range []string{"h264_nvenc", "hevc_nvenc", "h264_amf", "hevc_qsv", "h264_vaapi"} {
+		if args := encoderThreadArgs(enc, 24); len(args) != 0 {
+			t.Errorf("%s should get no -threads option, got %v", enc, args)
+		}
+	}
+}
+
+func TestBuildEncodeBaseArgs_NoThreadsForHardwareEncoders(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_nvenc", 2000000, "aac", 24, 0, "")
+
+	if joined := strings.Join(args, " "); strings.Contains(joined, "-threads") {
+		t.Errorf("did not expect -threads for a hardware encoder, args: %v", args)
 	}
 }

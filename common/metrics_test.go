@@ -28,6 +28,7 @@ func TestEncodingMetrics_RecordAndCompute(t *testing.T) {
 			Height:        1080,
 			DurationFloat: 10,
 			BitrateInt:    1000000,
+			FrameRate:     60,
 		}},
 	}
 
@@ -51,6 +52,40 @@ func TestEncodingMetrics_RecordAndCompute(t *testing.T) {
 	}
 	if m.EncodingSpeed <= 0 {
 		t.Fatalf("expected encoding speed > 0, got %f", m.EncodingSpeed)
+	}
+	// 10 s at 60 fps is 600 frames; the whole run took milliseconds, so the
+	// figure must be far above the 300 the old hard-coded 30 fps would give.
+	if m.EncodingSpeed < 600 {
+		t.Errorf("encoding speed = %f, too low for 600 frames in a few ms: the frame rate is being guessed", m.EncodingSpeed)
+	}
+}
+
+// TestEncodingMetrics_UnknownFrameRateLeavesSpeedUnpublished pins P-06.
+//
+// The frame count used to be InputDuration * 30 with a comment admitting the
+// assumption. GoPros record at 60, 120 and 240, so the published speed could be
+// wrong by a factor of 8 while looking exactly as trustworthy as the measured
+// values beside it. When ffprobe cannot report a rate, no number is better than
+// an invented one.
+func TestEncodingMetrics_UnknownFrameRateLeavesSpeedUnpublished(t *testing.T) {
+	m := NewEncodingMetrics("in.mp4", "out.mp4")
+	video := &VideoSpecs{Streams: []VideoStream{{
+		Codec: "h264", Width: 1920, Height: 1080,
+		DurationFloat: 10, BitrateInt: 1000000,
+		// FrameRate deliberately left at zero: ffprobe reported nothing usable.
+	}}}
+
+	m.RecordInputMetadata(video, 2000000)
+	m.RecordOutputMetadata(500000, "libx264")
+	time.Sleep(5 * time.Millisecond)
+	m.RecordCompletion(1000000)
+
+	if m.EncodingSpeed != 0 {
+		t.Errorf("EncodingSpeed = %f, want 0 when the frame rate is unknown", m.EncodingSpeed)
+	}
+	// The metrics that do not depend on the frame rate must still be there.
+	if m.CompressionRatio <= 0 {
+		t.Errorf("CompressionRatio = %f, want > 0", m.CompressionRatio)
 	}
 }
 
