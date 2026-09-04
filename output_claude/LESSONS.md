@@ -125,6 +125,41 @@ révélé 4 défauts réels qu'aucun outil ne voyait. Sans cela, étendre la CI 
 un pari à l'aveugle susceptible de faire rougir la CI du projet.
 Procédure complète : [SOURCES.md § 1](SOURCES.md).
 
+### L-29 — Une refactorisation de signature doit balayer la documentation — 2026-09-04
+La refactorisation C-05 a changé les signatures de `CheckFfmpeg` et `PerformEncoding`. J'ai mis à
+jour le code, les tests et `SOURCES.md`, mais pas le bloc d'exemple du README, resté avec les
+anciennes signatures pendant deux PR. Aucun outil ne le détecte : les extraits de code en
+Markdown ne sont pas compilés.
+→ Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
+Constat relevé pendant la correction de N-01.
+
+### L-25 — Mesurer sur le mauvais échantillon mène à la conclusion inverse — 2026-09-04
+Mesurant la fidélité du débit sur une mire `testsrc` (trivialement compressible), j'ai obtenu
+13 % / 5 % / 4 % de la consigne et conclu que NVENC dégradait silencieusement la qualité. Refaite
+sur du bruit incompressible, la même mesure donne 156 % / 112 % / 116 % : NVENC suit
+correctement, et c'est `libx264` qui dépasse. **La première conclusion était l'inverse exact de
+la vraie.** En VBR, `-b:v` est une cible moyenne : mesurer la fidélité d'un débit exige un
+contenu qui sature réellement l'encodeur. Constat N-06.
+
+### L-26 — Demander le domaine métier avant de calibrer une sévérité — 2026-09-04
+J'ai classé le rejet des MKV en 🔴 sans savoir que l'application ne reçoit en pratique que des
+fichiers GoPro `.mp4`. L'utilisateur l'a signalé et la sévérité est tombée à 🟠. En vérifiant
+plus largement, le constat s'est révélé **plus étendu** que ma formulation initiale — 5 des 10
+formats proposés échouent, pas seulement le MKV. La correction de portée a donc joué dans les
+deux sens : sévérité revue à la baisse, périmètre revu à la hausse. Constat N-01.
+
+### L-27 — Vérifier une hypothèse avant d'écrire le constat — 2026-09-04
+Cette passe visait quatre axes présumés problématiques. **Quatre hypothèses se sont révélées
+fausses** : la mémoire est constante quelle que soit la résolution (~2 Mo), le chemin matériel
+fonctionne réellement (validé sur RTX 4070), les formats exotiques passent tous, et l'écrasement
+entrée=sortie ne détruit rien (FFmpeg refuse). Les consigner explicitement comme non-constats a
+autant de valeur que les vrais constats : cela évite qu'un futur lecteur refasse le travail.
+
+### L-28 — Ne pas se fier au code de sortie d'un script shell ad hoc — 2026-09-04
+Mon test VAAPI affichait « OK » alors que l'initialisation échouait : le `&&` en fin de pipeline
+capturait le code de `head`, pas celui de `ffmpeg`. Même famille d'erreur que L-11 : la sortie
+de l'outil, pas son code de retour supposé, fait foi.
+
 ### L-22 — Ne pas introduire d'API en prévision d'un usage futur — 2026-09-04
 J'ai ajouté `ResetToolResolutionCache` en 1ʳᵉ passe « pour un futur bouton Réessayer », avec un
 test mais aucun appelant. Résultat : elle est ressortie comme code mort à la passe suivante, et
@@ -194,6 +229,66 @@ Constat O-01.
 ## 3. Corrections appliquées
 
 <!-- Les entrées les plus récentes vont en tête de cette section, juste sous ce commentaire. -->
+
+### [2026-09-04] Correction de N-02 et N-01
+
+Deux constats de la 3ᵉ passe traités, sur décision de l'utilisateur. Le reste (N-03 à N-10)
+demeure documenté et non traité.
+
+#### N-02 — Processus zombie à chaque annulation
+
+| | |
+| --- | --- |
+| **Fichiers** | `common/common.go`, `common/cancel_leak_test.go` (nouveau) |
+| **Vérification** | garde de régression **prouvée dans les deux sens** ✅ |
+
+La branche `<-cancel` tuait le processus puis retournait sans appeler `cmd.Wait()`. Le processus
+n'était donc jamais moissonné, et la goroutine interne que `os/exec` crée pour vider stderr
+jamais libérée. Mesuré avant correction : **3 annulations → 3 zombies**, persistant jusqu'à la
+fermeture de l'application.
+
+`TestEncodeVideo_CancelReapsProcess` compte les enfants à l'état `Z` en lisant directement
+`/proc` — pas de dépendance à `ps`. Correctif retiré : le test échoue en signalant 3 zombies.
+Correctif remis : il passe.
+
+#### N-01 — Les sélecteurs proposaient dix formats pour un produit MP4 uniquement
+
+Les trois sélecteurs (Fyne, zenity/kdialog, PowerShell) sont restreints au `.mp4`, ce qui aligne
+l'entrée sur la sortie — déjà contrainte par `ensureMP4Extension`. Cela supprime le problème
+plutôt que de le contourner : les 5 formats que `CheckVideo` rejetait ne sont plus proposés.
+
+`supportedInputExtensions` centralise la liste, et deux tests la verrouillent, dont un qui
+vérifie la **cohérence des deux bouts** : toute extension acceptée en entrée doit être laissée
+intacte par `ensureMP4Extension`.
+
+#### Dérive de documentation corrigée au passage
+
+Le bloc « API Documentation » du README montrait encore `common.CheckFfmpeg()` et
+`common.PerformEncoding("input.mp4", ...)` — les signatures d'avant la refactorisation C-05.
+**J'avais introduit cette dérive dans la 2ᵉ passe sans la corriger.** Voir [[L-29]].
+
+
+### [2026-09-04] 3ᵉ passe — analyse empirique, aucune correction encore appliquée
+
+Dix constats N-01 à N-10 consignés dans [ANALYSE_PROJET.md § 3bis](ANALYSE_PROJET.md).
+**Aucun code modifié** : cette passe est un diagnostic, les corrections restent à arbitrer.
+
+Méthode : corpus de fichiers difficiles fabriqué avec FFmpeg, mesures de mémoire, de débit et de
+durée, comptage de processus zombies, et validation du chemin matériel sur une **RTX 4070 avec
+NVENC fonctionnel** — jamais testé jusqu'ici.
+
+Quatre hypothèses de départ invalidées par la mesure (voir [[L-27]]), deux conclusions corrigées
+en cours de route ([[L-25]], [[L-26]]).
+
+Constats les plus solides, tous mesurés :
+- **N-02** — 5 annulations produisent 5 zombies ; `cmd.Wait()` les ramène à 0 (prouvé dans les
+  deux sens).
+- **N-01** — 5 des 10 formats proposés par la GUI sont rejetés.
+- **N-07** — l'encodage matériel vaut ×1,7 ; le décodage matériel seulement ~5 %, alors qu'il est
+  tenté en premier et qu'un échec tardif coûte un encodage entier.
+- **N-03/N-04/N-05** — 10 bits ramenés à 8, pistes audio surnuméraires supprimées, date de prise
+  de vue perdue.
+
 
 ### [2026-09-04] 2ᵉ passe — C-05, C-06, et deux constats découverts en chemin
 
@@ -681,3 +776,5 @@ renseigner la date + le lien vers l'entrée § 3.
 | 2026-09-04 | Passe d'application par priorité : 28 constats traités et vérifiés en exécution, 1 invalidé (B-03), 5 en attente d'arbitrage, 1 reporté (C-05). Leçons L-10 à L-19 ajoutées. |
 | 2026-09-04 | Arbitrages utilisateur appliqués (S-02, C-01, C-03, C-04). Leçons L-20, L-21. Restent C-05 (reporté) et C-06 (non tranché). |
 | 2026-09-04 | 2ᵉ passe : C-05 et C-06 traités, plus O-05 et O-06 découverts en chemin. Leçons L-22 à L-24. **File d'attente vide.** |
+| 2026-09-04 | 3ᵉ passe, empirique : 10 constats N-01 à N-10, aucune correction appliquée. Leçons L-25 à L-28. |
+| 2026-09-04 | N-02 et N-01 corrigés et vérifiés. Dérive de doc du README rattrapée (L-29). N-03 à N-10 restent ouverts. |
