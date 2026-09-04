@@ -512,6 +512,174 @@ GitHub Ubuntu.
 
 ---
 
+## 3bis. Deuxième passe d'analyse (2026-09-04) — axes non couverts
+
+Passe menée **empiriquement** : corpus de fichiers difficiles fabriqué avec FFmpeg, mesures de
+mémoire et de débit, tests de fuite de processus, et — fait nouveau — validation du chemin
+d'accélération matérielle sur une **NVIDIA RTX 4070 avec NVENC fonctionnel**.
+
+Convention : **N-xx** pour les constats de cette passe.
+
+> **Périmètre produit** : Superview ne traite que des fichiers **MP4**, en entrée comme en
+> sortie (cible : enregistrements GoPro). Les constats ci-dessous sont calibrés sur ce périmètre.
+> Ceux qui portaient sur d'autres conteneurs ont été reclassés en conséquence.
+
+### Ce qui s'est révélé sain (hypothèses de départ invalidées)
+
+Ces points étaient sur ma liste de suspects et ne posent **aucun problème** :
+
+| Hypothèse | Mesure |
+| --- | --- |
+| Consommation mémoire sur 4K | **Constante, ~2 Mo alloués** quelle que soit la résolution (640×480 comme 4064×3048). L'optimisation O-03 a supprimé le problème avant qu'il n'existe. Heap stable à 7,3 Mo. |
+| Chemin d'accélération matérielle | **Fonctionne réellement.** Plan annoncé (`h264_nvenc + CUDA decode`) et exécution effective concordent, résumé affiché correct. |
+| Formats exotiques | HDR/10 bits, dimensions impaires, absence d'audio, clip de 0,2 s, pistes audio multiples : **tous traités sans erreur**. |
+| Entrée = sortie | **Aucune perte de données** : FFmpeg refuse lui-même (code 234), le fichier source reste intact. |
+
+### N-01 ✅ — ~~La GUI propose dix formats alors que seul le MP4 est supporté~~ — **CORRIGÉ**
+
+`gui_main.go`, `gui_native_dialog_linux.go`, `gui_native_dialog_windows.go`
+
+**Contrainte produit (confirmée par l'utilisateur le 2026-09-04) : Superview ne traite que du
+MP4, en entrée comme en sortie.** La sortie l'applique déjà (`ensureMP4Extension`), mais les
+trois sélecteurs de fichiers — Fyne, zenity/kdialog, PowerShell — proposent toujours **dix
+extensions**.
+
+Vérifié en exécutant le vrai `CheckVideo` sur un fichier de chaque type : **5 des 10 échouent**,
+faute de `duration` ou de `bit_rate` au niveau du flux vidéo.
+
+| Accepté | Rejeté |
+| --- | --- |
+| `.mp4`, `.mov`, `.m4v`, `.avi` | `.mkv`, `.webm`, `.flv` *(durée absente)* · `.mpg`/`.mpeg`, `.wmv` *(débit absent)* |
+
+Les messages sont par ailleurs incompréhensibles :
+`invalid duration value '': strconv.ParseFloat: parsing "": invalid syntax`.
+
+*Correction* : **restreindre les filtres au seul `.mp4`**, dans les trois sélecteurs. Cela aligne
+l'entrée sur la sortie et sur le périmètre réel, et fait disparaître le problème plutôt que de
+le contourner.
+
+> **Deux recalibrages successifs de ce constat.** Je l'avais d'abord classé 🔴 sur le seul cas
+> MKV. L'utilisateur a signalé que l'application ne recevrait jamais de MKV : sévérité revue à
+> 🟠, mais en vérifiant plus largement le périmètre s'est révélé plus étendu (5 formats, pas 1).
+> Il a ensuite précisé que **seul le MP4 est supporté**, ce qui tranche la correction : restreindre,
+> et non ajouter un repli sur les métadonnées conteneur comme je le proposais. Voir [LESSONS.md](LESSONS.md) L-26.
+
+### N-02 ✅ — ~~Chaque annulation laisse un processus zombie~~ — **CORRIGÉ**
+
+`common/common.go` (`EncodeVideo`, branche `<-cancel`)
+
+```go
+case <-cancel:
+    if cmd.Process != nil { _ = cmd.Process.Kill() }
+    <-readDone
+    return errors.New("encoding interrupted by user")   // cmd.Wait() jamais appelé
+```
+
+Sans `Wait()`, le processus tué n'est jamais moissonné et la goroutine interne que `os/exec`
+crée pour recopier stderr n'est jamais libérée.
+
+**Mesuré : 5 annulations → 5 zombies.** Correctif prouvé dans les deux sens — l'ajout de
+`_ = cmd.Wait()` ramène le compte à **0**. Dans une GUI où l'utilisateur peut annuler
+plusieurs fois, ils s'accumulent jusqu'à la fermeture de l'application.
+
+### N-03 🟠 — Les sources 10 bits sont ramenées à 8 bits sans avertissement
+
+`common/common.go` — `"-filter_complex", "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p"`
+
+Le format de sortie est codé en dur. **Mesuré** : une entrée `yuv420p10le` ressort en
+`yuv420p`. Les GoPro récentes (HERO 10 et suivantes) enregistrent en 10 bits, et c'est
+précisément le public visé. La perte est silencieuse.
+
+Le filtre `remap` impose une conversion, mais elle pourrait viser `yuv444p10le,yuv420p10le`
+quand la source est en 10 bits.
+
+### N-04 🟠 — Les pistes audio supplémentaires sont supprimées
+
+**Mesuré** : 2 pistes AAC en entrée, **1 seule** en sortie. Faute de `-map`, FFmpeg applique sa
+sélection automatique et ne retient qu'un flux audio par type. Une caméra enregistrant plusieurs
+pistes, ou un fichier post-produit, y perd du contenu sans message.
+
+### N-05 🟡 — La date de prise de vue est perdue
+
+**Mesuré** : `creation_time=2026-01-15T10:30:00Z` présent en entrée, **absent** en sortie (le
+tag `comment`, lui, survit). Avec trois entrées dans le `-filter_complex`, FFmpeg ne sait pas de
+laquelle hériter les métadonnées globales. `-map_metadata 0` réglerait le cas. Pour de la vidéo
+d'action-cam, trier une bibliothèque par date devient impossible.
+
+### N-06 🟡 — Le débit demandé n'est pas borné : dépassement mesuré jusqu'à +56 %
+
+`-b:v` est posé sans `-maxrate` ni `-bufsize`, c'est donc une cible **moyenne** sans limite
+haute. Mesuré sur contenu incompressible (bruit), consigne 40 Mbps :
+
+| Encodeur | Débit obtenu | Écart |
+| --- | --- | --- |
+| `libx264` | 62,5 Mbps | **+56 %** |
+| `h264_nvenc` | 45,0 Mbps | +12 % |
+| `hevc_nvenc` | 46,4 Mbps | +16 % |
+
+> **Correction d'une conclusion hâtive.** Ma première mesure, faite sur une mire `testsrc`
+> trivialement compressible, donnait 13 % / 5 % / 4 % de la consigne et m'a fait soupçonner que
+> NVENC dégradait silencieusement la qualité. C'était **faux** : le contenu ne nécessitait
+> simplement pas ces bits. Sur contenu exigeant, NVENC suit correctement la consigne et c'est
+> `libx264` qui dérape. Une mesure sur le mauvais échantillon menait à la conclusion inverse.
+
+### N-07 🟡 — Le décodage matériel n'apporte que ~5 %, pour une complexité et un risque réels
+
+Mesuré sur une source 2880×2160 de 15 s, deux exécutions concordantes :
+
+| Chemin | Durée |
+| --- | --- |
+| `h264_nvenc` + décodage CUDA | **4,31 s / 4,37 s** |
+| `h264_nvenc` + décodage CPU | 4,53 s / 4,58 s |
+| `libx264` + décodage CPU | 7,54 s / 7,56 s |
+
+L'**encodage** matériel vaut largement son existence : **×1,7**. Le **décodage** matériel, lui,
+n'apporte que **~5 %**, parce que le filtre `remap` tourne sur CPU et impose des transferts
+GPU→CPU→GPU qui annulent le gain.
+
+Or c'est le chemin tenté **en premier**, et son échec déclenche une réexécution complète de
+l'encodage. Le rapport bénéfice/risque est défavorable : 5 % à gagner, jusqu'à 100 % d'un
+encodage à perdre si l'échec survient tardivement (un échec d'initialisation, le cas courant,
+coûte peu). À arbitrer : conserver, ou ne tenter le décodage matériel que si un gain réel est
+constaté sur la plateforme.
+
+### N-08 🟡 — Jusqu'à 146 Mo de fichiers temporaires, en RAM, sans vérification préalable
+
+Empreinte mesurée des deux cartes PGM :
+
+| Source | Sur disque |
+| --- | --- |
+| 640×480 | 2,9 Mo |
+| 1440×1080 | 16,2 Mo |
+| 2880×2160 (4K 4:3) | 71,6 Mo |
+| 4064×3048 (GoPro 4:3, 12 Mpx) | **146,6 Mo** |
+
+Sur cette machine — et par défaut sur beaucoup de distributions récentes — **`/tmp` est un
+tmpfs**, donc de la mémoire vive : `tmpfs 16G /tmp`. Ces 146 Mo sont de la RAM, invisiblement.
+
+`checkDiskSpaceHealth` existe et vérifie un seuil de 10 Go, mais n'est appelé **que** par le
+bouton Diagnostic — jamais avant un encodage. `InitEncodingSession` crée son répertoire sans
+rien vérifier. Sur une machine modeste au tmpfs réduit, l'échec surviendra en cours de route,
+avec un message d'écriture peu parlant.
+
+### N-09 🟡 — Entrée identique à la sortie : message incompréhensible
+
+Aucune garde dans le code. **Mesuré** : FFmpeg refuse de lui-même et **le fichier source reste
+intact** — pas de perte de données. Mais l'utilisateur reçoit `ffmpeg failed: exit status 234`.
+Une comparaison des chemins avant lancement produirait un message clair.
+
+### N-10 🟡 — Retour utilisateur pauvre pendant un encodage long
+
+- Aucune estimation de temps restant ni de débit : une barre de pourcentage seule, pour une
+  opération qui peut durer plusieurs minutes en 4K. Les métriques nécessaires (`EncodingSpeed`,
+  temps écoulé) sont pourtant déjà calculées dans `metrics.go`.
+- Le chemin du fichier de journal n'est écrit **que dans le journal lui-même**
+  (`gui_logger.Info("Superview starting", slog.String("log_file", logPath))`). Un utilisateur qui
+  veut joindre ses logs à un rapport d'incident ne peut pas les trouver. Le dialogue Diagnostic
+  serait l'endroit naturel pour l'afficher.
+
+---
+
 ## 4. Priorités recommandées
 
 | Ordre | Constats | Justification |

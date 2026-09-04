@@ -261,3 +261,46 @@ func TestEncoderOptionsFor(t *testing.T) {
 		})
 	}
 }
+
+// TestSupportedInputExtensionsAreMP4Only pins the input filter to what
+// CheckVideo can actually process.
+//
+// The pickers used to offer ten containers. Five of them -- Matroska, WebM,
+// FLV, MPEG-PS and ASF -- carry no per-stream duration or bit_rate, which
+// CheckVideo requires, so they failed with an unreadable strconv error. The
+// product handles MP4 only, in and out, so the input side now says so.
+func TestSupportedInputExtensionsAreMP4Only(t *testing.T) {
+	if len(supportedInputExtensions) == 0 {
+		t.Fatal("no input extension offered")
+	}
+	for _, ext := range supportedInputExtensions {
+		if !strings.EqualFold(ext, ".mp4") {
+			t.Errorf("unsupported extension offered by the file picker: %q", ext)
+		}
+	}
+
+	// Both cases must be offered: Fyne's extension filter is case-sensitive.
+	var hasLower, hasUpper bool
+	for _, ext := range supportedInputExtensions {
+		switch ext {
+		case ".mp4":
+			hasLower = true
+		case ".MP4":
+			hasUpper = true
+		}
+	}
+	if !hasLower || !hasUpper {
+		t.Errorf("both .mp4 and .MP4 must be offered, got %v", supportedInputExtensions)
+	}
+}
+
+// TestEnsureMP4ExtensionMatchesTheInputFilter checks the two ends agree: every
+// accepted input extension is one that ensureMP4Extension leaves alone.
+func TestEnsureMP4ExtensionMatchesTheInputFilter(t *testing.T) {
+	for _, ext := range supportedInputExtensions {
+		path := "/home/u/clip" + ext
+		if got := ensureMP4Extension(path); got != path {
+			t.Errorf("ensureMP4Extension(%q) = %q; an accepted input extension must be left untouched", path, got)
+		}
+	}
+}

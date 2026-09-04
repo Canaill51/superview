@@ -50,12 +50,12 @@ func chooseInputFileNative() (string, error) {
 	case "zenity":
 		path, err := runCommandAndGetPath("zenity", "--file-selection",
 			"--title=Select input video",
-			"--file-filter=Video Files | *.mp4 *.MP4 *.mov *.MOV *.mkv *.MKV *.avi *.AVI *.m4v *.M4V *.webm *.WEBM *.flv *.FLV *.wmv *.WMV *.mpeg *.MPEG *.mpg *.MPG",
+			"--file-filter=MP4 Video | *.mp4 *.MP4",
 		)
 		return normalizeNativeDialogResult(path, err)
 	case "kdialog":
 		path, err := runCommandAndGetPath("kdialog", "--getopenfilename", ".",
-			"*.mp4 *.mov *.mkv *.avi *.m4v *.webm *.flv *.wmv *.mpeg *.mpg|Video Files")
+			"*.mp4|MP4 Video")
 		return normalizeNativeDialogResult(path, err)
 	default:
 		return "", errNoNativeDialogTool

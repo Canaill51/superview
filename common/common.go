@@ -855,6 +855,12 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 				_ = cmd.Process.Kill()
 			}
 			<-readDone
+			// Reap the killed process. Without Wait it stays a zombie for the
+			// lifetime of the application, and the goroutine os/exec spawns to
+			// drain stderr is never released either. A user cancelling a few
+			// times would accumulate both. The error is discarded on purpose:
+			// we killed it, so a non-zero status is expected.
+			_ = cmd.Wait()
 			return errors.New("encoding interrupted by user")
 		case <-readDone:
 		}
