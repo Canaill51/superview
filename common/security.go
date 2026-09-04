@@ -13,12 +13,25 @@ import (
 // happens to have write access to them (e.g. running as root in CI/containers).
 func sensitiveSystemDirectories() []string {
 	if runtime.GOOS == "windows" {
-		return []string{
+		// Resolve from the environment: the system drive is not always C:.
+		// The literals are kept as a fallback for a stripped environment.
+		var dirs []string
+		for _, key := range []string{"SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData"} {
+			if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+				dirs = append(dirs, filepath.Clean(v))
+			}
+		}
+		for _, fallback := range []string{
 			`C:\Windows`,
 			`C:\Program Files`,
 			`C:\Program Files (x86)`,
 			`C:\ProgramData`,
+		} {
+			if !containsPath(dirs, fallback) {
+				dirs = append(dirs, fallback)
+			}
 		}
+		return dirs
 	}
 	return []string{
 		"/etc", "/bin", "/sbin", "/usr", "/boot",
@@ -26,9 +39,52 @@ func sensitiveSystemDirectories() []string {
 	}
 }
 
+func containsPath(paths []string, target string) bool {
+	for _, p := range paths {
+		if pathEqual(p, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// pathEqual compares two paths, case-insensitively on Windows.
+func pathEqual(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// hasTraversalComponent reports whether any path component is exactly "..".
+//
+// Testing the raw string with strings.Contains rejected perfectly ordinary
+// names such as "vacances..2024.mp4" or a directory called "GoPro..raw",
+// while adding nothing: the path is required to be absolute and is passed
+// through filepath.Clean right after, which already resolves traversal.
+func hasTraversalComponent(filePath string) bool {
+	normalized := strings.ReplaceAll(filePath, "\\", "/")
+	for _, component := range strings.Split(normalized, "/") {
+		if component == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 func isSensitiveSystemPath(cleanPath string) bool {
 	for _, dir := range sensitiveSystemDirectories() {
-		if cleanPath == dir || strings.HasPrefix(cleanPath, dir+string(os.PathSeparator)) {
+		if pathEqual(cleanPath, dir) {
+			return true
+		}
+		prefix := dir + string(os.PathSeparator)
+		if runtime.GOOS == "windows" {
+			if len(cleanPath) >= len(prefix) && strings.EqualFold(cleanPath[:len(prefix)], prefix) {
+				return true
+			}
+			continue
+		}
+		if strings.HasPrefix(cleanPath, prefix) {
 			return true
 		}
 	}
@@ -36,20 +92,27 @@ func isSensitiveSystemPath(cleanPath string) bool {
 }
 
 // isValidInputPath validates that a file path is safe for input operations.
-// It prevents directory traversal attacks and ensures paths are absolute.
-// Returns true only if the path is safe to use with file operations.
+//
 // Security checks:
-// - No ".." components (directory traversal prevention)
-// - Must be an absolute path
-// - Must exist and be a regular file
-// - Must not be a symlink to prevent symlink attacks
+//   - No ".." path components (directory traversal prevention)
+//   - Must be an absolute path
+//   - Symlinks are resolved, and it is the *target* that must satisfy the rest
+//   - The resolved target must exist and be a regular file
+//
+// Symlinks used to be rejected outright. That blocked ordinary setups -- a
+// ~/Videos pointing at a mounted drive, a symlinked /media entry -- while
+// buying nothing: the user picks the file themselves through a native dialog,
+// so there is no untrusted party to defend against. Resolving and then
+// validating the destination keeps the guarantee that matters (we know exactly
+// which file will be read) without the false positives.
 func isValidInputPath(filePath string) error {
 	if filePath == "" {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
-	// Check for ".." before normalization to catch path traversal attempts
-	if strings.Contains(filePath, "..") {
+	// Reject ".." path components (not the substring: a file may legitimately
+	// be named "clip..final.mp4").
+	if hasTraversalComponent(filePath) {
 		return fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
@@ -61,27 +124,30 @@ func isValidInputPath(filePath string) error {
 		return fmt.Errorf("path must be absolute: %s", filePath)
 	}
 
-	// Check file exists
-	stat, err := os.Stat(cleanPath)
+	// Resolve symlinks and validate what they actually point at.
+	resolvedPath, err := filepath.EvalSymlinks(cleanPath)
 	if err != nil {
 		return fmt.Errorf("cannot access file: %w", err)
 	}
 
-	// Reject directories
+	// A symlink must not be a way to smuggle traversal back in.
+	if !filepath.IsAbs(resolvedPath) {
+		return fmt.Errorf("resolved path is not absolute: %s", resolvedPath)
+	}
+
+	stat, err := os.Stat(resolvedPath)
+	if err != nil {
+		return fmt.Errorf("cannot access file: %w", err)
+	}
+
 	if stat.IsDir() {
 		return fmt.Errorf("path is a directory, expected file: %s", filePath)
 	}
 
-	// Check if it's a symlink (potential symlink attack)
-	// Note: lstat returns info about the symlink itself, not the target
-	lstat, err := os.Lstat(cleanPath)
-	if err != nil {
-		return fmt.Errorf("cannot stat file: %w", err)
-	}
-
-	// Reject symlinks (they could point outside intended boundaries)
-	if (lstat.Mode() & os.ModeSymlink) != 0 {
-		return fmt.Errorf("symlinks not allowed for security: %s", filePath)
+	// Reject anything that is not a regular file: a device, socket or FIFO
+	// would make ffmpeg block or read something unintended.
+	if !stat.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file: %s", filePath)
 	}
 
 	return nil
@@ -99,8 +165,8 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("output path cannot be empty")
 	}
 
-	// Check for ".." before normalization to catch path traversal attempts
-	if strings.Contains(filePath, "..") {
+	// Reject ".." path components (not the substring).
+	if hasTraversalComponent(filePath) {
 		return fmt.Errorf("path traversal detected in output path: %s", filePath)
 	}
 
@@ -130,13 +196,16 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("output parent is not a directory: %s", dir)
 	}
 
-	// Check directory is writable by attempting to create a temp file
-	// This is more reliable than checking mode bits
-	testFile := filepath.Join(dir, ".superview_write_test")
-	if err := os.WriteFile(testFile, []byte{}, 0600); err != nil {
+	// Probe writability by creating a uniquely named file rather than a fixed
+	// one: two concurrent runs cannot clobber each other, and a crash between
+	// creation and removal cannot leave a predictable leftover behind.
+	probe, err := os.CreateTemp(dir, ".superview-write-*")
+	if err != nil {
 		return fmt.Errorf("output directory not writable: %w", err)
 	}
-	_ = os.Remove(testFile) // Clean up test file
+	probeName := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(probeName)
 
 	return nil
 }

@@ -202,24 +202,62 @@ func TestPathTraversalPrevention(t *testing.T) {
 }
 
 // TestSymlinkRejection tests that symlinks are properly rejected
-func TestSymlinkRejection(t *testing.T) {
-	// Create a temporary file
-	tmpFile := filepath.Join(t.TempDir(), "targetfile.txt")
-	if err := os.WriteFile(tmpFile, []byte("test"), 0600); err != nil {
+func TestSymlinkResolution_AcceptedWhenTargetIsValid(t *testing.T) {
+	// Policy decision (2026-09-04): symlinks are resolved and their target is
+	// validated, instead of being rejected outright. A ~/Videos pointing at a
+	// mounted drive is an ordinary setup, and the user picks the file through a
+	// native dialog, so there is no untrusted party to defend against.
+	dir := t.TempDir()
+	target := filepath.Join(dir, "targetfile.mp4")
+	if err := os.WriteFile(target, []byte("test"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Create a symlink to the file
-	tmpDir := filepath.Dir(tmpFile)
-	symlinkPath := filepath.Join(tmpDir, "symlink.txt")
-	if err := os.Symlink(tmpFile, symlinkPath); err != nil {
+	link := filepath.Join(dir, "symlink.mp4")
+	if err := os.Symlink(target, link); err != nil {
 		t.Skipf("Cannot create symlinks on this system: %v", err)
 	}
 
-	// Verify the symlink is rejected
-	err := isValidInputPath(symlinkPath)
-	if err == nil {
-		t.Fatal("Symlink was not rejected - security issue!")
+	if err := isValidInputPath(link); err != nil {
+		t.Errorf("a symlink to a valid regular file must be accepted, got: %v", err)
+	}
+}
+
+func TestSymlinkResolution_RejectedWhenTargetIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "dangling.mp4")
+	if err := os.Symlink(filepath.Join(dir, "does-not-exist.mp4"), link); err != nil {
+		t.Skipf("Cannot create symlinks on this system: %v", err)
+	}
+
+	if err := isValidInputPath(link); err == nil {
+		t.Error("a dangling symlink must be rejected")
+	}
+}
+
+func TestSymlinkResolution_RejectedWhenTargetIsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	targetDir := filepath.Join(dir, "somedir")
+	if err := os.Mkdir(targetDir, 0755); err != nil {
+		t.Fatalf("Failed to create dir: %v", err)
+	}
+	link := filepath.Join(dir, "dirlink")
+	if err := os.Symlink(targetDir, link); err != nil {
+		t.Skipf("Cannot create symlinks on this system: %v", err)
+	}
+
+	if err := isValidInputPath(link); err == nil {
+		t.Error("a symlink to a directory must be rejected")
+	}
+}
+
+func TestIsValidInputPath_RejectsNonRegularFile(t *testing.T) {
+	// /dev/zero would make ffmpeg read forever.
+	if _, err := os.Stat("/dev/zero"); err != nil {
+		t.Skip("/dev/zero unavailable")
+	}
+	if err := isValidInputPath("/dev/zero"); err == nil {
+		t.Error("a character device must be rejected")
 	}
 }
 
@@ -231,4 +269,59 @@ func contains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestHasTraversalComponent(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		// Real traversal.
+		{"/home/user/../../etc/passwd", true},
+		{"/home/user/..", true},
+		{"../relative.mp4", true},
+		{`C:\Users\..\Windows\x.mp4`, true},
+		// Legitimate names that the old substring check rejected.
+		{"/home/user/Videos/vacances..2024.mp4", false},
+		{"/home/user/GoPro..raw/clip.mp4", false},
+		{"/home/user/a..b..c.mp4", false},
+		{"/home/user/...hidden.mp4", false},
+		{"/home/user/normal.mp4", false},
+	}
+	for _, c := range cases {
+		if got := hasTraversalComponent(c.path); got != c.want {
+			t.Errorf("hasTraversalComponent(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
+func TestIsValidInputPath_AcceptsDoubleDotInFilename(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "vacances..2024.mp4")
+	if err := os.WriteFile(file, []byte("x"), 0600); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+	if err := isValidInputPath(file); err != nil {
+		t.Errorf("a filename containing '..' must be accepted, got: %v", err)
+	}
+}
+
+func TestIsValidInputPath_StillRejectsTraversal(t *testing.T) {
+	if err := isValidInputPath("/home/user/../../etc/passwd"); err == nil {
+		t.Error("expected traversal to be rejected")
+	}
+}
+
+func TestIsValidOutputPath_LeavesNoProbeFileBehind(t *testing.T) {
+	dir := t.TempDir()
+	if err := isValidOutputPath(filepath.Join(dir, "out.mp4")); err != nil {
+		t.Fatalf("expected a writable temp dir to pass, got: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("failed to read dir: %v", err)
+	}
+	for _, e := range entries {
+		t.Errorf("probe file left behind: %s", e.Name())
+	}
 }
