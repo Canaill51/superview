@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -178,6 +180,106 @@ func TestToolbarFitsWindow(t *testing.T) {
 	}
 	t.Logf("toolbar min size = %.0fx%.0f, window = %dx%d",
 		min.Width, min.Height, windowWidth, windowHeight)
+}
+
+// TestBuildIdentity pins R-04. The degraded cases are the point: a binary that
+// cannot say which build it is defeats the diagnostic report entirely, and
+// Fyne's 0.0.1 default is the shape of answer that looks like a real version.
+func TestBuildIdentity(t *testing.T) {
+	settings := func(revision string, modified bool) *debug.BuildInfo {
+		return &debug.BuildInfo{Settings: []debug.BuildSetting{
+			{Key: "vcs", Value: "git"},
+			{Key: "vcs.revision", Value: revision},
+			{Key: "vcs.modified", Value: strconv.FormatBool(modified)},
+		}}
+	}
+
+	cases := []struct {
+		name      string
+		version   string
+		info      *debug.BuildInfo
+		ok        bool
+		unstamped bool // neither ID nor name set: nothing injected metadata
+		want      string
+	}{
+		{
+			// The case that matters most: an unpackaged build must not present
+			// Fyne's 0.0.1 placeholder as though it were a release.
+			name:      "an unstamped build reads as dev, not as 0.0.1",
+			version:   "0.0.1",
+			info:      settings("85b66712872f83ec87bfc7f9cfc38d128cd3a88d", true),
+			ok:        true,
+			unstamped: true,
+			want:      "dev (85b6671, modified)",
+		},
+		{
+			name:      "an unstamped build with no vcs information",
+			version:   "0.0.1",
+			info:      nil,
+			ok:        false,
+			unstamped: true,
+			want:      "dev",
+		},
+		{
+			name:    "a released build names its version and commit",
+			version: "0.2.3",
+			info:    settings("85b66712872f83ec87bfc7f9cfc38d128cd3a88d", false),
+			ok:      true,
+			want:    "0.2.3 (85b6671)",
+		},
+		{
+			name:    "a build from a dirty tree says so",
+			version: "0.2.3",
+			info:    settings("85b66712872f83ec87bfc7f9cfc38d128cd3a88d", true),
+			ok:      true,
+			want:    "0.2.3 (85b6671, modified)",
+		},
+		{
+			// go build outside a repository, or with -buildvcs=false.
+			name:    "no vcs information leaves the version alone",
+			version: "0.2.3",
+			info:    &debug.BuildInfo{},
+			ok:      true,
+			want:    "0.2.3",
+		},
+		{
+			name:    "no build info at all",
+			version: "0.2.3",
+			info:    nil,
+			ok:      false,
+			want:    "0.2.3",
+		},
+		{
+			// Fyne answers 0.0.1 when nothing stamped a version, so an empty
+			// string means something stripped it; say so rather than print a
+			// bare commit with no version in front of it.
+			name:    "an empty version reads as unknown",
+			version: "",
+			info:    settings("85b66712872f83ec87bfc7f9cfc38d128cd3a88d", false),
+			ok:      true,
+			want:    "unknown (85b6671)",
+		},
+		{
+			name:    "a short revision is not truncated",
+			version: "0.2.3",
+			info:    settings("85b6671", false),
+			ok:      true,
+			want:    "0.2.3 (85b6671)",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			md := fyne.AppMetadata{Version: c.version, ID: "com.canaill51.superview", Name: "Superview"}
+			if c.unstamped {
+				md = fyne.AppMetadata{Version: c.version}
+			}
+			got := buildIdentity(md, c.info, c.ok)
+			if got != c.want {
+				t.Errorf("buildIdentity() = %q, want %q", got, c.want)
+			}
+		})
+	}
 }
 
 func TestQualityProfileSettings(t *testing.T) {

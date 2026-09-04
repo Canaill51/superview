@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"superview/common"
 	"time"
@@ -80,6 +81,56 @@ func qualityProfileSettings(profile string, inputBitrate int) (bitrate int, pres
 	default: // "Balanced" and any unexpected value
 		return bitrate, "medium"
 	}
+}
+
+// buildIdentity names the running binary, for the diagnostic report and the
+// log the README asks users to attach to a bug report.
+//
+// Two sources, and both are needed. Fyne's metadata carries whatever
+// "fyne package --app-version" stamped, which is how the release workflow
+// passes the tag. A plain "go build" carries no such stamp: Fyne answers with
+// its own default of 0.0.1, or -- run from a checkout -- with whatever
+// FyneApp.toml happens to hold, and either lets a development build present
+// itself as a release. Go's VCS stamping settles it, because the revision is
+// exact and vcs.modified says whether the tree was clean. Verified to survive
+// "fyne package", which is what the release builds with.
+func buildIdentity(md fyne.AppMetadata, info *debug.BuildInfo, ok bool) string {
+	version := strings.TrimSpace(md.Version)
+	switch {
+	case md.ID == "" && md.Name == "":
+		// Nothing stamped this binary, so md.Version is Fyne's placeholder of
+		// 0.0.1 -- a string that reads exactly like a real version. Fyne's own
+		// test for "no metadata was injected" is that neither ID nor name is
+		// set; use the same one rather than matching on the placeholder value,
+		// which is theirs to change.
+		version = "dev"
+	case version == "":
+		version = "unknown"
+	}
+	if !ok || info == nil {
+		return version
+	}
+
+	revision := ""
+	modified := false
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
+		}
+	}
+	if revision == "" {
+		return version
+	}
+	if len(revision) > 7 {
+		revision = revision[:7]
+	}
+	if modified {
+		return fmt.Sprintf("%s (%s, modified)", version, revision)
+	}
+	return fmt.Sprintf("%s (%s)", version, revision)
 }
 
 // supportedInputExtensions lists the extensions offered by the file pickers.
@@ -517,7 +568,15 @@ func main() {
 	app.SetIcon(iconResource)
 	app.Settings().SetTheme(newForcedDarkTheme())
 
-	window := app.NewWindow("Superview")
+	// Nothing used to say which binary was running -- not the window, not the
+	// log, not the diagnostic the README asks users to attach to bug reports.
+	// That was tolerable while a single release existed; three now do, their
+	// outputs differ in size, and one carries the squeeze seam.
+	buildInfo, haveBuildInfo := debug.ReadBuildInfo()
+	identity := buildIdentity(app.Metadata(), buildInfo, haveBuildInfo)
+	gui_logger.Info("Superview build", slog.String("build", identity))
+
+	window := app.NewWindow("Superview " + identity)
 	window.SetIcon(iconResource)
 	prefs := app.Preferences()
 
@@ -906,7 +965,9 @@ func main() {
 		status.SetText("Status: Running diagnostic...")
 		go func() {
 			health := common.CheckHealth(cfg)
-			report := common.GetHealthReport(health)
+			// The build goes first: it is the one line that tells a maintainer
+			// which binary produced everything below it.
+			report := "Superview build: " + identity + "\n\n" + common.GetHealthReport(health)
 			// The log path used to be written only *into* the log, so a user
 			// asked to attach their logs to a bug report had no way to find
 			// them. This dialog is where they already come looking.

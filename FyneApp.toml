@@ -2,3 +2,8 @@
   Name = "Superview"
   ID = "com.canaill51.superview"
   Icon = "Icon.png"
+  # Only a fallback, for a build made outside the release workflow. The
+  # published binaries get their version from the tag, which the workflow
+  # passes as "fyne package --app-version", so the two can never drift.
+  Version = "0.2.2"
+  Build = 1
