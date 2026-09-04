@@ -667,7 +667,7 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 
 	toolResolveCache.Delete("ffmpeg")
 
-	if err := InitEncodingSession(); err != nil {
+	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
 	defer func() {
@@ -704,7 +704,7 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- EncodeVideo(video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
+		errCh <- EncodeVideo(nil, video, "libx264", 2000000, filepath.Join(tempDir, "output.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
 	}()
 
 	var sigTarget chan<- os.Signal
@@ -734,7 +734,7 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 }
 
 func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
-	if err := InitEncodingSession(); err != nil {
+	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
 	defer func() {
@@ -766,7 +766,7 @@ func TestEncodeVideo_ReturnsStdoutPipeError(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	err := EncodeVideo(video, "libx264", 2000000, "output.mp4", map[string]string{}, func(float64) {}, make(chan struct{}))
+	err := EncodeVideo(nil, video, "libx264", 2000000, "output.mp4", map[string]string{}, func(float64) {}, make(chan struct{}))
 	if err == nil {
 		t.Fatal("expected stdout pipe error, got nil")
 	}
@@ -1031,7 +1031,7 @@ func (r *errReader) Read(_ []byte) (int, error) { return 0, r.err }
 func (r *errReader) Close() error               { return nil }
 
 func TestEncodeVideo_ProgressReaderNonEOFErrorDoesNotHang(t *testing.T) {
-	if err := InitEncodingSession(); err != nil {
+	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
 	defer func() {
@@ -1066,7 +1066,7 @@ func TestEncodeVideo_ProgressReaderNonEOFErrorDoesNotHang(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- EncodeVideo(video, "libx264", 2000000, filepath.Join(t.TempDir(), "out.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
+		done <- EncodeVideo(nil, video, "libx264", 2000000, filepath.Join(t.TempDir(), "out.mp4"), map[string]string{}, func(float64) {}, make(chan struct{}))
 	}()
 
 	select {

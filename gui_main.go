@@ -36,6 +36,34 @@ const (
 	prefSqueezeSource    = "ui.squeeze_source"
 )
 
+// encoderOptionsFor builds the codec dropdown entries from ffmpeg's encoder
+// list. strings.Split("", ",") yields [""], not an empty slice, so without the
+// empty filter a bogus " encoder" entry appears whenever ffmpeg is missing or
+// exposes no encoder matching the configured codecs.
+func encoderOptionsFor(encoderList string) []string {
+	options := []string{"Use same video codec as input file"}
+	for _, enc := range strings.Split(encoderList, ",") {
+		enc = strings.TrimSpace(enc)
+		if enc == "" {
+			continue
+		}
+		options = append(options, enc+" encoder")
+	}
+	return options
+}
+
+// qualityProfileSettings maps a GUI quality profile onto an output bitrate and
+// an ffmpeg preset. The output is widened from 4:3 to 16:9, so "Balanced"
+// raises the bitrate to keep the perceived quality of the source.
+func qualityProfileSettings(profile string, inputBitrate int) (bitrate int, preset string) {
+	switch profile {
+	case "Fast":
+		return inputBitrate, "fast"
+	default: // "Balanced" and any unexpected value
+		return int(float64(inputBitrate) * 1.6), "medium"
+	}
+}
+
 // ensureMP4Extension appends ".mp4" unless the path already carries it.
 // The comparison is case-insensitive so "CLIP.MP4" is left alone.
 func ensureMP4Extension(path string) string {
@@ -63,7 +91,12 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func showPrerequisiteDialog(window fyne.Window, err error) bool {
+// showPrerequisiteDialog reports the "ffmpeg is not installed" case with an
+// install link. When onRetry is non-nil the dialog also offers a Retry button:
+// users almost always install ffmpeg right after reading this message, and
+// without a retry they would have to restart the application to be noticed.
+// Returns false if err is some other failure, which the caller must then report.
+func showPrerequisiteDialog(window fyne.Window, err error, onRetry func()) bool {
 	if !isMissingFFmpegError(err) {
 		return false
 	}
@@ -79,7 +112,18 @@ func showPrerequisiteDialog(window fyne.Window, err error) bool {
 		widget.NewLabel("make sure to install it first:"),
 		widget.NewHyperlink(requirementsURL, parsedURL),
 	)
-	dialog.NewCustom("Error", "OK", content, window).Show()
+
+	if onRetry == nil {
+		dialog.NewCustom("Error", "OK", content, window).Show()
+		return true
+	}
+
+	content.Add(widget.NewLabel("Already installed it? Use Retry."))
+	dialog.NewCustomConfirm("Error", "Retry", "Close", content, func(retry bool) {
+		if retry {
+			onRetry()
+		}
+	}, window).Show()
 	return true
 }
 
@@ -113,7 +157,7 @@ type GUIHandler struct {
 
 func (h *GUIHandler) ShowError(err error) {
 	fyne.Do(func() {
-		if showPrerequisiteDialog(h.window, err) {
+		if showPrerequisiteDialog(h.window, err, nil) {
 			return
 		}
 		dialog.ShowError(err, h.window)
@@ -211,9 +255,7 @@ func main() {
 	if err != nil {
 		gui_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
 		// Continue with current/default configuration to avoid nil dereference.
-		cfg = common.GetConfig()
-	} else {
-		common.SetConfig(cfg)
+		cfg, _ = common.LoadConfig("")
 	}
 
 	// Re-create the logger now that the configured level is known.
@@ -333,6 +375,7 @@ func main() {
 	// both are assigned before any callback can run.
 	var refreshStart func()
 	var updateHardwareStatus func()
+	var refreshEncoderOptions func()
 
 	setEncodingState := func(inProgress bool) {
 		encodingInProgress = inProgress
@@ -365,14 +408,14 @@ func main() {
 
 			// GPU-friendly quality strategy: keep hardware encoders and scale bitrate by profile.
 			inputBitrate := video.Streams[0].BitrateInt
-			var profileBitrate int
-			switch selectedQualityProfile {
-			case "Fast":
-				profileBitrate = inputBitrate
-				effectiveCfg.VideoPreset = "fast"
-			default: // "Balanced" and any unexpected value
-				profileBitrate = int(float64(inputBitrate) * 1.6)
-				effectiveCfg.VideoPreset = "medium"
+			profileBitrate, profilePreset := qualityProfileSettings(selectedQualityProfile, inputBitrate)
+
+			// An explicit video_preset in the configuration wins over the
+			// profile's. Previously the profile always overwrote it, so a user
+			// who set video_preset in superview.yaml silently got "fast" or
+			// "medium" instead, with nothing reporting the substitution.
+			if effectiveCfg.VideoPreset == "" {
+				effectiveCfg.VideoPreset = profilePreset
 			}
 
 			if profileBitrate < cfg.MinBitrate {
@@ -381,8 +424,6 @@ func main() {
 			if cfg.MaxBitrate > 0 && profileBitrate > cfg.MaxBitrate {
 				profileBitrate = cfg.MaxBitrate
 			}
-
-			common.SetConfig(&effectiveCfg)
 
 			status.SetText("Status: Transforming...")
 			progressBar.SetValue(0)
@@ -410,7 +451,7 @@ func main() {
 					logger:    common.GetLogger(),
 				}
 
-				if err := common.PerformEncoding(video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
+				if err := common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
 					fyne.Do(func() {
 						status.SetText("Status: Failed")
 						results.SetText("Results: last run failed")
@@ -582,10 +623,42 @@ func main() {
 		refreshStart()
 	})
 
-	ffmpeg, err = common.CheckFfmpeg()
+	ffmpeg, err = common.CheckFfmpeg(cfg)
 	if err != nil {
 		ffmpegAvailable = false
-		if !showPrerequisiteDialog(window, err) {
+
+		// Re-probe on demand. Failed lookups are deliberately not cached, so
+		// this picks up an ffmpeg installed while the app was already running.
+		var retryFFmpeg func()
+		retryFFmpeg = func() {
+			common.ResetToolResolutionCache()
+			probed, probeErr := common.CheckFfmpeg(cfg)
+			if probeErr != nil {
+				common.GetLogger().Warn("ffmpeg still unavailable after retry",
+					slog.String("error", probeErr.Error()))
+				if !showPrerequisiteDialog(window, probeErr, retryFFmpeg) {
+					dialog.ShowError(probeErr, window)
+				}
+				return
+			}
+
+			ffmpeg = probed
+			ffmpegAvailable = true
+			common.GetLogger().Info("ffmpeg found on retry",
+				slog.String("version", ffmpeg["version"]))
+
+			refreshEncoderOptions()
+			open.Enable()
+			selectOutput.Enable()
+			qualityProfileSelect.Enable()
+			squeezeCheck.Enable()
+			encoder.Enable()
+			status.SetText("Status: Ready")
+			updateHardwareStatus()
+			refreshStart()
+		}
+
+		if !showPrerequisiteDialog(window, err, retryFFmpeg) {
 			dialog.ShowError(err, window)
 		}
 		open.Disable()
@@ -596,18 +669,7 @@ func main() {
 		hardwareStatus.SetText("Hardware: ffmpeg unavailable")
 	}
 
-	encoderOptions := []string{"Use same video codec as input file"}
-
-	// strings.Split("", ",") yields [""], not an empty slice: without this
-	// filter a bogus " encoder" entry shows up whenever ffmpeg is missing or
-	// exposes no encoder matching the configured codecs.
-	for _, enc := range strings.Split(ffmpeg["encoders"], ",") {
-		enc = strings.TrimSpace(enc)
-		if enc == "" {
-			continue
-		}
-		encoderOptions = append(encoderOptions, enc+" encoder")
-	}
+	encoderOptions := encoderOptionsFor(ffmpeg["encoders"])
 	encoder = widget.NewSelect(encoderOptions, func(s string) {
 		prefs.SetString(prefEncoderSelection, s)
 		updateHardwareStatus()
@@ -618,6 +680,19 @@ func main() {
 		savedEncoderSelection = encoderOptions[0]
 	}
 	encoder.SetSelected(savedEncoderSelection)
+
+	// Rebuild the dropdown after a successful retry, when the encoder list goes
+	// from empty to whatever the freshly installed ffmpeg exposes.
+	refreshEncoderOptions = func() {
+		options := encoderOptionsFor(ffmpeg["encoders"])
+		encoder.Options = options
+		previous := encoder.Selected
+		if !containsString(options, previous) {
+			previous = options[0]
+		}
+		encoder.SetSelected(previous)
+		encoder.Refresh()
+	}
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading
 
@@ -633,8 +708,11 @@ func main() {
 	diagnosticBtn := widget.NewButtonWithIcon("Diagnostic", theme.InfoIcon(), func() {
 		status.SetText("Status: Running diagnostic...")
 		go func() {
-			report := common.GetHealthReport(common.CheckHealth())
-			common.GetLogger().Info("System health check requested from the GUI")
+			health := common.CheckHealth(cfg)
+			report := common.GetHealthReport(health)
+			// Mirror the report into the log file so a user can attach it to a
+			// bug report without retyping what the dialog showed.
+			common.LogHealth(common.GetLogger(), health)
 
 			reportLabel := widget.NewLabel(report)
 			reportLabel.TextStyle = fyne.TextStyle{Monospace: true}
