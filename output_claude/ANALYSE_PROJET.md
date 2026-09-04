@@ -1227,6 +1227,44 @@ Q-01, pas par relecture : le défaut ne se voit qu'à l'exécution.
 journal ne se garde pas utilement par un test — c'est dit ici plutôt que d'ajouter un test qui
 n'épingle rien.
 
+### R-04 ✅ — ~~Rien ne dit quel binaire tourne~~ — **CORRIGÉ**
+
+`FyneApp.toml`, `gui_main.go`, `.github/workflows/release.yml`
+
+`FyneApp.toml` n'avait ni `Version` ni `Build`, la fenêtre s'intitulait « Superview » tout court,
+et le rapport *Diagnostic* — celui que le README demande de joindre à un rapport de bug — ne
+disait pas quelle version l'avait produit. Supportable tant qu'une seule release existait ; trois
+coexistent désormais, leurs sorties diffèrent en taille depuis Q-01, et l'une d'elles porte la
+couture du mode squeeze.
+
+**Deux sources, et il en faut deux.** La métadonnée Fyne porte ce que
+`fyne package --app-version` a estampillé, ce que le workflow alimente depuis le tag. Mais un
+`go build` simple n'estampille rien, et Fyne répond alors **`0.0.1`**, sa valeur par défaut — une
+chaîne qui ressemble à une vraie version. Lancé depuis un dépôt de travail, il lit `FyneApp.toml`
+et répond ce que le fichier contient, qui dérive du tag dès que master avance. L'estampille VCS de
+Go tranche : la révision est exacte et `vcs.modified` dit si l'arbre était propre.
+`buildIdentity` rend donc `0.2.3 (85b6671)`, ou `0.2.3 (85b6671, modified)`, ou `dev (85b6671)`
+quand rien n'a été estampillé — Fyne reconnaissant ce cas au fait que ni l'ID ni le nom ne sont
+renseignés, test réutilisé tel quel plutôt que de comparer à `0.0.1`, qui leur appartient.
+
+*Où elle apparaît* : titre de la fenêtre, ligne de journal au démarrage, et **première ligne du
+rapport Diagnostic**, avant tout le reste — c'est la seule qui dise à quel binaire se rapporte
+ce qui suit.
+
+*La version vient du tag, jamais d'un fichier.* Les deux jobs de build passent
+`--app-version "${GITHUB_REF_NAME#v}"`. Le `Version` de `FyneApp.toml` n'est qu'un repli pour une
+compilation hors workflow ; il ne peut pas faire mentir un binaire publié.
+
+*Vérifications.* Six cas unitaires, contre-épreuvés un par un — dont une contre-épreuve **qui
+n'en était pas une** : changer le seuil de troncature de 7 à 12 laisse le résultat identique
+puisque la longueur découpée reste 7. Muter la longueur elle-même fait bien rougir (L-54). Et
+bout en bout, sur le chemin réel : un paquet construit par `fyne package --app-version 9.9.9`
+puis exécuté journalise `build="9.9.9 (85b6671, modified)"` ; un `go build` lancé hors du dépôt
+journalise `build="dev (85b6671, modified)"`.
+
+*Constaté en chemin* : `fyne package` **réécrit `FyneApp.toml`** — il le reformate et y ajoute
+`Build`. Sans conséquence dans un checkout de CI, mais l'outil s'approprie ce fichier.
+
 ### Deux prédictions confrontées aux faits
 
 **Le rouge Windows annoncé par #32 n'a pas eu lieu.** Le message de la PR pariait sur un échec de
@@ -1276,9 +1314,8 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
-| ✅ **Corrigé et vérifié — 5ᵉ passe** (2) | R-01, R-02 |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (4) | R-01, R-02, R-03, R-04 |
 | ⏸️ **Ouvert** | *aucun.* |
-| ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-03 — `bitrate_bytes_sec` pour une valeur en bits, reliquat de P-05 |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :

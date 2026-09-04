@@ -76,7 +76,12 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}"
+        # The tag is the version, passed here rather than read from
+        # FyneApp.toml: a number committed in a file drifts from the tag the
+        # moment master moves past a release, and the binary would then claim
+        # to be something it is not.
+        VERSION="${GITHUB_REF_NAME#v}"
+        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}"
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
     
     - name: Create archives
@@ -131,7 +136,10 @@ jobs:
       run: |
         set -euo pipefail
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" .
+        # Same as the Windows job: the tag is the version, so a released binary
+        # can never claim a number that a committed file drifted away from.
+        VERSION="${GITHUB_REF_NAME#v}"
+        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" --app-version "${VERSION}" .
         if [ ! -f "superview-gui-linux-${ARCH}.tar.xz" ]; then
           echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
           echo "Working directory contains:"

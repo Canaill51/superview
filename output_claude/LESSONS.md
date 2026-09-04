@@ -141,6 +141,20 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-54 — Une contre-épreuve qui ne change pas le résultat n'est pas une contre-épreuve — 2026-09-05
+En vérifiant `buildIdentity`, j'ai muté trois choses ; deux ont fait rougir les tests, la
+troisième non. Elle portait sur la troncature de la révision : le seuil est passé de
+`len(revision) > 7` à `> 12`, mais la **longueur découpée** restait `revision[:7]`. Sur une
+révision de 40 caractères le résultat est identique dans les deux cas, et sur une révision de 7
+aucun des deux ne tronque. J'avais muté une condition sans muter le comportement, puis conclu que
+le test ne couvrait pas la troncature. En mutant `revision[:7]` en `revision[:10]`, trois cas
+rougissent.
+→ Une contre-épreuve n'a de valeur que si la mutation produit **un comportement observablement
+différent** sur au moins un cas du test. Avant de conclure « le test ne couvre pas ceci »,
+vérifier que la version cassée fait bien autre chose que la version saine — sinon on n'a rien
+mesuré. Suite directe de L-49 : là, l'environnement rendait la contre-épreuve muette ; ici, c'est
+la mutation elle-même qui l'était.
+
 ### L-53 — Un script enfermé dans un YAML s'extrait pour être essayé — 2026-09-05
 L'étape qui écrit les notes de release ne tourne que sur un tag poussé : l'essayer « pour de
 vrai » coûterait un tag, et c'est exactement ce qui avait laissé le workflow cassé de juillet à
@@ -1421,6 +1435,8 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
       YAML et essayé en local sur trois tags réels (L-53) → appliqué le 2026-09-05
 - [x] **v0.2.2** Taguée sur `b6c7955`, **publiée** le 2026-09-05 → première release dont les
       notes viennent du tag et décrivent ce qui change ; checksums corrects, aucune retouche
+- [x] **R-04** Version du binaire dans le titre, le journal et le rapport Diagnostic ; la
+      release l'injecte depuis le tag (L-54) → appliqué le 2026-09-05
 - [x] **R-03** `bitrate_bytes_sec` → `bitrate_bits_sec`, reliquat de P-05 (L-51)
       → appliqué le 2026-09-04
 - [x] **v0.2.1** Taguée sur `90b02a8`, draft vérifié, **publiée** le 2026-09-04 →
@@ -1451,3 +1467,4 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-04 | **Q-01 tranchée par la mesure** : l'intention déclarée du facteur de débit est tenue à k ≈ 1,19–1,30, `hevc_nvenc` et `libx265` d'accord au millième. Les deux profils passent à 4/3 (arbitrage utilisateur). **R-03** trouvé en chemin : reliquat de P-05 dans le journal. Leçons L-51, L-52. |
 | 2026-09-05 | **R-02** corrigé : le message du tag annoté devient le corps de la release, avec repli bruyant sur un tag léger. Script extrait du YAML et essayé en local sur trois tags, ce qui a démasqué un `::warning::` qui serait parti dans les notes publiées. Leçon L-53. |
 | 2026-09-05 | **v0.2.2 publiée** : la baisse de débit de Q-01 atteint les utilisateurs (Balanced ~20 % plus léger, Fast qui cesse de dégrader). Première release dont le corps décrit ce qui change, généré depuis le tag sans retouche. |
+| 2026-09-05 | **R-04** : le binaire dit enfin quelle version il est — titre, journal, et première ligne du rapport Diagnostic. Version issue du tag via `fyne package --app-version`, jamais d'un fichier ; repli `dev` quand rien n'a estampillé le binaire, pour ne pas laisser passer le `0.0.1` par défaut de Fyne. Vérifié bout en bout sur un paquet réel. Leçon L-54. |
