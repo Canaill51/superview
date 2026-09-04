@@ -28,6 +28,7 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
 - **Dynamic Scaling**: Outer areas stretched more aggressively, center maintains aspect ratio
 - **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
 - **Flexible Configuration**: Customizable bitrate constraints and encoder selection
+- **MP4 in, MP4 out**: the file pickers offer MP4 only, and the output extension is enforced
 - **Simplified GUI Flow**: 3-step guided workflow with native file dialogs
 - **Squeeze Mode**: tick *Source already stretched (GoPro SuperView)* when the input is a 4:3
   frame already stretched to 16:9 by the camera; Superview un-stretches the centre instead of
@@ -353,10 +354,11 @@ func (h *MyHandler) GetBitrate() (int, error) { return 5242880, nil }
 func (h *MyHandler) GetEncoder() string { return "libx265" }
 func (h *MyHandler) GetSqueeze() bool { return false }
 
-// Use it
-ffmpeg, _ := common.CheckFfmpeg()
+// Use it. Configuration is passed explicitly; nil means built-in defaults.
+cfg, _ := common.LoadConfig(common.ResolveConfigPath())
+ffmpeg, _ := common.CheckFfmpeg(cfg)
 cancel := make(chan struct{})
-common.PerformEncoding("input.mp4", "output.mp4", &MyHandler{}, ffmpeg, cancel)
+common.PerformEncoding(cfg, "input.mp4", "output.mp4", &MyHandler{}, ffmpeg, cancel)
 ```
 
 ## Development

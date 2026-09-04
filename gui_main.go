@@ -64,6 +64,11 @@ func qualityProfileSettings(profile string, inputBitrate int) (bitrate int, pres
 	}
 }
 
+// supportedInputExtensions lists the extensions offered by the file pickers.
+// Superview reads and writes MP4 only; the output path is already forced to
+// .mp4 by ensureMP4Extension, and the input side now matches.
+var supportedInputExtensions = []string{".mp4", ".MP4"}
+
 // ensureMP4Extension appends ".mp4" unless the path already carries it.
 // The comparison is case-insensitive so "CLIP.MP4" is left alone.
 func ensureMP4Extension(path string) string {
@@ -567,7 +572,11 @@ func main() {
 				updateHardwareStatus()
 				refreshStart()
 			}, window)
-			fd.SetFilter(storage.NewExtensionFileFilter([]string{".mp4", ".avi", ".mov", ".mkv", ".m4v", ".webm", ".flv", ".wmv", ".mpeg", ".mpg", ".MP4", ".AVI", ".MOV", ".MKV", ".M4V", ".WEBM", ".FLV", ".WMV", ".MPEG", ".MPG"}))
+			// MP4 only, in and out. The wider list this replaced advertised ten
+			// containers, five of which CheckVideo rejects outright because
+			// Matroska, WebM, FLV, MPEG-PS and ASF carry no per-stream duration
+			// or bit_rate -- users got an unreadable strconv error instead.
+			fd.SetFilter(storage.NewExtensionFileFilter(supportedInputExtensions))
 			fd.Show()
 			return
 		}

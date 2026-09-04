@@ -34,7 +34,7 @@ func chooseInputFileNative() (string, error) {
 		"Add-Type -AssemblyName System.Windows.Forms",
 		"$dialog = New-Object System.Windows.Forms.OpenFileDialog",
 		"$dialog.Title = 'Select input video'",
-		"$dialog.Filter = 'Video Files|*.mp4;*.MP4;*.mov;*.MOV;*.mkv;*.MKV;*.avi;*.AVI;*.m4v;*.M4V;*.webm;*.WEBM;*.flv;*.FLV;*.wmv;*.WMV;*.mpeg;*.MPEG;*.mpg;*.MPG|All Files|*.*'",
+		"$dialog.Filter = 'MP4 Video|*.mp4;*.MP4'",
 		"$dialog.CheckFileExists = $true",
 		"$dialog.Multiselect = $false",
 		"if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }",
