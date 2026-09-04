@@ -1138,6 +1138,58 @@ approximation de l'étirement inverse, pas la reproduction de l'algorithme d'une
 
 ---
 
+## 3quater. Cinquième passe (2026-09-04) — vérification d'après-release
+
+Passe courte, déclenchée par la publication de v0.2.0 : confronter aux faits ce que les
+correctifs #32 et #33 avaient annoncé, au lieu de les croire sur parole. Marquage du § 3ter
+(titre barré, statut en fin de titre).
+
+### R-01 🟠 — ~~Le faux ffmpeg saute sur Windows, et avec lui le test qui épingle P-03~~ — **CORRIGÉ**
+
+`common/common_test.go`
+
+Depuis #32 le runner Windows installe ffmpeg et 258 tests s'y exécutent. Deux sautent encore,
+dont `TestEncodeVideo_CancellationStopsTheFallbackCascade` :
+
+```
+common_test.go:1409: the stand-in ffmpeg relies on a POSIX shell
+```
+
+C'est le test qui épingle P-03 — une annulation ne doit lancer qu'un seul ffmpeg, pas dérouler
+toute la cascade de repli. Il ne tournait donc que sur la moitié Linux, et sur le chemin dont le
+comportement diffère le plus entre les deux systèmes : kill de processus et propagation d'erreur.
+
+Le helper `fakeHangingFFmpeg` n'avait pourtant aucune raison de sauter. Au même moment, dans le
+même fichier, `TestEncodeVideo_InterruptedByUser` installait le même stand-in sous forme de
+`.bat` et **passait** sur Windows : `LookPath` honore `PATHEXT`, donc le nom nu « ffmpeg » se
+résout vers `ffmpeg.bat`. Le mécanisme était démontré à quinze lignes de là.
+
+*Correction* : `fakeHangingFFmpeg` écrit un `.bat` sur Windows, et `TestEncodeVideo_InterruptedByUser`
+appelle le helper au lieu de dupliquer les deux scripts et le montage de `PATH` (−20 lignes).
+L'autre saut restant, `/dev/zero unavailable` dans `security_test.go:257`, est légitime : Windows
+n'a pas d'équivalent d'un fichier non régulier à ouvrir ainsi.
+
+*Contre-épreuve* : stand-in renommé, les deux tests rougissent — mais **seulement dans un
+environnement où ffmpeg est réellement introuvable**. La première contre-épreuve concluait à tort
+que `TestEncodeVideo_InterruptedByUser` passait à vide, voir L-49.
+
+### Deux prédictions confrontées aux faits
+
+**Le rouge Windows annoncé par #32 n'a pas eu lieu.** Le message de la PR pariait sur un échec de
+`TestIntegration_CancelLeavesNoPartialOutput` : Windows peut garder le descripteur ouvert après un
+kill, et `PerformEncoding` ne journalise qu'un avertissement si la suppression échoue. Le job
+Windows du run `33916850689` passe, sous-cas « no working file is left in the directory » compris.
+L'hypothèse était explicite et raisonnable ; elle est infirmée, et c'est le bon résultat.
+
+**Les checksums de v0.2.0 sont bons.** Le fichier avait été corrigé à la main avant publication ;
+`sha256sum -c` sur les deux assets réellement téléchargés depuis la release passe. L'étape
+corrigée du workflow a été rejouée localement sur un faux arbre d'artefacts : elle produit des
+noms nus, et la vérification depuis un dossier plat passe. Mais elle **n'a jamais tourné en CI** —
+`create-release` est gardé par `startsWith(github.ref, 'refs/tags/v')`, donc un
+`workflow_dispatch` la saute entièrement. Son premier vrai passage sera celui de v0.2.1.
+
+---
+
 ## 4. Priorités recommandées — 1ʳᵉ passe (historique)
 
 > Tableau d'origine, conservé pour la traçabilité : **tous ces constats sont traités**.
@@ -1167,6 +1219,7 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (1) | R-01 |
 | ⏸️ **Ouvert** | *aucun.* |
 
 Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
