@@ -137,6 +137,21 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-47 — Une convention non écrite n'est pas une convention — 2026-09-04
+Ce document marque le statut d'un constat de deux façons : le § 3 garde les sévérités d'origine
+(c'est une analyse datée, le § 4bis fait foi), les § 3bis et 3ter barrent le titre et le passent
+en ✅. Les deux se défendent, mais **aucune des deux n'était écrite**. Résultat : quatre titres
+ont dérivé — N-03, N-04, N-05 et P-11 annonçaient encore 🟠/🔴 alors que le tableau
+d'avancement, dix lignes plus bas, les donnait corrigés.
+
+Le document a traversé deux PR relues dans cet état. Personne ne lit un fichier de 1 100 lignes
+en entier : **on le parcourt par les titres.** Un titre qui contredit le tableau est plus nuisible
+qu'un titre absent, parce qu'il a l'air de répondre à la question.
+→ Quand un document porte deux conventions, l'écrire en tête coûte cinq lignes et supprime la
+classe entière de dérives. Et vérifier la cohérence titres ↔ tableau fait partie de la relecture,
+au même titre que faire tourner les tests. Même famille que L-30 et L-43 : une information
+exprimée à deux endroits finit par diverger.
+
 ### L-46 — Une mesure héritée se revérifie avant d'en tirer une décision — 2026-09-04
 J'ai relayé à l'utilisateur les « ~5 % » de N-07 comme un fait établi. Ce chiffre venait d'une
 passe précédente et je ne l'avais pas revérifié — alors que le RTX 4070 était disponible et que
@@ -381,6 +396,41 @@ Constat O-01.
 ---
 
 ## 3. Corrections appliquées
+
+### [2026-09-04] Cohérence du document — quatre titres contredisaient le tableau d'avancement
+
+| | |
+| --- | --- |
+| **Constat** | aucun ; dérive de documentation relevée en clôture |
+| **Fichiers** | `output_claude/ANALYSE_PROJET.md` · `output_claude/LESSONS.md` — **aucun code** |
+| **Commit** | non commité |
+| **Vérification** | audit systématique des 22 titres N-xx/P-xx contre le § 4bis, plus les cases de la file d'attente |
+
+**Symptôme** — `### N-03 🟠 — Les sources 10 bits sont ramenées à 8 bits`, alors que le § 4bis
+compte N-03 parmi les corrigés et que le corps du constat porte « ✅ correctif vérifié ». Idem
+N-04, N-05 et P-11. Un lecteur qui parcourt les titres conclut que trois pertes de contenu sont
+toujours actives.
+
+**Cause racine** — le document porte **deux conventions de marquage**, aucune écrite. Le § 3
+conserve les sévérités d'origine parce que c'est une analyse datée et non un tableau de bord ;
+les § 3bis et 3ter barrent le titre et le passent en ✅ parce qu'on les ouvre pour connaître
+l'état courant. Les deux se défendent, mais rien ne les énonçait, donc rien ne rappelait de
+restyler en corrigeant.
+
+**Correctif** — les quatre titres sont restylés, et **les deux conventions sont écrites en tête
+du § 3**, avec la mention explicite que le § 4bis fait foi. C'est la seconde partie qui compte :
+corriger les quatre titres sans écrire la règle laissait la dérive se reproduire au constat
+suivant.
+
+Deux formulations périmées corrigées au passage : l'intro du § 3ter décrivait encore N-07 comme
+en attente avec l'ancien chiffre de 5 %, et un titre de palier annonçait des constats « encore
+ouverts » alors que toutes ses cases sont cochées. Les entrées du **journal des révisions** sont
+laissées telles quelles : elles disent ce qui était vrai à leur date, c'est leur rôle.
+
+**Leçon** — L-47.
+
+---
+
 
 ### [2026-09-04] N-07 — Mesure révisée, arbitrage inversé (aucun changement de code)
 
@@ -1173,7 +1223,7 @@ renseigner la date + le lien vers l'entrée § 3.
 - [x] **T-03** Test d'intégration FFmpeg de bout en bout en CI Linux
 - [x] **T-02** Recalculer la couverture réelle, puis relever le seuil au-dessus de 30 %
 
-### Palier 9 — 3ᵉ passe : constats N-xx encore ouverts
+### Palier 9 — 3ᵉ passe : constats N-xx
 
 - [x] **N-01** Restreindre les trois sélecteurs de fichiers au seul `.mp4`
 - [x] **N-02** Moissonner le processus FFmpeg tué (`cmd.Wait()`) sur la branche d'annulation
@@ -1226,3 +1276,4 @@ Ordre issu de [ANALYSE_PROJET.md § 3ter](ANALYSE_PROJET.md).
 | 2026-09-04 | Second lot : P-01 à P-07, P-09 et N-06, N-08, N-09, N-10. Deux tests réécrits parce qu'ils passaient à vide (L-40, L-41). Leçons L-40 à L-43. **File d'attente réduite à P-10 et N-07.** |
 | 2026-09-04 | **P-10** : `appState`, 11 méthodes couvertes à 100 %, 18 sous-tests. `beginEncoding()` rend P-02 inexprimable (L-44). Découvert en chemin : le sélecteur de codec restait actif quand ffmpeg manque. Leçons L-44, L-45. **File d'attente vide ; reste N-07, arbitrage produit.** |
 | 2026-09-04 | PR #28 fusionnée (`ab8b8a8`). **N-07 révisé** : la mesure d'origine sous-estimait le gain d'un facteur deux ; l'arbitrage s'inverse, recommandation « conserver », aucun code touché. Leçon L-46. **Plus aucun constat ouvert.** |
+| 2026-09-04 | PR #29 fusionnée (`50bd9e9`). Cohérence du document : quatre titres contredisaient le tableau d'avancement ; restylés, et les deux conventions de marquage enfin écrites. Leçon L-47. |
