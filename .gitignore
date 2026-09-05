@@ -6,3 +6,24 @@ build/
 fyne-cross/
 coverage.out
 coverage.html
+
+# Written by "fyne package" into the project root before it builds, then
+# deleted when it is done. While the file is there, "git status --porcelain"
+# is not empty -- and that is exactly what cmd/go reads to decide vcs.modified.
+# Every release up to v0.2.3 therefore announced itself as ", modified", which
+# is the flag meant to mean the opposite (R-06). Ignoring the file keeps the
+# tree reading clean for the one moment that matters.
+fyne_metadata_init.go
+
+# Same story on Windows, where the tool writes two more files into the root.
+# fyne.syso is the resource holding the icon and the version info, and it has
+# to exist before the link step, so it is present at exactly the wrong moment;
+# superview.exe is the intermediate binary, named after the module. Both were
+# found by watching "git status --porcelain" in a loop while the Windows job
+# packaged -- neither is visible once the tool has finished.
+*.syso
+superview.exe
+
+# "fyne package" leaves its archive in the working directory.
+superview-gui-*.tar.xz
+superview-gui-*.zip

@@ -141,6 +141,34 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-58 — Un garde-fou qui vérifie le résultat attrape ce que la correction de la cause a manqué — 2026-09-05
+Le correctif de R-06 — ignorer `fyne_metadata_init.go` — était juste, et **incomplet** : il ne
+valait que pour Linux, Windows créant deux fichiers de plus. Rien dans le raisonnement ne pouvait
+le dire ; j'avais observé une plateforme et généralisé. Ce qui l'a dit, c'est le garde-fou ajouté
+dans le même changement : il dépaquette le binaire sur le point d'être expédié et échoue s'il porte
+`vcs.modified=true`. Il a laissé passer Linux et arrêté Windows, dans le même run.
+→ Quand on corrige une cause, ajouter dans le même changement une vérification qui porte sur le
+**résultat**, pas sur la cause. Elle survit à un diagnostic incomplet, et à la prochaine cause,
+qu'on n'a pas encore rencontrée. Sans elle, la moitié de R-06 repartait en release.
+
+### L-57 — Un état transitoire ne s'observe pas après coup — 2026-09-05
+Pour R-06, j'ai d'abord désigné une cause — la réécriture de `FyneApp.toml` — parce qu'une note de
+#39 la mentionnait. Elle était fausse : l'outil ne complète que ce qui manque, et le fichier est
+complet depuis #39 précisément. L'inspection de l'arbre **après** le packaging ne montrait rien non
+plus, et pour cause : les fichiers en question sont créés puis effacés par l'outil lui-même.
+Ce qui a tranché tient en quatre lignes — lancer le packaging en arrière-plan et échantillonner
+`git status --porcelain` toutes les 0,2 s :
+
+    ( go run .../fyne package ... ) &
+    PKG=$!
+    while kill -0 $PKG 2>/dev/null; do git status --porcelain >> seen.txt; sleep 0.2; done
+    sort -u seen.txt
+
+Réponse immédiate, et **différente selon la plateforme** — ce qu'aucun raisonnement n'aurait donné.
+→ Quand un défaut dépend d'un état qui n'existe que pendant l'exécution, échantillonner pendant.
+Le dispositif est trivial et se transporte tel quel dans un job de CI, ce qui a été fait pour
+Windows, faute de pouvoir compiler pour cette cible en local.
+
 ### L-56 — Une observation notée en passant doit être reliée à ses conséquences — 2026-09-05
 Le message de #39 se termine par : « Noted on the way: fyne package rewrites FyneApp.toml -- it
 reformats the file and adds Build. Harmless in a CI checkout, but the tool owns that file. » Le
@@ -1485,11 +1513,15 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 
 ### Palier 12 — 5ᵉ passe : vérification d'après-release
 
-- [ ] **R-06** Tout binaire de release s'annonce `, modified` : `fyne package` réécrit
-      `FyneApp.toml` avant le `go build`, qui estampille alors `vcs.modified=true`. Le drapeau
-      censé signaler un binaire bricolé s'allume sur les releases propres (L-56). Piste :
-      committer `FyneApp.toml` dans la forme exacte que l'outil lui donne, forme à établir par
-      un essai à blanc qui imprime `git diff -- FyneApp.toml` après packaging.
+- [x] **R-07** L'essai à blanc ne fonctionnait que depuis `master` : une barre oblique dans le
+      nom de branche se retrouvait dans le nom d'archive → `mv: No such file or directory`
+      → appliqué le 2026-09-05
+- [x] **R-06** Tout binaire de release s'annonçait `, modified`. **La cause donnée ici hier était
+      fausse** : ce n'est pas la réécriture de `FyneApp.toml` (qui n'a plus lieu depuis #39), mais
+      les fichiers que `fyne package` crée puis efface — `fyne_metadata_init.go` partout,
+      `fyne.syso` et `superview.exe` en plus sur Windows. Ignorés, l'arbre lit propre au moment où
+      Go estampille. Garde-fou sur le binaire produit dans les deux jobs (L-57, L-58)
+      → appliqué le 2026-09-05
 - [x] **v0.2.3** Taguée sur `9c1a8c5`, **publiée** le 2026-09-05 → première release produite
       d'un seul clic : tag, notes et publication par le workflow. Vérifiée en exécutant le
       binaire publié, ce qui a livré R-06.
@@ -1537,4 +1569,5 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-05 | **R-05** : premier essai manuel du workflow de release, rouge sur les deux builds. R-04 dérivait la version du ref en retirant un `v`, ce qui ne vaut que pour les tags `v*` — ni pour une branche, ni pour un tag `RC-*`, que `fyne` refuse tous deux. Version extraite en `x.y.z`, repli `0.0.0` sur un essai à blanc. Leçon L-55. |
 | 2026-09-05 | **Release en un clic** : le bouton *Run workflow* prend une version, teste, construit, tague et publie. Les notes vivent dans `RELEASE_NOTES.md`, relu en PR, et deviennent le message du tag annoté — le tag reste donc la source des notes (#37). Le tag n'est posé qu'après les deux builds, pour qu'un échec Windows ne brûle pas un numéro. Trois garde-fous refusent de démarrer : version hors `x.y.z`, tag déjà existant, notes qui ne mentionnent pas la version demandée. Script de planification essayé hors YAML sur huit cas (L-53). `RELEASING.md` créé. |
 | 2026-09-05 | **v0.2.3 publiée**, première release en un clic : le bouton *Run workflow* a testé, construit, tagué depuis `RELEASE_NOTES.md` et publié. Vérification menée jusqu'à l'exécution du binaire téléchargé — `sha256sum -c` vert, notes conformes, version et commit exacts. **R-06 découvert là** : le `, modified` que le binaire affiche vient de la réécriture de `FyneApp.toml` par `fyne package`, observation que #39 avait notée puis classée « harmless ». Leçon L-56. |
+| 2026-09-05 | **R-06 corrigé, et son diagnostic de la veille rectifié** : la cause n'était pas la réécriture de `FyneApp.toml` mais les fichiers que `fyne package` crée puis efface, trouvés en échantillonnant `git status --porcelain` pendant le packaging — `fyne_metadata_init.go` sur les deux plateformes, plus `fyne.syso` et `superview.exe` sur Windows. Mécanisme démontré isolément sur un dépôt jetable. Garde-fou ajouté sur le binaire produit : c'est lui qui a révélé que le correctif ne valait d'abord que pour Linux. **R-07 trouvé en chemin** : l'essai à blanc échouait depuis toute branche au nom contenant une barre oblique. Vérifié en exécutant le binaire d'un essai à blanc complet — `build="0.0.0 (71e04a9)"`. Leçons L-57, L-58. |
 

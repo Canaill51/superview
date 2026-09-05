@@ -82,9 +82,14 @@ jobs:
           draft=true
           case "$tag" in RC-*) prerelease=true ;; *) prerelease=false ;; esac
         elif [ -z "$INPUT_VERSION" ]; then
+          # A dry run labels its archives with the branch, and branches here are
+          # named fix/..., feat/..., docs/... -- a slash in the middle of a file
+          # name is a directory that does not exist, which is how the first dry
+          # run off master died on "mv: cannot move ... No such file or
+          # directory". Nothing downstream needs the exact branch name.
           {
             echo "tag="
-            echo "label=${GITHUB_REF_NAME}"
+            echo "label=${GITHUB_REF_NAME//\//-}"
             echo "version=0.0.0"
             echo "release=false"
             echo "draft=false"
@@ -213,6 +218,21 @@ jobs:
         go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}"
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
 
+    # Same check as the Linux job, and for the same reason -- see the comment
+    # there. The binary is loose here, so there is nothing to unpack first.
+    - name: The packaged binary must not claim to be modified
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARCH="$(go env GOARCH)"
+        bin="build/superview-gui-windows-${ARCH}.exe"
+        go version -m "$bin" | grep -aE 'vcs\.(revision|modified)' || true
+        if go version -m "$bin" | grep -qa 'vcs.modified=true'; then
+          echo "::error::the packaged binary is stamped vcs.modified=true, so it will announce itself as ', modified'. Something left an unignored file in the working tree while it was built."
+          git status --porcelain
+          exit 1
+        fi
+
     - name: Create archives
       shell: pwsh
       env:
@@ -273,6 +293,28 @@ jobs:
           echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
           echo "Working directory contains:"
           ls -lah
+          exit 1
+        fi
+
+    # The version stamp is this project's answer to "which build produced
+    # this?", so a release that gets it wrong is worse than one that says
+    # nothing. v0.2.3 shipped announcing "0.2.3 (9c1a8c5, modified)" from a
+    # pristine checkout, and nothing in the run noticed. This asserts the
+    # outcome rather than the cause: whatever leaves a file in the tree during
+    # the build, the binary is what gets stamped, so the binary is what gets
+    # checked.
+    - name: The packaged binary must not claim to be modified
+      run: |
+        set -euo pipefail
+        ARCH="$(go env GOARCH)"
+        rm -rf /tmp/verify && mkdir -p /tmp/verify
+        tar -xJf "superview-gui-linux-${ARCH}.tar.xz" -C /tmp/verify
+        bin="$(find /tmp/verify -type f -path '*/bin/*' | head -n 1)"
+        echo "Inspecting ${bin}"
+        go version -m "$bin" | grep -aE 'vcs\.(revision|modified)' || true
+        if go version -m "$bin" | grep -qa 'vcs.modified=true'; then
+          echo "::error::the packaged binary is stamped vcs.modified=true, so it will announce itself as ', modified'. Something left an unignored file in the working tree while it was built."
+          git status --porcelain
           exit 1
         fi
 
