@@ -215,7 +215,18 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}"
+        # TEMPORARY diagnostic: watch the working tree while the tool runs.
+        # The Linux binary comes out clean now that fyne_metadata_init.go is
+        # ignored; the Windows one is still stamped modified, so this job
+        # creates something else, and it only exists while the build runs.
+        echo "=== before ==="; git status --porcelain
+        ( go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}" ) &
+        PKG=$!
+        : > /tmp/seen.txt
+        while kill -0 $PKG 2>/dev/null; do git status --porcelain >> /tmp/seen.txt 2>/dev/null; sleep 0.5; done
+        wait $PKG
+        echo "=== seen during packaging ==="; sort -u /tmp/seen.txt
+        echo "=== after ==="; git status --porcelain
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
 
     # Same check as the Linux job, and for the same reason -- see the comment
