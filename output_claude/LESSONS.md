@@ -141,6 +141,18 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-56 — Une observation notée en passant doit être reliée à ses conséquences — 2026-09-05
+Le message de #39 se termine par : « Noted on the way: fyne package rewrites FyneApp.toml -- it
+reformats the file and adds Build. Harmless in a CI checkout, but the tool owns that file. » Le
+fait était exact, la conclusion fausse. Réécrire un fichier suivi **salit l'arbre de travail**, et
+`go build` y appose alors `vcs.modified=true`. Le binaire de v0.2.3 s'annonce donc
+`0.2.3 (9c1a8c5, modified)` : le drapeau censé distinguer un binaire bricolé d'une release propre
+s'allume sur toutes les releases. #39 a cassé, d'une ligne notée puis classée sans suite, la
+fonction même qu'il ajoutait.
+→ Quand une vérification met au jour un comportement inattendu d'un outil, ne pas le ranger sous
+« sans conséquence » sans avoir cherché laquelle. Ici la question tenait en une ligne : qu'est-ce
+qui, dans la construction, dépend de la propreté de l'arbre ? Constat R-06.
+
 ### L-55 — Un paramètre dérivé du ref doit valoir pour tous les refs qui déclenchent le workflow — 2026-09-05
 R-04 fait passer la version au paquet depuis `GITHUB_REF_NAME`, et la vérification a porté sur un
 paquet construit à la main : correcte pour un tag `v0.2.2`, muette sur tout le reste. Or `Release`
@@ -1473,6 +1485,14 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 
 ### Palier 12 — 5ᵉ passe : vérification d'après-release
 
+- [ ] **R-06** Tout binaire de release s'annonce `, modified` : `fyne package` réécrit
+      `FyneApp.toml` avant le `go build`, qui estampille alors `vcs.modified=true`. Le drapeau
+      censé signaler un binaire bricolé s'allume sur les releases propres (L-56). Piste :
+      committer `FyneApp.toml` dans la forme exacte que l'outil lui donne, forme à établir par
+      un essai à blanc qui imprime `git diff -- FyneApp.toml` après packaging.
+- [x] **v0.2.3** Taguée sur `9c1a8c5`, **publiée** le 2026-09-05 → première release produite
+      d'un seul clic : tag, notes et publication par le workflow. Vérifiée en exécutant le
+      binaire publié, ce qui a livré R-06.
 - [x] **R-05** Le `workflow_dispatch` de Release échouait sur `--app-version master` ; version
       dérivée du premier `x.y.z` du ref, repli `0.0.0` hors tag (L-55) → appliqué le 2026-09-05
 - [x] **R-01** Faux ffmpeg en `.bat` sur Windows, helper partagé avec
@@ -1516,4 +1536,5 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-05 | **R-04** : le binaire dit enfin quelle version il est — titre, journal, et première ligne du rapport Diagnostic. Version issue du tag via `fyne package --app-version`, jamais d'un fichier ; repli `dev` quand rien n'a estampillé le binaire, pour ne pas laisser passer le `0.0.1` par défaut de Fyne. Vérifié bout en bout sur un paquet réel. Leçon L-54. |
 | 2026-09-05 | **R-05** : premier essai manuel du workflow de release, rouge sur les deux builds. R-04 dérivait la version du ref en retirant un `v`, ce qui ne vaut que pour les tags `v*` — ni pour une branche, ni pour un tag `RC-*`, que `fyne` refuse tous deux. Version extraite en `x.y.z`, repli `0.0.0` sur un essai à blanc. Leçon L-55. |
 | 2026-09-05 | **Release en un clic** : le bouton *Run workflow* prend une version, teste, construit, tague et publie. Les notes vivent dans `RELEASE_NOTES.md`, relu en PR, et deviennent le message du tag annoté — le tag reste donc la source des notes (#37). Le tag n'est posé qu'après les deux builds, pour qu'un échec Windows ne brûle pas un numéro. Trois garde-fous refusent de démarrer : version hors `x.y.z`, tag déjà existant, notes qui ne mentionnent pas la version demandée. Script de planification essayé hors YAML sur huit cas (L-53). `RELEASING.md` créé. |
+| 2026-09-05 | **v0.2.3 publiée**, première release en un clic : le bouton *Run workflow* a testé, construit, tagué depuis `RELEASE_NOTES.md` et publié. Vérification menée jusqu'à l'exécution du binaire téléchargé — `sha256sum -c` vert, notes conformes, version et commit exacts. **R-06 découvert là** : le `, modified` que le binaire affiche vient de la réécriture de `FyneApp.toml` par `fyne package`, observation que #39 avait notée puis classée « harmless ». Leçon L-56. |
 
