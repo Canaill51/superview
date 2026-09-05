@@ -141,6 +141,17 @@ Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
 Constat relevé pendant la correction de N-01.
 
+### L-55 — Un paramètre dérivé du ref doit valoir pour tous les refs qui déclenchent le workflow — 2026-09-05
+R-04 fait passer la version au paquet depuis `GITHUB_REF_NAME`, et la vérification a porté sur un
+paquet construit à la main : correcte pour un tag `v0.2.2`, muette sur tout le reste. Or `Release`
+se déclenche sur trois formes de ref — `v*`, `RC-*` et un `workflow_dispatch` qui part d'une
+branche — et `fyne package` n'accepte que `x.y.z`. Le premier essai manuel est mort sur
+`--app-version master`, dans les deux jobs de build, avant d'avoir compilé quoi que ce soit ; un
+tag `RC-*` aurait échoué pareil, en cours de release cette fois.
+→ Quand une valeur vient du ref, énumérer les refs que le bloc `on:` autorise et vérifier la
+dérivation sur chacun, pas seulement sur celui qu'on a en tête. Ironie utile : le dispatch a été
+ajouté précisément pour essayer ce workflow sans couper de release — il a fait son travail.
+
 ### L-54 — Une contre-épreuve qui ne change pas le résultat n'est pas une contre-épreuve — 2026-09-05
 En vérifiant `buildIdentity`, j'ai muté trois choses ; deux ont fait rougir les tests, la
 troisième non. Elle portait sur la troncature de la révision : le seuil est passé de
@@ -504,6 +515,39 @@ Constat O-01.
 ---
 
 ## 3. Corrections appliquées
+
+### [2026-09-05] R-05 — Le premier `workflow_dispatch` de Release échouait sur la version
+
+| | |
+| --- | --- |
+| **Constat** | R-05 (palier 12) |
+| **Fichiers** | `.github/workflows/release.yml` |
+| **Commit** | non commité |
+| **Vérification** | YAML relu par `yaml.safe_load` ✅ · dérivation extraite du YAML et essayée sur cinq refs (`master`, `v0.2.3`, `RC-0.3.0`, `v0.2.3-rc1`, `feature/foo`) ✅ |
+
+**Symptôme** — run 33929547442, lancé à la main sur `master` : `Build GUI (Windows)` et
+`Build GUI (Linux)` rouges en moins d'une minute, sur
+`invalid --app-version parameter, integer and '.' characters only up to x.y.z`. `Notify` a
+correctement signalé l'échec, ce qui est le comportement que R-01/#32 avait installé.
+
+**Cause racine** — R-04 passe `VERSION="${GITHUB_REF_NAME#v}"` à `fyne package`. Sur un
+`workflow_dispatch`, le ref est la branche : la version demandée valait `master`. Le retrait du
+`v` initial ne dérive une version que pour la forme `v*` ; les deux autres refs que le bloc `on:`
+accepte — une branche et un tag `RC-*` — donnent une chaîne que `fyne` refuse.
+
+**Correctif** — extraire le premier `x.y.z` que le ref contient, et retomber sur `0.0.0` quand il
+n'en contient aucun. Un dispatch est un essai à blanc : il ne publie rien (`create-release` reste
+conditionné au ref-tag) et ne doit donc revendiquer aucun numéro. Un tag `RC-0.3.0` produit
+maintenant `0.3.0`, ce qui répare au passage un échec qui attendait la première release candidate.
+
+**Ce qui n'a pas changé** — le nom des archives continue d'utiliser `github.ref_name` tel quel,
+donc un dispatch produit `superview-gui-master-linux-x86_64.tar.xz`. C'est juste : l'archive dit
+d'où elle vient, et rien de ce qui sort d'un dispatch n'est publié.
+
+**Leçon** — L-55.
+
+---
+
 
 ### [2026-09-04] P-12, P-13 — Couture au centre en mode squeeze, et libellé trompeur
 
@@ -1429,6 +1473,8 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 
 ### Palier 12 — 5ᵉ passe : vérification d'après-release
 
+- [x] **R-05** Le `workflow_dispatch` de Release échouait sur `--app-version master` ; version
+      dérivée du premier `x.y.z` du ref, repli `0.0.0` hors tag (L-55) → appliqué le 2026-09-05
 - [x] **R-01** Faux ffmpeg en `.bat` sur Windows, helper partagé avec
       `TestEncodeVideo_InterruptedByUser` (L-49, L-50) → appliqué le 2026-09-04
 - [x] **R-02** Le message du tag annoté devient le corps de la release ; script extrait du
@@ -1468,3 +1514,4 @@ réponse débouche sur un correctif ou sur « rien à changer, voici pourquoi »
 | 2026-09-05 | **R-02** corrigé : le message du tag annoté devient le corps de la release, avec repli bruyant sur un tag léger. Script extrait du YAML et essayé en local sur trois tags, ce qui a démasqué un `::warning::` qui serait parti dans les notes publiées. Leçon L-53. |
 | 2026-09-05 | **v0.2.2 publiée** : la baisse de débit de Q-01 atteint les utilisateurs (Balanced ~20 % plus léger, Fast qui cesse de dégrader). Première release dont le corps décrit ce qui change, généré depuis le tag sans retouche. |
 | 2026-09-05 | **R-04** : le binaire dit enfin quelle version il est — titre, journal, et première ligne du rapport Diagnostic. Version issue du tag via `fyne package --app-version`, jamais d'un fichier ; repli `dev` quand rien n'a estampillé le binaire, pour ne pas laisser passer le `0.0.1` par défaut de Fyne. Vérifié bout en bout sur un paquet réel. Leçon L-54. |
+| 2026-09-05 | **R-05** : premier essai manuel du workflow de release, rouge sur les deux builds. R-04 dérivait la version du ref en retirant un `v`, ce qui ne vaut que pour les tags `v*` — ni pour une branche, ni pour un tag `RC-*`, que `fyne` refuse tous deux. Version extraite en `x.y.z`, repli `0.0.0` sur un essai à blanc. Leçon L-55. |
