@@ -1551,13 +1551,69 @@ constantes de paquet : porter `actionButtonWidth` à 175 fait désormais échoue
 `fakeHangingFFmpeg` utilisait par ailleurs `os.Setenv` avec restauration différée, qui
 fuit sur panique et ne peut pas refuser un `t.Parallel` — remplacé par `t.Setenv`.
 
+### D-10 ✅ — ~~La release exigeait un fichier de notes tenu à la main~~ — **SIMPLIFIÉ**
+
+Constat de l'utilisateur, le 2026-09-06 : `RELEASE_NOTES.md` n'a pas lieu d'être ; si
+`RELEASING.md` documente le processus, cela suffit.
+
+Le fichier coûtait plus qu'il ne rapportait :
+
+- il fallait le réécrire avant **chaque** release, sans quoi la nouvelle version sortait
+  avec le texte de la précédente — assez probable pour que le workflow ait dû se doter
+  d'un contrôle sur sa première ligne ;
+- entre deux releases, il vivait dans `master` en contenant les notes de la version
+  **déjà publiée**, sans marqueur. Il ressemblait donc en permanence à un résidu périmé
+  alors qu'il était dans son état normal ;
+- il portait par ricochet le bump de `FyneApp.toml`, que `RELEASING.md` demandait de
+  faire « dans la même PR que les notes ».
+
+*Correctif* : `generate_release_notes: true`. GitHub construit la liste des PR fusionnées
+depuis le tag précédent, plus un lien de comparaison. Le run continue d'écrire la section
+téléchargements et le bloc `sha256sum` ; l'action **préfixe** ce corps aux notes générées
+(vérifié dans `action.yml` de la v3.0.3 avant d'y toucher).
+
+Ce que ça supprime : le fichier, ses deux contrôles dans `prepare`, l'étape de préparation
+avant chaque release, et le bump de `FyneApp.toml`.
+
+Ce que ça préserve, vérifié chemin par chemin en sortant le script du YAML (L-53) et en
+l'exécutant contre de vrais tags du dépôt :
+
+| Chemin | Corps produit |
+| --- | --- |
+| Bouton (`workflow_dispatch`) | Téléchargements + checksums, puis la liste générée |
+| Tag annoté poussé à la main (`v0.2.3`) | **Son message en tête**, puis téléchargements, puis la liste |
+| Tag léger poussé à la main (`v0.1.6`) | Avertissement dans le journal du run, téléchargements, liste — et **pas** le message du commit, qui est ce que `#37` avait corrigé |
+
+Le chemin manuel reste donc la façon d'écrire des notes soi-même, et le tag reste annoté :
+son message n'est plus la source des notes, mais un tag léger renverrait le message du
+commit à quiconque interroge le tag.
+
+**Contrepartie assumée** : la qualité des notes devient celle des titres de PR. Ce dépôt
+les écrit déjà en phrases complètes — « Stop release binaries from announcing themselves as
+modified » se lit très bien dans une release —, donc le coût est nul ici et le resterait
+tant que cette habitude tient.
+
+### D-11 ✅ — ~~`FyneApp.toml` portait une version que rien ne devait lire~~ — **CORRIGÉ**
+
+`RELEASING.md` affirmait « la version vit dans le tag, rien ne la lit dans l'arbre », et
+`FyneApp.toml` contenait `Version = "0.2.3"`. Mesuré : un `go build` nu **lit bien ce
+champ** et annonçait `0.2.3` depuis un arbre qui n'était pas cette version.
+
+*Correctif* : le champ est retiré. Vérifié que `fyne package --app-version 0.2.4` fonctionne
+sans lui et produit un binaire annonçant `0.2.4`, et que l'outil ne réécrit pas de `Version`
+dans le fichier. `buildIdentity` fusionne ses deux cas non tamponnés — « aucune métadonnée »
+et « métadonnée sans version » — en un seul `dev` : ils disent la même chose au lecteur d'un
+rapport de bug. Un build local annonce désormais `dev (7a74276)`.
+
 ### R-08 🟠 **consigné** — Le correctif R-06 n'est pas publié
 
-`HEAD` est deux commits après le tag `v0.2.3`. Les binaires actuellement en ligne
+`HEAD` est plusieurs commits après le tag `v0.2.3`. Les binaires actuellement en ligne
 annoncent donc toujours `0.2.3 (9c1a8c5, modified)` — le défaut même que `#43` corrige.
-Le correctif existe et n'est pas entre les mains des utilisateurs. Une v0.2.4 est due,
-et `RELEASE_NOTES.md` doit être réécrit avant tout `workflow_dispatch` (le run refuse de
-démarrer sinon, ce qui est le garde-fou voulu).
+Le correctif existe et n'est pas entre les mains des utilisateurs.
+
+Depuis D-10, une v0.2.4 ne demande **plus aucune préparation** : Actions → Release → Run
+workflow, taper `0.2.4`. Les notes se génèrent, il n'y a plus de fichier à réécrire ni de
+`FyneApp.toml` à bumper.
 
 ### R-09 🟡 **consigné** — `v0.1.1` à `v0.1.6` sont des tags légers
 
@@ -1599,7 +1655,7 @@ documenté comme tel.
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
-| ✅ **Corrigé et vérifié — 6ᵉ passe** (13) | D-01 à D-09, V-01 à V-04 |
+| ✅ **Corrigé et vérifié — 6ᵉ passe** (15) | D-01 à D-11, V-01 à V-04 |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |

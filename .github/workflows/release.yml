@@ -5,21 +5,29 @@ on:
     tags:
       - 'v*'
       - 'RC-*'
-  # Three ways in, and they all end at the same place: an annotated tag whose
-  # message is the release notes.
+  # Three ways in, and they all end at an annotated tag and a published
+  # release whose notes GitHub generates from the pull requests merged since
+  # the previous tag.
   #
-  #   Dispatch with a version -- the button. The notes are RELEASE_NOTES.md,
-  #   reviewed in a pull request like any other file. The run builds both
-  #   platforms, and only once they have passed does it create the annotated
-  #   tag from that file and publish.
+  #   Dispatch with a version -- the button, and the whole of it. Nothing to
+  #   prepare, nothing to write: the run builds both platforms, and only once
+  #   they have passed does it tag and publish.
   #
   #   Dispatch with no version -- a dry run. Builds both platforms, tags
   #   nothing, publishes nothing. This is how a change to this file gets tried
   #   without spending a version number, and it is the reason v0.1.5 and
   #   v0.1.6 could break unnoticed for two months when it did not exist.
   #
-  #   Pushing a tag by hand -- the escape hatch, unchanged since #37: the tag
-  #   message is the notes, and the release stops at a draft.
+  #   Pushing a tag by hand -- the escape hatch, and the way to write notes
+  #   yourself: an annotated tag's message leads the release body, ahead of the
+  #   generated list. The release stops at a draft.
+  #
+  # Notes used to live in RELEASE_NOTES.md, which the run copied into the tag.
+  # That file had to be rewritten before every release, was easy to forget --
+  # so the run had to grow a check that its first line named the version being
+  # released -- and it sat in master permanently holding the *previous*
+  # release's text, which reads exactly like something stale. The list GitHub
+  # generates from merged pull requests says what changed without any of that.
   workflow_dispatch:
     inputs:
       version:
@@ -123,17 +131,6 @@ jobs:
         if [ "$EVENT" != "push" ]; then
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
             echo "::error::tag ${tag} already exists -- pick another version, or delete the tag if it was a mistake"
-            exit 1
-          fi
-          if [ ! -f RELEASE_NOTES.md ]; then
-            echo "::error::RELEASE_NOTES.md is missing; it holds the notes for the next release"
-            exit 1
-          fi
-          # The notes are the release, so shipping v0.2.4 with v0.2.3's text is
-          # the failure worth spending a check on: the file is easy to forget,
-          # and nothing else in the run would notice.
-          if ! head -n 1 RELEASE_NOTES.md | grep -qF "${version}"; then
-            echo "::error::RELEASE_NOTES.md opens with '$(head -n 1 RELEASE_NOTES.md)', which does not mention ${version}. Update it before releasing."
             exit 1
           fi
         fi
@@ -406,50 +403,54 @@ jobs:
         set -euo pipefail
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        # Annotated, never lightweight: the message is the release notes, and a
-        # lightweight tag has none of its own -- git would hand back the
-        # commit's, which is not release notes (#37).
-        git tag -a "$TAG" -F RELEASE_NOTES.md
+        # Annotated, never lightweight. The notes no longer come from the tag
+        # on this path -- GitHub generates them below -- but an annotated tag
+        # carries its own date and is what "git describe" prefers, and a
+        # lightweight one would hand the commit's message back to anyone who
+        # asked the tag what it said (#37).
+        git tag -a "$TAG" -m "Superview ${TAG}"
         git push origin "refs/tags/${TAG}"
         echo "Tagged $(git rev-parse --short HEAD) as ${TAG}"
 
-    # Release notes come from the annotated tag, not from a fixed template.
+    # What goes above GitHub's generated list.
     #
-    # This step used to write the same body every time: the title, two
-    # runner-arch lines and the sha256sum block. Nothing about what changed. So
-    # v0.2.0 and v0.2.1 both had their notes written by hand in the draft --
-    # the very pattern that the checksum step above was fixed for. A release
-    # artifact repaired by hand every time eventually is not.
+    # The generated notes say what changed -- one line per merged pull request,
+    # plus a compare link. What they cannot say is which file to download and
+    # how to check it, so that is what this writes, and the publish step below
+    # pre-pends it to the generated list.
     #
-    # Both entry paths converge here: the button has just written the tag from
-    # RELEASE_NOTES.md, and a hand-pushed tag carries its own message. A
-    # lightweight tag reaches this with no message, which falls back to the old
-    # template and says so loudly rather than shipping an empty release.
-    - name: Create release summary
+    # A hand-pushed annotated tag is the one case where a human wrote notes on
+    # purpose: its message leads, ahead of everything else. A lightweight tag
+    # has no message of its own -- git would hand back the commit's -- so it
+    # gets nothing but the download section, and says so in the run log.
+    - name: Write the download section
       env:
         TAG: ${{ needs.prepare.outputs.tag }}
+        EVENT: ${{ github.event_name }}
       run: |
         set -euo pipefail
         kind="$(git cat-file -t "$TAG" 2>/dev/null || echo none)"
+        subject="$(git tag -l --format='%(contents:subject)' "$TAG")"
         # Outside the redirected group on purpose: inside it, the warning would
         # be written into the release notes instead of the run log.
-        if [ "$kind" != "tag" ]; then
-          echo "::warning::${TAG} is not an annotated tag, so the release has no notes. Tag with 'git tag -a' to write them."
+        if [ "$EVENT" = "push" ] && [ "$kind" != "tag" ]; then
+          echo "::warning::${TAG} is lightweight, so it carries no notes of its own. The release still gets the generated list. Use 'git tag -a' to write your own."
         fi
         {
-          if [ "$kind" = "tag" ]; then
-            printf '## %s\n\n' "$(git tag -l --format='%(contents:subject)' "$TAG")"
+          # Only a hand-written message is worth leading with. The button tags
+          # with "Superview vx.y.z", which would be a heading saying nothing.
+          if [ "$EVENT" = "push" ] && [ "$kind" = "tag" ] && [ -n "$subject" ]; then
+            printf '## %s\n\n' "$subject"
             git tag -l --format='%(contents:body)' "$TAG"
-          else
-            printf '## Release %s - Superview\n' "$TAG"
+            printf '\n'
           fi
-          printf '\n### Downloads\n\n'
+          printf '### Downloads\n\n'
           printf -- '- Windows: `superview-gui-%s-windows-x86_64.zip`\n' "$TAG"
           printf -- '- Linux (Ubuntu 24.04+): `superview-gui-%s-linux-x86_64.tar.xz`\n' "$TAG"
           printf '\n### Verify integrity\n\n'
           printf '```bash\nsha256sum -c checksums.txt\n```\n'
         } > /tmp/release.md
-        echo "=== Release notes ===" && cat /tmp/release.md
+        echo "=== Body, which the generated list is appended to ===" && cat /tmp/release.md
 
     - name: Publish release assets
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -457,7 +458,11 @@ jobs:
         tag_name: ${{ needs.prepare.outputs.tag }}
         draft: ${{ needs.prepare.outputs.draft }}
         prerelease: ${{ needs.prepare.outputs.prerelease }}
+        # body_path is pre-pended to the generated notes, so the release reads
+        # download section first, then "What's Changed" built from the pull
+        # requests merged since the previous tag.
         body_path: /tmp/release.md
+        generate_release_notes: true
         files: |
           artifacts/**/*.zip
           artifacts/**/*.tar.gz

@@ -48,7 +48,8 @@
 - Use `go test ./...` for routine validation: `./common` alone skips the root package's GUI tests, and it is not what the CI gate measures.
 - CI coverage gate: minimum 50% over `./...` in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
 - GUI builds are most reliable on native OS runners; cross-compiling Fyne GUI binaries (especially for macOS) may fail locally.
-- Releases: see `RELEASING.md`. One button in the Actions tab; the tag message is `RELEASE_NOTES.md`. Never tag by hand unless release intent is explicit.
+- The version is never read from the source tree: `FyneApp.toml` carries no `Version`, and a non-packaged build reports `dev`. Do not add one back.
+- Releases: see `RELEASING.md`. One button in the Actions tab; GitHub generates the notes from merged pull request titles, so write those titles as full sentences. Never tag by hand unless release intent is explicit.
 
 ## Project Conventions
 - FFmpeg/FFprobe are required runtime dependencies; failures should keep current user-facing error style.

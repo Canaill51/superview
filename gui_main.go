@@ -103,24 +103,27 @@ func qualityProfileSettings(profile string, inputBitrate int) (bitrate int, pres
 //
 // Two sources, and both are needed. Fyne's metadata carries whatever
 // "fyne package --app-version" stamped, which is how the release workflow
-// passes the tag. A plain "go build" carries no such stamp: Fyne answers with
-// its own default of 0.0.1, or -- run from a checkout -- with whatever
-// FyneApp.toml happens to hold, and either lets a development build present
-// itself as a release. Go's VCS stamping settles it, because the revision is
-// exact and vcs.modified says whether the tree was clean. Verified to survive
-// "fyne package", which is what the release builds with.
+// passes the tag. A plain "go build" carries no such stamp, so it has no
+// version to report -- and must not borrow one. Go's VCS stamping settles the
+// rest, because the revision is exact and vcs.modified says whether the tree
+// was clean. Verified to survive "fyne package", which is what the release
+// builds with.
+//
+// "dev" covers both ways a binary can arrive unstamped, because they mean the
+// same thing to the person reading a bug report -- this did not come from a
+// release:
+//
+//   - No Fyne metadata at all. md.Version is then Fyne's placeholder of 0.0.1,
+//     a string that reads exactly like a real version. Fyne's own test for "no
+//     metadata was injected" is that neither ID nor name is set; use the same
+//     one rather than matching on the placeholder, which is theirs to change.
+//   - Metadata present but no version, which is the ordinary local build:
+//     FyneApp.toml deliberately holds no Version, so that the number can only
+//     ever come from the tag.
 func buildIdentity(md fyne.AppMetadata, info *debug.BuildInfo, ok bool) string {
 	version := strings.TrimSpace(md.Version)
-	switch {
-	case md.ID == "" && md.Name == "":
-		// Nothing stamped this binary, so md.Version is Fyne's placeholder of
-		// 0.0.1 -- a string that reads exactly like a real version. Fyne's own
-		// test for "no metadata was injected" is that neither ID nor name is
-		// set; use the same one rather than matching on the placeholder value,
-		// which is theirs to change.
+	if version == "" || (md.ID == "" && md.Name == "") {
 		version = "dev"
-	case version == "":
-		version = "unknown"
 	}
 	if !ok || info == nil {
 		return version

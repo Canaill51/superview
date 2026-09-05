@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 64 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 66 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -616,6 +616,28 @@ fausse dans un README échoue chez l'utilisateur, à l'endroit exact où il déc
 → Toute commande écrite dans une documentation d'installation s'exécute avant d'être publiée. La
 déduire d'un fichier de CI produit une commande plausible, ce qui est pire qu'une commande
 absente.
+
+
+### L-65 — Un artefact qu'il faut tenir à jour avant chaque release finira périmé — 2026-09-06
+`RELEASE_NOTES.md` devait être réécrit avant chaque publication. Assez oubliable pour que le
+workflow ait dû se doter d'un contrôle vérifiant que sa première ligne nommait bien la version
+demandée : le garde-fou est l'aveu que l'étape ne tient pas toute seule. Et entre deux releases
+le fichier contenait les notes de la version **déjà sortie**, donc il ressemblait en permanence
+à un résidu — au point qu'on se demande à quoi il sert, ce qui est exactement la question qui a
+mené à sa suppression.
+→ Avant d'ajouter un garde-fou qui protège une étape manuelle récurrente, se demander si
+l'étape peut disparaître. Ici, la liste des PR fusionnées depuis le tag précédent dit ce qui a
+changé sans que personne l'écrive. Un garde-fou qui n'a plus rien à garder est le meilleur des
+garde-fous.
+
+### L-66 — Un principe énoncé dans la doc se vérifie en l'exécutant — 2026-09-06
+`RELEASING.md` affirmait « la version vit dans le tag, rien ne la lit dans l'arbre », et
+`FyneApp.toml` portait `Version = "0.2.3"` sous un commentaire la qualifiant de simple repli.
+Un `go build` nu annonçait `0.2.3` depuis un arbre qui n'était pas cette version : le repli
+était le cas courant, et le principe était faux dans la seule situation où il servait.
+→ Quand une documentation affirme une propriété du système, produire l'objet et l'interroger.
+Ici : construire et lire la ligne de version. Le commentaire disait « repli », la mesure disait
+« comportement par défaut ».
 
 
 ## 3. Corrections appliquées
