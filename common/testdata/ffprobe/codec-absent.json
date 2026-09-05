@@ -1,0 +1,12 @@
+{
+    "streams": [
+        {
+            "width": 1440,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "r_frame_rate": "30/1",
+            "duration": "8.400000",
+            "bit_rate": "192648"
+        }
+    ]
+}

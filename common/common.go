@@ -483,6 +483,18 @@ func CheckVideo(file string) (*VideoSpecs, error) {
 		return nil, fmt.Errorf("ffprobe failed, output:\n%s", out)
 	}
 
+	return parseVideoSpecs(file, out)
+}
+
+// parseVideoSpecs turns ffprobe's JSON into a validated VideoSpecs.
+//
+// Split out from CheckVideo so it can be tested against recorded ffprobe
+// output. This is the only place the program reads something it did not
+// produce itself, and every one of its rejection paths -- malformed JSON, no
+// stream, an unparsable duration, a missing or non-numeric bitrate -- used to
+// be reachable only by finding a video file that provoked it, which is to say
+// not at all. See common/testdata/ffprobe.
+func parseVideoSpecs(file string, out []byte) (*VideoSpecs, error) {
 	// Parse ffprobe output
 	var response struct {
 		Streams []VideoStream `json:"streams"`

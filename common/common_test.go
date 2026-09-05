@@ -1134,7 +1134,7 @@ func TestResolveToolBinary_CachesSuccess(t *testing.T) {
 	defer ResetToolResolutionCache()
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not installed")
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
 	}
 	first := resolveToolBinary("ffmpeg")
 	if !filepath.IsAbs(first) {
@@ -1342,16 +1342,11 @@ func fakeHangingFFmpeg(t *testing.T, dir string) {
 		t.Fatalf("failed to create the stand-in ffmpeg: %v", err)
 	}
 
-	oldPath := os.Getenv("PATH")
-	if err := os.Setenv("PATH", dir+string(os.PathListSeparator)+oldPath); err != nil {
-		t.Fatalf("failed to set PATH: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := os.Setenv("PATH", oldPath); err != nil {
-			t.Errorf("failed to restore PATH: %v", err)
-		}
-		toolResolveCache.Delete("ffmpeg")
-	})
+	// t.Setenv rather than os.Setenv: it restores PATH even when the test
+	// panics, and it makes the framework reject a t.Parallel() here instead of
+	// letting one test rewrite another's PATH mid-run.
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Cleanup(func() { toolResolveCache.Delete("ffmpeg") })
 	toolResolveCache.Delete("ffmpeg")
 }
 

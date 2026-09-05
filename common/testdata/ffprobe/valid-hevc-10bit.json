@@ -1,0 +1,19 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_name": "hevc",
+            "width": 4000,
+            "height": 3000,
+            "pix_fmt": "yuv420p10le",
+            "r_frame_rate": "30000/1001",
+            "duration": "12.512500",
+            "bit_rate": "78451200"
+        }
+    ]
+}
