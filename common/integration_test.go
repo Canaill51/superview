@@ -55,7 +55,7 @@ func makeTestClip(t *testing.T, width, height, seconds int) string {
 	t.Helper()
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not installed; skipping integration test")
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
 	}
 
 	path := filepath.Join(t.TempDir(), "input.mp4")
@@ -66,7 +66,7 @@ func makeTestClip(t *testing.T, width, height, seconds int) string {
 		"-c:v", "libx264", "-b:v", "2M", "-pix_fmt", "yuv420p",
 		path)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("could not render a test clip (%v): %s", err, out)
+		skipWithoutFFmpeg(t, "could not render a test clip (%v): %s", err, out)
 	}
 	return path
 }
@@ -109,10 +109,10 @@ func TestIntegration_PerformEncoding(t *testing.T) {
 
 	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
-		t.Skipf("CheckFfmpeg failed: %v", err)
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
 	}
 	if !strings.Contains(ffmpeg["encoders"], "libx264") {
-		t.Skip("libx264 not available in this ffmpeg build")
+		skipWithoutFFmpeg(t, "libx264 not available in this ffmpeg build")
 	}
 
 	output := filepath.Join(t.TempDir(), "output.mp4")
@@ -182,7 +182,7 @@ func TestIntegration_CancelDuringEncoding(t *testing.T) {
 
 	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
-		t.Skipf("CheckFfmpeg failed: %v", err)
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
 	}
 
 	output := filepath.Join(t.TempDir(), "cancelled.mp4")
@@ -206,7 +206,7 @@ func makeRichTestClip(t *testing.T, width, height int) string {
 	t.Helper()
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not installed; skipping integration test")
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
 	}
 
 	path := filepath.Join(t.TempDir(), "rich.mp4")
@@ -222,7 +222,7 @@ func makeRichTestClip(t *testing.T, width, height int) string {
 		"-metadata", "creation_time="+richClipCreationTime,
 		path)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("could not render a 10-bit multi-track clip (%v): %s", err, out)
+		skipWithoutFFmpeg(t, "could not render a 10-bit multi-track clip (%v): %s", err, out)
 	}
 	return path
 }
@@ -257,10 +257,10 @@ func TestIntegration_PreservesDepthTracksAndMetadata(t *testing.T) {
 
 	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
-		t.Skipf("CheckFfmpeg failed: %v", err)
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
 	}
 	if !strings.Contains(ffmpeg["encoders"], "libx265") {
-		t.Skip("libx265 not available in this ffmpeg build")
+		skipWithoutFFmpeg(t, "libx265 not available in this ffmpeg build")
 	}
 
 	input := makeRichTestClip(t, 320, 240)
@@ -268,10 +268,10 @@ func TestIntegration_PreservesDepthTracksAndMetadata(t *testing.T) {
 	// Guard the fixture itself: if ffmpeg did not actually produce a 10-bit,
 	// two-track, dated clip, the assertions below would pass vacuously.
 	if got := probeEntry(t, input, "-select_streams", "v:0", "-show_entries", "stream=pix_fmt"); got != "yuv420p10le" {
-		t.Skipf("fixture is not 10-bit (pix_fmt=%q); nothing to assert", got)
+		skipWithoutFFmpeg(t, "fixture is not 10-bit (pix_fmt=%q); nothing to assert", got)
 	}
 	if got := probeEntry(t, input, "-select_streams", "a", "-show_entries", "stream=index"); len(strings.Fields(got)) != 2 {
-		t.Skipf("fixture does not carry two audio tracks (indices %q)", got)
+		skipWithoutFFmpeg(t, "fixture does not carry two audio tracks (indices %q)", got)
 	}
 
 	output := filepath.Join(t.TempDir(), "rich-out.mp4")
@@ -312,7 +312,7 @@ func TestIntegration_CancelLeavesNoPartialOutput(t *testing.T) {
 
 	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
-		t.Skipf("CheckFfmpeg failed: %v", err)
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
 	}
 
 	// Long enough that the encode is still running when the first progress

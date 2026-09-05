@@ -64,13 +64,13 @@ func TestEncodeVideo_CancelReapsProcess(t *testing.T) {
 		t.Skip("skipping process-level test in short mode")
 	}
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not installed")
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
 	}
 
 	input := makeTestClip(t, 640, 480, 20)
 	ffmpeg, err := CheckFfmpeg(nil)
 	if err != nil {
-		t.Skipf("CheckFfmpeg failed: %v", err)
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
 	}
 
 	before := zombieChildren(t)

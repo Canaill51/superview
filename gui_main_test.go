@@ -146,12 +146,9 @@ func TestGUIHandler_GetSqueezeAndBitrate(t *testing.T) {
 // window silently clips buttons instead of wrapping. Adding the Diagnostic
 // button took the row from 5 to 6 entries, which is exactly how that happens.
 func TestToolbarFitsWindow(t *testing.T) {
-	const (
-		buttonWidth  = 150 // must match buttonSize in main()
-		buttonCount  = 6   // open, output, start, cancel, diagnostic, quit
-		windowWidth  = 980 // must match window.Resize in main()
-		windowHeight = 470
-	)
+	// The geometry comes from gui_main.go, so this test measures the toolbar
+	// main() builds rather than a copy of it that can drift.
+	const buttonCount = 6 // open, output, start, cancel, diagnostic, quit
 
 	app := test.NewApp()
 	defer app.Quit()
@@ -162,7 +159,7 @@ func TestToolbarFitsWindow(t *testing.T) {
 		"Cancel", "Diagnostic", "Quit",
 	} {
 		btn := widget.NewButton(label, func() {})
-		buttons = append(buttons, container.NewGridWrap(fyne.NewSize(buttonWidth, 34), btn))
+		buttons = append(buttons, container.NewGridWrap(fyne.NewSize(actionButtonWidth, actionButtonHeight), btn))
 	}
 	toolbar := container.NewHBox(buttons...)
 
@@ -172,11 +169,11 @@ func TestToolbarFitsWindow(t *testing.T) {
 
 	min := toolbar.MinSize()
 	if min.Width > windowWidth {
-		t.Errorf("toolbar needs %.0fpx but the fixed window is %dpx wide; "+
-			"buttons would be clipped", min.Width, windowWidth)
+		t.Errorf("toolbar needs %.0fpx but the fixed window is %.0fpx wide; "+
+			"buttons would be clipped", min.Width, float32(windowWidth))
 	}
 	if min.Height > windowHeight {
-		t.Errorf("toolbar height %.0fpx exceeds the window height %d", min.Height, windowHeight)
+		t.Errorf("toolbar height %.0fpx exceeds the window height %.0f", min.Height, float32(windowHeight))
 	}
 	t.Logf("toolbar min size = %.0fx%.0f, window = %dx%d",
 		min.Width, min.Height, windowWidth, windowHeight)

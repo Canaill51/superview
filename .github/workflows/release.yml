@@ -164,17 +164,24 @@ jobs:
       with:
         go-version: '1.26.x'
 
-    # ffmpeg matters here, and not only to run more tests: without it every
-    # integration test skips and module coverage measures 51.4% instead of
-    # 59.3%. The gate is 50%, so this job was one small change away from
-    # failing a release for a reason that had nothing to do with the release.
+    # ffmpeg matters here, and not only to run more tests. Without it every
+    # integration test used to skip, and module coverage measured 51.4%
+    # instead of 59.3% -- a gate of 50% away from failing a release for a
+    # reason that had nothing to do with the release, and, worse, passing one
+    # on a suite that had encoded nothing. SUPERVIEW_REQUIRE_FFMPEG below now
+    # turns that silence into a failure, so the coverage number no longer
+    # carries the news on its own.
     - name: Install GUI build dependencies
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
 
     - name: Run tests
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: go test ./... -v
 
     - name: Run coverage check
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: |
         go test ./... -coverprofile=coverage.out
         coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
