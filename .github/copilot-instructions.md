@@ -19,6 +19,7 @@
   - `common/gui_helpers.go`: GUI helper functions.
   - `common/hardware.go`: encoder capability profiling.
   - `common/health.go`: system health checks.
+  - `common/health_disk_unix.go` / `common/health_disk_windows.go`: free-disk-space probe per platform.
   - `common/metrics.go`: encoding metrics.
   - `common/observability.go`: event recording and logging hooks.
   - `common/security.go`: path and input validation helpers.
@@ -41,16 +42,13 @@
 
 ## Build and Test
 - Build GUI: `go build .` (build the package, never a single file: the native dialog files are build-tagged).
-- Run tests (if present): `go test ./common`
-- Preferred verification order for small changes: build touched binary first, then `go test ./common`.
+- Run tests: `go test ./...`
+- Preferred verification order for small changes: build touched binary first, then `go test ./...`.
 - Repository has one GUI entrypoint at root (`gui_main.go`).
-- Keep using `go test ./common` for routine validation.
-- CI coverage gate: minimum 30% in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
+- Use `go test ./...` for routine validation: `./common` alone skips the root package's GUI tests, and it is not what the CI gate measures.
+- CI coverage gate: minimum 50% over `./...` in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
 - GUI builds are most reliable on native OS runners; cross-compiling Fyne GUI binaries (especially for macOS) may fail locally.
-- Cross-build/release script: `./build.sh <version>` — DEPRECATED, superseded by `release.yml`.
-  - Requires `fyne-cross`.
-  - Creates git tags and pushes tags at the end; do not run automatically unless release intent is explicit.
-  - May trigger signing/release tooling (`codesign`, `hub`) when available.
+- Releases: see `RELEASING.md`. One button in the Actions tab; the tag message is `RELEASE_NOTES.md`. Never tag by hand unless release intent is explicit.
 
 ## Project Conventions
 - FFmpeg/FFprobe are required runtime dependencies; failures should keep current user-facing error style.
@@ -71,7 +69,7 @@
 ## Integration Points
 - External tools: `ffmpeg`, `ffprobe` executed through `os/exec`.
 - GUI toolkit: `fyne.io/fyne`.
-- Release packaging is done by `.github/workflows/release.yml` (native runners). The legacy `build.sh` is deprecated.
+- Release packaging is done by `.github/workflows/release.yml` (native runners); the process is documented in `RELEASING.md`.
 - Platform-specific process setup: `prepareBackgroundCommand` in `common/command-*.go`.
 
 ## Security
