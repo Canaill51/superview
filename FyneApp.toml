@@ -5,5 +5,5 @@
   # Only a fallback, for a build made outside the release workflow. The
   # published binaries get their version from the tag, which the workflow
   # passes as "fyne package --app-version", so the two can never drift.
-  Version = "0.2.2"
+  Version = "0.2.3"
   Build = 1
