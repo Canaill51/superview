@@ -25,6 +25,17 @@ fyne_metadata_init.go
 *.syso
 superview.exe
 
+# The Linux half of the same story, which #43 did not cover: "fyne package"
+# leaves the intermediate binary named after the module -- "superview", with no
+# extension -- and a "tmp-pkg/" staging directory in the project root. Watching
+# "git status --porcelain" through a Linux packaging run shows all three of
+# "superview", "tmp-pkg/" and the archive as untracked while the tool works.
+# Only "superview.exe" was ignored, so the Linux side had the asymmetry that
+# R-06 was about. The guard on the packaged binary in release.yml would have
+# caught it at the next release; ignoring these means it does not have to.
+superview
+tmp-pkg/
+
 # "fyne package" leaves its archive in the working directory.
 superview-gui-*.tar.xz
 superview-gui-*.zip

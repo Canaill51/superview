@@ -30,8 +30,8 @@
   - Error types: `InvalidVideoError`, `EncoderError`, `SessionError` for better error handling.
 - Shared video pipeline lives in `common/common.go`:
   - `EncodingSession`: manages secure temporary files in isolated directory per session (not in working dir).
-  - `InitEncodingSession()` / `CloseEncodingSession()`: lifecycle management for temp files.
-  - `CheckFfmpeg` discovers ffmpeg version/encoders/accels.
+  - `InitEncodingSession(cfg)` / `CloseEncodingSession()`: lifecycle management for temp files.
+  - `CheckFfmpeg(cfg)` discovers ffmpeg version/encoders/accels. Configuration is passed explicitly everywhere; there is no config global.
   - `CheckVideo` reads stream metadata via `ffprobe` with full error handling.
   - `GeneratePGM` creates remap maps in session's temp directory.
   - `EncodeVideo` runs ffmpeg with remap filtering and reports progress.
@@ -60,7 +60,7 @@
   - `ValidateBitrate()`: ensures bitrate is within the configured range (defaults ~0.1-200 Mbps, expressed in **bits**/sec).
   - Always check error returns from `FindEncoder()`.
 - Temporary remap files lifecycle: initialize session → generate files → encode → cleanup in isolated temp directory.
-  - Always call `InitEncodingSession()` before encoding and `defer common.CleanUp()` for guaranteed cleanup.
+  - Always call `InitEncodingSession(cfg)` before encoding and `defer common.CleanUp()` for guaranteed cleanup.
   - Never hardcode temp file paths; use session management functions.
 - GUI behavior should stay responsive: long encode work runs in a goroutine (see `gui_main.go`).
 - Any widget update from a goroutine MUST be wrapped in `fyne.Do(...)`.
@@ -79,7 +79,7 @@
   - Bitrate ranges via `ValidateBitrate()` (configured range, defaults ~0.1-200 Mbps, expressed in **bits**/sec).
   - Encoder selection via `FindEncoder()` which checks availability.
 - Temporary files are managed in isolated directories via `EncodingSession` (not in working directory).
-  - Use `InitEncodingSession()` / `CloseEncodingSession()` for safe session lifecycle.
+  - Use `InitEncodingSession(cfg)` / `CloseEncodingSession()` for safe session lifecycle.
   - Never create temp files directly in working directory or hardcode paths.
 - Avoid introducing shell interpolation for ffmpeg calls; keep `exec.Command` argument-based invocation.
 - Do not hardcode secrets/cert identities in new code.

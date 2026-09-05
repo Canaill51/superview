@@ -1,16 +1,17 @@
 # Superview — Analyse complète du projet
 
-> Dernière mise à jour : 2026-09-04
-> Branche analysée : `master` @ `001d250` (4ᵉ passe). Les § 3 et § 3bis portaient sur `e3269e7`.
-> **Statut de vérification : VÉRIFIÉ.** Go 1.26.8 est installé (`~/.local/go`, sans `sudo`) et
-> `./common` compile, se teste sous `-race` et se lint localement. Les constats ont été
-> confrontés au code en exécution : **B-03 s'est révélé faux** et **X-04 surévalué**, les deux
-> sont corrigés ci-dessous.
-> ⚠️ Le sysroot GUI vivant dans `/tmp` **n'a pas survécu au dernier redémarrage** : le paquet
-> `main` ne compile pas en l'état. Voir [SOURCES.md](SOURCES.md) § 1 pour le reconstruire.
+> **Journal d'audit, pas documentation de référence.** Ce fichier consigne cinq
+> passes d'analyse et les 67 constats qu'elles ont produits, avec ce qui a été
+> décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
+> [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
+> [LECONS.md](LECONS.md).
 >
-> **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique, N-xx) →
-> **§ 3ter (4ᵉ passe, la plus récente, P-xx)** → § 4bis (état d'avancement).
+> Dernière passe : 5ᵉ (R-01 à R-07), close le 2026-09-05 sur `5d3b6f9`.
+> Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
+>
+> **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
+> N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → **§ 4 (état
+> d'avancement, le seul tableau qui fasse foi)**.
 
 ---
 
@@ -23,7 +24,7 @@
 | Nature | Application **GUI uniquement** (Fyne v2.8.1) |
 | Plateformes officielles | Windows, Linux (Ubuntu 24.04 LTS+) |
 | Dépendance runtime | FFmpeg + FFprobe (binaires externes) |
-| Lignes de Go | 9 049 (dont ~3 200 de tests) — mesuré à `001d250` |
+| Lignes de Go | 10 254, dont 5 652 de tests (55 %) — mesuré à `a672bc6` |
 | Licence | voir `LICENSE` |
 
 ### Rôle fonctionnel
@@ -34,27 +35,36 @@ au format PGM P2 (`x.pgm`, `y.pgm`) puis les passe au filtre `remap` de FFmpeg.
 
 ### Cartographie des fichiers
 
-Comptes de lignes mesurés à `001d250` (la CI qualité couvre désormais `./...`, cf. X-01) :
+Comptes de lignes mesurés à `a672bc6` (la CI qualité couvre `./...`, cf. X-01) :
 
 ```
-/                            paquet main (GUI) — 14 tests, tous sur fonctions pures (P-10)
-├── gui_main.go              798 l. — fenêtre Fyne, orchestration, état d'encodage
-│                                     dont ~600 l. dans main() : état non testable (P-10)
-├── gui_main_test.go         306 l.
-├── gui_native_dialog_linux.go    81 l. — zenity / kdialog
-├── gui_native_dialog_windows.go  60 l. — PowerShell WinForms
+/                            paquet main (GUI) — 28 tests, couverture 25,2 %
+├── gui_main.go             1070 l. — fenêtre Fyne, orchestration, état d'encodage
+│                                     dont ~540 l. dans main() : construction de
+│                                     widgets, délibérément non découpée (P-10)
+├── gui_main_test.go         843 l.
+├── gui_native_dialog_linux.go    81 l. — zenity / kdialog       (non testé, assumé)
+├── gui_native_dialog_windows.go  60 l. — PowerShell WinForms    (non testé, assumé)
 │
-common/                      paquet métier — couverture 71,6 %, vert sous -race
-├── common.go               1155 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
-├── observability.go         387 l. — bus d'événements + dernier état publié
-├── config.go                305 l. — Config YAML + surcharges SUPERVIEW_*
-├── health.go                278 l. — diagnostics système  ✅ branché sur le bouton Diagnostic
-├── metrics.go               274 l. — métriques d'encodage
+common/                      paquet métier — couverture 81,5 %, vert sous -race
+├── common.go               1587 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
+├── observability.go         391 l. — bus d'événements + dernier état publié
+├── config.go                308 l. — Config YAML + surcharges SUPERVIEW_*
+├── metrics.go               296 l. — métriques d'encodage
+├── health.go                278 l. — diagnostics système, branché sur le bouton Diagnostic
 ├── security.go              231 l. — validation de chemins, whitelist encodeur
 ├── hardware.go              200 l. — profil machine, choix encodeur/hwaccel
 ├── gui_helpers.go            40 l. — helpers parsing GUI
-└── command-{windows,other}.go     — SysProcAttr HideWindow
+├── command-{windows,other}.go     — SysProcAttr HideWindow
+├── health_disk_{unix,windows}.go  — espace disque libre par plateforme
+└── testdata/ffprobe/              — sorties ffprobe enregistrées (12 cas)
 ```
+
+> `common.go` porte à lui seul un tiers du code de production et mêle au moins six
+> responsabilités : découverte des binaires externes, logger, interfaces UI, cycle de
+> vie de la session temporaire, géométrie des cartes PGM, orchestration ffmpeg. Le
+> découpage en `pgm.go` et `tools.go` est identifié, non fait, et sans urgence : le
+> fichier est couvert à 81,5 % et `pgm_golden_test.go` fige déjà la géométrie.
 
 ### Flux principal
 
@@ -104,7 +114,7 @@ Le résultat effectif est publié via `SetLastHardwareAccelerationSummary()` et 
   `exec.Command` sans shell — pas de surface d'injection de commande.
 - **CI substantielle** : build, tests multi-OS, couverture avec seuil à 50 % sur `./...`,
   `go vet`, `staticcheck`, `govulncheck`, `gofmt`, toutes les actions épinglées par SHA.
-- **Tests nombreux sur `common/`** — 71,6 % de couverture, verts sous `-race`, 4 benchmarks,
+- **Tests nombreux sur `common/`** — 81,5 % de couverture, verts sous `-race`, 4 benchmarks,
   avec des points d'injection prévus pour la testabilité (`signalNotify`, `signalStop`,
   `commandStdoutPipe`). Le paquet `main` reste l'angle mort (P-10).
 
@@ -184,7 +194,7 @@ appliqué, mais comme **simplification** (accesseur documenté plutôt que manip
 chaîne), pas comme correction de bug.
 
 *Leçon* : ne pas déduire le comportement d'une bibliothèque de la forme canonique d'un
-standard — lire son code. Voir [LESSONS.md](LESSONS.md) L-10.
+standard — lire son code. Voir [LECONS.md](LECONS.md) L-10.
 
 #### 🟠 B-04 — Option `-threads` positionnée avant `-i` : elle configure le décodeur, pas l'encodeur
 `common/common.go:627-632`
@@ -590,7 +600,7 @@ le contourner.
 > MKV. L'utilisateur a signalé que l'application ne recevrait jamais de MKV : sévérité revue à
 > 🟠, mais en vérifiant plus largement le périmètre s'est révélé plus étendu (5 formats, pas 1).
 > Il a ensuite précisé que **seul le MP4 est supporté**, ce qui tranche la correction : restreindre,
-> et non ajouter un repli sur les métadonnées conteneur comme je le proposais. Voir [LESSONS.md](LESSONS.md) L-26.
+> et non ajouter un repli sur les métadonnées conteneur comme je le proposais. Voir [LECONS.md](LECONS.md) L-26.
 
 ### N-02 ✅ — ~~Chaque annulation laisse un processus zombie~~ — **CORRIGÉ**
 
@@ -796,7 +806,7 @@ Convention : **P-xx** pour les constats de cette passe.
 | Contrôle | Résultat |
 | --- | --- |
 | `go test -race -count=1 ./common` | ✅ `ok superview/common 3,9 s` |
-| Couverture de `./common` | **71,6 %** (le 54,6 % de la CI est la moyenne module, tirée vers le bas par `main`) |
+| Couverture de `./common` | **81,5 %** (la moyenne module est plus basse, tirée vers le bas par `main`) |
 | `gofmt -l .` | ✅ aucun fichier |
 | `TODO` / `FIXME` dans le code | ✅ aucun (les deux occurrences sont des `context.TODO()`) |
 | `go build ./...` | ❌ **non vérifiable** : le sysroot GUI de `/tmp` n'a pas survécu au redémarrage. `./common` compile. |
@@ -1363,26 +1373,222 @@ heures après avoir été écrit.
 
 ---
 
-## 4. Priorités recommandées — 1ʳᵉ passe (historique)
+## 3quinquies. Sixième passe (2026-09-06) — structure, tests de validation, release
 
-> Tableau d'origine, conservé pour la traçabilité : **tous ces constats sont traités**.
-> Les priorités en vigueur sont celles de § 3ter, « Priorités de cette passe ».
+Passe demandée sur trois axes : documentation, tests de validation, release. Les
+constats portent le préfixe `D-` (documentation et outillage) et `V-` (validation).
+Ceux marqués **consigné** n'ont délibérément pas été corrigés : la release a été
+mise hors périmètre pour ce chantier.
 
-| Ordre | Constats | Justification |
-| --- | --- | --- |
-| 1 | **X-02**, **X-06**, **X-03** | Corrections triviales, sans risque, qui rétablissent l'outillage local et la fiabilité de la documentation d'agent. À faire avant tout le reste. |
-| 2 | **B-01** | Seul défaut pouvant figer l'application sans diagnostic. Correctif localisé (~5 lignes). |
-| 3 | **B-02** + **O-01** | Ensemble : la configuration n'étant pas lue, le bridage temps réel s'applique à tout le monde. Le gain de performance perçu est majeur. |
-| 4 | **X-01** | Débloque la détection automatique de B-03, B-05, B-06 et prévient les régressions futures dans la GUI. |
-| 5 | **B-03**, **B-05**, **B-06** | Bugs GUI réels, chacun sur un chemin de repli ou un cas limite. |
-| 6 | **S-01**, **S-02** | Faux positifs de validation qui bloquent des fichiers légitimes. S-02 demande un arbitrage produit. |
-| 7 | **C-01** à **C-05** | Nettoyage : soit brancher, soit supprimer. Décision de périmètre à prendre avec le mainteneur. |
-| 8 | **T-01**, **T-03**, **T-02** | Filet de sécurité durable, à installer une fois les correctifs ci-dessus posés. |
+### Ce qui s'est révélé sain
 
-**Bloquant transverse levé le 2026-09-04** : Go 1.26.8 est installé, le module entier
-compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
+Vérifié avant de chercher des défauts, pour ne pas « corriger » ce qui va bien :
 
-## 4bis. État d'avancement au 2026-09-05
+- Le workflow de release est solide : décision centralisée dans `prepare`, entrées
+  passées par l'environnement et jamais interpolées dans un `run:`, tag créé
+  seulement après que les deux plateformes ont construit, garde-fou sur le binaire
+  expédié, `notify` capable de rapporter un échec.
+- `.gitignore` était complet et argumenté côté Windows (voir D-06 pour l'asymétrie
+  Linux). L'arbre de travail est propre : aucun binaire commité, aucun artefact.
+- Aucun `TODO`/`FIXME` dans le code Go. Aucun symbole exporté sans appelant.
+- La géométrie de remap reste la partie la mieux protégée du dépôt.
+- P-10 est légitimement clos : `main()` reste longue **et c'est assumé**, le constat
+  portait sur l'inatteignabilité de l'état, pas sur la longueur.
+
+### D-01 ✅ — ~~Le README documente une API qui n'existe plus~~ — **CORRIGÉ**
+
+Le § *API Documentation* listait `GetConfig()`, `SetConfig()` et
+`CreateDefaultConfig()`, supprimés par `81c14a7`, et donnait `CheckFfmpeg()`,
+`InitEncodingSession()` et `PerformEncoding()` sans leur premier paramètre `*Config`.
+Le § *Example* vingt lignes plus bas, lui, était correct.
+
+C'est exactement le défaut que **L-29** décrit et dont elle prescrit le remède
+(`grep -rn "NomFonction" --include='*.md' .`). La leçon avait été écrite, le remède
+n'avait jamais été appliqué jusqu'au bout : l'exemple avait été corrigé, la liste
+au-dessus non.
+
+*Correctif* : la section est supprimée plutôt que corrigée. L'application est
+GUI-only et n'a aucun consommateur externe ; une API publiée dans un README est une
+promesse que rien ne vérifie, et le compilateur ne lit pas le Markdown.
+
+### D-02 ✅ — ~~Le README n'explique l'installation que sous Windows~~ — **CORRIGÉ**
+
+`release.yml` publie une archive Linux et un `checksums.txt` depuis `#32`, et le
+README annonce Linux comme officiellement supporté depuis `76a8341`. Le § *Installation*
+ne parlait que de l'archive Windows, et les notes de release invitaient à un
+`sha256sum -c checksums.txt` que le README ne mentionnait nulle part.
+
+*Correctif* : les deux plateformes documentées, avec la vérification d'empreinte. La
+structure de l'archive Linux a été **vérifiée en produisant une archive**
+(`superview/usr/local/bin/superview` plus un `Makefile` d'installation) et non déduite
+du workflow — une première rédaction, écrite d'après `release.yml`, donnait un chemin
+faux.
+
+### D-03 ✅ — ~~Trois procédures de release concurrentes~~ — **CORRIGÉ**
+
+`RELEASING.md` posait que le message du tag **est** `RELEASE_NOTES.md`. À côté :
+
+- `make release-prepare VERSION=x.y.z` créait un tag annoté avec
+  `-m "Release v$(VERSION)"`. Ce message devient le corps de la release publiée : qui
+  passait par le `Makefile` publiait une release dont les notes disaient
+  « Release v0.2.4 » et rien d'autre. `RELEASING.md` ne mentionnait pas la cible.
+- `build.sh`, neutralisé mais dont l'en-tête décrivait encore le flux d'avant `#41`.
+
+*Correctif* : les deux supprimés. `RELEASING.md` est la seule procédure.
+
+### D-04 ✅ — ~~`copilot-instructions.md` annonçait un seuil de couverture de 30 %~~ — **CORRIGÉ**
+
+Réel : 50 % sur `./...` dans `test.yml` et `release.yml`. Le fichier recommandait aussi
+`go test ./common` « pour la validation de routine », ce qui saute les 28 tests du
+paquet `main`. Le reste du fichier était exact.
+
+### D-05 ✅ — ~~`go.yml` et deux jobs de `lint.yml` refont le travail des autres~~ — **CORRIGÉ**
+
+`go.yml` (`go build -v ./...` sur Ubuntu) est couvert par le job `native-build-matrix`
+de `test.yml`, qui construit sur Windows **et** Linux. C'est le workflow du gabarit
+GitHub, jamais élagué.
+
+`lint.yml` lançait cinq jobs, chacun dépensant un `apt-get` en en-têtes GUI. Les jobs
+`vet` et `staticcheck` réexécutaient des linters que `.golangci.yml` active déjà. Pire,
+le job `staticcheck` tournait **sans** le filtre `SA*`/`S1*` de la configuration : il
+appliquait donc les familles `ST*` et `QF*` que la configuration désactive à dessein
+(une réécriture `QF` toucherait les `math.Pow` de `GeneratePGM`, cf. L-09/L-12). Un job
+qui contredit la configuration n'est pas un second avis, c'est une seconde source de
+vérité.
+
+*Correctif* : `go.yml` supprimé, `lint.yml` ramené à trois jobs. Vérifié que
+`staticcheck` lancé seul ne rapporte rien de plus aujourd'hui.
+
+### D-06 ✅ — ~~L'asymétrie Linux du correctif R-06~~ — **CORRIGÉ**
+
+`#43` a établi que `fyne package` salit l'arbre pendant qu'il construit, et a ignoré
+`fyne_metadata_init.go` (Linux), `*.syso` et `superview.exe` (Windows).
+
+En observant `git status --porcelain` toutes les 0,2 s pendant un packaging Linux sur
+un arbre propre, deux artefacts apparaissent qui ne sont couverts par aucun de ces
+motifs : **`superview`** — le binaire intermédiaire nommé d'après le module, exactement
+ce que `superview.exe` est côté Windows — et **`tmp-pkg/`**. Le raisonnement de `#43`
+avait bien identifié le mécanisme mais n'en avait tiré la conséquence que d'un côté.
+
+Le garde-fou sur le binaire expédié aurait fait échouer la release plutôt que de la
+laisser mentir — c'est précisément ce pour quoi L-58 l'a introduit — mais un échec de
+release au moment de publier reste un coût. Les deux motifs sont ajoutés.
+
+> Constaté au passage, sans conséquence : `fyne package` réécrit aussi `FyneApp.toml`,
+> qui est suivi — il en retire les commentaires et incrémente `Build`. La réécriture a
+> lieu **après** la construction (le fichier n'apparaît modifié qu'une fois l'outil
+> terminé, jamais pendant), donc elle ne tamponne pas le binaire. C'est ce que `#42`
+> avait supposé à tort être la cause de R-06.
+
+### D-07 ✅ — ~~Le `Makefile` et la CI ne mesuraient pas le même périmètre~~ — **CORRIGÉ**
+
+`make test`, `make vet` et `make coverage` portaient sur `./common`, la CI sur `./...` :
+le chiffre local ne correspondait jamais au seuil, et les tests du paquet `main` ne
+tournaient jamais en local. `install-tools` installait par ailleurs `golangci-lint` par
+le chemin **v1** (sans `/v2`), le piège de X-04.
+
+### D-08 ✅ — ~~`tools/` n'était référencé nulle part~~ — **CORRIGÉ**
+
+`tools/gen_icons.py` écrit dans un `assets/icons` qui n'a jamais existé.
+`tools/install_linux_launcher.sh` affichait `go build superview-gui.go`, fichier disparu
+depuis `76a8341` — c'était la **dernière occurrence vivante** de cette référence dans le
+dépôt. Ni l'un ni l'autre n'était cité par le README, le `Makefile` ou un workflow.
+
+### D-09 ✅ — ~~Trois chiffres de couverture contradictoires dans ce document~~ — **CORRIGÉ**
+
+54,6 %, 59,3 % et 71,6 % coexistaient pour le même « après », dont deux dans la même
+section. Ils mesuraient trois choses différentes — module sans ffmpeg, module avec, et
+le seul paquet `common` — sans que rien ne le dise. La cartographie des fichiers était
+par ailleurs périmée de 400 lignes (`common.go` annoncé à 1 155 l., réel 1 587).
+
+### V-01 ✅ — ~~Une suite verte pouvait n'avoir encodé aucune image~~ — **CORRIGÉ**
+
+Seize gardes terminaient un test par `t.Skip` quand ffmpeg, un de ses encodeurs ou une
+fixture manquait. Elles couvrent les quatre tests d'intégration et le test
+d'équivalence du remap — c'est-à-dire **tout ce qui vérifie une conversion réelle**.
+
+La CI installe ffmpeg sur les deux runners, mais installer et utiliser sont deux
+affirmations différentes : `choco` a déjà rapporté un succès en ne laissant rien sur le
+`PATH`, ce pour quoi `test.yml` lance `ffmpeg -version` derrière. Le seul signal
+restant que les tests avaient tourné était la couverture, et indirectement : 59,3 %
+avec ffmpeg contre 51,4 % sans, de part et d'autre d'un seuil à 50 %.
+
+*Correctif* : `skipWithoutFFmpeg` saute par défaut et **échoue** sous
+`SUPERVIEW_REQUIRE_FFMPEG=1`, que `test.yml` et `release.yml` positionnent. Vérifié dans
+les deux sens : ffmpeg retiré du `PATH`, les cinq tests sautent sans la variable et
+échouent avec.
+
+### V-02 ✅ — ~~Le parsing de la sortie ffprobe n'avait aucun test~~ — **CORRIGÉ**
+
+`CheckVideo` mêlait l'appel au processus et le parsing, donc éprouver le parsing
+supposait de trouver un fichier vidéo provoquant chaque erreur. Ses cinq branches de
+rejet n'avaient jamais été exécutées. C'est pourtant la **seule entrée que le programme
+ne produit pas lui-même**.
+
+*Correctif* : `parseVideoSpecs` extraite et couverte à 100 % depuis
+`common/testdata/ffprobe/` — y compris deux formes qui ne doivent **pas** être rejetées
+(29,97 fps ; un ffprobe assez ancien pour ne rapporter ni `pix_fmt` ni `r_frame_rate`).
+
+### V-03 ✅ — ~~Les deux pièces réclamées pour un rapport de bug étaient à 0 %~~ — **CORRIGÉ**
+
+Le README demande de joindre le rapport *Diagnostic* et le log. `CheckHealth`,
+`checkFFmpegHealth` et `checkFFprobeHealth` n'avaient jamais tourné de bout en bout —
+seules les sondes CPU, mémoire et disque avaient un test, et `GetHealthReport` n'était
+alimenté que par des structures écrites à la main dans le test. Le chemin « ffmpeg
+absent », qui est le cas pour lequel le rapport existe, n'était pas couvert.
+
+Même chose pour `DefaultObservabilityHandler` : les tests exerçaient `EventRecorder`
+avec un mock, jamais le handler qui écrit réellement le log. La rotation par taille de
+`OpenLogFile`, seule chose entre une installation ancienne et un fichier sans borne,
+n'avait jamais été exercée non plus.
+
+### V-04 ✅ — ~~Un test recopiait à la main des constantes de `main()`~~ — **CORRIGÉ**
+
+`TestToolbarFitsWindow` portait ses propres copies de la largeur des boutons et de la
+fenêtre, sous un commentaire demandant au lecteur de les tenir en phase. Elles sont des
+constantes de paquet : porter `actionButtonWidth` à 175 fait désormais échouer le test.
+
+`fakeHangingFFmpeg` utilisait par ailleurs `os.Setenv` avec restauration différée, qui
+fuit sur panique et ne peut pas refuser un `t.Parallel` — remplacé par `t.Setenv`.
+
+### R-08 🟠 **consigné** — Le correctif R-06 n'est pas publié
+
+`HEAD` est deux commits après le tag `v0.2.3`. Les binaires actuellement en ligne
+annoncent donc toujours `0.2.3 (9c1a8c5, modified)` — le défaut même que `#43` corrige.
+Le correctif existe et n'est pas entre les mains des utilisateurs. Une v0.2.4 est due,
+et `RELEASE_NOTES.md` doit être réécrit avant tout `workflow_dispatch` (le run refuse de
+démarrer sinon, ce qui est le garde-fou voulu).
+
+### R-09 🟡 **consigné** — `v0.1.1` à `v0.1.6` sont des tags légers
+
+`git cat-file -t` renvoie `commit` et non `tag` : ces six tags n'ont pas de message.
+C'est la forme qui produit une release vide, décrite dans `#41`. Les versions à partir
+de `v0.2.0` sont correctement annotées. Sans conséquence tant que personne ne rejoue une
+release depuis ces tags.
+
+### R-10 🟡 **consigné** — Aucune signature de code
+
+Ni sous Windows ni ailleurs ; seuls des SHA-256 non signés. C'est un arbitrage produit
+(certificat, coût, SmartScreen), pas un défaut d'implémentation.
+
+### R-11 🟡 **consigné** — La vérification de la version publiée reste manuelle
+
+`RELEASING.md` l'assume explicitement : rien ne contrôle automatiquement que le binaire
+publié annonce la version qu'il prétend. C'est le seul angle mort du flux, et il est
+documenté comme tel.
+
+### Dette assumée, non corrigée
+
+- `findWindowsToolBinary` (~60 l.) et les enveloppes de `gui_native_dialog_*.go`
+  (~120 l.) restent à 0 %. Ce sont des sondes de système de fichiers et des appels
+  PowerShell/zenity dont le coût de mise sous test dépasse le bénéfice.
+- `common.go` (1 587 l.) mêle six responsabilités. Le découpage en `pgm.go` et
+  `tools.go` est identifié, non fait : le fichier est couvert à 81,5 % et
+  `pgm_golden_test.go` fige déjà la géométrie.
+
+---
+
+## 4. État d'avancement
 
 | Statut | Constats |
 | --- | --- |
@@ -1393,13 +1599,29 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
+| ✅ **Corrigé et vérifié — 6ᵉ passe** (13) | D-01 à D-09, V-01 à V-04 |
+| 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
-Vérification des correctifs appliqués le 2026-09-04, module entier (sysroot GUI reconstruit) :
-`gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` ✅ 0 alerte ·
-`go test -race ./...` ✅ · GUI démarrée et vivante ✅ · couverture module **59,3 %** pour un
-seuil CI de 50 % (33,7 % au début du chantier).
+Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
+`go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
+et vivante.
+
+**Sur la couverture, trois chiffres circulaient dans ce document pour le même « après » :**
+54,6 %, 59,3 % et 71,6 %. Ils mesuraient trois choses différentes sans le dire — le module
+sans ffmpeg, le module avec, et le seul paquet `common`. Mesures refaites à `a672bc6`, avec
+ffmpeg présent et `SUPERVIEW_REQUIRE_FFMPEG=1` :
+
+| Périmètre | Couverture |
+| --- | --- |
+| Module entier (`./...`) — ce que mesure le seuil CI de 50 % | **66,0 %** |
+| Paquet `common` | **81,5 %** |
+| Paquet `main` — construction de widgets, non traversée par les tests | **25,2 %** |
+
+Sans ffmpeg, le module tombait à 51,4 % : c'est ce delta qui portait toute l'information sur
+le fait que les tests d'intégration avaient réellement tourné. `SUPERVIEW_REQUIRE_FFMPEG=1`
+le remplace par un échec franc, et la couverture n'a plus à jouer ce rôle.
 
 **Chaque correctif a été validé en contre-épreuve** : le défaut est réintroduit et le test doit
 rougir. Deux tests ont ainsi été réécrits parce qu'ils passaient à vide (L-37) — un compteur
@@ -1415,14 +1637,14 @@ Détail des mesures obtenues :
 
 | Indicateur | Avant | Après |
 | --- | --- | --- |
-| Couverture (module entier) | 33,7 % *(chiffre périmé et faux)* | **54,6 %** |
+| Couverture (module entier) | 33,7 % | **66,0 %** |
 | Seuil de couverture en CI | 30 % sur `./common` | **50 % sur `./...`** |
 | Portée de l'analyse CI | `./common` uniquement | **`./...`** (paquet GUI inclus) |
 | golangci-lint | v1.64.8 (fin de vie), 0 alerte | **v2.13.2, 0 alerte** après 9 corrections |
 | `GeneratePGM` (1440×1080) | 67,2 ms | **16,9 ms** (×4, sortie identique au bit près) |
 | Encodage bridé au temps réel | oui, par défaut (`-re`) | **non** |
-| Tests du paquet `main` | 0 | **9** |
-| Tests d'intégration FFmpeg | 0 | **2** |
+| Tests du paquet `main` | 0 | **28** |
+| Tests d'intégration FFmpeg | 0 | **4**, et qui ne peuvent plus sauter en silence |
 | Fonctionnalités inatteignables | squeeze, `health.go` | **exposées dans la GUI** |
 | Options de config sans effet | 3 | **0** |
 | Configuration | globale mutable, écrasée à chaque run | **passée en paramètre** |
