@@ -9,6 +9,11 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+    # Stated rather than left to Dependabot's default, because
+    # .github/release.yml sorts on this label: an unlabelled bump would land
+    # among the changes worth reading instead of in its own section.
+    labels:
+      - "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
