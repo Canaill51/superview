@@ -82,9 +82,14 @@ jobs:
           draft=true
           case "$tag" in RC-*) prerelease=true ;; *) prerelease=false ;; esac
         elif [ -z "$INPUT_VERSION" ]; then
+          # A dry run labels its archives with the branch, and branches here are
+          # named fix/..., feat/..., docs/... -- a slash in the middle of a file
+          # name is a directory that does not exist, which is how the first dry
+          # run off master died on "mv: cannot move ... No such file or
+          # directory". Nothing downstream needs the exact branch name.
           {
             echo "tag="
-            echo "label=${GITHUB_REF_NAME}"
+            echo "label=${GITHUB_REF_NAME//\//-}"
             echo "version=0.0.0"
             echo "release=false"
             echo "draft=false"
