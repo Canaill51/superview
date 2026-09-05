@@ -80,7 +80,19 @@ jobs:
         # FyneApp.toml: a number committed in a file drifts from the tag the
         # moment master moves past a release, and the binary would then claim
         # to be something it is not.
-        VERSION="${GITHUB_REF_NAME#v}"
+        #
+        # The ref cannot be handed over raw, though. fyne accepts x.y.z and
+        # nothing else, so it rejected "master" -- with "invalid --app-version
+        # parameter" -- on the first manual dispatch of this workflow, in both
+        # build jobs, before either had built anything. An "RC-*" tag, which
+        # this workflow also triggers on, would have failed the same way.
+        # So: take the x.y.z the ref contains, and fall back to 0.0.0 when it
+        # has none. A dry run is not a release and must not claim a number.
+        if [[ "${GITHUB_REF_NAME}" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+          VERSION="${BASH_REMATCH[1]}"
+        else
+          VERSION="0.0.0"
+        fi
         go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}"
         mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
     
@@ -137,8 +149,13 @@ jobs:
         set -euo pipefail
         ARCH="$(go env GOARCH)"
         # Same as the Windows job: the tag is the version, so a released binary
-        # can never claim a number that a committed file drifted away from.
-        VERSION="${GITHUB_REF_NAME#v}"
+        # can never claim a number that a committed file drifted away from,
+        # reduced to the x.y.z fyne accepts and 0.0.0 off a version tag.
+        if [[ "${GITHUB_REF_NAME}" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+          VERSION="${BASH_REMATCH[1]}"
+        else
+          VERSION="0.0.0"
+        fi
         go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" --app-version "${VERSION}" .
         if [ ! -f "superview-gui-linux-${ARCH}.tar.xz" ]; then
           echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
