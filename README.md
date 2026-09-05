@@ -299,7 +299,6 @@ superview/
 ├── gui_main.go             # GUI entry point (Fyne)
 ├── gui_native_dialog_*.go  # Native file dialogs (zenity/kdialog, PowerShell)
 ├── superview.yaml          # Default configuration
-├── build.sh                # Deprecated; releases are built by .github/workflows/release.yml
 └── FyneApp.toml            # Fyne packaging metadata
 ```
 

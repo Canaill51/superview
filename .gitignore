@@ -2,6 +2,7 @@
 superview-gui
 superview-gui.exe
 superview-gui-windows-*.exe
+superview-gui-linux-*
 build/
 fyne-cross/
 coverage.out
