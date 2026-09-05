@@ -6,3 +6,15 @@ build/
 fyne-cross/
 coverage.out
 coverage.html
+
+# Written by "fyne package" into the project root before it builds, then
+# deleted when it is done. While the file is there, "git status --porcelain"
+# is not empty -- and that is exactly what cmd/go reads to decide vcs.modified.
+# Every release up to v0.2.3 therefore announced itself as ", modified", which
+# is the flag meant to mean the opposite (R-06). Ignoring the file keeps the
+# tree reading clean for the one moment that matters.
+fyne_metadata_init.go
+
+# "fyne package" leaves its archive in the working directory.
+superview-gui-*.tar.xz
+superview-gui-*.zip
