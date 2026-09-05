@@ -1263,7 +1263,85 @@ puis exécuté journalise `build="9.9.9 (85b6671, modified)"` ; un `go build` la
 journalise `build="dev (85b6671, modified)"`.
 
 *Constaté en chemin* : `fyne package` **réécrit `FyneApp.toml`** — il le reformate et y ajoute
-`Build`. Sans conséquence dans un checkout de CI, mais l'outil s'approprie ce fichier.
+`Build`. ~~Sans conséquence dans un checkout de CI~~, mais l'outil s'approprie ce fichier.
+**Rectifié le 2026-09-05** : l'observation était vraie *à ce moment-là* et a cessé de l'être avec
+le commit même qui la notait — `FyneApp.toml` n'avait alors ni `Version` ni `Build`, l'outil les
+ajoutait ; complété, le fichier n'est plus touché. Et la conclusion « sans conséquence » a coûté
+un faux diagnostic : c'est bien la propreté de l'arbre qui décide de `vcs.modified`, mais par
+d'autres fichiers. Voir R-06.
+
+### R-05 ✅ — ~~Le `workflow_dispatch` de Release échoue avant de compiler~~ — **CORRIGÉ**
+
+`.github/workflows/release.yml`
+
+R-04 passait `VERSION="${GITHUB_REF_NAME#v}"` à `fyne package`. Sur un `workflow_dispatch` le ref
+est la branche : la version demandée valait `master`, que l'outil refuse (`invalid --app-version
+parameter, integer and '.' characters only up to x.y.z`). Les deux jobs de build sont morts en
+moins d'une minute. Retirer un `v` initial ne dérive une version que pour la forme `v*` ; les deux
+autres refs que le bloc `on:` accepte — une branche et un tag `RC-*` — donnent une chaîne
+invalide. Le cas `RC-*` aurait échoué de même, en pleine release candidate.
+
+*Correctif* : extraire le premier `x.y.z` que le ref contient, repli `0.0.0` hors tag de version.
+Dérivation extraite du YAML et essayée sur cinq refs. Leçon L-55.
+
+### R-06 ✅ — ~~Tout binaire de release s'annonce `, modified`~~ — **CORRIGÉ**
+
+`.gitignore`, `.github/workflows/release.yml`
+
+v0.2.3 s'est publiée en disant `0.2.3 (9c1a8c5, modified)`. La version et la révision étaient
+exactes ; `, modified` ne l'était pas — le binaire venait d'un checkout de CI immaculé. Or ce
+drapeau existe pour distinguer un binaire bricolé d'une release propre : allumé sur toutes les
+releases, il ne distingue plus rien, et vide de sa substance la fonction pour laquelle v0.2.3
+avait été publiée.
+
+**Cause, après un premier diagnostic faux.** J'avais désigné la réécriture de `FyneApp.toml`
+(note de R-04) sans la vérifier. Elle n'a pas lieu : `fyne package` ne complète que ce qui manque,
+et le fichier est complet depuis #39. En observant `git status --porcelain` **en boucle pendant**
+le packaging, les vrais coupables apparaissent — et ils diffèrent selon la plateforme :
+
+| Plateforme | Fichiers créés puis effacés | Rôle |
+| --- | --- | --- |
+| Linux | `fyne_metadata_init.go` | injecte la version dans le binaire |
+| Windows | `fyne_metadata_init.go`, `fyne.syso`, `superview.exe` | plus la ressource icône/version, et le binaire intermédiaire |
+
+Tant qu'ils sont là, `git status --porcelain` n'est pas vide — et c'est exactement ce que lit
+`cmd/go` pour décider `vcs.modified`. Aucun n'est visible une fois l'outil terminé, ce qui
+explique qu'une inspection après coup ne montre rien.
+
+*Mécanisme démontré isolément*, sur un dépôt jetable de deux lignes : arbre propre →
+`vcs.modified=false` ; un `fyne_metadata_init.go` non suivi → `true` ; le même fichier avec une
+entrée `.gitignore` **commitée** → `false`. Les fichiers ignorés n'apparaissent pas dans
+`git status --porcelain`, et c'est tout le ressort du correctif.
+
+*Correctif* : `.gitignore` couvre `fyne_metadata_init.go`, `*.syso`, `superview.exe` et les
+archives que l'outil laisse dans le répertoire de travail.
+
+*Garde-fou* : les deux jobs de build vérifient désormais le **résultat** plutôt que la cause — ils
+dépaquettent (Linux) ou prennent (Windows) le binaire sur le point d'être expédié et échouent s'il
+porte `vcs.modified=true`. C'est lui qui a révélé que le correctif ne valait d'abord que pour
+Linux. Leçons L-57, L-58.
+
+*Vérification* : essai à blanc complet, les deux garde-fous franchis, artefact téléchargé,
+extrait et **exécuté** — `build="0.0.0 (71e04a9)"`, sans mention `modified`.
+
+### R-07 ✅ — ~~L'essai à blanc ne fonctionne que depuis `master`~~ — **CORRIGÉ**
+
+`.github/workflows/release.yml`
+
+Un essai à blanc étiquette ses archives avec le nom de la branche. Les branches de ce dépôt
+s'appellent `fix/…`, `feat/…`, `docs/…`, et une barre oblique au milieu d'un nom de fichier
+désigne un répertoire qui n'existe pas :
+
+```
+mv: cannot move 'superview-gui-linux-amd64.tar.xz' to
+    'superview-gui-fix/r-06-…-linux-x86_64.tar.xz': No such file or directory
+```
+
+L'essai à blanc — dont toute la raison d'être est d'éprouver une modification du workflow avant
+qu'elle ne gâche une release — ne marchait donc que depuis `master`, la seule branche sur laquelle
+personne n'a besoin d'éprouver quoi que ce soit. Trouvé en s'en servant.
+
+*Correctif* : les barres obliques deviennent des tirets ; rien en aval n'a besoin du nom exact.
 
 ### Deux prédictions confrontées aux faits
 
@@ -1304,7 +1382,7 @@ heures après avoir été écrit.
 **Bloquant transverse levé le 2026-09-04** : Go 1.26.8 est installé, le module entier
 compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 
-## 4bis. État d'avancement au 2026-09-04
+## 4bis. État d'avancement au 2026-09-05
 
 | Statut | Constats |
 | --- | --- |
@@ -1314,7 +1392,7 @@ compile et se vérifie localement. Voir [SOURCES.md](SOURCES.md) § 1.
 | ✅ **Corrigé et vérifié — 3ᵉ passe** (9) | N-01 à N-06, N-08, N-09, N-10 |
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
-| ✅ **Corrigé et vérifié — 5ᵉ passe** (4) | R-01, R-02, R-03, R-04 |
+| ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
