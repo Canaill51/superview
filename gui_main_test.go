@@ -11,7 +11,6 @@ import (
 	"superview/common"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -140,11 +139,20 @@ func TestGUIHandler_GetSqueezeAndBitrate(t *testing.T) {
 	}
 }
 
-// TestToolbarFitsWindow guards the fixed-size window against overflow.
+// TestToolbarFitsWindow guards the fixed-size window against overflow, and
+// each button against being clipped inside its own cell.
 //
 // The window is created with SetFixedSize(true), so a toolbar wider than the
-// window silently clips buttons instead of wrapping. Adding the Diagnostic
+// window silently cuts buttons off instead of wrapping. Adding the Diagnostic
 // button took the row from 5 to 6 entries, which is exactly how that happens.
+//
+// The version of this test that shipped with the bug measured neither: it laid
+// icon-less buttons into cells of a flat 150x34 and asked how wide the row of
+// *cells* was. A GridWrap reports the size it was given, so the answer was 920
+// whatever the buttons inside it needed -- and the buttons, which do carry
+// icons, needed up to 186x36 and were drawn clipped. Building them the way
+// main() builds them, and comparing each cell against the button it holds, is
+// what makes the measurement mean something.
 func TestToolbarFitsWindow(t *testing.T) {
 	// The geometry comes from gui_main.go, so this test measures the toolbar
 	// main() builds rather than a copy of it that can drift.
@@ -153,30 +161,84 @@ func TestToolbarFitsWindow(t *testing.T) {
 	app := test.NewApp()
 	defer app.Quit()
 
-	buttons := make([]fyne.CanvasObject, 0, buttonCount)
-	for _, label := range []string{
-		"Choose input file", "Choose output file", "Start transformation",
-		"Cancel", "Diagnostic", "Quit",
-	} {
-		btn := widget.NewButton(label, func() {})
-		buttons = append(buttons, container.NewGridWrap(fyne.NewSize(actionButtonWidth, actionButtonHeight), btn))
-	}
-	toolbar := container.NewHBox(buttons...)
-
+	buttons := toolbarButtonsAsBuilt()
 	if got := len(buttons); got != buttonCount {
 		t.Fatalf("expected %d toolbar buttons, got %d", buttonCount, got)
 	}
 
+	for _, btn := range buttons {
+		cell := actionButtonCell(btn)
+		need := btn.MinSize()
+		if cell.Width < need.Width || cell.Height < need.Height {
+			t.Errorf("%q is given a %.0fx%.0f cell but needs %.0fx%.0f: its label is clipped",
+				btn.Text, cell.Width, cell.Height, need.Width, need.Height)
+		}
+	}
+
+	toolbar := newActionToolbar(buttons...)
 	min := toolbar.MinSize()
 	if min.Width > windowWidth {
-		t.Errorf("toolbar needs %.0fpx but the fixed window is %.0fpx wide; "+
-			"buttons would be clipped", min.Width, float32(windowWidth))
+		t.Errorf("toolbar needs %.0fpx but the default window is %.0fpx wide; "+
+			"main() will have to widen the window past its designed size", min.Width, float32(windowWidth))
 	}
 	if min.Height > windowHeight {
 		t.Errorf("toolbar height %.0fpx exceeds the window height %.0f", min.Height, float32(windowHeight))
 	}
 	t.Logf("toolbar min size = %.0fx%.0f, window = %dx%d",
 		min.Width, min.Height, windowWidth, windowHeight)
+}
+
+// TestToolbarIsCentred pins the other half of the display defect: the row was
+// built as a bare HBox, which packs from the left, so six buttons totalling
+// ~890px sat hard against the left edge of a 980px window with the gap all on
+// one side.
+func TestToolbarIsCentred(t *testing.T) {
+	app := test.NewApp()
+	defer app.Quit()
+
+	buttons := toolbarButtonsAsBuilt()
+	toolbar := newActionToolbar(buttons...)
+
+	// Measured through a canvas rather than off the container tree: what the
+	// user sees is where the buttons land, and a test that asserts on the
+	// shape of the tree passes or fails on how the row is built rather than
+	// on where it ends up.
+	window := test.NewWindow(toolbar)
+	defer window.Close()
+	window.Resize(fyne.NewSize(windowWidth, toolbar.MinSize().Height+2*theme.Padding()))
+
+	at := app.Driver().AbsolutePositionForObject
+	first, last := buttons[0], buttons[len(buttons)-1]
+	left := at(first).X
+	rowEnd := at(last).X + last.Size().Width
+	right := windowWidth - rowEnd
+	row := rowEnd - left
+
+	if left <= theme.Padding() {
+		t.Fatalf("the row starts at x=%.0f in a %dpx window: it is not centred, it is flush left",
+			left, windowWidth)
+	}
+	// Fyne lays widgets out on fractional pixels, so the two margins agree to
+	// within a pixel rather than exactly.
+	if diff := left - right; diff > 1 || diff < -1 {
+		t.Errorf("margins are %.0fpx left and %.0fpx right around a %.0fpx row: the toolbar is off-centre",
+			left, right, row)
+	}
+}
+
+// toolbarButtonsAsBuilt reproduces the six action buttons with the labels and
+// icons main() gives them. The icons are the reason this matters: an icon adds
+// about 30px, which is the difference between a label that fits its cell and
+// one that is cut off.
+func toolbarButtonsAsBuilt() []*widget.Button {
+	return []*widget.Button{
+		widget.NewButtonWithIcon("Choose input file", theme.FolderOpenIcon(), func() {}),
+		widget.NewButtonWithIcon("Choose output file", theme.DocumentSaveIcon(), func() {}),
+		widget.NewButtonWithIcon("Start transformation", theme.MediaPlayIcon(), func() {}),
+		widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {}),
+		widget.NewButtonWithIcon("Diagnostic", theme.InfoIcon(), func() {}),
+		widget.NewButton("Quit", func() {}),
+	}
 }
 
 // TestBuildIdentity pins R-04. The degraded cases are the point: a binary that

@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 68 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 70 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -180,6 +180,9 @@ contrôle par composant, le chemin étant déjà absolu et passé par `filepath.
 avertissement. Le 6e bouton de la barre d'outils portait celle-ci à ~1220 px pour 900 px
 disponibles. Après tout ajout dans une rangée, recalculer la largeur minimale — ou mieux, la
 figer dans un test (`TestToolbarFitsWindow`). Constat C-01.
+*Mise à jour 2026-09-06* : ce test-là était vert pendant que trois boutons sur six affichaient
+un libellé rogné — il mesurait la cellule imposée, pas le bouton. La règle tient, le garde-fou
+qu'elle nommait ne tenait pas : voir L-69 et le constat U-01.
 
 ### L-21 — Un test qui contredit une décision produit se réécrit, ne se contourne pas — 2026-09-04
 `TestSymlinkRejection` encodait l'ancienne politique de rejet des liens symboliques. Après
@@ -662,7 +665,75 @@ et surtout : `gh pr create` aurait proposé le travail à l'auteur d'origine.
 problème : `origin` peut être correct pendant que `gh` regarde ailleurs.
 
 
+### L-69 — Mesurer le conteneur ne mesure pas ce qu'il contient — 2026-09-06
+`TestToolbarFitsWindow` demandait sa largeur à une rangée de `container.NewGridWrap(150x34, btn)`.
+Un `GridWrap` **rapporte la taille qu'on lui a donnée** : la réponse était 920 px quels que
+soient les boutons dedans, y compris quand ils en réclamaient 186. Le test comparait donc une
+constante à une autre constante, et sa contre-épreuve — allonger un libellé — ne le faisait pas
+bouger d'un pixel.
+→ Quand un conteneur impose une géométrie à son contenu, l'assertion utile va **du contenant
+vers le contenu** : cellule ≥ `MinSize()` du widget qu'elle porte, une comparaison par bouton.
+Mesurer la somme des cellules répond à une autre question que « est-ce que ça s'affiche ».
+Corollaire : un test de mise en page construit les widgets **comme le fait le code** — celui-ci
+les créait sans leurs icônes, soit une trentaine de pixels de moins que les vrais.
+
+### L-70 — Un test de mise en page s'écrit sur le rendu, pas sur l'arbre de widgets — 2026-09-06
+Première version de `TestToolbarIsCentred` : descendre l'arbre de conteneurs, vérifier que le
+`Center` a un seul enfant, lire `Position()` dessus. Contre-épreuve — repasser à un `HBox` nu —
+elle rougissait bien, mais sur `expected the toolbar to wrap a single row, got *fyne.Container`.
+Elle constatait un changement de structure, pas un défaut d'affichage : un `Center` mal placé
+l'aurait laissée verte, et une réécriture équivalente de la mise en page l'aurait fait rougir
+pour rien.
+→ Poser le composant dans un canevas (`test.NewWindow`) et interroger la position **absolue**
+des widgets visibles (`Driver().AbsolutePositionForObject`). La contre-épreuve dit alors
+« la rangée commence à x=4 dans une fenêtre de 980 px », ce qui est le défaut lui-même.
+Prolonge L-54 : une contre-épreuve doit rougir pour la bonne raison, pas seulement rougir.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] U-01, U-02 — Libellés rognés et rangée de boutons collée à gauche
+
+| | |
+| --- | --- |
+| **Constat** | U-01, U-02 ([ANALYSE.md § 3sexies](ANALYSE.md)) |
+| **Fichiers** | `gui_main.go:34-76` (géométrie et helpers), `gui_main.go:1040` (rangée), `gui_main.go:1085-1088` (taille de fenêtre) ; `gui_main_test.go:142-241` |
+| **Commit** | non commité |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée et capturée ✅ · contre-épreuves ✅ |
+
+**Symptôme** — signalé par l'utilisateur, capture à l'appui : les six boutons d'action ne sont
+pas centrés dans la fenêtre, et leur texte déborde de leur cadre.
+
+**Cause racine** — deux défauts indépendants dans la même rangée. (1) Chaque bouton était posé
+dans un `GridWrap` de 150 × 34 px, taille imposée et identique pour tous, alors que les boutons
+portent une icône : `Start transformation` réclame 186 × 36, `Choose output file` 168 × 36,
+`Choose input file` 158 × 36. Un `GridWrap` ne s'agrandit pas pour son contenu. (2) La rangée
+était un `HBox` nu, qui empile depuis la gauche.
+
+**Pourquoi le garde-fou n'a rien vu** — `TestToolbarFitsWindow` mesurait la somme des cellules,
+que le `GridWrap` rapporte égale à ce qu'on lui a donné, sur des boutons construits sans leurs
+icônes. 920 ≤ 980 : vert. C'est la deuxième fois que ce test passe à vide (V-04 était le premier
+resserrage).
+
+**Correctif** — `actionButtonCell` dérive la cellule du minimum du bouton, élargi à un plancher
+de 140 px pour que `Quit` ne se réduise pas à une pastille ; `newActionToolbar` centre la rangée.
+`window.Resize` prend le maximum entre la géométrie voulue et `content.MinSize()`, de sorte qu'un
+libellé plus long élargisse la fenêtre au lieu d'en sortir sans le dire. Le test compare
+maintenant chaque cellule au bouton qu'elle porte, et `TestToolbarIsCentred` mesure la position
+absolue de la rangée dans un canevas.
+
+**Ce qui n'a pas changé** — la fenêtre reste 980 × 470 : la rangée corrigée mesure 952 px, donc
+le `Max` ne se déclenche pas aujourd'hui. Aucun libellé n'a été raccourci, ce qui aurait été
+l'autre façon de faire tenir la rangée.
+
+**Contre-épreuves** — cellule remise à 150 × 34 : `TestToolbarFitsWindow` nomme les six boutons
+et leur déficit. `Center` retiré : `TestToolbarIsCentred` rougit sur « la rangée commence à x=4
+dans une fenêtre de 980 px ». La première version de cette seconde contre-épreuve rougissait
+sur la forme de l'arbre de conteneurs et a été refaite (L-70).
+
+**Leçon** — L-69, L-70 ; L-20 mise à jour.
+
+---
+
 
 ### [2026-09-05] R-05 — Le premier `workflow_dispatch` de Release échouait sur la version
 

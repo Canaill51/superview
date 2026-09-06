@@ -33,18 +33,47 @@ const maxLogFileBytes = 5 << 20 // 5 MiB
 
 // Window and toolbar geometry.
 //
-// The window is fixed-size, so a toolbar wider than it clips buttons rather
-// than wrapping -- which is how adding the Diagnostic button, taking the row
-// from five entries to six, could have gone unnoticed. TestToolbarFitsWindow
-// guards against that, and reads these constants so it cannot disagree with
-// what main() actually builds; it used to carry its own copies of the numbers
-// with a comment asking the reader to keep them in step.
+// The window is fixed-size, so a toolbar wider than it pushes buttons off the
+// edge rather than wrapping -- which is how adding the Diagnostic button,
+// taking the row from five entries to six, could have gone unnoticed. Two
+// things keep that from clipping anything: actionButtonCell never returns a
+// cell smaller than the button it holds, and main() widens the window to its
+// content rather than trusting windowWidth to be enough. The floor below is a
+// floor, not a size: it stops "Quit" from shrinking to a chip beside "Start
+// transformation", and nothing more.
+//
+// TestToolbarFitsWindow reads these constants so it cannot disagree with what
+// main() actually builds; it used to carry its own copies of the numbers with
+// a comment asking the reader to keep them in step.
 const (
-	actionButtonWidth  = 150
-	actionButtonHeight = 34
-	windowWidth        = 980
-	windowHeight       = 470
+	actionButtonMinWidth  = 140
+	actionButtonMinHeight = 36
+	windowWidth           = 980
+	windowHeight          = 470
 )
+
+// actionButtonCell is the cell one toolbar button gets: its own minimum,
+// widened to actionButtonMinWidth so the short labels keep company with the
+// long ones. A cell of a flat 150x34 used to be handed to every button
+// regardless, which cut the label off the three that carry a long one --
+// "Start transformation" alone needs 186px -- and cropped all six by two
+// pixels vertically.
+func actionButtonCell(btn *widget.Button) fyne.Size {
+	return btn.MinSize().Max(fyne.NewSize(actionButtonMinWidth, actionButtonMinHeight))
+}
+
+// newActionToolbar lays the action buttons out in one centred row.
+//
+// The centring is the point of the wrapper: an HBox packs from the left, so
+// the row sat against the left edge with the whole leftover width -- 60px of
+// it -- pooled on the right.
+func newActionToolbar(buttons ...*widget.Button) fyne.CanvasObject {
+	cells := make([]fyne.CanvasObject, 0, len(buttons))
+	for _, btn := range buttons {
+		cells = append(cells, container.NewGridWrap(actionButtonCell(btn), btn))
+	}
+	return container.NewCenter(container.NewHBox(cells...))
+}
 
 const (
 	prefQualityProfile   = "ui.quality_profile"
@@ -970,11 +999,6 @@ func main() {
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading
 
-	buttonSize := fyne.NewSize(actionButtonWidth, actionButtonHeight)
-	alignActionButton := func(btn *widget.Button) fyne.CanvasObject {
-		return container.NewGridWrap(buttonSize, btn)
-	}
-
 	header := container.NewVBox(title, subtitle)
 
 	// System diagnostics: ffmpeg/ffprobe availability, free disk, memory, CPU.
@@ -1014,14 +1038,7 @@ func main() {
 	quitBtn := widget.NewButton("Quit", func() {
 		app.Quit()
 	})
-	toolbar := container.NewHBox(
-		alignActionButton(open),
-		alignActionButton(selectOutput),
-		alignActionButton(start),
-		alignActionButton(cancel),
-		alignActionButton(diagnosticBtn),
-		alignActionButton(quitBtn),
-	)
+	toolbar := newActionToolbar(open, selectOutput, start, cancel, diagnosticBtn, quitBtn)
 
 	sourceForm := widget.NewForm(
 		widget.NewFormItem("Input file", selectedFile),
@@ -1066,7 +1083,10 @@ func main() {
 
 	window.SetContent(content)
 
-	window.Resize(fyne.NewSize(windowWidth, windowHeight))
+	// The window cannot be resized by the user, so it has to be at least as
+	// big as what it holds: a longer label on any button would otherwise leave
+	// part of the toolbar outside the frame, with nothing on screen to say so.
+	window.Resize(fyne.NewSize(windowWidth, windowHeight).Max(content.MinSize()))
 	window.SetFixedSize(true)
 
 	window.ShowAndRun()
