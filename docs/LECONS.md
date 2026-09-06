@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 79 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 80 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -789,7 +789,60 @@ traçabilité en supprimant la dette. Même famille que L-65 : quand un artefact
 jour ultérieure récurrente, chercher la formulation qui rend cette mise à jour inutile plutôt que
 le garde-fou qui la rappelle.
 
+### L-80 — Balayer les symboles ne balaie pas les affirmations — 2026-09-06
+AGENTS.md prescrit, après un changement d'API, `grep -rn "FunctionName" --include='*.md' .`.
+Fait, et sans résultat : le chantier matériel n'a renommé aucune fonction. Ce qu'il a rendu faux,
+ce sont des **phrases** — « installez FFmpeg », « voici ce que contient l'archive », « vérifiez
+votre GPU avec `ffmpeg -encoders | grep nvenc` ». Le README a donc continué à prescrire
+`winget install Gyan.FFmpeg`, c'est-à-dire précisément le build qui avait causé le signalement,
+à travers trois PR qui modifiaient ce même fichier. C'est l'utilisateur qui l'a vu.
+→ Après un correctif, se demander **quelles promesses la documentation faisait sur le
+comportement qui vient de changer**, et relire les sections concernées en entier. Trois questions
+suffisent à les trouver : qu'est-ce que le README dit d'**installer**, qu'est-ce qu'il dit de
+**vérifier**, et qu'est-ce qu'il dit que l'utilisateur **recevra** ? Un `grep` sur un identifiant
+ne peut répondre à aucune des trois.
+*Corollaire mesuré ici* : modifier un fichier dans une PR ne le met pas à jour. Les trois PR
+avaient toutes touché `README.md` — une seule section chacune.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] U-06 — Le README prescrivait encore le build qui casse l'encodage matériel
+
+| | |
+| --- | --- |
+| **Constat** | U-06 ([ANALYSE.md § 3septies](ANALYSE.md)) |
+| **Fichiers** | `README.md` (Requirements, Overview, Installation, Usage, Configuration, Architecture, Development), `docs/ANALYSE.md` (§ 1), `docs/CONTRATS.md` (§ 1), `docs/ENVIRONNEMENT.md`, `superview.yaml` |
+| **PR** | #56 |
+| **Vérification** | documentation seule ; aucun fichier Go modifié · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `superview.yaml` reparsé et tests de config rejoués (fichier livré) ✅ · liens internes du README vérifiés ✅ |
+
+**Symptôme** — relevé par l'utilisateur après la fusion de #54. Le § *Requirements* prescrivait
+`winget install -e --id Gyan.FFmpeg`, c'est-à-dire le build 8.1.2 à plancher 610 qui est à
+l'origine du signalement, et donnait `ffmpeg -encoders | grep nvenc` comme moyen de vérifier son
+GPU — la vérification dont U-03 a établi qu'elle ne prouve rien.
+
+**Cause racine** — les trois PR du chantier avaient toutes modifié `README.md`, chacune une
+section. Le balayage prescrit par AGENTS.md porte sur les **symboles** ; aucun n'avait changé. Ce
+qui était devenu faux, ce sont des affirmations, qu'aucun `grep` sur un identifiant ne relie au
+correctif.
+
+**Correctif** — § *Requirements* réécrite autour de « une archive n'exige rien à installer »,
+avertissement `winget` avec la version qui fonctionne, et renvoi à *Diagnostic* pour vérifier le
+GPU. Contenu réel des archives, disposition d'installation, `SUPERVIEW_FFMPEG_DIR` documenté là où
+on le cherche, cartographie du projet à jour. Hors README : compteurs et couverture de
+`ANALYSE.md` § 1 rafraîchis à `ec7d753`, table des sources de `CONTRATS.md` complétée,
+`ENVIRONNEMENT.md` précise qu'un build source n'embarque pas de FFmpeg — donc que les sondes
+mesurent celui du système et non celui que les utilisateurs recevront — et `superview.yaml` dit
+pourquoi le choix du binaire n'est pas une clé de configuration.
+
+**Trouvé en chemin, antérieur au chantier** — les étapes de la GUI nommaient des boutons
+inexistants (« 1) Choose input file », « 3) Start Superview transform ») et
+`.\superview-gui.exe` ne correspondait au nom d'aucun exécutable livré. Corrigés ici : ils sont
+dans les sections relues.
+
+**Leçon** — L-80.
+
+---
+
 
 ### [2026-09-06] Hygiène du journal — le numéro de PR remplace le sha de fusion
 

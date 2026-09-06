@@ -6,7 +6,7 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 8ᵉ (U-03 à U-05), close le 2026-09-06 sur `ed9a6b5` — comme la 7ᵉ,
+> Dernière passe : 8ᵉ (U-03 à U-06), close le 2026-09-06 sur `ec7d753` — comme la 7ᵉ,
 > un signalement de l'utilisateur et non une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
@@ -37,30 +37,38 @@ au format PGM P2 (`x.pgm`, `y.pgm`) puis les passe au filtre `remap` de FFmpeg.
 
 ### Cartographie des fichiers
 
-Comptes de lignes mesurés à `a672bc6` (la CI qualité couvre `./...`, cf. X-01) :
+Comptes de lignes mesurés à `ec7d753` (la CI qualité couvre `./...`, cf. X-01) :
 
 ```
-/                            paquet main (GUI) — 28 tests, couverture 25,2 %
-├── gui_main.go             1070 l. — fenêtre Fyne, orchestration, état d'encodage
+/                            paquet main (GUI) — couverture 25,8 %
+├── gui_main.go             1140 l. — fenêtre Fyne, orchestration, état d'encodage
 │                                     dont ~540 l. dans main() : construction de
 │                                     widgets, délibérément non découpée (P-10)
-├── gui_main_test.go         843 l.
+├── gui_main_test.go         990 l.
 ├── gui_native_dialog_linux.go    81 l. — zenity / kdialog       (non testé, assumé)
 ├── gui_native_dialog_windows.go  60 l. — PowerShell WinForms    (non testé, assumé)
 │
-common/                      paquet métier — couverture 81,5 %, vert sous -race
-├── common.go               1587 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
+common/                      paquet métier — couverture 83,8 %, vert sous -race
+├── common.go               1699 l. — pipeline complet (ffprobe, PGM, ffmpeg, session)
+│                                     et résolution des binaires : override, copie
+│                                     empaquetée, PATH (U-04)
 ├── observability.go         391 l. — bus d'événements + dernier état publié
 ├── config.go                308 l. — Config YAML + surcharges SUPERVIEW_*
+├── probe.go                 308 l. — sonde d'encodeurs à l'exécution (U-03)
+├── health.go                304 l. — diagnostics système, branché sur le bouton Diagnostic
 ├── metrics.go               296 l. — métriques d'encodage
-├── health.go                278 l. — diagnostics système, branché sur le bouton Diagnostic
+├── hardware.go              277 l. — classification des encodeurs, montage périphérique (U-05)
 ├── security.go              231 l. — validation de chemins, whitelist encodeur
-├── hardware.go              200 l. — profil machine, choix encodeur/hwaccel
 ├── gui_helpers.go            40 l. — helpers parsing GUI
 ├── command-{windows,other}.go     — SysProcAttr HideWindow
 ├── health_disk_{unix,windows}.go  — espace disque libre par plateforme
 └── testdata/ffprobe/              — sorties ffprobe enregistrées (12 cas)
+
+.github/scripts/
+└── nvenc-driver-floor.sh          — lit le plancher pilote dans un binaire FFmpeg (U-04)
 ```
+
+> Couverture module **68,7 %** pour un seuil CI de 50 %.
 
 > `common.go` porte à lui seul un tiers du code de production et mêle au moins six
 > responsabilités : découverte des binaires externes, logger, interfaces UI, cycle de
@@ -1922,6 +1930,49 @@ risque : un chemin qui ne fonctionne pas n'est jamais retenu.
 
 ---
 
+### U-06 ✅ — ~~Le README enseignait encore le défaut que le chantier venait de corriger~~ — **CORRIGÉ**
+
+Relevé par l'utilisateur après la fusion de #54 : « le README n'a pas été mis à jour ».
+Exact, et pire que cela.
+
+Les trois PR du chantier avaient bien modifié le README — mais seulement sa section
+*Hardware acceleration*. Les autres sections, écrites avant, disaient encore le
+contraire :
+
+| Passage | Ce qu'il disait |
+| --- | --- |
+| § *Requirements* | `winget install -e --id Gyan.FFmpeg` — **le build 8.1.2 à plancher 610**, exactement celui qui a coûté NVENC à la carte du signalement |
+| § *Requirements* | « Check FFmpeg NVENC support : `ffmpeg -encoders \| grep nvenc` » — la vérification dont U-03 a établi qu'elle ne prouve rien |
+| § *Requirements* | FFmpeg présenté comme un prérequis, alors que les archives en embarquent un |
+| § *Installation* | Contenu des archives décrit sans `ffmpeg`, `ffprobe` ni les notices ; nom d'exécutable faux ; le zip Windows a maintenant un dossier |
+| § *Usage* | « fix your `PATH` and retry », sans un mot de `SUPERVIEW_FFMPEG_DIR` |
+| § *Configuration* | Liste des variables d'environnement sans `SUPERVIEW_FFMPEG_DIR` |
+| § *Architecture* | Cartographie sans `probe.go`, `THIRD_PARTY_NOTICES.md` ni `.github/scripts/` |
+
+Deux erreurs **préexistantes** ont été trouvées au passage, sans rapport avec le
+chantier : les étapes de la GUI nommaient des boutons qui n'existent pas (« 1) Choose
+input file », « 3) Start Superview transform » ; les libellés réels n'ont pas de numéro
+et le troisième est « Start transformation »), et `.\superview-gui.exe` ne correspondait
+au nom d'aucun exécutable livré.
+
+*Cause* — le balayage prescrit par AGENTS.md porte sur les **symboles** :
+`grep -rn "FunctionName" --include='*.md'`. Il a été fait, et il ne pouvait rien
+trouver : aucun nom de fonction n'avait changé. Ce qui avait changé, ce sont des
+**affirmations** — « installez ffmpeg », « voici ce que contient l'archive », « voici
+comment vérifier votre GPU » — qu'aucun grep sur un identifiant ne relie au correctif.
+
+*Correctif* — § *Requirements* réécrite autour de « si vous utilisez une archive, il n'y
+a rien à installer », avec l'avertissement sur `winget` et le renvoi à *Diagnostic* pour
+vérifier le GPU ; contenu réel des archives et disposition d'installation ;
+`SUPERVIEW_FFMPEG_DIR` documenté là où on le cherche ; cartographie à jour. Corrigés
+aussi : `docs/ANALYSE.md` § 1 (cartographie et compteurs à `ec7d753`, couverture
+68,7 %), `docs/CONTRATS.md` § 1 (préfixes de constats, script de plancher ajouté aux
+sources), `docs/ENVIRONNEMENT.md` (un build source n'embarque pas de FFmpeg, donc les
+sondes mesurent celui du système), et `superview.yaml` (pourquoi le choix du binaire
+n'est pas une clé de configuration).
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -1935,7 +1986,7 @@ risque : un chemin qui ne fonctionne pas n'est jamais retenu.
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
 | ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
-| ✅ **Corrigé et vérifié — 8ᵉ passe** (3) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage |
+| ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
@@ -2108,3 +2159,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-06 | **U-04**, suite de U-03 : les archives Windows et Linux embarquent un FFmpeg épinglé sur son **plancher pilote** (570.0), relu dans le binaire par la CI. Sources choisies pour la permanence de leurs URL — gyan.dev versionne ses releases, BtbN conserve ses builds de fin de mois (celui d'octobre 2024 répond encore). Découvert en route : `make install` d'un paquet fyne 1.7.2 échoue sur la ligne de l'icône, donc **aucune archive Linux publiée n'était installable**. Leçons L-74 à L-76. |
 | 2026-09-06 | **U-05**, fin du chantier U-03 : ajout des encodeurs `*_vulkan` et `*_d3d12va`, qui passent par le pilote d'affichage et n'ont donc aucun plancher NVENC à manquer. Leur ajout a montré que `h264_vaapi`, candidat de longue date, n'avait jamais pu fonctionner faute de périphérique et d'upload dans le pipeline. Conversion réelle vérifiée par `h264_vulkan`. Deux contre-épreuves fausses corrigées en chemin. Leçons L-77, L-78. |
 | 2026-09-06 | Hygiène du journal des corrections : le gabarit de [LECONS.md § 3](LECONS.md) demandait le sha de fusion, valeur qui n'existe pas encore quand l'entrée s'écrit — dix entrées sur treize affichaient encore « non commité ». Champ remplacé par le **numéro de PR**, connu dès l'ouverture, et les dix-huit entrées renseignées après identification de leur PR par l'historique du code (`git log -S`) plutôt que par déduction. Leçon L-79. |
+| 2026-09-06 | **U-06**, relevé par l'utilisateur : les trois PR du chantier matériel n'avaient mis à jour que la section *Hardware acceleration* du README. Le § *Requirements* prescrivait toujours `winget install Gyan.FFmpeg` — le build à plancher 610 à l'origine du signalement — et donnait `ffmpeg -encoders \| grep nvenc` comme moyen de vérifier son GPU. Cause : le balayage prescrit porte sur les symboles, or aucun symbole n'avait changé ; ce sont des affirmations qui étaient devenues fausses. Leçon L-80. |
