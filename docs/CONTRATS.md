@@ -27,10 +27,11 @@
 | 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
 | 9 | `README.md` | Comportement documenté côté utilisateur. |  |
 | 10 | `Makefile` | Cibles de build et de qualité locales. Même portée que la CI (`./...`). |  |
-| 11 | `.github/copilot-instructions.md` | Conventions du projet pour les agents. |  |
+| 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` ne fait que l'importer — Claude Code ne lit pas `AGENTS.md`. |  |
 
-> Les entrées `build.sh`, `tools/` et `coverage.out` ont disparu de cette table
-> avec les fichiers eux-mêmes.
+> Les entrées `build.sh`, `tools/` et `coverage.out` ont disparu de cette table avec
+> les fichiers eux-mêmes. `.github/copilot-instructions.md` aussi : son contenu vit
+> désormais dans `AGENTS.md`, que Copilot lit nativement.
 
 ### Fichiers à traiter avec la plus grande prudence
 
