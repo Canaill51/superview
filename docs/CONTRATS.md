@@ -226,6 +226,17 @@ fonctionne.
   8 bits *et* l'encodeur est de la famille HEVC (`remapFilterChain`). `h264_nvenc` ne sait pas
   encoder en 10 bits, et le High 10 de `libx264` se lit mal (N-03).
 - Un `pix_fmt` vide ou non reconnu vaut 8 bits : c'est la direction qui préserve l'existant.
+- **Encodeurs à trames sur périphérique** (VAAPI, Vulkan, D3D12, depuis U-05) : la chaîne se
+  termine par `,format=nv12,hwupload` — `,format=p010,hwupload` en 10 bits, les pools matériels
+  étant semi-planaires — et `-init_hw_device <type>=sv -filter_hw_device sv` est émis **avant
+  les `-i`**, avec les autres options globales. Après `-i`, ces options ne configurent rien et
+  l'upload échoue en cherchant un périphérique jamais créé. `remap` étant un filtre CPU, les
+  trames sont en mémoire système à ce point quel que soit l'encodeur : l'upload s'ajoute après,
+  donc il ne déplace aucun pixel.
+- **Le montage vient de `hwDeviceArgs` et `hwUploadFilters`, que la sonde emploie aussi.** Ne pas
+  dupliquer : une sonde qui ouvrirait un périphérique que la conversion n'ouvre pas passerait
+  puis échouerait à l'encodage ; l'inverse condamnerait un encodeur qui fonctionne.
+  `TestProbeAndConversionAskTheSameQuestion` compare les deux.
 
 ### Contrat du pipeline (depuis les correctifs de la 4ᵉ passe)
 

@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 76 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 78 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -749,7 +749,64 @@ par ce projet étaient concernées.
 La vérification tient en trois lignes — `make install DESTDIR=…` puis un test d'existence — et
 elle trouve ce qu'aucune relecture de l'archive ne montre.
 
+### L-77 — Chercher un nom dans un message n'est pas vérifier ce qu'il dit — 2026-09-06
+Le test d'intégration du chemin Vulkan vérifiait que le résumé d'après-encodage contenait
+`h264_vulkan`. Or le message de repli est `Hardware: h264_vulkan failed; used CPU encode
+(libx264)` : il contient le nom, précisément parce qu'il rapporte son échec. Le test passait donc
+sur un repli CPU — c'est-à-dire sur le défaut même qu'il devait attraper — et il l'a prouvé en
+restant vert alors que tout le montage du périphérique avait été retiré du pipeline.
+→ Assertion sur le sens, pas sur la présence d'un jeton : `strings.HasPrefix(summary,
+"Hardware: used "+encoder+" encode")`. Un vocabulaire d'échec réutilise toujours le vocabulaire
+du succès ; un `Contains` sur un nom propre est presque toujours une assertion trop faible.
+
+### L-78 — Une contre-épreuve appliquée au code partagé se neutralise elle-même — 2026-09-06
+La sonde et la conversion emploient volontairement les mêmes fonctions, pour ne pas poser deux
+questions différentes. Résultat : casser `hwUploadFilters` cassait aussi la sonde, l'encodeur
+n'était plus retenu, et le test d'intégration se **sautait** en annonçant `ok`. Deux contre-épreuves
+ont ainsi paru muettes alors que le défaut était bien réintroduit.
+→ Saboter au **site d'appel** que le test exerce, pas dans la fonction commune : ici
+`remapFilterChain` et `buildEncodeBaseArgs`, pas `hwUploadFilters` ni `hwDeviceArgs`. Et lire la
+sortie `-v` : un `ok` qui vient d'un `SKIP` n'est pas un test qui passe. Prolonge L-49.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] U-05 — Deux chemins matériels sans plancher pilote, et VAAPI réparé au passage
+
+| | |
+| --- | --- |
+| **Constat** | U-05 ([ANALYSE.md § 3septies](ANALYSE.md)) |
+| **Fichiers** | `common/hardware.go`, `common/common.go`, `common/probe.go` ; tests : `common/hardware_test.go`, `common/common_test.go`, `common/probe_test.go`, `common/integration_test.go` ; docs : `README.md`, `docs/CONTRATS.md`, `docs/hardware-support.md` |
+| **Commit** | non commité |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · conversion réelle 640×480 → 853×480 par `h264_vulkan` ✅ · 5 contre-épreuves ✅ |
+
+**Symptôme** — FFmpeg 8.1 expose `h264_vulkan`, `hevc_vulkan` et, sous Windows,
+`h264_d3d12va` / `hevc_d3d12va`. Ces encodeurs passent par le pilote d'affichage, pas par l'API
+NVENC : la négociation de version qui a coûté l'accélération matérielle à une RTX A1000 (U-03) ne
+les concerne pas. Ils étaient déjà listés par `ffmpeg -encoders` chez nous, et
+`candidateEncodersForCodec` ne les proposait jamais.
+
+**Cause racine, découverte en les ajoutant** — ils n'acceptent que des trames déjà sur le
+périphérique. `remap` étant un filtre CPU, les trames sont en mémoire système à la sortie de la
+chaîne. Le pipeline n'émettait ni `-init_hw_device` ni `hwupload` : **`h264_vaapi`, candidat de
+longue date, n'avait donc jamais pu fonctionner** — sur une machine où VAAPI marche, l'encodage
+échouait et repliait silencieusement sur le CPU.
+
+**Correctif** — `hwDeviceArgs` et `hwUploadFilters`, employées **à la fois** par la conversion et
+par la sonde. Le périphérique est créé avant les `-i` (après, l'option ne configure rien) et
+l'upload s'ajoute à la fin de la chaîne, donc après le `remap` : la géométrie est inchangée. En
+10 bits l'upload passe par `p010`, les pools matériels étant semi-planaires.
+
+**Deux contre-épreuves fausses, corrigées** — casser le code partagé neutralisait la
+contre-épreuve, le test se sautant au lieu d'échouer (L-78) ; et l'assertion du test cherchait le
+nom de l'encodeur dans un résumé que le message de repli contient aussi (L-77).
+
+**Ce qui n'a pas pu être essayé** — `*_d3d12va`, spécifique à Windows. La sonde rend l'ajout sans
+risque : un chemin qui ne répond pas n'est jamais retenu.
+
+**Leçon** — L-77, L-78.
+
+---
+
 
 ### [2026-09-06] U-04 — Les archives embarquent leur FFmpeg, épinglé sur son plancher pilote
 
@@ -757,7 +814,7 @@ elle trouve ce qu'aucune relecture de l'archive ne montre.
 | --- | --- |
 | **Constat** | U-04 ([ANALYSE.md § 3septies](ANALYSE.md)) |
 | **Fichiers** | `.github/workflows/release.yml`, `.github/scripts/nvenc-driver-floor.sh` (nouveau), `common/common.go`, `THIRD_PARTY_NOTICES.md` (nouveau) ; tests : `common/toolresolve_test.go` (nouveau) ; docs : `README.md`, `AGENTS.md`, `RELEASING.md`, `docs/hardware-support.md`, `docs/CONTRATS.md` |
-| **Commit** | non commité |
+| **Commit** | `ed9a6b5` (PR #53) |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · scripts du YAML extraits et exécutés en vrai ✅ · paquet Linux construit, empaqueté, installé et **lancé installé** ✅ |
 
 **Symptôme** — décidé avec l'utilisateur après U-03 : le comportement de l'application dépendait

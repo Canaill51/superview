@@ -1021,7 +1021,12 @@ func remapFilterChain(pixFmt, encoder string) string {
 	if isHighBitDepth(pixFmt) && isHEVCEncoder(encoder) {
 		intermediate, output = "yuv444p10le", "yuv420p10le"
 	}
-	return fmt.Sprintf("[0:v:0][1:v:0][2:v:0]remap,format=%s,format=%s[v]", intermediate, output)
+	// remap is a CPU filter, so the frames are in system memory at this point
+	// whatever the encoder. The ones that cannot take them from there get the
+	// upload appended -- the same steps hwUploadFilters gives the probe, so the
+	// probe and the conversion ask the machine the same question.
+	return fmt.Sprintf("[0:v:0][1:v:0][2:v:0]remap,format=%s,format=%s%s[v]",
+		intermediate, output, hwUploadFilters(encoder, output))
 }
 
 // x265MaxFrameThreads is the largest -threads value libx265 accepts.
@@ -1074,6 +1079,11 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 	// 10-minute video could never convert in less than 10 minutes regardless of
 	// the hardware. It offered no safety, only a slowdown.
 	// PerformanceMode now only drives the audio codec strategy, in EncodeVideo.
+
+	// Before -i, with the other global options: this creates the device the
+	// filter graph uploads to, and is nothing at all for the encoders that take
+	// frames from system memory.
+	baseArgs = append(baseArgs, hwDeviceArgs(encoder)...)
 
 	baseArgs = append(baseArgs,
 		"-i", video.File, "-i", xPath, "-i", yPath,

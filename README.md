@@ -107,8 +107,11 @@ your own instead.
 
 At startup Superview asks each encoder to encode one frame, and keeps only the
 ones that answer. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
-`h264_amf`/`hevc_amf` (AMD) and `h264_qsv`/`hevc_qsv` (Intel), and falls back to
-`libx264`/`libx265` on the CPU whenever a hardware path is unavailable or refused.
+`h264_amf`/`hevc_amf` (AMD), `h264_qsv`/`hevc_qsv` (Intel) and VAAPI, then the
+vendor-neutral `h264_d3d12va` and `h264_vulkan` — which are driven by the
+display driver rather than by NVENC's own API, so they are still there when an
+FFmpeg build demands an NVIDIA driver the machine cannot install. It falls back
+to `libx264`/`libx265` on the CPU whenever no hardware path is usable.
 
 Asking rather than reading `ffmpeg -encoders` is the point: that list says what
 the binary was compiled with and cannot see your driver. An FFmpeg built against
