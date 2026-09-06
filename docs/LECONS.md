@@ -806,6 +806,44 @@ avaient toutes touché `README.md` — une seule section chacune.
 
 ## 3. Corrections appliquées
 
+### [2026-09-06] U-06 — Le README prescrivait encore le build qui casse l'encodage matériel
+
+| | |
+| --- | --- |
+| **Constat** | U-06 ([ANALYSE.md § 3septies](ANALYSE.md)) |
+| **Fichiers** | `README.md` (Requirements, Overview, Installation, Usage, Configuration, Architecture, Development), `docs/ANALYSE.md` (§ 1), `docs/CONTRATS.md` (§ 1), `docs/ENVIRONNEMENT.md`, `superview.yaml` |
+| **PR** | #56 |
+| **Vérification** | documentation seule ; aucun fichier Go modifié · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `superview.yaml` reparsé et tests de config rejoués (fichier livré) ✅ · liens internes du README vérifiés ✅ |
+
+**Symptôme** — relevé par l'utilisateur après la fusion de #54. Le § *Requirements* prescrivait
+`winget install -e --id Gyan.FFmpeg`, c'est-à-dire le build 8.1.2 à plancher 610 qui est à
+l'origine du signalement, et donnait `ffmpeg -encoders | grep nvenc` comme moyen de vérifier son
+GPU — la vérification dont U-03 a établi qu'elle ne prouve rien.
+
+**Cause racine** — les trois PR du chantier avaient toutes modifié `README.md`, chacune une
+section. Le balayage prescrit par AGENTS.md porte sur les **symboles** ; aucun n'avait changé. Ce
+qui était devenu faux, ce sont des affirmations, qu'aucun `grep` sur un identifiant ne relie au
+correctif.
+
+**Correctif** — § *Requirements* réécrite autour de « une archive n'exige rien à installer »,
+avertissement `winget` avec la version qui fonctionne, et renvoi à *Diagnostic* pour vérifier le
+GPU. Contenu réel des archives, disposition d'installation, `SUPERVIEW_FFMPEG_DIR` documenté là où
+on le cherche, cartographie du projet à jour. Hors README : compteurs et couverture de
+`ANALYSE.md` § 1 rafraîchis à `ec7d753`, table des sources de `CONTRATS.md` complétée,
+`ENVIRONNEMENT.md` précise qu'un build source n'embarque pas de FFmpeg — donc que les sondes
+mesurent celui du système et non celui que les utilisateurs recevront — et `superview.yaml` dit
+pourquoi le choix du binaire n'est pas une clé de configuration.
+
+**Trouvé en chemin, antérieur au chantier** — les étapes de la GUI nommaient des boutons
+inexistants (« 1) Choose input file », « 3) Start Superview transform ») et
+`.\superview-gui.exe` ne correspondait au nom d'aucun exécutable livré. Corrigés ici : ils sont
+dans les sections relues.
+
+**Leçon** — L-80.
+
+---
+
+
 ### [2026-09-06] Hygiène du journal — le numéro de PR remplace le sha de fusion
 
 | | |
