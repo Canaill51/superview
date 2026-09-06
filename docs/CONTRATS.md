@@ -1,125 +1,56 @@
-# Sources à consulter avant toute modification du code
+# Contrats techniques du dépôt
 
-> Dernière mise à jour : 2026-09-04
-> **À lire avant d'ouvrir un fichier `.go` de ce dépôt.** L'ordre importe : les sections 1 à 3
-> conditionnent la validité de toute modification.
+> **À lire avant d'ouvrir un fichier `.go` de ce dépôt.** Ce fichier dit ce sur
+> quoi on peut s'appuyer et ce qu'il ne faut pas casser. Il est maintenu ; les
+> deux journaux ([ANALYSE.md](ANALYSE.md), [LECONS.md](LECONS.md)) racontent
+> comment on en est arrivé là.
+>
+> Pour compiler le paquet `main` sur un poste sans `sudo`, voir
+> [ENVIRONNEMENT.md](ENVIRONNEMENT.md).
 
 ---
 
-## 1. Environnement de vérification — **installé et éprouvé**
-
-État au 2026-09-04 : **partiellement opérationnel**. `sudo` n'étant pas disponible
-(authentification interactive impossible), tout a été installé dans l'espace utilisateur.
-
-| Composant | Emplacement | Survit au redémarrage |
-| --- | --- | --- |
-| Toolchain Go 1.26.8 | `~/.local/go` | ✅ oui |
-| Sysroot GUI (en-têtes GL/X11/Wayland) | `/tmp/glue/sysroot` | ❌ **non — à reconstruire** |
-| `ffmpeg` 8.0.1, `ffprobe`, `zenity` | système | ✅ oui |
-
-Conséquence pratique en début de session : `./common` se compile, se teste sous `-race` et se
-lint immédiatement ; le paquet `main` échoue sur `wayland-client-core.h: No such file or
-directory` tant que le sysroot n'est pas refait. **Ne pas annoncer une modification de la GUI
-comme vérifiée dans cet état** (L-01).
-
-### Rétablir l'environnement depuis zéro
-
-```bash
-# 1. Toolchain Go (sans sudo) — utiliser la dernière 1.26.x, comme la CI
-cd /tmp && curl -sLO https://go.dev/dl/go1.26.8.linux-amd64.tar.gz
-rm -rf ~/.local/go && mkdir -p ~/.local && tar -C ~/.local -xzf go1.26.8.tar.gz
-export PATH=$HOME/.local/go/bin:$PATH && go version
-
-# 2. En-têtes GUI sans sudo : télécharger les .deb et les extraire dans un sysroot
-mkdir -p /tmp/glue/debs && cd /tmp/glue/debs
-apt-get download libgl-dev libgl1-mesa-dev libglx-dev libx11-dev libxcursor-dev \
-  libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxext-dev \
-  libxrender-dev libxfixes-dev x11proto-dev libglvnd-dev libegl-dev libopengl-dev
-cd /tmp/glue && for d in debs/*.deb; do dpkg -x "$d" sysroot; done
-
-# 3. Faire pointer les symlinks .so du sysroot vers les bibliothèques système
-cd /tmp/glue/sysroot/usr/lib/x86_64-linux-gnu
-for f in *.so; do t=$(readlink "$f"); [ -n "$t" ] && [ ! -e "$t" ] && \
-  [ -e "/usr/lib/x86_64-linux-gnu/$t" ] && ln -sf "/usr/lib/x86_64-linux-gnu/$t" "$f"; done
-```
-
-### Le fichier d'environnement à sourcer avant tout travail
-
-`/tmp/guienv.sh` — **sans lui, le paquet racine ne compile pas** :
-
-```bash
-export PATH=$HOME/.local/go/bin:$PATH
-export SYSROOT=/tmp/glue/sysroot
-export PKG_CONFIG_PATH=$SYSROOT/usr/lib/x86_64-linux-gnu/pkgconfig:$SYSROOT/usr/share/pkgconfig
-export CGO_CFLAGS="-I$SYSROOT/usr/include"
-export CGO_LDFLAGS="-L$SYSROOT/usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu"
-```
-
-> Si `sudo` redevient disponible, `sudo apt install -y libgl1-mesa-dev xorg-dev` rend tout ce
-> montage inutile — c'est la voie à privilégier.
-
-### Outils d'analyse
-
-```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2  # noter le /v2
-go install honnef.co/go/tools/cmd/staticcheck@latest
-go install golang.org/x/vuln/cmd/govulncheck@latest
-```
-
-> ⚠️ **`.../golangci-lint/cmd/golangci-lint@latest` (sans `/v2`) installe silencieusement la
-> dernière v1**, en fin de vie. C'était le piège du constat X-04.
-
-### Dépendances runtime — présentes
-
-`ffmpeg` 8.0.1, `ffprobe`, `zenity` : déjà installés sur cette machine.
-
-### Réflexe de début de session
-
-```bash
-command -v go >/dev/null && go version || echo "toolchain à réinstaller (voir ci-dessus)"
-ls /tmp/glue/sysroot/usr/include/GL/gl.h 2>/dev/null || echo "sysroot à reconstruire"
-```
-
-Le sysroot vit dans `/tmp` : il **ne survit pas à un redémarrage**. La toolchain, dans
-`~/.local/go`, oui.
-
-## 2. Sources internes au dépôt — par ordre de priorité
+## 1. Sources internes au dépôt — par ordre de priorité
 
 | # | Source | Quand la consulter | Fiabilité |
 | --- | --- | --- | --- |
-| 1 | [`output_claude/ANALYSE_PROJET.md`](ANALYSE_PROJET.md) | Toujours. Constats numérotés B/S/C/X/O/T, priorités. | ✅ à jour |
-| 2 | [`output_claude/LESSONS.md`](LESSONS.md) | Toujours. Corrections déjà appliquées, leçons permanentes, file d'attente. | ✅ à jour |
-| 3 | `go.mod` | Version Go et dépendances exactes avant toute modification d'API. | ✅ fait foi |
-| 4 | `common/*_test.go` | **Avant de modifier une fonction de `common/`** : le test décrit le contrat attendu. | ✅ fait foi |
-| 4bis | `common/pgm_golden_test.go` | **Avant de toucher à `GeneratePGM`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | ✅ fait foi |
-| 4ter | `common/integration_test.go` | Contrat bout-en-bout avec un vrai FFmpeg (ratio de sortie, progression, annulation). | ✅ fait foi |
-| 5 | `superview.yaml` | Options de configuration effectivement livrées. | ⚠️ `min_video_*` et `quality_preset` restent sans effet (C-03, non tranché) |
-| 6 | `.golangci.yml` | Règles de lint appliquées. Schéma v2 ; staticcheck cadré sur `SA*`+`S1*` (`QF*` exclus à dessein, cf. L-09/L-12). | ✅ à jour |
-| 7 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI — désormais `./...`, seuil de couverture 50 %. | ✅ à jour |
-| 8 | `README.md` | Comportement documenté côté utilisateur. | ✅ à jour |
-| 9 | `Makefile` | Cibles de build locales. | ✅ corrigé (X-02) |
-| 10 | `.github/copilot-instructions.md` | Conventions du projet. | ✅ corrigé (X-03) |
-| 11 | `build.sh` | Script de release historique. | 🗑️ marqué obsolète, refuse de s'exécuter (X-08) |
-| 12 | ~~`coverage.out`~~ | — | 🗑️ supprimé du dépôt et ignoré par git (X-06) |
+| 1 | `common/*_test.go` | **Avant de modifier une fonction de `common/`** : le test décrit le contrat attendu. | fait foi |
+| 1bis | `common/pgm_golden_test.go` | **Avant de toucher à `GeneratePGM`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | fait foi |
+| 1ter | `common/integration_test.go` | Contrat bout-en-bout avec un vrai FFmpeg (ratio de sortie, progression, annulation). | fait foi |
+| 1quater | `common/testdata/ffprobe/` | Sorties ffprobe enregistrées : la forme exacte de la seule entrée que le programme ne produit pas lui-même. | fait foi |
+| 2 | `go.mod` | Version Go et dépendances exactes avant toute modification d'API. | fait foi |
+| 3 | `.golangci.yml` | Règles de lint appliquées. Schéma v2 ; staticcheck cadré sur `SA*`+`S1*`, `QF*` et `ST*` exclus à dessein (cf. [L-09, L-12](LECONS.md)). | fait foi |
+| 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `./...`, seuil de couverture 50 %, `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
+| 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre. | fait foi |
+| 6 | `superview.yaml` | Options de configuration effectivement livrées. Attention : le fichier livre `performance_mode: safe_performance`, alors que le défaut interne, appliqué en son absence, est `safe`. |  |
+| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R et leur état. | journal, voir son en-tête |
+| 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
+| 9 | `README.md` | Comportement documenté côté utilisateur. |  |
+| 10 | `Makefile` | Cibles de build et de qualité locales. Même portée que la CI (`./...`). |  |
+| 11 | `.github/copilot-instructions.md` | Conventions du projet pour les agents. |  |
+
+> Les entrées `build.sh`, `tools/` et `coverage.out` ont disparu de cette table
+> avec les fichiers eux-mêmes.
 
 ### Fichiers à traiter avec la plus grande prudence
 
-- **`common/common.go`** (1080 l.) — cœur du pipeline. Toute modification touche l'encodage réel.
-  Sous-sections sensibles : `GeneratePGM` (mathématiques du remappage — ne pas « simplifier »
-  sans vidéo de référence), `EncodeVideo` (cascade de repli à trois niveaux + gestion de
-  signaux + goroutines).
-- **`gui_main.go`** (602 l.) — non couvert par la CI ni par des tests. Une régression ici
-  n'est détectée par personne.
+- **`common/common.go`** — cœur du pipeline, et de loin le plus gros fichier du dépôt. Toute
+  modification touche l'encodage réel. Sous-sections sensibles : `GeneratePGM` (mathématiques
+  du remappage — ne pas « simplifier » sans vidéo de référence), `EncodeVideo` (cascade de
+  repli à trois niveaux + gestion de signaux + goroutines).
+- **`gui_main.go`** — la CI le compile et le teste désormais (`./...`), mais la couverture du
+  paquet reste basse : `main()` construit des widgets, ce qu'aucun test ne traverse. Les
+  *décisions* sont ailleurs, dans le type `appState`, et sont couvertes.
 - **`common/security.go`** — modifier une validation, c'est modifier une frontière de sécurité.
   Justifier chaque assouplissement.
 
 ---
 
-## 3. Règles de vérification propres à ce dépôt
+## 2. Règles de vérification propres à ce dépôt
 
 ### Avant de modifier
 
-1. Lire `LESSONS.md` — la correction a peut-être déjà été tentée et rejetée.
+1. Lire [`LECONS.md`](LECONS.md) — la correction a peut-être déjà été tentée et rejetée.
 2. Lire le test correspondant dans `common/*_test.go`.
 3. Vérifier que le symbole n'est pas du code mort (constats C-01, C-02, C-03, C-06) :
    ```bash
@@ -130,22 +61,25 @@ Le sysroot vit dans `/tmp` : il **ne survit pas à un redémarrage**. La toolcha
 ### Après avoir modifié
 
 ```bash
-source /tmp/guienv.sh            # sinon le paquet racine ne compile pas (voir § 1)
+. /tmp/guienv.sh                 # sinon le paquet racine ne compile pas (voir ENVIRONNEMENT.md)
 
 gofmt -l .                       # doit ne rien afficher — la CI échoue sinon
 go build ./...
 go vet ./...
-go test ./... -race -count=1
-"$(go env GOPATH)/bin/staticcheck" ./...
+SUPERVIEW_REQUIRE_FFMPEG=1 go test ./... -race -count=1
 "$(go env GOPATH)/bin/golangci-lint" run ./... --timeout=5m
 "$(go env GOPATH)/bin/govulncheck" ./...
 
-go test ./... -coverprofile=/tmp/cov.out -covermode=atomic
+SUPERVIEW_REQUIRE_FFMPEG=1 go test ./... -coverprofile=/tmp/cov.out -covermode=atomic
 go tool cover -func=/tmp/cov.out | grep total   # doit rester ≥ 50 % (seuil CI)
 ```
 
-Ces sept commandes sont exactement ce que la CI exécute. Toutes doivent passer avant de
-proposer une modification.
+C'est ce que la CI exécute, et rien de plus : `go vet` et `staticcheck` ne figurent plus
+séparément parce que `.golangci.yml` les active tous les deux — un outil lancé à côté de la
+configuration finit par contredire la configuration.
+
+`SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les `t.Skip` liés à ffmpeg. Sans elle, une
+suite verte peut n'avoir encodé aucune image ; la CI la positionne pour cette raison.
 
 > Écrire le profil de couverture dans `/tmp`, **jamais** à la racine : `coverage.out` est
 > désormais ignoré par git, mais un fichier généré à la racine reste du bruit.
@@ -171,8 +105,10 @@ ffprobe -v error -select_streams v:0 \
         -print_format json /tmp/in43.mp4
 ```
 
-Le second appel reproduit **exactement** celui de `CheckVideo` (`common/common.go:383`) : il
-permet de vérifier qu'un fichier passera la validation avant de lancer la GUI.
+Le second appel reproduit celui de `CheckVideo` : il permet de vérifier qu'un fichier passera
+la validation avant de lancer la GUI. Pour éprouver le *parsing* de cette sortie sans produire
+de vidéo, les cas sont enregistrés dans `common/testdata/ffprobe/` et couverts par
+`parseVideoSpecs` — y compris les rejets (durée `N/A`, `bit_rate` absent, JSON tronqué).
 
 ### Contrat de configuration (depuis la 2ᵉ passe)
 
@@ -218,7 +154,7 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 > ⚠️ **Ne jamais figer une de ces empreintes dans un test.** Elle dépend du build de l'encodeur
 > et rougirait sur un autre runner pour une raison étrangère au code. Le patron correct est
 > `TestGeneratePGM_RemapOutputIsStable` : comparer **deux exécutions du FFmpeg présent** plutôt
-> qu'inscrire le résultat de l'un d'eux. Voir [LESSONS.md](LESSONS.md) L-36.
+> qu'inscrire le résultat de l'un d'eux. Voir [LECONS.md](LECONS.md) L-36.
 
 ### Contrat de la chaîne de filtres (depuis la 4ᵉ passe)
 
@@ -323,7 +259,7 @@ Trois tests le verrouillent, et ils ne sont pas interchangeables :
 
 ---
 
-## 4. Références externes
+## 3. Références externes
 
 ### FFmpeg — autorité sur tout le comportement d'encodage
 
@@ -379,17 +315,3 @@ Trois tests le verrouillent, et ils ne sont pas interchangeables :
 - Dépôt amont : https://github.com/Canaill51/superview
 
 ---
-
-## 5. Journal des révisions de ce document
-
-| Date | Modification |
-| --- | --- |
-| 2026-09-04 | Création. Pré-requis toolchain, hiérarchie des sources internes avec indice de fiabilité, procédure de vérification, références FFmpeg/Go/Fyne/CI. |
-| 2026-09-04 | Ajout du contrat de configuration explicite (C-05) : plus de global mutable, `*Config` passée en paramètre. |
-| 2026-09-04 | § 1 réécrit : environnement installé et éprouvé (Go dans `~/.local`, sysroot GUI sans sudo). Indices de fiabilité mis à jour après correction des fichiers. Procédure de vérification alignée sur la CI étendue à `./...`. |
-| 2026-09-04 | 4ᵉ passe : § 1 requalifié (le sysroot de `/tmp` ne survit pas au redémarrage, le paquet `main` ne compile pas en l'état). Ajout du « Contrat FFmpeg — faits établis par mesure » et de la recette de comparaison par empreinte de sortie décodée. Cas limites étendus aux chemins où vivent P-01 à P-04, P-06 et N-03/N-04/N-05. |
-| 2026-09-04 | Correctifs N-03/N-04/N-05, P-08 et P-11 appliqués : ajout des contrats « chaîne de filtres » et « cartes de remappage », du plafond `-threads` de `libx265` au contrat FFmpeg, et de la mise en garde contre les empreintes figées dépendant d'un build externe. |
-| 2026-09-04 | Second lot de correctifs : ajout du « Contrat du pipeline » (7 invariants tenus par des tests), de la mesure du dépassement de débit et du format de cadence au contrat FFmpeg, et de la recette d'écriture d'un test d'annulation. |
-| 2026-09-04 | P-10 appliqué : ajout du « Contrat de l'état de la GUI » (5 règles) et du point d'entrée `newTestAppState` pour tester une transition. |
-| 2026-09-04 | N-07 révisé : ajout au contrat FFmpeg de la dépendance du gain matériel au débit de la source, et du coût du rapatriement GPU→RAM. Une mesure d'accélération matérielle faite sur une mire ne vaut rien. |
-| 2026-09-04 | Ajout de « La formule de distorsion — ce qu'on sait d'elle » après P-12 : l'annulation des deux termes au centre, l'exigence d'arithmétique flottante, et l'avertissement que le test doré fige les défauts aussi fidèlement que le reste. |

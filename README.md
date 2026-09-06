@@ -15,13 +15,16 @@ Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, ins
 
 - [Overview](#overview)
 - [Requirements](#requirements)
-- [Hardware Compatibility](#hardware-compatibility)
+- [Hardware acceleration](#hardware-acceleration)
 - [Installation](#installation)
 - [Usage (GUI)](#usage)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
-- [API Documentation](#api-documentation)
 - [Development](#development)
+
+For contributors: [RELEASING.md](RELEASING.md) covers how a release is made,
+[docs/CONTRATS.md](docs/CONTRATS.md) what the code guarantees, and
+[docs/hardware-support.md](docs/hardware-support.md) which GPUs generally work.
 
 ## Overview
 
@@ -92,100 +95,57 @@ Check FFmpeg NVENC support if you have an Nvidia GPU:
 ffmpeg -hide_banner -encoders | grep nvenc
 ```
 
-## Hardware Compatibility
+## Hardware acceleration
 
-Superview does not hardcode a fixed GPU whitelist at runtime. It relies on the hardware capabilities actually exposed by your installed FFmpeg build and graphics driver.
+Superview asks your installed FFmpeg build which hardware encoders it has, rather
+than matching your GPU against a list. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
+`h264_amf`/`hevc_amf` (AMD) and `h264_qsv`/`hevc_qsv` (Intel), and falls back to
+`libx264`/`libx265` on the CPU whenever a hardware path is unavailable or refused.
 
-For H.264 and H.265 hardware acceleration, the practical prerequisites are:
+The GUI shows the planned path before launch, for example `h264_nvenc + D3D11VA`,
+and the path actually used once the run finishes.
 
-- the GPU must provide hardware encode and decode support for the codec you want to use
-- the installed driver must expose that support correctly
-- the installed FFmpeg build must include the relevant hardware encoder (`nvenc`, `amf`, or `qsv`)
-
-On Windows, Superview can now combine these hardware encoders with `D3D11VA` or `DXVA2` decode when the vendor-specific `hwaccel` token is not exposed by FFmpeg.
-
-### Nvidia
-
-Recommended minimum for reliable H.264 + H.265 encode/decode: `Pascal` and newer.
-
-Commonly compatible families:
-
-- GeForce GTX `10xx`
-- GeForce RTX `20xx`, `30xx`, `40xx`, `50xx`
-- Quadro `Pxxxx`
-- RTX professional `Axxxx`
-- Tesla / data center `P4`, `P40`, `T4`, `A2`, `A10`, `A16`, `L4`, `L40`
-
-Notes:
-
-- Some low-end exceptions exist even inside newer generations, so FFmpeg detection remains authoritative.
-- Older `Maxwell 2` cards may support parts of HEVC, but are not the baseline recommended here.
-
-### AMD
-
-Recommended minimum for reliable H.264 + H.265 encode/decode: `VCN 2.0` and newer.
-
-Commonly compatible families:
-
-- Radeon RX `5300`, `5500`, `5600`, `5700`
-- Radeon RX `6600`, `6700`, `6800`, `6900`
-- Radeon RX `7600`, `7700`, `7800`, `7900`
-- Radeon RX `9060`, `9070`
-- Radeon Pro `W5xxx`, `W6xxx`, `W7xxx` families with matching VCN support
-- Ryzen APUs with supported media engines, typically Ryzen `5000` and newer integrated graphics platforms
-
-Important exclusions:
-
-- some `Navi24` products are decode-only for this use case, including RX `6300`, `6400`, `6500`
-- some Radeon Pro variants built on the same media block are also decode-only
-
-### Intel
-
-Minimum practical baseline for H.264 + H.265 hardware encode/decode: `Skylake`.
-
-Recommended baseline to reduce edge cases: `Kaby Lake` and newer.
-
-Commonly compatible families:
-
-- Intel Core `6th gen` and newer with active Quick Sync support
-- Intel Core `7th`, `8th`, `9th`, `10th`, `11th`, `12th`, `13th`, `14th gen`
-- Intel `Core Ultra`
-- Intel `Arc`
-
-Important limitations:
-
-- CPUs without an active iGPU or without Quick Sync available are not compatible
-- some `F`, `KF`, Xeon, and workstation variants may not expose usable Quick Sync
-- BIOS settings can disable the iGPU and therefore remove hardware video support entirely
-
-### What Superview Actually Supports
-
-Superview currently targets the following FFmpeg hardware encoders for H.264 and H.265:
-
-- Nvidia: `h264_nvenc`, `hevc_nvenc`
-- AMD: `h264_amf`, `hevc_amf`
-- Intel: `h264_qsv`, `hevc_qsv`
-- CPU fallback: `libx264`, `libx265`
-
-If your GPU is theoretically compatible but the encoder does not appear in the GUI, the issue is usually one of these:
-
-- FFmpeg was installed without the relevant hardware encoder enabled
-- the graphics driver is missing, outdated, or vendor-generic in a way that hides the video engine
-- the machine exposes decode support but not encode support for that specific card
-- the codec is supported on paper by the family, but not by that exact SKU
+For the GPU families that generally work, and what to check when a card that should
+be supported does not appear, see **[docs/hardware-support.md](docs/hardware-support.md)**.
 
 ## Installation
 
 ### Option 1: Use prebuilt binaries (recommended for final users)
 
-1. Download the Windows archive from [Releases](https://github.com/Canaill51/superview/releases).
-2. Extract it.
-3. Run `superview-gui.exe`.
+Every release publishes an archive per platform plus a `checksums.txt`, on the
+[Releases](https://github.com/Canaill51/superview/releases) page.
 
-Windows (PowerShell):
+**Windows** — download `superview-gui-<version>-windows-x86_64.zip`, extract it, and
+run `superview-gui.exe`:
+
 ```powershell
 .\superview-gui.exe
 ```
+
+**Linux** — download `superview-gui-<version>-linux-x86_64.tar.xz`. The archive carries
+the binary, a `.desktop` entry, an icon and a `Makefile`, so you can either run it in
+place or install it:
+
+```bash
+tar -xJf superview-gui-<version>-linux-x86_64.tar.xz
+
+./superview/usr/local/bin/superview      # run it where it is
+sudo make -C superview install           # or install it into /usr/local
+```
+
+**Verify what you downloaded.** Put `checksums.txt` next to the archives and run:
+
+```bash
+sha256sum -c checksums.txt          # Linux
+```
+
+```powershell
+Get-FileHash superview-gui-*-windows-x86_64.zip -Algorithm SHA256   # Windows
+```
+
+The binary reports its own identity -- release number, the commit it was built from,
+and whether the tree was modified -- in the window title, the first line of the
+Diagnostic report and the log at startup. Quote it in any bug report.
 
 ### Option 2: Build from source
 
@@ -252,7 +212,8 @@ Superview looks for `superview.yaml` in this order, and uses the first file it f
 3. `~/.config/superview/superview.yaml` (Linux) or `%AppData%\superview\superview.yaml` (Windows)
 4. the current working directory
 
-If none exists, built-in defaults apply. Edit `superview.yaml` to customize:
+If none exists, built-in defaults apply. This is the `superview.yaml` shipped with
+the project:
 
 ```yaml
 min_bitrate: 102400       # ~0.1 Mbps minimum
@@ -265,6 +226,12 @@ video_preset: ""         # optional: ultrafast..veryslow (empty = ffmpeg default
 filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
 ```
+
+> One value differs between this file and the built-in defaults: the shipped file
+> sets `performance_mode: safe_performance` (copy the audio stream untouched),
+> whereas the built-in default, used when no config file is found at all, is
+> `safe` (re-encode audio to AAC). Deleting your `superview.yaml` therefore
+> changes how audio is handled.
 
 Override with environment variables:
 
@@ -285,21 +252,25 @@ export SUPERVIEW_ENCODER_THREADS=8
 
 ```
 superview/
-├── common/
-│   ├── common.go           # Encoding pipeline, session lifecycle, exported workflow
-│   ├── config.go           # Configuration loading and defaults
-│   ├── gui_helpers.go      # GUI-specific helpers shared with tests
-│   ├── hardware.go         # Hardware capability profiling
-│   ├── health.go           # System health checks
-│   ├── metrics.go          # Encoding metrics collection
-│   ├── observability.go    # Event recording and logging hooks
-│   ├── security.go         # Path and input validation helpers
-│   ├── command-*.go        # OS-specific process setup
-│   └── *_test.go           # Unit tests for the common package
-├── gui_main.go             # GUI entry point (Fyne)
-├── gui_native_dialog_*.go  # Native file dialogs (zenity/kdialog, PowerShell)
-├── superview.yaml          # Default configuration
-└── FyneApp.toml            # Fyne packaging metadata
+├── common/                     # Encoding logic, shared by any front end
+│   ├── common.go               # Pipeline, session lifecycle, ffprobe/ffmpeg calls
+│   ├── config.go               # Configuration loading and defaults
+│   ├── hardware.go             # Hardware capability profiling
+│   ├── health.go               # System health checks (the Diagnostic button)
+│   ├── metrics.go              # Encoding metrics
+│   ├── observability.go        # Event recording and logging
+│   ├── security.go             # Path and input validation
+│   ├── command-*.go            # OS-specific process setup
+│   ├── health_disk_*.go        # Free-disk-space probe per platform
+│   ├── *_test.go               # Unit, golden and integration tests
+│   └── testdata/ffprobe/       # Recorded ffprobe output the parser is tested against
+├── docs/                       # Technical contracts, audit journal, hardware support
+├── gui_main.go                 # GUI entry point (Fyne)
+├── gui_native_dialog_*.go      # Native file dialogs (zenity/kdialog, PowerShell)
+├── superview.yaml              # Default configuration
+├── FyneApp.toml                # Fyne packaging metadata
+├── Makefile                    # Local build and quality targets
+└── RELEASING.md                # How a release is made
 ```
 
 ### Encoding Pipeline
@@ -310,62 +281,6 @@ Input → CheckFfmpeg → CheckVideo → InitEncodingSession → GeneratePGM →
                                ValidateBitrate + FindEncoder
                                VideoSpecs.Validate()
                                EncodingMetrics / Observability hooks
-```
-
-## API Documentation
-
-Public API in `common` package:
-
-```go
-// Configuration
-GetConfig() *Config
-SetConfig(cfg *Config)
-LoadConfig(filepath string) (*Config, error)
-CreateDefaultConfig(filepath string) error
-
-// Logging
-SetLogger(l *slog.Logger)
-GetLogger() *slog.Logger
-
-// Encoding Workflow
-CheckFfmpeg() (map[string]string, error)
-CheckVideo(file string) (*VideoSpecs, error)
-PerformEncoding(inputFile, outputFile string, ui UIHandler,
-                ffmpeg map[string]string, cancel <-chan struct{}) error
-InitEncodingSession() error
-CleanUp() error
-```
-
-Implement the `UIHandler` interface for custom UIs:
-
-```go
-type UIHandler interface {
-    ShowError(error)
-    ShowInfo(msg string)
-    ShowProgress(percent float64)
-    GetBitrate() (int, error)
-    GetEncoder() string
-    GetSqueeze() bool
-}
-```
-
-### Example: Custom Handler
-
-```go
-type MyHandler struct{}
-
-func (h *MyHandler) ShowError(err error) { log.Printf("ERROR: %v\n", err) }
-func (h *MyHandler) ShowInfo(msg string) { fmt.Println("INFO:", msg) }
-func (h *MyHandler) ShowProgress(percent float64) { fmt.Printf("%.1f%%\r", percent) }
-func (h *MyHandler) GetBitrate() (int, error) { return 5242880, nil }
-func (h *MyHandler) GetEncoder() string { return "libx265" }
-func (h *MyHandler) GetSqueeze() bool { return false }
-
-// Use it. Configuration is passed explicitly; nil means built-in defaults.
-cfg, _ := common.LoadConfig(common.ResolveConfigPath())
-ffmpeg, _ := common.CheckFfmpeg(cfg)
-cancel := make(chan struct{})
-common.PerformEncoding(cfg, "input.mp4", "output.mp4", &MyHandler{}, ffmpeg, cancel)
 ```
 
 ## Development
@@ -380,30 +295,22 @@ winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreeme
 
 ### Build & Test
 
-```powershell
-# Run tests with coverage
-go test ./common -cover
-
-# Run package tests
-go test ./common
-
-# Build GUI binary
-go build -ldflags="-H=windowsgui" -o superview-gui.exe .
-
-# Linux
-go build -o superview-gui .
+```bash
+make test        # go test ./... -- the whole module, as CI does
+make coverage    # coverage over ./..., which the 50% CI gate measures
+make check       # fmt, vet, lint, coverage and govulncheck
+make build       # GUI binary for the current platform
 ```
 
-### Recent Improvements
+`make build-gui-windows` is Windows-native: Fyne draws through cgo, so setting
+`GOOS=windows` from Linux gives no C toolchain and the link step fails. The release
+workflow builds each platform on its own runner for the same reason.
 
-- **Étape 1**: Go 1.26+ and dependency refresh
-- **Étape 2**: Secure temp file handling
-- **Étape 3**: Custom error types and validation
-- **Étape 4**: UIHandler interface and shared GUI helpers
-- **Étape 5**: Expanded unit test coverage
-- **Étape 6**: Structured logging with `slog`
-- **Étape 7**: External configuration (YAML + env vars)
-- **Étape 8**: Updated documentation for the current project layout
+Set `SUPERVIEW_REQUIRE_FFMPEG=1` to turn the ffmpeg-dependent skips into failures --
+this is what CI does, so that a green suite cannot mean "encoded nothing".
+
+Releases are made from the Actions tab and are documented in
+[RELEASING.md](RELEASING.md). There is no local release script.
 
 ## Contributors ✨
 
