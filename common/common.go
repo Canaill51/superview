@@ -3,6 +3,7 @@ package common
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,13 @@ var commandStdoutPipe = func(cmd *exec.Cmd) (io.ReadCloser, error) {
 
 func newFFmpegCommand(args ...string) *exec.Cmd {
 	return exec.Command(resolveToolBinary("ffmpeg"), args...)
+}
+
+// newFFmpegCommandContext is newFFmpegCommand with a deadline. The encoder
+// probes use it: a driver that is present but wedged answers nothing at all,
+// and a probe that never returns would hang the window it is meant to inform.
+func newFFmpegCommandContext(ctx context.Context, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, resolveToolBinary("ffmpeg"), args...)
 }
 
 func newFFprobeCommand(args ...string) *exec.Cmd {

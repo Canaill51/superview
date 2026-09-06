@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"image/color"
@@ -411,6 +412,11 @@ type appState struct {
 	ffmpeg          map[string]string
 	ffmpegAvailable bool
 
+	// encoderProbe is what the advertised encoders answered when actually
+	// asked to encode a frame. Nil until the probe finishes; the hardware line
+	// says so rather than claiming a path it has not verified.
+	encoderProbe *common.EncoderProbeReport
+
 	// Encoding lifecycle. cancel is non-nil exactly while a conversion is
 	// running and has not been cancelled yet; requestCancel is the only place
 	// allowed to close it, because closing a channel twice panics.
@@ -485,11 +491,27 @@ func (s *appState) refreshHardwareStatus() {
 		return
 	}
 
+	if s.encoderProbe == nil {
+		s.hardwareStatus.SetText("Hardware: checking which encoders this machine accepts...")
+		return
+	}
+
 	selection := ""
 	if s.encoder != nil {
 		selection = common.ParseEncoderSelection(s.encoder.Selected)
 	}
 	s.hardwareStatus.SetText(common.DescribeHardwareAccelerationPlan(s.ffmpeg, s.video, selection))
+}
+
+// setEncoderProbe records the probe verdicts and drops the encoders that
+// refused the work from the capability map.
+//
+// From here on every question asked of s.ffmpeg -- which encoder to plan for,
+// what to offer in the dropdown, what to actually run -- is answered from what
+// this machine did, not from what the binary was compiled with.
+func (s *appState) setEncoderProbe(report *common.EncoderProbeReport) {
+	s.encoderProbe = report
+	s.ffmpeg = common.ApplyEncoderProbe(s.ffmpeg, report)
 }
 
 // setEncoding moves the window between its idle and busy shapes.
@@ -722,6 +744,7 @@ func main() {
 	// Declared up front because the button callbacks below close over it; it is
 	// assigned once the encoder dropdown exists, before any callback can run.
 	var refreshEncoderOptions func()
+	var startEncoderProbe func()
 
 	start = widget.NewButtonWithIcon("Start transformation", theme.MediaPlayIcon(), func() {
 		if state.video == nil {
@@ -943,6 +966,7 @@ func main() {
 				slog.String("version", probed["version"]))
 
 			refreshEncoderOptions()
+			startEncoderProbe()
 			// The same list the encoding transition uses: a control that must
 			// come back after ffmpeg appears is exactly one that must come back
 			// after a conversion ends.
@@ -995,6 +1019,29 @@ func main() {
 	if !state.ffmpegAvailable {
 		state.locked.setEnabled(false)
 	}
+
+	// Ask the encoders whether they actually work, off the UI thread.
+	//
+	// It takes a few hundred milliseconds per encoder -- far too long to spend
+	// before the window appears, and far too important to skip: until it comes
+	// back, everything known about this machine's hardware comes from a list
+	// ffmpeg compiled in, which cannot see the driver.
+	startEncoderProbe = func() {
+		if !state.ffmpegAvailable {
+			return
+		}
+		capabilities := state.ffmpeg
+		go func() {
+			report := common.ProbeHardwareSupport(context.Background(), capabilities)
+			fyne.Do(func() {
+				state.setEncoderProbe(report)
+				refreshEncoderOptions()
+				state.refreshHardwareStatus()
+				state.refreshStart()
+			})
+		}()
+	}
+	startEncoderProbe()
 
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -28,6 +29,13 @@ type SystemHealth struct {
 	Memory    HealthCheckResult
 	CPU       HealthCheckResult
 	AllChecks []HealthCheckResult // All checks performed
+
+	// Encoders holds what each advertised encoder answered when asked to
+	// encode a frame. It is not one of AllChecks and does not affect Overall:
+	// a machine with no working hardware encoder is not unhealthy, it is a
+	// machine that will encode on the CPU. But it is the section that explains
+	// why, and the report exists to be attached to bug reports.
+	Encoders *EncoderProbeReport
 }
 
 // CheckHealth performs comprehensive system health checks.
@@ -62,6 +70,13 @@ func CheckHealth(cfg *Config) *SystemHealth {
 
 	// Overall health: all critical checks must pass
 	health.Overall = health.FFmpeg.Healthy && health.FFprobe.Healthy && health.Disk.Healthy
+
+	// Probing needs an ffmpeg to run; without one there is nothing to ask.
+	if health.FFmpeg.Healthy {
+		if ffmpeg, err := CheckFfmpeg(cfg); err == nil {
+			health.Encoders = ProbeHardwareSupport(context.Background(), ffmpeg)
+		}
+	}
 
 	return health
 }
@@ -239,6 +254,13 @@ func LogHealth(logger *slog.Logger, health *SystemHealth) {
 		slog.Bool("cpu", health.CPU.Healthy),
 	)
 
+	for _, probe := range health.Encoders.Unusable() {
+		logger.Warn("encoder advertised but unusable",
+			slog.String("encoder", probe.Encoder),
+			slog.String("reason", probe.Reason),
+		)
+	}
+
 	// Log details for failed checks
 	for _, check := range health.AllChecks {
 		if !check.Healthy {
@@ -272,6 +294,10 @@ func GetHealthReport(health *SystemHealth) string {
 		if check.Value != "" {
 			report += fmt.Sprintf("   Value: %s\n", check.Value)
 		}
+	}
+
+	if health.Encoders != nil {
+		report += "\n" + DescribeEncoderProbe(health.Encoders)
 	}
 
 	return report

@@ -157,6 +157,30 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 > `TestGeneratePGM_RemapOutputIsStable` : comparer **deux exécutions du FFmpeg présent** plutôt
 > qu'inscrire le résultat de l'un d'eux. Voir [LECONS.md](LECONS.md) L-36.
 
+### Contrat des capacités matérielles (depuis U-03, 2026-09-06)
+
+**`ffmpeg -encoders` et `ffmpeg -hwaccels` ne décrivent pas la machine.** Ils décrivent le
+binaire : ce avec quoi il a été compilé. Aucun des deux ne voit le pilote. Ne jamais rétablir une
+décision de capacité fondée sur eux seuls.
+
+La seule source de vérité est la sonde de `common/probe.go` : un encodage d'une trame par
+encodeur, dont le code de retour fait foi. `ApplyEncoderProbe` retire ensuite du profil ffmpeg
+les encodeurs qui ont refusé — **et uniquement ceux-là** : un encodeur non sondé n'est pas un
+encodeur refusé.
+
+| Fait | Conséquence |
+| --- | --- |
+| Sur la machine de développement, six encodeurs annoncés ne peuvent ouvrir aucun périphérique (`h264_qsv`, `hevc_qsv`, `h264_vaapi`, `hevc_vaapi`, `h264_v4l2m2m`, `hevc_v4l2m2m`) | L'écart entre « annoncé » et « utilisable » est la règle, pas l'exception. |
+| Un encodeur VAAPI n'accepte que des trames déjà sur le périphérique | Sa sonde exige `-init_hw_device vaapi=…`, `-filter_hw_device` et `-vf format=nv12,hwupload`. Sans cela elle échoue dans le graphe de filtres, avant le pilote, et condamne un encodeur qui fonctionne. |
+| FFmpeg imprime la cause en **premier** et les conséquences ensuite | Un résumé qui garde la fin de la sortie garde « Error opening output files » et jette « Unknown encoder 'x' ». |
+| Le plancher pilote NVENC est fixé à la compilation par les `nv-codec-headers` | Deux binaires « FFmpeg 8.1.2 » peuvent exiger 570 et 610. Le numéro de version ne dit rien de la compatibilité. Table mesurée : [hardware-support.md](hardware-support.md). |
+| Le SDK 13.1 exige un pilote ≥ 610 et retire Maxwell/Pascal/Volta | La branche pilote RTX Enterprise plafonne à 597.06 : un tel build ne peut jamais utiliser NVENC sur une carte professionnelle. |
+| La sonde complète coûte ~0,95 s sur 10 encodeurs (243 ms pour un NVENC qui répond, ~35 ms pour un refus) | Elle tient dans une goroutine de démarrage ; elle n'a rien à faire sur le fil UI. |
+
+Les sondes s'exécutent **en série**. Les encodeurs matériels ont un nombre limité de sessions
+simultanées, et deux sondes en parallèle sur le même GPU peuvent faire échouer un encodeur qui
+fonctionne.
+
 ### Contrat de la chaîne de filtres (depuis la 4ᵉ passe)
 
 `buildEncodeBaseArgs` doit émettre, dans cet ordre, après les trois `-i` :

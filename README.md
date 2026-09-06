@@ -97,13 +97,20 @@ ffmpeg -hide_banner -encoders | grep nvenc
 
 ## Hardware acceleration
 
-Superview asks your installed FFmpeg build which hardware encoders it has, rather
-than matching your GPU against a list. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
+At startup Superview asks each encoder to encode one frame, and keeps only the
+ones that answer. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
 `h264_amf`/`hevc_amf` (AMD) and `h264_qsv`/`hevc_qsv` (Intel), and falls back to
 `libx264`/`libx265` on the CPU whenever a hardware path is unavailable or refused.
 
+Asking rather than reading `ffmpeg -encoders` is the point: that list says what
+the binary was compiled with and cannot see your driver. An FFmpeg built against
+newer NVIDIA headers than your driver supports advertises `h264_nvenc` and then
+refuses every frame — which is how a conversion ends up on the CPU with nothing
+on screen to say why.
+
 The GUI shows the planned path before launch, for example `h264_nvenc + D3D11VA`,
-and the path actually used once the run finishes.
+and the path actually used once the run finishes. **Diagnostic** lists every
+encoder that was probed and, for each refusal, what FFmpeg said about it.
 
 For the GPU families that generally work, and what to check when a card that should
 be supported does not appear, see **[docs/hardware-support.md](docs/hardware-support.md)**.
@@ -276,11 +283,12 @@ superview/
 ### Encoding Pipeline
 
 ```
-Input → CheckFfmpeg → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo → CleanUp → Output
-                                              ↓
-                               ValidateBitrate + FindEncoder
-                               VideoSpecs.Validate()
-                               EncodingMetrics / Observability hooks
+Startup → CheckFfmpeg → ProbeHardwareSupport → ApplyEncoderProbe
+Input → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo → CleanUp → Output
+                               ↓
+                ValidateBitrate + FindEncoder
+                VideoSpecs.Validate()
+                EncodingMetrics / Observability hooks
 ```
 
 ## Development

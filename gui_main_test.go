@@ -586,6 +586,83 @@ func TestGUIHandler_ShowProgressDetailWithoutLabelDoesNotPanic(t *testing.T) {
 	handler.ShowProgressDetail(50, 10*time.Second)
 }
 
+// TestAppState_HardwareLineWaitsForTheProbe pins the half of the defect the
+// user never sees until the encode is already slow.
+//
+// Before the probe comes back, all the window knows about this machine comes
+// from `ffmpeg -encoders`, which is a list of what the binary was compiled
+// with. Announcing "planned h264_nvenc encode" from that is a promise nobody
+// has checked -- and on an NVIDIA card whose driver predates what the ffmpeg
+// build demands, it is a promise that will be broken silently.
+func TestAppState_HardwareLineWaitsForTheProbe(t *testing.T) {
+	test.NewApp()
+
+	state := &appState{
+		ffmpegAvailable: true,
+		ffmpeg:          map[string]string{"encoders": "h264_nvenc,libx264", "accels": "cuda"},
+		video:           testVideo(),
+		hardwareStatus:  widget.NewLabel(""),
+	}
+
+	state.refreshHardwareStatus()
+	before := state.hardwareStatus.Text
+
+	if strings.Contains(before, "h264_nvenc") {
+		t.Errorf("the window named an encoder it has not verified: %q", before)
+	}
+	if !strings.Contains(before, "checking") {
+		t.Errorf("an unverified state must say so, got %q", before)
+	}
+
+	state.setEncoderProbe(&common.EncoderProbeReport{Results: []common.EncoderProbe{
+		{Encoder: "h264_nvenc", Usable: true},
+		{Encoder: "libx264", Usable: true},
+	}})
+	state.refreshHardwareStatus()
+
+	if after := state.hardwareStatus.Text; !strings.Contains(after, "h264_nvenc") {
+		t.Errorf("once the probe confirms it, the plan must name the encoder; got %q", after)
+	}
+}
+
+// TestAppState_ProbeRefusalRemovesTheEncoderFromThePlan is the reported defect,
+// end to end.
+//
+// An ffmpeg built against newer nv-codec-headers than the installed driver
+// supports still lists h264_nvenc in `ffmpeg -encoders`; NVENC only refuses
+// when asked to encode. What the window must not do is plan for it anyway.
+func TestAppState_ProbeRefusalRemovesTheEncoderFromThePlan(t *testing.T) {
+	test.NewApp()
+
+	state := &appState{
+		ffmpegAvailable: true,
+		ffmpeg:          map[string]string{"encoders": "h264_nvenc,libx264", "accels": "cuda"},
+		video:           testVideo(),
+		hardwareStatus:  widget.NewLabel(""),
+	}
+
+	state.setEncoderProbe(&common.EncoderProbeReport{Results: []common.EncoderProbe{
+		{
+			Encoder: "h264_nvenc",
+			Reason:  "The minimum required Nvidia driver for nvenc is 610.00 or newer",
+		},
+		{Encoder: "libx264", Usable: true},
+	}})
+	state.refreshHardwareStatus()
+
+	if got := state.ffmpeg["encoders"]; got != "libx264" {
+		t.Errorf("a refused encoder is still advertised: %q", got)
+	}
+
+	plan := state.hardwareStatus.Text
+	if strings.Contains(plan, "nvenc") {
+		t.Errorf("the window still plans for an encoder the driver refuses: %q", plan)
+	}
+	if !strings.Contains(plan, "libx264") {
+		t.Errorf("the plan should have fallen back to the CPU encoder, got %q", plan)
+	}
+}
+
 // newTestAppState builds a fully wired appState with real widgets, the way
 // main() does. Tests that exercise a transition need every widget present:
 // asserting on a state machine whose outputs are nil proves nothing.

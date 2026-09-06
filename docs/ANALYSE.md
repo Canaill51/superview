@@ -6,13 +6,13 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 7ᵉ (U-01, U-02), close le 2026-09-06 sur `2cf0020` — un
-> signalement de l'utilisateur, pas une passe d'analyse.
+> Dernière passe : 8ᵉ (U-03), close le 2026-09-06 sur `7bb715e` — comme la 7ᵉ,
+> un signalement de l'utilisateur et non une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
 > **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
 > N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → § 3quinquies
-> (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ, U-xx) → **§ 4 (état d'avancement, le
+> (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ) et § 3septies (8ᵉ), U-xx → **§ 4 (état d'avancement, le
 > seul tableau qui fasse foi)**.
 
 ---
@@ -72,7 +72,9 @@ common/                      paquet métier — couverture 81,5 %, vert sous -ra
 
 ```
 main() ──► ResolveConfigPath() ──► LoadConfig()   ✅ exécutable / ~/.config / cwd (B-02)
-       ──► CheckFfmpeg(cfg)               → version / accels / encoders
+       ──► CheckFfmpeg(cfg)               → version / accels / encoders (compilation)
+       ──► goroutine ──► ProbeHardwareSupport() → encode une trame par encodeur (exécution)
+                          └─► ApplyEncoderProbe() retire les encodeurs qui ont refusé  (U-03)
        ──► [UI] choix entrée ──► CheckVideo()  → VideoSpecs + Validate()
        ──► [UI] choix sortie ──► ensureMP4Extension()
        ──► [UI] profil qualité ──► copie locale de *Config   ✅ plus de global (C-05)
@@ -1741,6 +1743,83 @@ elle aurait donc validé n'importe quel `Center` mal placé. Leçon L-70.
 
 ---
 
+## 3septies. Huitième passe (2026-09-06) — signalement utilisateur : l'accélération matérielle
+
+Signalement : « en fonction de la version de FFmpeg installée, l'accélération
+matérielle GPU peut ne plus être prise en charge ; la 8.1.2 ne la permet plus sur
+une Quadro A1000 ». Enquête demandée sur les documentations officielles.
+
+### U-03 ✅ — ~~Les capacités matérielles étaient déduites d'une liste qui ne voit pas le pilote~~ — **CORRIGÉ**
+
+**Ce que l'enquête a établi.** L'attribution de départ est fausse et la cause est
+ailleurs — mais le signalement est exact.
+
+FFmpeg 8.1 n'a rien changé : `libavcodec/nvenc.c` est **identique** entre
+`release/8.0` et `release/8.1` sur toute la logique de vérification du pilote (diff
+vide ; le diff complet du fichier fait 51 lignes, toutes des conversions de type).
+Le plancher est fixé **à la compilation**, par les `nv-codec-headers` employées, et
+lu à l'exécution :
+
+```c
+if ((NVENCAPI_MAJOR_VERSION << 4 | NVENCAPI_MINOR_VERSION) > nvenc_max_ver) {
+    av_log(avctx, AV_LOG_ERROR, "Driver does not support the required nvenc API version. …");
+    nvenc_print_driver_requirement(avctx, AV_LOG_ERROR);
+    return AVERROR(ENOSYS);
+}
+```
+
+Le plancher est un littéral compilé dans le binaire, donc mesurable sans exécuter
+Windows. Mesures du 2026-09-06 — le binaire de l'utilisateur a été identifié par
+l'empreinte SHA-256 du manifeste winget `Gyan.FFmpeg` 8.1.2, qui correspond :
+
+| Build | FFmpeg | Plancher |
+| --- | --- | --- |
+| Ubuntu `libavcodec62` 7:8.0.1-3ubuntu2 | 8.0.1 | 530.41.03 |
+| gyan.dev (winget) | 8.1.1 | 570.0 |
+| **gyan.dev (winget) — le binaire en cause** | **8.1.2** | **610.00** |
+| gyan.dev | 9.0.1 | 610.00 |
+| BtbN `win64-gpl-8.1` | 8.1.2 | 570.0 |
+| BtbN `win64-gpl-9.0` | 9.0.1 | 610.00 |
+
+Entre 8.1.1 (2026-05-04) et 8.1.2 (2026-06-27), même empaqueteur, gyan.dev est passé
+du SDK 13.0 au SDK 13.1. Or la branche pilote **RTX Enterprise plafonne à 597.06**
+(R595, 27 août 2026) : sur une carte professionnelle, aucune mise à jour de pilote ne
+peut satisfaire une exigence de 610. Ce n'était pas une machine mal configurée, c'était
+une exigence insatisfiable.
+
+**Le défaut qui nous appartient.** Superview déduisait ses capacités de
+`ffmpeg -encoders` et `ffmpeg -hwaccels`, qui répondent à une question de compilation
+et ne voient pas le pilote. Conséquences, toutes vérifiées :
+
+1. la ligne « Hardware » annonçait `planned h264_nvenc encode + CUDA decode` sans que
+   rien ne l'ait vérifié ;
+2. le repli fonctionnait — l'encodage sortait sur `libx264` — mais restait muet, donc
+   l'utilisateur voyait un encodage anormalement lent sans explication ;
+3. le rapport Diagnostic, que le README demande de joindre à tout rapport de bug, ne
+   disait **rien** des encodeurs. C'est ce qui a rendu cette enquête nécessaire.
+
+Mesuré sur la machine de développement : `ffmpeg -encoders` y annonce six encodeurs
+(`h264_qsv`, `hevc_qsv`, `h264_vaapi`, `hevc_vaapi`, `h264_v4l2m2m`, `hevc_v4l2m2m`)
+qui ne peuvent ouvrir aucun périphérique. L'écart est la règle, pas l'exception.
+
+*Correctif* — `common/probe.go` : chaque encodeur annoncé se voit demander d'encoder
+une trame de 256×256, et c'est le code de retour qui décide. `ApplyEncoderProbe` retire
+du profil ffmpeg ceux qui ont refusé, et **uniquement ceux-là** — un encodeur non sondé
+n'est pas un encodeur refusé. La ligne « Hardware » ne nomme plus d'encodeur avant que
+la sonde soit revenue, le menu déroulant n'offre plus l'impossible, et le rapport
+Diagnostic porte une section *Encoders* avec, pour chaque refus, les mots de ffmpeg.
+
+Coût mesuré : 0,95 s pour dix encodeurs, dans une goroutine de démarrage. Sondes en
+série (des sondes concurrentes sur un même GPU se disputent les sessions NVENC) et
+bornées par un délai propre, sans quoi un pilote bloqué retiendrait la goroutine.
+
+*Ce qui n'a pas été fait dans cette PR* — l'empaquetage d'un FFmpeg épinglé, décidé avec
+l'utilisateur (plancher 570, Windows et Linux, binaire embarqué prioritaire) et traité
+séparément ; et les chemins matériels supplémentaires `*_vulkan` et `*_d3d12va`, qui
+contournent entièrement la négociation NVENC.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -1754,6 +1833,7 @@ elle aurait donc validé n'importe quel `Center` mal placé. Leçon L-70.
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
 | ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
+| ✅ **Corrigé et vérifié — 8ᵉ passe** (1) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
@@ -1922,3 +2002,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-04 | **P-12** et **P-13**, trouvés en cherchant ce qui du mode squeeze était vérifiable sans fichier GoPro. La formule squeeze est conçue pour valoir zéro au centre — démontré algébriquement — mais des divisions entières y laissaient une couture de 1 à 2,6 px. Défaut hérité de l'amont, identique caractère pour caractère. Le libellé de la case promettait par ailleurs une compatibilité GoPro que l'amont dément. Leçon L-48. |
 | 2026-09-04 | Ajout du § 5bis « Questions ouvertes » et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
 | 2026-09-06 | **7ᵉ passe, à `2cf0020`** : deux défauts d'affichage signalés par l'utilisateur, § 3sexies. `U-01` — un `GridWrap` de 150 × 34 rognait trois libellés sur six, et `TestToolbarFitsWindow` mesurait la cellule imposée au lieu du bouton, sur des boutons sans icône : il était vert. `U-02` — un `HBox` nu collait la rangée à gauche. Cellule dérivée du minimum du bouton, rangée centrée, fenêtre élargie à son contenu. Leçons L-69, L-70 ; L-20 mise à jour. |
+| 2026-09-06 | **8ᵉ passe, à `7bb715e`** : § 3septies, constat `U-03`. Enquête sur un signalement d'accélération matérielle perdue : FFmpeg 8.1 n'y est pour rien (`nvenc.c` identique à 8.0), le plancher pilote est fixé par les `nv-codec-headers` de compilation et gyan.dev l'a porté de 570 à 610 entre 8.1.1 et 8.1.2, au-dessus du maximum atteignable par une carte professionnelle (597.06). Correctif : sonde à l'exécution, section *Encoders* dans le Diagnostic, ligne « Hardware » qui ne promet plus rien d'invérifié. Leçons L-71 à L-73. |
