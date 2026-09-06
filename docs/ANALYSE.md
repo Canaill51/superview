@@ -6,7 +6,7 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 8ᵉ (U-03), close le 2026-09-06 sur `7bb715e` — comme la 7ᵉ,
+> Dernière passe : 8ᵉ (U-03, U-04), close le 2026-09-06 sur `e27c343` — comme la 7ᵉ,
 > un signalement de l'utilisateur et non une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
@@ -1820,6 +1820,60 @@ contournent entièrement la négociation NVENC.
 
 ---
 
+### U-04 ✅ — ~~Le comportement dépendait du FFmpeg que l'utilisateur avait installé~~ — **CORRIGÉ**
+
+Suite décidée avec l'utilisateur après U-03 : « je souhaite que l'application ne soit
+pas dépendante d'une version installée par l'utilisateur ». Paramètres arrêtés par lui :
+plancher **570**, Windows **et** Linux, binaire embarqué **prioritaire** sur le `PATH`.
+
+**Ce que l'empaquetage achète, et ce qu'il n'achète pas.** Il supprime une variable —
+quel FFmpeg tourne — et rien d'autre : un GPU absent, un pilote sous le plancher, une
+limite de sessions NVENC restent des causes de repli. La garantie réelle s'énonce ainsi :
+*le FFmpeg que nous livrons n'exigera jamais un pilote que la machine ne peut pas avoir.*
+La sonde U-03 dit le reste.
+
+**Le choix des builds.** Ce qui est épinglé est le **plancher**, pas la version. Mesures :
+
+| Plateforme | Build retenu | Plancher | Charge utile |
+| --- | --- | --- | --- |
+| Windows | gyan.dev `ffmpeg-8.1.1-essentials_build` | 570.0 | +71 Mo dans le zip |
+| Linux | BtbN `linux64-gpl-8.1`, autobuild de fin de mois | 570.0 | +80 Mo dans le tar.xz |
+
+Écartés, et pourquoi : gyan 8.1.2 et 9.0.1 (plancher 610, insatisfiable sur carte
+professionnelle) ; les variantes `lgpl` (sans libx264/libx265, donc sans notre repli
+CPU) ; gyan `full_build-shared` (92 Mo zippés contre 71, `avfilter` y pèse 105 Mo à lui
+seul) ; BtbN `win64-gpl` statique (106 Mo, le choix du fork).
+
+**La durabilité des URL, mesurée.** Le pin du fork (`autobuild-2026-07-20-14-10`) est
+déjà en **404** : BtbN purge ses builds de milieu de mois. Mais il **conserve celui de
+chaque fin de mois** — celui du 31 octobre 2024 répond encore aujourd'hui (HTTP 200).
+Le pin Linux vise donc une fin de mois. Côté Windows, les releases gyan sont versionnées,
+donc permanentes par construction.
+
+*Correctif* — `resolveToolBinary` cherche dans l'ordre `SUPERVIEW_FFMPEG_DIR`, la copie
+empaquetée, le `PATH`, puis les répertoires winget/scoop. Sous Linux les outils vont dans
+`../lib/superview/` et non à côté de l'application : celle-ci s'installe dans `$PREFIX/bin`,
+où un `ffmpeg` masquerait celui du système pour toute la machine.
+
+Le workflow de release télécharge, vérifie l'empreinte SHA-256, **relit le plancher dans le
+binaire** (`.github/scripts/nvenc-driver-floor.sh`) et échoue s'il a bougé. Côté Linux il
+patche en plus le `Makefile` généré par fyne, puis lance `make install` dans un répertoire
+jetable pour vérifier que les fichiers atterrissent là où l'application les cherche.
+
+**Défaut découvert par cette vérification** — `make install` d'un paquet fyne 1.7.2
+**échoue** : le `Makefile` référence `usr/local/share/pixmaps/$(Icon)` alors que le fichier
+livré est `$(Icon).png`. L'échec survient à la dernière ligne, après l'installation du
+binaire, ce qui explique qu'il soit passé inaperçu — **toutes les archives Linux publiées
+par ce projet sont concernées**. Le workflow corrige la ligne à partir du nom du fichier
+réellement présent, et la vérification d'installation couvre désormais l'icône.
+
+*Vérification fonctionnelle* — l'application **installée** a été lancée sur une machine
+disposant d'un `/usr/bin/ffmpeg` valide, après remplacement du ffmpeg empaqueté par un
+témoin : 15 appels au binaire empaqueté (version, capacités, chaque sonde), zéro au
+`PATH`.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -1833,7 +1887,7 @@ contournent entièrement la négociation NVENC.
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
 | ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
-| ✅ **Corrigé et vérifié — 8ᵉ passe** (1) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution |
+| ✅ **Corrigé et vérifié — 8ᵉ passe** (2) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
@@ -2003,3 +2057,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-04 | Ajout du § 5bis « Questions ouvertes » et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
 | 2026-09-06 | **7ᵉ passe, à `2cf0020`** : deux défauts d'affichage signalés par l'utilisateur, § 3sexies. `U-01` — un `GridWrap` de 150 × 34 rognait trois libellés sur six, et `TestToolbarFitsWindow` mesurait la cellule imposée au lieu du bouton, sur des boutons sans icône : il était vert. `U-02` — un `HBox` nu collait la rangée à gauche. Cellule dérivée du minimum du bouton, rangée centrée, fenêtre élargie à son contenu. Leçons L-69, L-70 ; L-20 mise à jour. |
 | 2026-09-06 | **8ᵉ passe, à `7bb715e`** : § 3septies, constat `U-03`. Enquête sur un signalement d'accélération matérielle perdue : FFmpeg 8.1 n'y est pour rien (`nvenc.c` identique à 8.0), le plancher pilote est fixé par les `nv-codec-headers` de compilation et gyan.dev l'a porté de 570 à 610 entre 8.1.1 et 8.1.2, au-dessus du maximum atteignable par une carte professionnelle (597.06). Correctif : sonde à l'exécution, section *Encoders* dans le Diagnostic, ligne « Hardware » qui ne promet plus rien d'invérifié. Leçons L-71 à L-73. |
+| 2026-09-06 | **U-04**, suite de U-03 : les archives Windows et Linux embarquent un FFmpeg épinglé sur son **plancher pilote** (570.0), relu dans le binaire par la CI. Sources choisies pour la permanence de leurs URL — gyan.dev versionne ses releases, BtbN conserve ses builds de fin de mois (celui d'octobre 2024 répond encore). Découvert en route : `make install` d'un paquet fyne 1.7.2 échoue sur la ligne de l'icône, donc **aucune archive Linux publiée n'était installable**. Leçons L-74 à L-76. |

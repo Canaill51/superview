@@ -114,6 +114,13 @@ downloaded. Each packaged binary is unpacked and rejected if it is stamped
 `vcs.modified=true`, which is what stops a release from announcing itself as a
 modified build.
 
+Both archives carry a pinned FFmpeg, and the run refuses to ship one whose
+NVENC driver floor is not the 570.0 it was pinned for — the check reads that
+floor out of the downloaded binary. See **Bumping the bundled FFmpeg** below
+before changing the pin. The Linux package is also installed into a throwaway
+directory and rejected if `make install` does not put `ffmpeg`, `ffprobe`, the
+application and its icon where they belong.
+
 Not checked automatically: that the published binary reports the version it
 claims. Downloading the Linux archive and running it is still worth doing on a
 release that matters — the log line is enough:
@@ -123,3 +130,31 @@ tar -xJf superview-gui-v0.2.4-linux-x86_64.tar.xz
 DISPLAY= timeout 10 ./superview/usr/local/bin/superview
 tail -1 ~/.cache/superview/superview.log     # should read 0.2.4 (<commit>)
 ```
+
+## Bumping the bundled FFmpeg
+
+Each build job pins `FFMPEG_URL`, `FFMPEG_SHA256` and `FFMPEG_DRIVER_FLOOR` in
+[`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+**The property being pinned is the driver floor, not the version.** FFmpeg fixes
+at compile time the NVENC API version it will demand, so two builds both called
+"8.1.2" can require NVIDIA driver 570 and 610. A machine that cannot reach the
+floor loses hardware encoding entirely, and the only symptom is a conversion
+several times slower than it should be. Superview ships 8.1.1 on Windows for
+exactly this reason: gyan.dev's 8.1.2 demands 610.00, and the NVIDIA RTX
+Enterprise driver branch tops out at 597.06.
+
+To move the pin, read the floor out of the candidate build before anything else:
+
+```bash
+. .github/scripts/nvenc-driver-floor.sh
+driver_floor_of path/to/ffmpeg          # prints e.g. 570.0
+```
+
+If it is higher than the current pin, raising it takes hardware encoding away
+from every machine below the new number. That is a decision, not an upgrade.
+
+Pick a source whose URL will still resolve. gyan.dev publishes versioned GitHub
+releases, which are permanent. BtbN prunes its mid-month autobuilds — the pin in
+the fork this idea came from is already a 404 — but keeps the last build of each
+month, and those have held since October 2024.

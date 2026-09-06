@@ -97,6 +97,14 @@ ffmpeg -hide_banner -encoders | grep nvenc
 
 ## Hardware acceleration
 
+**The release archives ship their own FFmpeg**, and Superview prefers it over
+whatever is installed on the machine. That is not tidiness: the NVENC driver
+requirement is fixed when FFmpeg is compiled, so two builds both calling
+themselves "8.1.2" can demand different NVIDIA drivers, and the wrong one costs
+you hardware encoding with no symptom but a slow conversion. Point
+`SUPERVIEW_FFMPEG_DIR` at a directory containing `ffmpeg` and `ffprobe` to use
+your own instead.
+
 At startup Superview asks each encoder to encode one frame, and keeps only the
 ones that answer. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
 `h264_amf`/`hevc_amf` (AMD) and `h264_qsv`/`hevc_qsv` (Intel), and falls back to

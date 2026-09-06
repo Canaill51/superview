@@ -157,6 +157,35 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 > `TestGeneratePGM_RemapOutputIsStable` : comparer **deux exécutions du FFmpeg présent** plutôt
 > qu'inscrire le résultat de l'un d'eux. Voir [LECONS.md](LECONS.md) L-36.
 
+### Contrat de résolution des outils (depuis U-04, 2026-09-06)
+
+`resolveToolBinary` cherche `ffmpeg` et `ffprobe` dans cet ordre, et **l'ordre est le contrat** :
+
+1. `SUPERVIEW_FFMPEG_DIR`, la sortie de secours explicite de l'utilisateur ;
+2. la copie livrée dans l'archive de release ;
+3. le `PATH` ;
+4. sous Windows, les répertoires d'installation de winget et scoop.
+
+> **La copie empaquetée passe avant le `PATH`, délibérément.** Le FFmpeg installé sur la machine
+> est la variable que ce programme ne contrôle pas et ne peut pas inspecter à l'avance. Ne pas
+> inverser cet ordre pour « prendre le plus récent » : c'est précisément le plus récent qui a
+> retiré NVENC à une RTX A1000 (U-03).
+
+Deux dispositions sur disque, parce que les deux archives ne sont pas faites pareil :
+
+| Plateforme | Emplacement des outils | Pourquoi |
+| --- | --- | --- |
+| Windows | à côté de l'exécutable | Le zip se déploie dans un dossier unique. |
+| Linux | `../lib/superview/` relatif à l'exécutable | L'application s'installe dans `$PREFIX/bin` : un `ffmpeg` déposé à côté d'elle atterrirait dans `/usr/local/bin` et **masquerait celui du système pour toute la machine**. |
+
+Le chemin Linux vaut aussi bien pour l'archive simplement décompressée que pour l'archive
+installée, puisqu'il est relatif au binaire.
+
+**Ce qui est épinglé est le plancher pilote, pas la version.** `FFMPEG_DRIVER_FLOOR` vaut `570.0`
+dans les deux jobs de release, et `.github/scripts/nvenc-driver-floor.sh` le relit dans le binaire
+téléchargé. Monter le pin vers un build compilé contre des en-têtes plus récentes retire
+l'encodage matériel à toutes les machines sous le nouveau plancher — voir [RELEASING.md](../RELEASING.md).
+
 ### Contrat des capacités matérielles (depuis U-03, 2026-09-06)
 
 **`ffmpeg -encoders` et `ffmpeg -hwaccels` ne décrivent pas la machine.** Ils décrivent le
