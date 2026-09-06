@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 78 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 79 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -32,7 +32,7 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 | --- | --- |
 | **Constat** | ID-xx (lien vers ANALYSE.md) |
 | **Fichiers** | `chemin:lignes` |
-| **Commit** | `sha` ou « non commité » |
+| **PR** | #NN |
 | **Vérification** | `go build` ✅/❌ · `go vet` ✅/❌ · `go test` ✅/❌ · test manuel ✅/❌/n.a. |
 
 **Symptôme** — ce qui n'allait pas, observable.
@@ -43,6 +43,16 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 
 **Leçon** — la règle généralisable. Rien à généraliser → écrire « aucune ».
 ```
+
+> **Le numéro de PR, pas le sha de fusion.** L'entrée s'écrit avant la fusion, donc le sha
+> n'existe pas encore : le champ portait « non commité » et le restait — dix entrées sur treize
+> l'affichaient encore. Le numéro de PR est connu dès l'ouverture, ne périme pas, et le sha se
+> retrouve d'un `git log --grep '(#NN)'`. Voir L-79.
+>
+> Une entrée groupée, qui porte plusieurs sous-corrections avec leurs propres tableaux, place la
+> ligne `**PR** — #NN` sous son titre.
+
+
 
 ---
 
@@ -768,7 +778,52 @@ ont ainsi paru muettes alors que le défaut était bien réintroduit.
 `remapFilterChain` et `buildEncodeBaseArgs`, pas `hwUploadFilters` ni `hwDeviceArgs`. Et lire la
 sortie `-v` : un `ok` qui vient d'un `SKIP` n'est pas un test qui passe. Prolonge L-49.
 
+### L-79 — Un champ rempli avant que sa valeur existe est périmé par construction — 2026-09-06
+Le gabarit du § 3 demandait le **sha de fusion**. Une entrée s'écrit avec le correctif, donc avant
+la fusion : le sha n'existe pas encore et l'auteur écrit « non commité », en se promettant de
+revenir. Personne ne revient. Dix entrées sur treize le portaient encore, dont quatre écrites en
+sachant que c'était faux.
+→ Un champ doit demander une valeur **connue au moment où on le remplit**. Le numéro de PR l'est
+dès l'ouverture, ne périme jamais, et rend le sha d'un `git log --grep '(#NN)'` — on garde donc la
+traçabilité en supprimant la dette. Même famille que L-65 : quand un artefact exige une mise à
+jour ultérieure récurrente, chercher la formulation qui rend cette mise à jour inutile plutôt que
+le garde-fou qui la rappelle.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] Hygiène du journal — le numéro de PR remplace le sha de fusion
+
+| | |
+| --- | --- |
+| **Constat** | aucun ; hygiène de ce document, relevée par l'utilisateur |
+| **Fichiers** | `docs/LECONS.md` (gabarit § 1 et les 18 entrées du § 3), `docs/ANALYSE.md` (journal des révisions) |
+| **PR** | #55 |
+| **Vérification** | documentation seule ; aucun fichier Go modifié, `go build ./...` rejoué pour le confirmer ✅ · les 18 numéros établis par `git log -S` sur le code, pas par déduction ✅ |
+
+**Symptôme** — le gabarit demandait le sha de fusion. Dix entrées sur treize affichaient encore
+« non commité », dont quatre écrites au cours de cette série en sachant que c'était déjà faux.
+
+**Cause racine** — l'entrée s'écrit avec le correctif, donc **avant** la fusion : la valeur
+demandée n'existe pas encore. Le champ ne pouvait qu'être faux à l'écriture, et sa correction
+supposait de revenir sur le fichier une fois la PR fusionnée — une étape que rien ne déclenche.
+
+**Correctif** — le champ prend le **numéro de PR**, connu dès l'ouverture. Le sha reste
+accessible par `git log --grep '(#NN)'`, donc rien n'est perdu.
+
+Les dix-huit entrées ont été renseignées à partir de l'historique. `git log -S` sur
+`docs/LECONS.md` ne sert à rien ici : il attribue **toutes** les anciennes entrées à `3c20954`,
+la réécriture intégrale du fichier. C'est `git log -S` sur le **code** que chaque entrée décrit
+qui répond, en nommant le commit d'écrasement — lequel porte le numéro dans son titre. Lire le
+corps des PR n'aurait pas suffi : plusieurs mentionnent un même constat, l'une le corrigeant et
+les suivantes y renvoyant, si bien que `R-05` correspondait à #40 et #43, et `N-07` à quatre PR.
+
+**Ce qui a été laissé** — les cinq entrées groupées n'ont pas de tableau propre ; elles portent
+une ligne `**PR** — #NN` sous leur titre, et le gabarit documente cette forme.
+
+**Leçon** — L-79.
+
+---
+
 
 ### [2026-09-06] U-05 — Deux chemins matériels sans plancher pilote, et VAAPI réparé au passage
 
@@ -776,7 +831,7 @@ sortie `-v` : un `ok` qui vient d'un `SKIP` n'est pas un test qui passe. Prolong
 | --- | --- |
 | **Constat** | U-05 ([ANALYSE.md § 3septies](ANALYSE.md)) |
 | **Fichiers** | `common/hardware.go`, `common/common.go`, `common/probe.go` ; tests : `common/hardware_test.go`, `common/common_test.go`, `common/probe_test.go`, `common/integration_test.go` ; docs : `README.md`, `docs/CONTRATS.md`, `docs/hardware-support.md` |
-| **Commit** | non commité |
+| **PR** | #54 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · conversion réelle 640×480 → 853×480 par `h264_vulkan` ✅ · 5 contre-épreuves ✅ |
 
 **Symptôme** — FFmpeg 8.1 expose `h264_vulkan`, `hevc_vulkan` et, sous Windows,
@@ -814,7 +869,7 @@ risque : un chemin qui ne répond pas n'est jamais retenu.
 | --- | --- |
 | **Constat** | U-04 ([ANALYSE.md § 3septies](ANALYSE.md)) |
 | **Fichiers** | `.github/workflows/release.yml`, `.github/scripts/nvenc-driver-floor.sh` (nouveau), `common/common.go`, `THIRD_PARTY_NOTICES.md` (nouveau) ; tests : `common/toolresolve_test.go` (nouveau) ; docs : `README.md`, `AGENTS.md`, `RELEASING.md`, `docs/hardware-support.md`, `docs/CONTRATS.md` |
-| **Commit** | `ed9a6b5` (PR #53) |
+| **PR** | #53 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · scripts du YAML extraits et exécutés en vrai ✅ · paquet Linux construit, empaqueté, installé et **lancé installé** ✅ |
 
 **Symptôme** — décidé avec l'utilisateur après U-03 : le comportement de l'application dépendait
@@ -856,7 +911,7 @@ l'application ne passera plus en fallback. »
 | --- | --- |
 | **Constat** | U-03 ([ANALYSE.md § 3septies](ANALYSE.md)) |
 | **Fichiers** | `common/probe.go` (nouveau), `common/common.go` (`newFFmpegCommandContext`), `common/health.go`, `gui_main.go` ; tests : `common/probe_test.go` (nouveau), `common/health_report_test.go`, `gui_main_test.go` |
-| **Commit** | `e27c343` (PR #52) |
+| **PR** | #52 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée, capturée, journal relu ✅ · 8 contre-épreuves ✅ |
 
 **Symptôme** — signalé par l'utilisateur : sur une NVIDIA RTX A1000 sous Windows, avec le FFmpeg
@@ -904,7 +959,7 @@ dont chacune rougit pour sa propre raison (L-37, L-54).
 | --- | --- |
 | **Constat** | U-01, U-02 ([ANALYSE.md § 3sexies](ANALYSE.md)) |
 | **Fichiers** | `gui_main.go:34-76` (géométrie et helpers), `gui_main.go:1040` (rangée), `gui_main.go:1085-1088` (taille de fenêtre) ; `gui_main_test.go:142-241` |
-| **Commit** | `7bb715e` (PR #51) |
+| **PR** | #51 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée et capturée ✅ · contre-épreuves ✅ |
 
 **Symptôme** — signalé par l'utilisateur, capture à l'appui : les six boutons d'action ne sont
@@ -948,7 +1003,7 @@ sur la forme de l'arbre de conteneurs et a été refaite (L-70).
 | --- | --- |
 | **Constat** | R-05 (palier 12) |
 | **Fichiers** | `.github/workflows/release.yml` |
-| **Commit** | non commité |
+| **PR** | #40 |
 | **Vérification** | YAML relu par `yaml.safe_load` ✅ · dérivation extraite du YAML et essayée sur cinq refs (`master`, `v0.2.3`, `RC-0.3.0`, `v0.2.3-rc1`, `feature/foo`) ✅ |
 
 **Symptôme** — run 33929547442, lancé à la main sur `master` : `Build GUI (Windows)` et
@@ -981,7 +1036,7 @@ d'où elle vient, et rien de ce qui sort d'un dispatch n'est publié.
 | --- | --- |
 | **Constats** | P-12, P-13 ([§ 3ter](ANALYSE.md)) |
 | **Fichiers** | `common/common.go` · `common/pgm_golden_test.go` · `gui_main.go` · `gui_main_test.go` · `README.md` |
-| **Commit** | non commité |
+| **PR** | #33 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve ✅ |
 
 **Contexte** — l'utilisateur n'a pas de fichier GoPro en mode squeeze sous la main. Plutôt que
@@ -1026,7 +1081,7 @@ Python → Go. Sans importance pour la décision : l'intention est démontrable 
 | --- | --- |
 | **Constat** | aucun ; dérive de documentation relevée en clôture |
 | **Fichiers** | `docs/ANALYSE.md` · `docs/LECONS.md` — **aucun code** |
-| **Commit** | non commité |
+| **PR** | #30 |
 | **Vérification** | audit systématique des 22 titres N-xx/P-xx contre le § 4bis, plus les cases de la file d'attente |
 
 **Symptôme** — `### N-03 🟠 — Les sources 10 bits sont ramenées à 8 bits`, alors que le § 4bis
@@ -1061,7 +1116,7 @@ laissées telles quelles : elles disent ce qui était vrai à leur date, c'est l
 | --- | --- |
 | **Constat** | N-07 ([§ 3bis](ANALYSE.md)) |
 | **Fichiers** | `docs/ANALYSE.md` · `docs/CONTRATS.md` — **aucun fichier de code** |
-| **Commit** | non commité |
+| **PR** | #29 |
 | **Vérification** | mesures refaites sur RTX 4070, code actuel, deux exécutions concordantes par cas |
 
 **Symptôme** — le constat annonçait « le décodage matériel n'apporte que ~5 %, pour un risque
@@ -1101,7 +1156,7 @@ code.** Décision finale à l'utilisateur.
 | --- | --- |
 | **Constat** | P-10 ([§ 3ter](ANALYSE.md)) |
 | **Fichiers** | `gui_main.go` · `gui_main_test.go` |
-| **Commit** | non commité |
+| **PR** | #28 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve sur les trois propriétés clés ✅ |
 
 **Symptôme** — aucun test ne pouvait atteindre l'état de la GUI. Les 14 tests du paquet `main`
@@ -1152,7 +1207,7 @@ mise en page n'ont rien à gagner à être découpées (L-45).
 | --- | --- |
 | **Constats** | P-01 à P-07, P-09 ([§ 3ter](ANALYSE.md)) · N-06, N-08, N-09, N-10 ([§ 3bis](ANALYSE.md)) |
 | **Fichiers** | `common/common.go` · `common/metrics.go` · `common/observability.go` · `common/config.go` · `gui_main.go` · `superview.yaml` · `.github/copilot-instructions.md` · 5 fichiers de test |
-| **Commit** | non commité |
+| **PR** | #28 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve sur chaque correctif ✅ |
 
 **P-01 — la case squeeze restait grisée.** Les deux branches de fin d'encodage réactivaient les
@@ -1213,7 +1268,7 @@ mentionne que le répertoire temporaire est souvent en RAM et suggère `TMPDIR`.
 | --- | --- |
 | **Constat** | N-03, N-04, N-05 ([ANALYSE.md § 3bis](ANALYSE.md)) |
 | **Fichiers** | `common/common.go` (`VideoStream`, `CheckVideo`, `buildEncodeBaseArgs`, + 4 helpers) · `common/common_test.go` · `common/integration_test.go` |
-| **Commit** | non commité |
+| **PR** | #28 |
 | **Vérification** | `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · contre-épreuve ✅ |
 
 **Symptôme** — trois pertes silencieuses sur un encodage réussi, toutes mesurées : une source
@@ -1250,7 +1305,7 @@ projet ne vise Main12.
 | --- | --- |
 | **Constat** | P-08 ([ANALYSE.md § 3ter](ANALYSE.md)) |
 | **Fichiers** | `common/common.go` (`GeneratePGM`, `putMapSample`) · `common/pgm_golden_test.go` |
-| **Commit** | non commité |
+| **PR** | #28 |
 | **Vérification** | `go test -race ./...` ✅ · équivalence prouvée sur la sortie décodée ✅ · contre-épreuve boutisme ✅ |
 
 **Symptôme** — les deux cartes de remappage pèsent jusqu'à **146,6 Mo** pour une source GoPro
@@ -1284,7 +1339,7 @@ dépendre du build de FFmpeg (L-36).
 | --- | --- |
 | **Constat** | P-11 ([ANALYSE.md § 3ter](ANALYSE.md)) — découvert en écrivant le test de N-03 |
 | **Fichiers** | `common/common.go` (`clampEncoderThreads`, `x265MaxFrameThreads`) · `common/common_test.go` |
-| **Commit** | non commité |
+| **PR** | #28 |
 | **Vérification** | reproduit à 17/24/32 threads ✅ · `go test -race ./...` ✅ |
 
 **Symptôme** — sur cette machine (24 cœurs logiques), **aucun encodage H.265 ne pouvait
@@ -1311,6 +1366,8 @@ runners GitHub en ont 4, et les trois passes d'analyse précédentes n'avaient j
 <!-- Les entrées les plus récentes vont en tête de cette section, juste sous ce commentaire. -->
 
 ### [2026-09-04] Correction de N-02 et N-01
+
+**PR** — #27.
 
 Deux constats de la 3ᵉ passe traités, sur décision de l'utilisateur. Le reste (N-03 à N-10)
 demeure documenté et non traité.
@@ -1350,6 +1407,8 @@ Le bloc « API Documentation » du README montrait encore `common.CheckFfmpeg()`
 
 ### [2026-09-04] 3ᵉ passe — analyse empirique, aucune correction encore appliquée
 
+**PR** — #27.
+
 Dix constats N-01 à N-10 consignés dans [ANALYSE.md § 3bis](ANALYSE.md).
 **Aucun code modifié** : cette passe est un diagnostic, les corrections restent à arbitrer.
 
@@ -1371,6 +1430,8 @@ Constats les plus solides, tous mesurés :
 
 
 ### [2026-09-04] 2ᵉ passe — C-05, C-06, et deux constats découverts en chemin
+
+**PR** — #25.
 
 Vérifié en exécution : suite CI complète, `go test ./... -race`, démarrage de la GUI avec
 inspection du journal, conversion réelle de bout en bout.
@@ -1439,6 +1500,8 @@ même information, persistée. Supprimé.
 
 ### [2026-09-04] Arbitrages utilisateur — S-02, C-01, C-03, C-04
 
+**PR** — #24.
+
 Quatre décisions de périmètre soumises à l'utilisateur, qui a tranché. Toutes vérifiées en
 exécution (suite CI complète + démarrage GUI + conversion réelle).
 
@@ -1485,6 +1548,8 @@ cette branche, par opposition au 852×480 du mode normal.
 
 
 ### [2026-09-04] Passe d'application par priorité — 28 constats traités
+
+**PR** — #24.
 
 Environnement de vérification établi au préalable (L-13) : Go 1.26.8 dans `~/.local/go`,
 sysroot GUI local, FFmpeg 8.0.1 système. **Tous les correctifs ci-dessous ont été vérifiés en
