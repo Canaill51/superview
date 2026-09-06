@@ -6,12 +6,14 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 5ᵉ (R-01 à R-07), close le 2026-09-05 sur `5d3b6f9`.
+> Dernière passe : 7ᵉ (U-01, U-02), close le 2026-09-06 sur `2cf0020` — un
+> signalement de l'utilisateur, pas une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
 > **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
-> N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → **§ 4 (état
-> d'avancement, le seul tableau qui fasse foi)**.
+> N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → § 3quinquies
+> (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ, U-xx) → **§ 4 (état d'avancement, le
+> seul tableau qui fasse foi)**.
 
 ---
 
@@ -1546,7 +1548,8 @@ n'avait jamais été exercée non plus.
 
 `TestToolbarFitsWindow` portait ses propres copies de la largeur des boutons et de la
 fenêtre, sous un commentaire demandant au lecteur de les tenir en phase. Elles sont des
-constantes de paquet : porter `actionButtonWidth` à 175 fait désormais échouer le test.
+constantes de paquet : les porter hors des clous fait désormais échouer le test. (`actionButtonWidth`
+a depuis été remplacée par `actionButtonMinWidth`, un plancher et non une taille : voir U-01.)
 
 `fakeHangingFFmpeg` utilisait par ailleurs `os.Setenv` avec restauration différée, qui
 fuit sur panique et ne peut pas refuser un `t.Parallel` — remplacé par `t.Setenv`.
@@ -1675,6 +1678,69 @@ documenté comme tel.
 
 ---
 
+## 3sexies. Septième passe (2026-09-06) — signalement utilisateur : la barre d'outils
+
+Pas une passe d'analyse : deux défauts d'affichage rapportés par l'utilisateur,
+capture d'écran à l'appui, sur le binaire de `2cf0020`. Préfixe `U-` (utilisateur).
+
+Ce qu'ils ont en commun est plus intéressant que chacun d'eux : la rangée de boutons
+était **la partie de la fenêtre qui avait un test dédié**, `TestToolbarFitsWindow`,
+écrit précisément pour cela (constat C-01, leçon L-20) et resserré une fois depuis
+(V-04). Il était vert pendant que les deux défauts étaient visibles à l'œil nu.
+
+### U-01 ✅ — ~~Trois boutons sur six affichaient un libellé tronqué~~ — **CORRIGÉ**
+
+`main()` posait chaque bouton dans un `container.NewGridWrap` de 150 × 34 px, taille
+identique pour tous. Un `GridWrap` **impose** sa cellule : il ne s'agrandit pas pour
+son contenu, il le rogne. Or les boutons portent une icône, qui coûte une trentaine de
+pixels. Mesuré à `2cf0020`, sous le thème par défaut :
+
+| Bouton | Minimum réclamé | Cellule reçue |
+| --- | --- | --- |
+| `Choose input file` | 158 × 36 | 150 × 34 |
+| `Choose output file` | 168 × 36 | 150 × 34 |
+| `Start transformation` | 186 × 36 | 150 × 34 |
+| `Cancel` | 86 × 36 | 150 × 34 |
+| `Diagnostic` | 114 × 36 | 150 × 34 |
+| `Quit` | 47 × 36 | 150 × 34 |
+
+Trois libellés débordaient horizontalement, et les six manquaient de 2 px en hauteur.
+
+**Pourquoi le test ne l'a pas vu** — il mesurait `toolbar.MinSize()`, c'est-à-dire la
+somme des cellules. Un `GridWrap` rapporte la taille qu'on lui a donnée : la réponse
+était 920 px quoi que contiennent les boutons, et 920 ≤ 980 concluait « ça tient ».
+Le test construisait de surcroît ses boutons **sans icône**, donc même une mesure
+correcte du contenu aurait porté sur des boutons plus étroits que les vrais.
+
+*Correctif* — `actionButtonCell` part du minimum du bouton et l'élargit à
+`actionButtonMinWidth` (140 px), au lieu de l'écraser. La cellule ne peut plus être
+plus petite que ce qu'elle contient. Le test compare désormais chaque cellule au
+minimum du bouton qu'elle porte, sur des boutons construits avec leurs icônes.
+
+Deuxième garde-fou, à l'autre bout : `window.Resize` prend le maximum entre la
+géométrie voulue et `content.MinSize()`. Un libellé plus long élargit la fenêtre au
+lieu de sortir du cadre — la fenêtre étant à taille fixe, rien à l'écran ne dirait
+qu'un bouton manque. La rangée mesure 952 px pour 980 disponibles : la fenêtre garde
+sa taille d'origine aujourd'hui.
+
+### U-02 ✅ — ~~La rangée de boutons était collée au bord gauche~~ — **CORRIGÉ**
+
+La barre était un `container.NewHBox` nu. Un `HBox` empile depuis la gauche et laisse
+tout l'espace restant à droite ; il n'y a pas de réglage d'alignement à activer.
+L'asymétrie était de l'ordre de 60 px avant correction, et aurait grandi à chaque
+élargissement de la fenêtre.
+
+*Correctif* — la rangée est enveloppée dans `container.NewCenter`. Mesuré après
+correction dans une fenêtre de 980 px : 14 px de marge de chaque côté.
+
+`TestToolbarIsCentred` épingle le résultat. Il est écrit à travers un canevas de test
+(`test.NewWindow` puis `Driver().AbsolutePositionForObject`) et non sur l'arbre de
+conteneurs : sa première version interrogeait la forme de l'arbre, et sa contre-épreuve
+rougissait sur « ce n'est plus un `Center` » au lieu de « la rangée est à gauche » —
+elle aurait donc validé n'importe quel `Center` mal placé. Leçon L-70.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -1687,6 +1753,7 @@ documenté comme tel.
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
+| ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
@@ -1854,3 +1921,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-04 | Cohérence du document : quatre titres (N-03, N-04, N-05, P-11) portaient encore leur pastille de sévérité alors que le § 4bis les donnait corrigés. Restylés, et les **deux conventions de marquage sont maintenant écrites** en tête du § 3 — elles ne l'étaient pas, d'où la dérive. Leçon L-47. |
 | 2026-09-04 | **P-12** et **P-13**, trouvés en cherchant ce qui du mode squeeze était vérifiable sans fichier GoPro. La formule squeeze est conçue pour valoir zéro au centre — démontré algébriquement — mais des divisions entières y laissaient une couture de 1 à 2,6 px. Défaut hérité de l'amont, identique caractère pour caractère. Le libellé de la case promettait par ailleurs une compatibilité GoPro que l'amont dément. Leçon L-48. |
 | 2026-09-04 | Ajout du § 5bis « Questions ouvertes » et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
+| 2026-09-06 | **7ᵉ passe, à `2cf0020`** : deux défauts d'affichage signalés par l'utilisateur, § 3sexies. `U-01` — un `GridWrap` de 150 × 34 rognait trois libellés sur six, et `TestToolbarFitsWindow` mesurait la cellule imposée au lieu du bouton, sur des boutons sans icône : il était vert. `U-02` — un `HBox` nu collait la rangée à gauche. Cellule dérivée du minimum du bouton, rangée centrée, fenêtre élargie à son contenu. Leçons L-69, L-70 ; L-20 mise à jour. |
