@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 66 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 68 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -638,6 +638,28 @@ Un `go build` nu annonçait `0.2.3` depuis un arbre qui n'était pas cette versi
 → Quand une documentation affirme une propriété du système, produire l'objet et l'interroger.
 Ici : construire et lire la ligne de version. Le commentaire disait « repli », la mesure disait
 « comportement par défaut ».
+
+
+### L-67 — Une catégorisation qui n'attrape pas tout supprime le reste — 2026-09-06
+`.github/release.yml` trie les notes générées par label. La règle de GitHub, écrite dans sa
+documentation, est qu'une PR ne correspondant à **aucune** catégorie n'apparaît pas du tout.
+Ce dépôt ne pose aucun label sur ses PR : une configuration en apparence raisonnable —
+« Features », « Fixes », « Dependencies » — aurait donc vidé chaque release au lieu de
+l'organiser, et le symptôme aurait été une release vide plutôt qu'une erreur.
+→ Avant d'introduire un filtre sur des données existantes, mesurer combien d'entre elles le
+traversent. Ici : lister les labels des douze dernières PR, constater qu'il n'y en a aucun, et
+en déduire que l'attrape-tout n'est pas un ornement mais la règle principale.
+
+### L-68 — `gh` vise le dépôt parent quand on travaille dans un fork — 2026-09-06
+`gh pr list` a renvoyé des PR dont les numéros ne correspondaient pas à l'historique de
+`master` : `#35` était « Bump golang.org/x/image » côté outil et « Record what publishing
+v0.2.1 established » côté git. `Canaill51/superview` est un fork de `Niek/superview`, et sans
+dépôt par défaut `gh` résout vers le parent. Un relevé de labels entièrement faux en est sorti,
+et surtout : `gh pr create` aurait proposé le travail à l'auteur d'origine.
+→ Quand une sortie d'outil contredit `git log`, soupçonner la cible avant les données.
+`gh repo view --json nameWithOwner` le dit en une commande, et
+`gh repo set-default <owner>/<repo>` le fige. `git remote -v` ne suffit pas à détecter le
+problème : `origin` peut être correct pendant que `gh` regarde ailleurs.
 
 
 ## 3. Corrections appliquées

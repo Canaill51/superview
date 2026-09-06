@@ -49,7 +49,10 @@
 - CI coverage gate: minimum 50% over `./...` in `.github/workflows/test.yml` and `.github/workflows/release.yml`.
 - GUI builds are most reliable on native OS runners; cross-compiling Fyne GUI binaries (especially for macOS) may fail locally.
 - The version is never read from the source tree: `FyneApp.toml` carries no `Version`, and a non-packaged build reports `dev`. Do not add one back.
-- Releases: see `RELEASING.md`. One button in the Actions tab; GitHub generates the notes from merged pull request titles, so write those titles as full sentences. Never tag by hand unless release intent is explicit.
+- Every change lands through a pull request, however small. Release notes are generated from merged pull requests, so a direct push to `master` ships the change and loses the record of it.
+- The pull request title is the line users read in the release. Write it as a sentence about what changed, not `fix bug`. Commit messages do not appear there.
+- Releases: see `RELEASING.md`. One button in the Actions tab. Never tag by hand unless release intent is explicit.
+- `.github/release.yml` sorts the generated notes. Its `"*"` catch-all is load-bearing: a pull request matching no category is dropped from the notes entirely, and this repository does not label its own.
 
 ## Project Conventions
 - FFmpeg/FFprobe are required runtime dependencies; failures should keep current user-facing error style.

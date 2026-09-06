@@ -1,0 +1,28 @@
+# Shapes the notes GitHub generates for a release.
+#
+# The list itself comes from the pull requests merged since the previous
+# release, so it is only as complete as the habit of opening one. Anything
+# pushed straight to master is invisible here -- see RELEASING.md.
+#
+# THE CATCH-ALL IS LOAD-BEARING. GitHub's rule is that "a pull request that
+# matches no category does not appear in the release notes at all". This
+# repository does not label its own pull requests, so without the "*" entry
+# below every change would silently vanish from every release. Do not remove
+# it, and do not add a category above it that could swallow ordinary work.
+changelog:
+  categories:
+    # Everything, except the dependency bumps caught by the next category.
+    # "*" comes first so that this section leads the release notes; the
+    # exclusion is what lets the dependency pull requests fall through to it.
+    - title: Changes
+      labels:
+        - "*"
+      exclude:
+        labels:
+          - dependencies
+
+    # Dependabot, kept last: gomod runs daily, so on a long release these would
+    # otherwise outnumber and bury the work worth reading about.
+    - title: Dependencies
+      labels:
+        - dependencies

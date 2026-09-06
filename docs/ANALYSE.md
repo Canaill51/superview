@@ -1605,6 +1605,37 @@ dans le fichier. `buildIdentity` fusionne ses deux cas non tamponnés — « auc
 et « métadonnée sans version » — en un seul `dev` : ils disent la même chose au lecteur d'un
 rapport de bug. Un build local annonce désormais `dev (7a74276)`.
 
+### D-12 ✅ — ~~Rien n'ordonnait les notes générées, et `gh` visait le mauvais dépôt~~ — **CORRIGÉ**
+
+Suite de D-10, une fois la convention posée par l'utilisateur le 2026-09-06 : « pour chaque
+modification, même mineure, je pousserai un commit + PR ». Deux choses manquaient pour que
+cette convention produise le résultat attendu.
+
+**Les notes n'étaient pas triées.** `dependabot` tourne quotidiennement sur `gomod` : sur une
+release un peu longue, les montées de version noieraient le travail qu'on veut lire.
+`.github/release.yml` sépare donc `Changes` et `Dependencies`, et le label `dependencies` est
+rendu explicite dans `dependabot.yml` plutôt que laissé au comportement par défaut de l'outil.
+
+> **Le `"*"` de ce fichier est porteur.** La règle GitHub est qu'*une PR ne correspondant à
+> aucune catégorie n'apparaît pas du tout dans les notes*. Ce dépôt ne pose aucun label sur ses
+> propres PR — vérifié sur les douze dernières, toutes sans label. Sans l'attrape-tout, une
+> configuration en apparence raisonnable viderait chaque release. La catégorie `Changes` porte
+> donc `"*"` en premier, avec `exclude: dependencies` pour laisser les bumps tomber dans la
+> seconde section.
+
+**`gh` résolvait vers le dépôt parent.** `Canaill51/superview` est un fork de `Niek/superview`,
+et aucun dépôt par défaut n'était configuré : `gh pr list` renvoyait les PR de l'amont — d'où
+un premier relevé de labels entièrement faux, corrigé en repassant avec `-R`. Conséquence
+sérieuse pour la convention qui vient d'être adoptée : `gh pr create` aurait proposé les
+modifications **à l'auteur d'origine**. `gh repo set-default Canaill51/superview` le règle, une
+fois par clone. `git push` n'était pas concerné : `origin` pointait déjà au bon endroit.
+
+**Vérifié** : l'endpoint `releases/generate-notes` — qui ne crée ni ne publie rien — produit
+bien, pour une v0.2.4 hypothétique, la liste des PR #42 et #43 avec `v0.2.3` choisie
+automatiquement comme base. **Non vérifié** : l'effet de `.github/release.yml` lui-même, que
+GitHub ne lit que depuis la branche par défaut ; il faut donc l'avoir fusionné. Le même
+endpoint le dira, sans rien publier.
+
 ### R-08 🟠 **consigné** — Le correctif R-06 n'est pas publié
 
 `HEAD` est plusieurs commits après le tag `v0.2.3`. Les binaires actuellement en ligne
@@ -1655,7 +1686,7 @@ documenté comme tel.
 | 🔄 **Révisé — 3ᵉ passe** (1) | N-07 — mesure refaite, le gain est de ~10 % et non ~5 % ; recommandation : **conserver**, donc aucun changement de code |
 | ✅ **Corrigé et vérifié — 4ᵉ passe** (13) | P-01 à P-13 *(P-09 partiellement, voir ci-dessus)* |
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
-| ✅ **Corrigé et vérifié — 6ᵉ passe** (15) | D-01 à D-11, V-01 à V-04 |
+| ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
