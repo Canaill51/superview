@@ -791,6 +791,40 @@ le garde-fou qui la rappelle.
 
 ## 3. Corrections appliquées
 
+### [2026-09-06] Hygiène du journal — le numéro de PR remplace le sha de fusion
+
+| | |
+| --- | --- |
+| **Constat** | aucun ; hygiène de ce document, relevée par l'utilisateur |
+| **Fichiers** | `docs/LECONS.md` (gabarit § 1 et les 18 entrées du § 3), `docs/ANALYSE.md` (journal des révisions) |
+| **PR** | #55 |
+| **Vérification** | documentation seule ; aucun fichier Go modifié, `go build ./...` rejoué pour le confirmer ✅ · les 18 numéros établis par `git log -S` sur le code, pas par déduction ✅ |
+
+**Symptôme** — le gabarit demandait le sha de fusion. Dix entrées sur treize affichaient encore
+« non commité », dont quatre écrites au cours de cette série en sachant que c'était déjà faux.
+
+**Cause racine** — l'entrée s'écrit avec le correctif, donc **avant** la fusion : la valeur
+demandée n'existe pas encore. Le champ ne pouvait qu'être faux à l'écriture, et sa correction
+supposait de revenir sur le fichier une fois la PR fusionnée — une étape que rien ne déclenche.
+
+**Correctif** — le champ prend le **numéro de PR**, connu dès l'ouverture. Le sha reste
+accessible par `git log --grep '(#NN)'`, donc rien n'est perdu.
+
+Les dix-huit entrées ont été renseignées à partir de l'historique. `git log -S` sur
+`docs/LECONS.md` ne sert à rien ici : il attribue **toutes** les anciennes entrées à `3c20954`,
+la réécriture intégrale du fichier. C'est `git log -S` sur le **code** que chaque entrée décrit
+qui répond, en nommant le commit d'écrasement — lequel porte le numéro dans son titre. Lire le
+corps des PR n'aurait pas suffi : plusieurs mentionnent un même constat, l'une le corrigeant et
+les suivantes y renvoyant, si bien que `R-05` correspondait à #40 et #43, et `N-07` à quatre PR.
+
+**Ce qui a été laissé** — les cinq entrées groupées n'ont pas de tableau propre ; elles portent
+une ligne `**PR** — #NN` sous leur titre, et le gabarit documente cette forme.
+
+**Leçon** — L-79.
+
+---
+
+
 ### [2026-09-06] U-05 — Deux chemins matériels sans plancher pilote, et VAAPI réparé au passage
 
 | | |
