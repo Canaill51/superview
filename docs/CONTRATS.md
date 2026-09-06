@@ -21,9 +21,10 @@
 | 2 | `go.mod` | Version Go et dépendances exactes avant toute modification d'API. | fait foi |
 | 3 | `.golangci.yml` | Règles de lint appliquées. Schéma v2 ; staticcheck cadré sur `SA*`+`S1*`, `QF*` et `ST*` exclus à dessein (cf. [L-09, L-12](LECONS.md)). | fait foi |
 | 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `./...`, seuil de couverture 50 %, `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
-| 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre. | fait foi |
+| 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
+| 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Attention : le fichier livre `performance_mode: safe_performance`, alors que le défaut interne, appliqué en son absence, est `safe`. |  |
-| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R et leur état. | journal, voir son en-tête |
+| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U et leur état. | journal, voir son en-tête |
 | 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
 | 9 | `README.md` | Comportement documenté côté utilisateur. |  |
 | 10 | `Makefile` | Cibles de build et de qualité locales. Même portée que la CI (`./...`). |  |

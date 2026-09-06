@@ -30,6 +30,11 @@ log_level: info
 # removed because it only applies to streaming, not to file output.
 performance_mode: safe_performance
 
+# Which ffmpeg is used is deliberately NOT a key here: it is the environment variable
+# SUPERVIEW_FFMPEG_DIR, naming a directory that holds ffmpeg and ffprobe. It takes
+# precedence over the copy shipped in the release archive and over PATH. A config key
+# would be read too late -- the tools are resolved before this file is loaded.
+
 # Optional ffmpeg tuning (safe defaults)
 # video_preset: empty uses ffmpeg default preset
 # Common presets: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow

@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 79 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 80 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -788,6 +788,21 @@ dès l'ouverture, ne périme jamais, et rend le sha d'un `git log --grep '(#NN)'
 traçabilité en supprimant la dette. Même famille que L-65 : quand un artefact exige une mise à
 jour ultérieure récurrente, chercher la formulation qui rend cette mise à jour inutile plutôt que
 le garde-fou qui la rappelle.
+
+### L-80 — Balayer les symboles ne balaie pas les affirmations — 2026-09-06
+AGENTS.md prescrit, après un changement d'API, `grep -rn "FunctionName" --include='*.md' .`.
+Fait, et sans résultat : le chantier matériel n'a renommé aucune fonction. Ce qu'il a rendu faux,
+ce sont des **phrases** — « installez FFmpeg », « voici ce que contient l'archive », « vérifiez
+votre GPU avec `ffmpeg -encoders | grep nvenc` ». Le README a donc continué à prescrire
+`winget install Gyan.FFmpeg`, c'est-à-dire précisément le build qui avait causé le signalement,
+à travers trois PR qui modifiaient ce même fichier. C'est l'utilisateur qui l'a vu.
+→ Après un correctif, se demander **quelles promesses la documentation faisait sur le
+comportement qui vient de changer**, et relire les sections concernées en entier. Trois questions
+suffisent à les trouver : qu'est-ce que le README dit d'**installer**, qu'est-ce qu'il dit de
+**vérifier**, et qu'est-ce qu'il dit que l'utilisateur **recevra** ? Un `grep` sur un identifiant
+ne peut répondre à aucune des trois.
+*Corollaire mesuré ici* : modifier un fichier dans une PR ne le met pas à jour. Les trois PR
+avaient toutes touché `README.md` — une seule section chacune.
 
 ## 3. Corrections appliquées
 

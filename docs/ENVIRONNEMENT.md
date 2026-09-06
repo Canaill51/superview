@@ -17,6 +17,14 @@
 | Sysroot GUI (en-têtes GL/X11/Wayland) | `/tmp/glue/sysroot` | **non — à reconstruire** |
 | `ffmpeg`, `ffprobe`, `zenity` | système | oui |
 
+> **Pourquoi FFmpeg reste nécessaire ici alors que les archives de release en embarquent
+> un.** `resolveToolBinary` cherche d'abord la copie livrée à côté de l'exécutable ; un
+> `go build` n'en produit aucune, donc un poste de développement travaille avec celui du
+> `PATH`. Conséquence à garder en tête : **les sondes d'encodeurs et les tests
+> d'intégration mesurent le FFmpeg du système, pas celui que les utilisateurs
+> recevront.** Pour éprouver le binaire empaqueté, pointer `SUPERVIEW_FFMPEG_DIR`
+> dessus.
+
 Conséquence en début de session : `./common` se compile, se teste sous `-race` et
 se lint immédiatement ; le paquet `main` échoue sur
 `wayland-client-core.h: No such file or directory` tant que le sysroot n'est pas

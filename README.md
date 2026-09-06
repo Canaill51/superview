@@ -42,12 +42,8 @@ This program applies sophisticated distortion to convert 4:3 video to 16:9 wides
   and similar. Superview then un-stretches the centre instead of widening the frame. The curve is
   an approximation of the inverse stretch, not a reproduction of any camera's own algorithm
 - **System Diagnostic**: the *Diagnostic* button reports ffmpeg/ffprobe availability, free disk
-  space, memory and CPU -- attach its output to any bug report
-
-Superview now shows a hardware diagnostic in the GUI:
-
-- the planned path before launch, for example `h264_nvenc + D3D11VA`
-- the actual path used after the run, including CPU fallback when FFmpeg or the driver rejects a hardware path
+  space, memory and CPU, and **which encoders this machine actually accepts**, with FFmpeg's own
+  words for each refusal -- attach its output to any bug report
 
 The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
 
@@ -57,23 +53,22 @@ Here is a quick animation showing the scaling, note how the text in the center s
 
 ## Requirements
 
-### Official (Windows)
+**If you use a release archive, there is nothing to install.** It ships its own
+`ffmpeg` and `ffprobe`, and Superview uses those in preference to anything on your
+machine — deliberately, because which FFmpeg build is installed decides whether
+hardware encoding works at all. See [Hardware acceleration](#hardware-acceleration).
 
-Use the commands below.
+You only need FFmpeg on `PATH` when you **build from source**, which produces no
+bundle.
 
-```powershell
-winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+> ⚠️ **Do not follow the obvious advice for Windows.** `winget install Gyan.FFmpeg`
+> currently installs a build compiled against NVIDIA headers that demand driver
+> **610.00** — a version the RTX Enterprise branch, which drives professional cards,
+> does not reach. On such a machine NVENC can never start, whatever the driver.
+> `winget install Gyan.FFmpeg --version 8.1.1` demands 570.0 and works.
+> [docs/hardware-support.md](docs/hardware-support.md) has the measured table.
 
-ffmpeg -version
-ffprobe -version
-
-```
-
-If a command is not found after install, close and reopen your terminal so `PATH` is refreshed.
-
-### Linux (Ubuntu 24.04 LTS / 26.04 LTS)
-
-Install FFmpeg and the system libraries required to build/run the Fyne GUI:
+### Linux, to build from source
 
 ```bash
 sudo apt update
@@ -89,11 +84,12 @@ Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
 sudo apt install -y zenity
 ```
 
-Check FFmpeg NVENC support if you have an Nvidia GPU:
+### Checking whether your GPU will be used
 
-```bash
-ffmpeg -hide_banner -encoders | grep nvenc
-```
+Not with `ffmpeg -encoders | grep nvenc`. That list is compiled into the binary and
+knows nothing about your driver: it names encoders that refuse every frame. **Open
+Superview and press *Diagnostic*** — it asks each encoder to encode one, and prints
+what FFmpeg said about the ones that refused.
 
 ## Hardware acceleration
 
@@ -133,16 +129,22 @@ be supported does not appear, see **[docs/hardware-support.md](docs/hardware-sup
 Every release publishes an archive per platform plus a `checksums.txt`, on the
 [Releases](https://github.com/Canaill51/superview/releases) page.
 
-**Windows** — download `superview-gui-<version>-windows-x86_64.zip`, extract it, and
-run `superview-gui.exe`:
+Both archives carry `ffmpeg` and `ffprobe` alongside the application, plus
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Keep them together: Superview looks
+for them beside itself, and moving the executable out on its own leaves it falling back
+to whatever FFmpeg the machine has.
+
+**Windows** — download `superview-gui-<version>-windows-x86_64.zip` and extract it. It
+unpacks to a single folder holding the application and its FFmpeg:
 
 ```powershell
-.\superview-gui.exe
+cd superview-<version>-windows-x86_64
+.\superview-gui-windows-amd64.exe
 ```
 
 **Linux** — download `superview-gui-<version>-linux-x86_64.tar.xz`. The archive carries
-the binary, a `.desktop` entry, an icon and a `Makefile`, so you can either run it in
-place or install it:
+the binary, its FFmpeg, a `.desktop` entry, an icon and a `Makefile`, so you can either
+run it in place or install it:
 
 ```bash
 tar -xJf superview-gui-<version>-linux-x86_64.tar.xz
@@ -150,6 +152,10 @@ tar -xJf superview-gui-<version>-linux-x86_64.tar.xz
 ./superview/usr/local/bin/superview      # run it where it is
 sudo make -C superview install           # or install it into /usr/local
 ```
+
+Installing puts the application in `/usr/local/bin` and its FFmpeg in
+`/usr/local/lib/superview` — not beside the application, where it would shadow the
+system's `ffmpeg` for every program on the machine.
 
 **Verify what you downloaded.** Put `checksums.txt` next to the archives and run:
 
@@ -194,17 +200,21 @@ Then launch:
 
 ### Quick Run
 
-Windows (PowerShell):
+Windows (PowerShell) — from a release archive, the executable keeps the name it was
+built under, and the FFmpeg beside it is the one Superview will use:
+
 ```powershell
-.\superview-gui.exe
+.\superview-gui-windows-amd64.exe
 ```
 
+A source build produces whatever `go build -o` was given, `superview-gui.exe` above.
+
 GUI workflow:
-1. Click **1) Choose input file**
-2. Select **Quality** (**Fast** or **Balanced**)
-3. (Optional) Select **Video codec**
-4. Click **2) Choose output file**
-5. Click **3) Start Superview transform**
+1. Click **Choose input file**
+2. Select a **Quality profile** (**Fast** or **Balanced**)
+3. (Optional) Select a **Video codec**
+4. Click **Choose output file**
+5. Click **Start transformation**
 6. Wait for encoding completion
 
 Notes:
@@ -219,7 +229,12 @@ Notes:
 
 ![GUI Screenshot](.github/sample-gui.png)
 
-If you get `Cannot find ffmpeg/ffprobe`, fix your `PATH` and retry.
+If you get `Cannot find ffmpeg/ffprobe` from a release archive, its `ffmpeg` and
+`ffprobe` are no longer beside the application — extract the archive again rather than
+moving the executable out of its folder. From a source build, put FFmpeg on `PATH`.
+
+To make Superview use a particular FFmpeg, point `SUPERVIEW_FFMPEG_DIR` at the directory
+holding `ffmpeg` and `ffprobe`. It wins over the bundled copy and over `PATH`.
 
 ### Configuration
 
@@ -264,6 +279,16 @@ export SUPERVIEW_ENCODER_THREADS=8
 ./superview-gui
 ```
 
+`SUPERVIEW_FFMPEG_DIR` is the one that has no counterpart in the file: it names the
+directory holding `ffmpeg` and `ffprobe`, and takes precedence over both the bundled
+copy and `PATH`. It exists because the bundled build is one decision applied to every
+machine, and a machine it suits badly needs a way out that does not involve waiting for
+a release.
+
+```bash
+SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
+```
+
 ## Architecture
 
 ### Project Structure
@@ -273,7 +298,8 @@ superview/
 ├── common/                     # Encoding logic, shared by any front end
 │   ├── common.go               # Pipeline, session lifecycle, ffprobe/ffmpeg calls
 │   ├── config.go               # Configuration loading and defaults
-│   ├── hardware.go             # Hardware capability profiling
+│   ├── hardware.go             # Encoder classification, hardware device setup
+│   ├── probe.go                # Asks each encoder to encode a frame; the verdict rules
 │   ├── health.go               # System health checks (the Diagnostic button)
 │   ├── metrics.go              # Encoding metrics
 │   ├── observability.go        # Event recording and logging
@@ -288,6 +314,8 @@ superview/
 ├── superview.yaml              # Default configuration
 ├── FyneApp.toml                # Fyne packaging metadata
 ├── Makefile                    # Local build and quality targets
+├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped in the archives, and its licence
+├── .github/scripts/            # Release-time checks (the NVENC driver floor guard)
 └── RELEASING.md                # How a release is made
 ```
 
@@ -304,13 +332,17 @@ Input → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo →
 
 ## Development
 
-Use the commands below.
+A source build ships no FFmpeg, so a development machine needs one on `PATH`:
 
 ```powershell
-winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+winget install -e --id Gyan.FFmpeg --version 8.1.1 --accept-package-agreements --accept-source-agreements
 winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
 winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
 ```
+
+> The pinned `8.1.1` is not caution about newness: 8.1.2 demands NVIDIA driver 610.00
+> and so cannot use NVENC on a professional card. Testing the hardware paths against it
+> would measure the wrong thing. See [RELEASING.md](RELEASING.md#bumping-the-bundled-ffmpeg).
 
 ### Build & Test
 
