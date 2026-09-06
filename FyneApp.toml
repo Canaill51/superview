@@ -2,8 +2,9 @@
   Name = "Superview"
   ID = "com.canaill51.superview"
   Icon = "Icon.png"
-  # Only a fallback, for a build made outside the release workflow. The
-  # published binaries get their version from the tag, which the workflow
-  # passes as "fyne package --app-version", so the two can never drift.
-  Version = "0.2.3"
+  # No Version on purpose. The release workflow passes it as
+  # "fyne package --app-version", taken from the tag, so a published binary
+  # cannot claim a number that a committed file drifted away from. A build made
+  # any other way has no version to claim, and says "dev" rather than repeat
+  # whichever release this line last happened to name.
   Build = 1

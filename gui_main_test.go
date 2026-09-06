@@ -247,14 +247,22 @@ func TestBuildIdentity(t *testing.T) {
 			want:    "0.2.3",
 		},
 		{
-			// Fyne answers 0.0.1 when nothing stamped a version, so an empty
-			// string means something stripped it; say so rather than print a
-			// bare commit with no version in front of it.
-			name:    "an empty version reads as unknown",
+			// The ordinary local build: FyneApp.toml holds no Version, so the
+			// metadata arrives with a name and an ID but nothing to report. It
+			// means the same as no metadata at all -- this is not a release --
+			// so it reads the same way.
+			name:    "a build with metadata but no version reads as dev",
 			version: "",
 			info:    settings("85b66712872f83ec87bfc7f9cfc38d128cd3a88d", false),
 			ok:      true,
-			want:    "unknown (85b6671)",
+			want:    "dev (85b6671)",
+		},
+		{
+			name:    "a blank version is not mistaken for a real one",
+			version: "   ",
+			info:    nil,
+			ok:      false,
+			want:    "dev",
 		},
 		{
 			name:    "a short revision is not truncated",
