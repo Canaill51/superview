@@ -50,6 +50,8 @@ than it looks.
 | `main()` is ~540 lines | Deliberate. The defect was that its *state* was unreachable, fixed by the `appState` type and its methods. Widget construction has nothing to gain from being split. |
 | `.github/release.yml` has a `"*"` catch-all | Load-bearing. GitHub drops any pull request matching no category, and this repository labels none of its own — removing it empties every release. |
 | `common/common.go` is ~1600 lines | Known. Splitting `pgm.go` and `tools.go` out is identified and not urgent: it is 81% covered and `pgm_golden_test.go` pins the geometry byte for byte. |
+| The bundled FFmpeg is pinned to **8.1.1**, not the newest | What is pinned is its NVENC driver floor, 570.0, not its version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping the pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching it. |
+| The release workflow patches fyne's generated `Makefile` | It installs three named files, so the bundled `ffmpeg`/`ffprobe` have to be added to it, and its icon line is broken upstream (`$(Icon)` without the `.png`, so `make install` fails on its last line). The patch is keyed on the exact lines, and the job then runs `make install` into a throwaway directory: if fyne changes shape, the release fails there instead of shipping a package that installs nothing. |
 | Progress events log at debug level | They fire several times a second. Raising them drowns the log the README asks users to attach to bug reports. |
 
 ## Contracts you must not break

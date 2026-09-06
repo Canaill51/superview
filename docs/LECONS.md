@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 73 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 76 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -720,7 +720,78 @@ réponse. Le symptôme à reconnaître : un message d'erreur qui parle d'autre c
 ici `Impossible to convert between the formats supported by the filter`, qui ne mentionne ni
 pilote ni périphérique. Voir aussi L-49, où c'était l'environnement qui rendait la mesure muette.
 
+### L-74 — Épingler une dépendance, c'est épingler une propriété, pas un numéro — 2026-09-06
+Le fork épinglait « FFmpeg 8.1.2 ». Ce qui compte n'est pas ce nom : c'est le plancher pilote
+NVENC compilé dedans. Deux builds portant ce même nom exigent 570 et 610, et le second est
+inutilisable sur une carte professionnelle. Un pin sur la version aurait donc pu être « monté »
+un jour par routine et casser exactement les machines qu'il protégeait, sans que rien ne bouge
+dans le fichier.
+→ Nommer la propriété recherchée, l'extraire de l'artefact et la vérifier en CI. Ici :
+`.github/scripts/nvenc-driver-floor.sh` relit le littéral dans le binaire téléchargé et fait
+échouer la release s'il a changé. Un pin sans garde-fou n'épingle que l'intention.
+
+### L-75 — Une URL épinglée doit être choisie pour sa durée de vie — 2026-09-06
+Le pin du fork visait un autobuild BtbN de milieu de mois : il est en **404** aujourd'hui,
+donc son workflow de release ne pouvait plus aboutir. Mesuré avant de choisir : BtbN conserve
+le dernier build de **chaque fin de mois** — celui d'octobre 2024 répond toujours — et gyan.dev
+publie des releases versionnées, permanentes par construction.
+→ Avant d'épingler une URL externe, vérifier ce que l'amont conserve, pas ce qu'il publie.
+Deux commandes suffisaient : lister les tags et interroger le plus ancien.
+
+### L-76 — Vérifier l'installation, pas seulement la construction — 2026-09-06
+L'étape ajoutée pour contrôler l'empaquetage installe le paquet dans un répertoire jetable. Elle
+a immédiatement échoué — pas sur le code ajouté, mais sur une ligne amont : le `Makefile` de
+fyne 1.7.2 référence `usr/local/share/pixmaps/$(Icon)` alors qu'il livre `$(Icon).png`.
+`make install` échoue donc à sa dernière ligne, **après** avoir installé le binaire, ce qui rend
+la panne invisible à qui ne lit pas la sortie jusqu'au bout. Toutes les archives Linux publiées
+par ce projet étaient concernées.
+→ Un artefact de release se juge à ce qu'il produit une fois installé, pas à ce qu'il contient.
+La vérification tient en trois lignes — `make install DESTDIR=…` puis un test d'existence — et
+elle trouve ce qu'aucune relecture de l'archive ne montre.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] U-04 — Les archives embarquent leur FFmpeg, épinglé sur son plancher pilote
+
+| | |
+| --- | --- |
+| **Constat** | U-04 ([ANALYSE.md § 3septies](ANALYSE.md)) |
+| **Fichiers** | `.github/workflows/release.yml`, `.github/scripts/nvenc-driver-floor.sh` (nouveau), `common/common.go`, `THIRD_PARTY_NOTICES.md` (nouveau) ; tests : `common/toolresolve_test.go` (nouveau) ; docs : `README.md`, `AGENTS.md`, `RELEASING.md`, `docs/hardware-support.md`, `docs/CONTRATS.md` |
+| **Commit** | non commité |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · scripts du YAML extraits et exécutés en vrai ✅ · paquet Linux construit, empaqueté, installé et **lancé installé** ✅ |
+
+**Symptôme** — décidé avec l'utilisateur après U-03 : le comportement de l'application dépendait
+du FFmpeg présent sur la machine, c'est-à-dire de la variable la plus difficile à diagnostiquer à
+distance et la seule capable de retirer silencieusement l'accélération matérielle.
+
+**Correctif** — les deux archives de release embarquent `ffmpeg` et `ffprobe`, et
+`resolveToolBinary` les préfère au `PATH`. Ce qui est épinglé est le **plancher pilote NVENC**,
+570.0, relu dans le binaire téléchargé par un script de CI qui fait échouer la release s'il a
+changé. `SUPERVIEW_FFMPEG_DIR` reste la sortie de secours.
+
+Sous Linux les outils vont dans `../lib/superview/` et non à côté de l'application : celle-ci
+s'installe dans `$PREFIX/bin`, et un `ffmpeg` déposé là masquerait celui du système pour toute la
+machine. Le `Makefile` généré par fyne est patché en conséquence, puis le paquet est installé dans
+un répertoire jetable pour vérifier que tout atterrit au bon endroit.
+
+**Ce qui n'a pas été retenu** — les variantes `lgpl` (sans libx264/libx265, donc sans repli CPU),
+gyan `full_build-shared` (92 Mo zippés contre 71), et le build statique BtbN du fork (106 Mo).
+Détail des mesures : ANALYSE.md U-04.
+
+**Défaut trouvé en chemin** — `make install` d'un paquet fyne 1.7.2 échoue sur sa ligne d'icône
+(`$(Icon)` sans `.png`), après avoir installé le binaire. Aucune archive Linux publiée par ce
+projet n'était installable jusqu'au bout. Corrigé dans le même patch, à partir du nom du fichier
+réellement livré plutôt qu'en ajoutant `.png`, pour que la correction devienne inopérante — et non
+fausse — si fyne répare la sienne.
+
+**Coût assumé** — +71 Mo sur l'archive Windows, +80 Mo sur l'archive Linux. Arbitrage de
+l'utilisateur, explicite : « Même si le livrable voit sa taille augmentée, on s'assure ainsi que
+l'application ne passera plus en fallback. »
+
+**Leçon** — L-74, L-75, L-76.
+
+---
+
 
 ### [2026-09-06] U-03 — L'accélération matérielle était promise sans avoir jamais été vérifiée
 
@@ -728,7 +799,7 @@ pilote ni périphérique. Voir aussi L-49, où c'était l'environnement qui rend
 | --- | --- |
 | **Constat** | U-03 ([ANALYSE.md § 3septies](ANALYSE.md)) |
 | **Fichiers** | `common/probe.go` (nouveau), `common/common.go` (`newFFmpegCommandContext`), `common/health.go`, `gui_main.go` ; tests : `common/probe_test.go` (nouveau), `common/health_report_test.go`, `gui_main_test.go` |
-| **Commit** | non commité |
+| **Commit** | `e27c343` (PR #52) |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée, capturée, journal relu ✅ · 8 contre-épreuves ✅ |
 
 **Symptôme** — signalé par l'utilisateur : sur une NVIDIA RTX A1000 sous Windows, avec le FFmpeg

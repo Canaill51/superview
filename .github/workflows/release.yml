@@ -193,6 +193,28 @@ jobs:
     needs: [prepare, test]
     runs-on: windows-latest
 
+    env:
+      # The FFmpeg shipped inside the Windows archive.
+      #
+      # 8.1.1 rather than 8.1.2, and the reason is the whole point of bundling.
+      # The NVENC driver floor is fixed when FFmpeg is compiled, by the
+      # nv-codec-headers it is built against -- not by the FFmpeg version. Between
+      # gyan.dev's 8.1.1 and 8.1.2 that floor went from 570.0 to 610.00, and the
+      # NVIDIA RTX Enterprise driver branch tops out at 597.06: on a professional
+      # card, 8.1.2 can never use NVENC, however current the driver is. That is
+      # the bug report this bundling answers (ANALYSE.md U-03).
+      #
+      # So the property being pinned is the floor, not the version. The step below
+      # reads it back out of the downloaded binary and fails if it is not 570.0 --
+      # bumping this pin to a build compiled against newer headers is exactly the
+      # mistake that would re-break the machines this protects.
+      #
+      # "essentials" carries libx264, libx265, nvenc, amf and qsv, which is all
+      # Superview targets, and is a third of the size of "full".
+      FFMPEG_URL: https://github.com/GyanD/codexffmpeg/releases/download/8.1.1/ffmpeg-8.1.1-essentials_build.7z
+      FFMPEG_SHA256: 23ad8969fbe701d44e6e7e2b97c5fae4a71224fc33a2560a9034e5110d029d15
+      FFMPEG_DRIVER_FLOOR: '570.0'
+
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -237,6 +259,33 @@ jobs:
           exit 1
         fi
 
+    # Downloaded into RUNNER_TEMP, never into the checkout: an unignored file in
+    # the working tree during the build is what stamps the binary vcs.modified,
+    # and the step above exists because that has already shipped once.
+    - name: Fetch and verify the pinned FFmpeg
+      shell: bash
+      run: |
+        set -euo pipefail
+        archive="${RUNNER_TEMP}/ffmpeg-bundle.7z"
+        curl -fsSL -o "$archive" "$FFMPEG_URL"
+        echo "${FFMPEG_SHA256}  ${archive}" | sha256sum -c -
+
+        7z x -y -o"${RUNNER_TEMP}/ffmpeg-bundle" "$archive" > /dev/null
+        bin_dir="$(find "${RUNNER_TEMP}/ffmpeg-bundle" -type d -name bin | head -n 1)"
+        if [ -z "$bin_dir" ]; then
+          echo "::error::the pinned FFmpeg archive has no bin/ directory; its layout changed"
+          find "${RUNNER_TEMP}/ffmpeg-bundle" -maxdepth 2
+          exit 1
+        fi
+        cp "$bin_dir/ffmpeg.exe" "$bin_dir/ffprobe.exe" build/
+
+    - name: The bundled FFmpeg must demand the driver floor we measured
+      shell: bash
+      run: |
+        set -euo pipefail
+        source .github/scripts/nvenc-driver-floor.sh
+        assert_driver_floor "$FFMPEG_DRIVER_FLOOR" build/ffmpeg.exe build/ffprobe.exe
+
     - name: Create archives
       shell: pwsh
       env:
@@ -249,7 +298,20 @@ jobs:
           "arm64" { $archLabel = "aarch64" }
           default { $archLabel = $arch }
         }
-        Compress-Archive -Path "build/superview-gui-windows-$arch.exe" -DestinationPath "superview-gui-$env:LABEL-windows-$archLabel.zip" -Force
+        # Everything goes in one folder inside the zip rather than loose at its
+        # root: the archive now carries four files, and extracting those into
+        # whatever directory the user happened to open would scatter an
+        # ffmpeg.exe across their Downloads.
+        #
+        # ffmpeg.exe and ffprobe.exe sit beside the application, which is the
+        # first place resolveToolBinary looks.
+        $stage = "build/superview-$env:LABEL-windows-$archLabel"
+        New-Item -ItemType Directory -Force -Path $stage | Out-Null
+        Copy-Item "build/superview-gui-windows-$arch.exe" $stage
+        Copy-Item "build/ffmpeg.exe" $stage
+        Copy-Item "build/ffprobe.exe" $stage
+        Copy-Item "THIRD_PARTY_NOTICES.md" $stage
+        Compress-Archive -Path $stage -DestinationPath "superview-gui-$env:LABEL-windows-$archLabel.zip" -Force
 
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -264,6 +326,19 @@ jobs:
     name: Build GUI (Linux)
     needs: [prepare, test]
     runs-on: ubuntu-latest
+
+    env:
+      # The FFmpeg shipped inside the Linux archive. Same reasoning as the
+      # Windows job: what is pinned is the NVENC driver floor, 570.0, and the
+      # step below reads it back out of the binary.
+      #
+      # BtbN rather than gyan.dev, who builds for Windows only. The tag is a
+      # month-end autobuild on purpose: BtbN prunes mid-month builds -- the pin
+      # in the fork this idea came from is already a 404 -- but keeps the last
+      # build of each month, and the October 2024 one still answers today.
+      FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-n8.1.2-50-g1a748fe2cd-linux64-gpl-8.1.tar.xz
+      FFMPEG_SHA256: c733b4b2951e5957e15505f788b2c65a7a41b6da4b289e295852cc38079b4d2b
+      FFMPEG_DRIVER_FLOOR: '570.0'
 
     steps:
     - name: Checkout code
@@ -321,6 +396,155 @@ jobs:
           git status --porcelain
           exit 1
         fi
+
+    # Into RUNNER_TEMP, never the checkout: an unignored file in the working
+    # tree stamps the binary vcs.modified, which the step above exists to catch.
+    - name: Fetch and verify the pinned FFmpeg
+      run: |
+        set -euo pipefail
+        archive="${RUNNER_TEMP}/ffmpeg-bundle.tar.xz"
+        curl -fsSL -o "$archive" "$FFMPEG_URL"
+        echo "${FFMPEG_SHA256}  ${archive}" | sha256sum -c -
+
+        mkdir -p "${RUNNER_TEMP}/ffmpeg-bundle"
+        tar -xJf "$archive" -C "${RUNNER_TEMP}/ffmpeg-bundle"
+        bin_dir="$(find "${RUNNER_TEMP}/ffmpeg-bundle" -type d -name bin | head -n 1)"
+        if [ -z "$bin_dir" ]; then
+          echo "::error::the pinned FFmpeg archive has no bin/ directory; its layout changed"
+          find "${RUNNER_TEMP}/ffmpeg-bundle" -maxdepth 2
+          exit 1
+        fi
+        mkdir -p "${RUNNER_TEMP}/ffbin"
+        cp "$bin_dir/ffmpeg" "$bin_dir/ffprobe" "${RUNNER_TEMP}/ffbin/"
+        chmod 0755 "${RUNNER_TEMP}/ffbin/ffmpeg" "${RUNNER_TEMP}/ffbin/ffprobe"
+
+    - name: The bundled FFmpeg must demand the driver floor we measured
+      run: |
+        set -euo pipefail
+        source .github/scripts/nvenc-driver-floor.sh
+        assert_driver_floor "$FFMPEG_DRIVER_FLOOR" "${RUNNER_TEMP}/ffbin/ffmpeg" "${RUNNER_TEMP}/ffbin/ffprobe"
+
+    # The tools go under lib/superview, not next to the app.
+    #
+    # The app installs into $PREFIX/bin, so an "ffmpeg" beside it would land in
+    # /usr/local/bin and shadow the system's for every program on the machine.
+    # A sibling lib/superview directory is private to us, and the app finds it
+    # both installed ($PREFIX/lib/superview) and straight out of the unpacked
+    # tarball, because the path it looks up is relative to its own binary.
+    #
+    # fyne's Makefile installs three named files, so the two new ones have to be
+    # added to it. Keying the insertion on the line that installs the app means
+    # a change to that Makefile's shape fails here rather than silently
+    # producing a package that installs no FFmpeg.
+    - name: Bundle FFmpeg into the Linux package
+      run: |
+        set -euo pipefail
+        arch="$(go env GOARCH)"
+        tarball="superview-gui-linux-${arch}.tar.xz"
+
+        work="${RUNNER_TEMP}/package"
+        rm -rf "$work" && mkdir -p "$work"
+        tar -xJf "$tarball" -C "$work"
+
+        root="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+        if [ ! -f "$root/Makefile" ]; then
+          echo "::error::the fyne package has no Makefile at its root; its layout changed"
+          find "$work" -maxdepth 3
+          exit 1
+        fi
+
+        install -Dm0755 "${RUNNER_TEMP}/ffbin/ffmpeg"  "$root/usr/local/lib/superview/ffmpeg"
+        install -Dm0755 "${RUNNER_TEMP}/ffbin/ffprobe" "$root/usr/local/lib/superview/ffprobe"
+
+        # Repair fyne 1.7.2's icon line while we are here. It sets
+        # Icon := "com.canaill51.superview" but ships the file as
+        # com.canaill51.superview.png, so "make install" fails on its last line
+        # with "install: No such file or directory" -- after having installed
+        # the binary, which is why nobody noticed. Every Linux archive this
+        # project has published has been broken that way.
+        #
+        # Taking the name from the file that is actually there rather than
+        # appending ".png": if fyne fixes this, the rewrite becomes a no-op
+        # instead of producing "…png.png".
+        icon_file="$(find "$root/usr/local/share/pixmaps" -maxdepth 1 -type f -printf '%f\n' | head -n 1)"
+        if [ -z "$icon_file" ]; then
+          echo "::error::the fyne package ships no icon under usr/local/share/pixmaps"
+          find "$root/usr/local/share" -maxdepth 3
+          exit 1
+        fi
+        sed -i "s|^Icon := .*|Icon := \"${icon_file}\"|" "$root/Makefile"
+
+        awk '
+          { print }
+          /install -Dm00755 usr\/local\/bin\/\$\(Exec\) \$\(DESTDIR\)\$\(PREFIX\)\/bin\/\$\(Exec\)/ {
+              print "\tinstall -Dm00755 usr/local/lib/superview/ffmpeg $(DESTDIR)$(PREFIX)/lib/superview/ffmpeg"
+              print "\tinstall -Dm00755 usr/local/lib/superview/ffprobe $(DESTDIR)$(PREFIX)/lib/superview/ffprobe"
+              seen_install = 1
+          }
+          /install -Dm00755 usr\/local\/bin\/\$\(Exec\) \$\(DESTDIR\)\$\(HOME\)\/\.local\/bin\/\$\(Exec\)/ {
+              print "\tinstall -Dm00755 usr/local/lib/superview/ffmpeg $(DESTDIR)$(HOME)/.local/lib/superview/ffmpeg"
+              print "\tinstall -Dm00755 usr/local/lib/superview/ffprobe $(DESTDIR)$(HOME)/.local/lib/superview/ffprobe"
+              seen_user_install = 1
+          }
+          /-rm \$\(DESTDIR\)\$\(PREFIX\)\/bin\/\$\(Exec\)/ {
+              print "\t-rm -r $(DESTDIR)$(PREFIX)/lib/superview"
+              seen_uninstall = 1
+          }
+          /-rm \$\(DESTDIR\)\$\(HOME\)\/\.local\/bin\/\$\(Exec\)/ {
+              print "\t-rm -r $(DESTDIR)$(HOME)/.local/lib/superview"
+              seen_user_uninstall = 1
+          }
+          END {
+              if (!seen_install || !seen_user_install || !seen_uninstall || !seen_user_uninstall) {
+                  print "::error::fyne'"'"'s Makefile no longer has the lines this patch keys on (install=" seen_install \
+                        " user-install=" seen_user_install " uninstall=" seen_uninstall \
+                        " user-uninstall=" seen_user_uninstall "); the package would install no FFmpeg" > "/dev/stderr"
+                  exit 1
+              }
+          }
+        ' "$root/Makefile" > "${RUNNER_TEMP}/Makefile.patched"
+        mv "${RUNNER_TEMP}/Makefile.patched" "$root/Makefile"
+
+        cp THIRD_PARTY_NOTICES.md "$root/"
+        rm -f "$tarball"
+        tar -cJf "$tarball" -C "$work" "$(basename "$root")"
+
+    # Asserting the outcome rather than the patch: install into a throwaway
+    # DESTDIR and check the files land where the app will look for them.
+    - name: The package must actually install its FFmpeg
+      run: |
+        set -euo pipefail
+        arch="$(go env GOARCH)"
+        dest="${RUNNER_TEMP}/verify-install"
+        work="${RUNNER_TEMP}/verify-package"
+        rm -rf "$dest" "$work" && mkdir -p "$dest" "$work"
+
+        tar -xJf "superview-gui-linux-${arch}.tar.xz" -C "$work"
+        root="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+        make -C "$root" install DESTDIR="$dest" PREFIX=/usr
+
+        for tool in ffmpeg ffprobe; do
+          if [ ! -x "$dest/usr/lib/superview/$tool" ]; then
+            echo "::error::make install did not put $tool where the app looks for it"
+            find "$dest" -type f
+            exit 1
+          fi
+        done
+        # And the app itself must still be installed beside it, one level up.
+        if [ ! -x "$dest/usr/bin/superview" ]; then
+          echo "::error::make install no longer installs the application binary"
+          find "$dest" -type f
+          exit 1
+        fi
+        # The icon too: "make install" used to fail on it, and the whole point
+        # of running the install here is that such a failure is now visible.
+        if ! find "$dest/usr/share/pixmaps" -type f | grep -q .; then
+          echo "::error::make install did not install the application icon"
+          find "$dest" -type f
+          exit 1
+        fi
+        echo "installed layout:"
+        find "$dest" -type f | sort
 
     - name: Name the archive for the release
       env:

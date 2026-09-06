@@ -27,6 +27,30 @@ On Windows, Superview can combine these hardware encoders with `D3D11VA` or
 `DXVA2` decode when the vendor-specific `hwaccel` token is not exposed by
 FFmpeg.
 
+## Superview ships its own FFmpeg
+
+The Windows and Linux release archives carry `ffmpeg` and `ffprobe`, and
+Superview uses those in preference to any FFmpeg on the machine. The reason is
+the section below: the NVENC driver requirement is a property of how FFmpeg was
+compiled, not of its version number, so leaving that choice to whatever the user
+happens to have installed means the program behaves differently on two machines
+that look identical.
+
+The bundled build is pinned to an NVENC driver floor of **570.0**, and the
+release refuses to publish a build with a different one.
+
+To use your own instead, set `SUPERVIEW_FFMPEG_DIR` to a directory containing
+both `ffmpeg` and `ffprobe`:
+
+```bash
+SUPERVIEW_FFMPEG_DIR=/usr/bin superview        # Linux
+set SUPERVIEW_FFMPEG_DIR=C:\ffmpeg\bin         # Windows
+```
+
+That override wins over the bundled copy; if it names a directory with no
+`ffmpeg` in it, Superview logs a warning and carries on with the bundled one.
+Building from source produces no bundle, so a source build uses your PATH.
+
 ## The NVIDIA driver floor belongs to your FFmpeg build, not to FFmpeg
 
 NVENC negotiates an API version. If the version FFmpeg was **compiled** against
