@@ -1236,6 +1236,32 @@ func TestRemapFilterChain(t *testing.T) {
 			pixFmt: "", encoder: "libx265",
 			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p[v]",
 		},
+		{
+			// remap is a CPU filter, so the frames are in system memory whatever
+			// the encoder. Vulkan cannot take them from there.
+			name:   "a Vulkan encoder gets the frames uploaded",
+			pixFmt: "yuv420p", encoder: "h264_vulkan",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p,format=nv12,hwupload[v]",
+		},
+		{
+			name:   "a VAAPI encoder gets the frames uploaded",
+			pixFmt: "yuv420p", encoder: "h264_vaapi",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p,format=nv12,hwupload[v]",
+		},
+		{
+			// Hardware frame pools are semi-planar, so the upload format is not
+			// the chain's output format: 10-bit goes up as p010, not yuv420p10le.
+			name:   "a 10-bit upload goes through p010, not the planar format",
+			pixFmt: "yuv420p10le", encoder: "hevc_vulkan",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p10le,format=yuv420p10le,format=p010,hwupload[v]",
+		},
+		{
+			// The encoders that upload for themselves must not be given an
+			// upload step: it would need a device the machine may not have.
+			name:   "NVENC is left to upload for itself",
+			pixFmt: "yuv420p", encoder: "h264_nvenc",
+			want: "[0:v:0][1:v:0][2:v:0]remap,format=yuv444p,format=yuv420p[v]",
+		},
 	}
 
 	for _, tc := range cases {
@@ -1244,6 +1270,45 @@ func TestRemapFilterChain(t *testing.T) {
 				t.Errorf("remapFilterChain(%q, %q) =\n  %s\nwant\n  %s", tc.pixFmt, tc.encoder, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestBuildEncodeBaseArgs_DeviceOptionsComeBeforeTheInput pins where the
+// device setup goes.
+//
+// -init_hw_device is a global option. After -i it configures nothing the filter
+// graph can use, and the upload the chain performs then fails looking for a
+// device that was never created -- a failure that names the filter, not the
+// misplaced option.
+func TestBuildEncodeBaseArgs_DeviceOptionsComeBeforeTheInput(t *testing.T) {
+	video := &VideoSpecs{File: "input.mp4"}
+
+	args := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "h264_vulkan", 2000000, "aac", 6, 0, "")
+
+	deviceAt, inputAt := -1, -1
+	for i, arg := range args {
+		if arg == "-init_hw_device" && deviceAt < 0 {
+			deviceAt = i
+		}
+		if arg == "-i" && inputAt < 0 {
+			inputAt = i
+		}
+	}
+
+	if deviceAt < 0 {
+		t.Fatalf("a Vulkan encode carries no -init_hw_device: %v", args)
+	}
+	if inputAt < 0 {
+		t.Fatalf("no -i in the arguments at all: %v", args)
+	}
+	if deviceAt > inputAt {
+		t.Errorf("-init_hw_device is at %d, after the input at %d: it would configure nothing", deviceAt, inputAt)
+	}
+
+	// And nothing of the sort for an encoder that uploads for itself.
+	cpu := strings.Join(buildEncodeBaseArgs(video, "x.pgm", "y.pgm", "libx264", 2000000, "aac", 6, 0, ""), " ")
+	if strings.Contains(cpu, "-init_hw_device") {
+		t.Errorf("a CPU encode must not create a hardware device: %s", cpu)
 	}
 }
 

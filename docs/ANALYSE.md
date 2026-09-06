@@ -6,7 +6,7 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 8ᵉ (U-03, U-04), close le 2026-09-06 sur `e27c343` — comme la 7ᵉ,
+> Dernière passe : 8ᵉ (U-03 à U-05), close le 2026-09-06 sur `ed9a6b5` — comme la 7ᵉ,
 > un signalement de l'utilisateur et non une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
@@ -1874,6 +1874,54 @@ témoin : 15 appels au binaire empaqueté (version, capacités, chaque sonde), z
 
 ---
 
+### U-05 ✅ — ~~Deux chemins matériels sans plancher pilote restaient inutilisés~~ — **CORRIGÉ**
+
+Troisième volet du chantier ouvert par U-03. FFmpeg 8.1 expose `h264_vulkan`,
+`hevc_vulkan` et, sous Windows, `h264_d3d12va` / `hevc_d3d12va`. Ces encodeurs
+passent par le **pilote d'affichage** et non par l'API NVENC : la négociation de
+version qui a coûté l'accélération matérielle à la RTX A1000 n'existe pas pour eux.
+`ffmpeg -encoders` les listait déjà chez nous — `candidateEncodersForCodec` ne les
+proposait jamais.
+
+**Ce que leur ajout a révélé.** Ils n'acceptent que des trames déjà sur le
+périphérique, comme VAAPI. Or `remap` est un filtre CPU : les trames sont en mémoire
+système à la sortie de la chaîne, quel que soit l'encodeur. Mesuré :
+
+| Commande | Résultat |
+| --- | --- |
+| `-c:v h264_vulkan`, sans périphérique ni upload | `Impossible to convert between the formats supported by the filter 'Parsed_null_0'…` |
+| `-vf format=nv12,hwupload` **sans** `-init_hw_device` | `A hardware device reference is required to upload frames to.` |
+| `-init_hw_device vulkan=sv -filter_hw_device sv` **et** `-vf format=nv12,hwupload` | **OK** |
+
+Donc `h264_vaapi`, déjà dans la liste des candidats depuis longtemps, **n'a jamais pu
+fonctionner** : le pipeline ne lui a jamais fourni ni périphérique ni upload. Sur une
+machine où VAAPI marche, l'encodage échouait et repliait sur le CPU.
+
+*Correctif* — `hwDeviceArgs` émet `-init_hw_device <type>=sv -filter_hw_device sv`
+avant les `-i`, et `hwUploadFilters` ajoute `,format=nv12,hwupload` à la fin de la
+chaîne (`,format=p010,hwupload` en 10 bits : les pools matériels sont semi-planaires).
+L'upload s'ajoutant après le `remap`, la géométrie est inchangée.
+
+**La sonde et la conversion partagent ces deux fonctions**, et c'est le point plutôt
+qu'une commodité : une sonde qui ouvrirait un périphérique que la conversion n'ouvre
+pas passerait puis échouerait à l'encodage ; l'inverse condamnerait un encodeur qui
+fonctionne. `TestProbeAndConversionAskTheSameQuestion` compare les deux.
+
+*Vérification* — conversion réelle 640×480 → 853×480 par `h264_vulkan` sur RTX 4070,
+géométrie conforme, et le résumé confirme le chemin employé plutôt qu'un repli.
+
+**Deux contre-épreuves fausses, corrigées.** Casser le code partagé neutralisait la
+contre-épreuve : la sonde échouait aussi, donc le test se *sautait* au lieu d'échouer
+(L-49). Et l'assertion du test cherchait le nom de l'encodeur dans le résumé — or le
+message de repli, `Hardware: h264_vulkan failed; used CPU encode (libx264)`, le
+contient également : le test passait sur un repli CPU. Assertion refaite sur le sens du
+message, pas sur la présence du nom.
+
+*Non testable ici* — `*_d3d12va` est spécifique à Windows. La sonde rend l'ajout sans
+risque : un chemin qui ne fonctionne pas n'est jamais retenu.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -1887,7 +1935,7 @@ témoin : 15 appels au binaire empaqueté (version, capacités, chaque sonde), z
 | ✅ **Corrigé et vérifié — 5ᵉ passe** (7) | R-01 à R-07 |
 | ✅ **Corrigé et vérifié — 6ᵉ passe** (16) | D-01 à D-12, V-01 à V-04 |
 | ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
-| ✅ **Corrigé et vérifié — 8ᵉ passe** (2) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI |
+| ✅ **Corrigé et vérifié — 8ᵉ passe** (3) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
@@ -2058,3 +2106,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-06 | **7ᵉ passe, à `2cf0020`** : deux défauts d'affichage signalés par l'utilisateur, § 3sexies. `U-01` — un `GridWrap` de 150 × 34 rognait trois libellés sur six, et `TestToolbarFitsWindow` mesurait la cellule imposée au lieu du bouton, sur des boutons sans icône : il était vert. `U-02` — un `HBox` nu collait la rangée à gauche. Cellule dérivée du minimum du bouton, rangée centrée, fenêtre élargie à son contenu. Leçons L-69, L-70 ; L-20 mise à jour. |
 | 2026-09-06 | **8ᵉ passe, à `7bb715e`** : § 3septies, constat `U-03`. Enquête sur un signalement d'accélération matérielle perdue : FFmpeg 8.1 n'y est pour rien (`nvenc.c` identique à 8.0), le plancher pilote est fixé par les `nv-codec-headers` de compilation et gyan.dev l'a porté de 570 à 610 entre 8.1.1 et 8.1.2, au-dessus du maximum atteignable par une carte professionnelle (597.06). Correctif : sonde à l'exécution, section *Encoders* dans le Diagnostic, ligne « Hardware » qui ne promet plus rien d'invérifié. Leçons L-71 à L-73. |
 | 2026-09-06 | **U-04**, suite de U-03 : les archives Windows et Linux embarquent un FFmpeg épinglé sur son **plancher pilote** (570.0), relu dans le binaire par la CI. Sources choisies pour la permanence de leurs URL — gyan.dev versionne ses releases, BtbN conserve ses builds de fin de mois (celui d'octobre 2024 répond encore). Découvert en route : `make install` d'un paquet fyne 1.7.2 échoue sur la ligne de l'icône, donc **aucune archive Linux publiée n'était installable**. Leçons L-74 à L-76. |
+| 2026-09-06 | **U-05**, fin du chantier U-03 : ajout des encodeurs `*_vulkan` et `*_d3d12va`, qui passent par le pilote d'affichage et n'ont donc aucun plancher NVENC à manquer. Leur ajout a montré que `h264_vaapi`, candidat de longue date, n'avait jamais pu fonctionner faute de périphérique et d'upload dans le pipeline. Conversion réelle vérifiée par `h264_vulkan`. Deux contre-épreuves fausses corrigées en chemin. Leçons L-77, L-78. |

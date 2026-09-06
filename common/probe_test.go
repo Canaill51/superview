@@ -8,37 +8,84 @@ import (
 	"time"
 )
 
-// TestProbeArgs_VaapiIsAskedAQuestionItCanAnswer pins the one asymmetry in the
-// probe argv, and it is not cosmetic.
+// TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload pins the asymmetry in
+// the probe argv, and it is not cosmetic.
 //
-// Feeding a VAAPI encoder software frames fails in the filter graph, before the
-// driver is ever consulted:
+// VAAPI, Vulkan and D3D12 only accept frames that already live on the device.
+// Feeding them software frames fails in the filter graph, before the driver is
+// ever consulted:
 //
 //	Impossible to convert between the formats supported by the filter
 //	'Parsed_null_0' and the filter 'auto_scale_0'
 //
-// A probe shaped that way reports "unusable" for a VAAPI encoder that works
+// A probe shaped that way reports "unusable" for an encoder that works
 // perfectly, which is worse than not probing at all: it would take hardware
 // away from the machines that have it.
-func TestProbeArgs_VaapiIsAskedAQuestionItCanAnswer(t *testing.T) {
-	vaapi := strings.Join(probeArgs("h264_vaapi"), " ")
-
-	for _, needed := range []string{
-		"-init_hw_device vaapi=probe",
-		"-filter_hw_device probe",
-		"format=nv12,hwupload",
+func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
+	for encoder, deviceType := range map[string]string{
+		"h264_vaapi":   "vaapi",
+		"hevc_vulkan":  "vulkan",
+		"h264_d3d12va": "d3d12va",
 	} {
-		if !strings.Contains(vaapi, needed) {
-			t.Errorf("the VAAPI probe is missing %q; it would fail in the filter graph and blame the encoder\ngot: %s", needed, vaapi)
+		joined := strings.Join(probeArgs(encoder), " ")
+
+		for _, needed := range []string{
+			"-init_hw_device " + deviceType + "=" + hwDeviceAlias,
+			"-filter_hw_device " + hwDeviceAlias,
+			"format=nv12,hwupload",
+		} {
+			if !strings.Contains(joined, needed) {
+				t.Errorf("the %s probe is missing %q; it would fail in the filter graph and blame the encoder\ngot: %s",
+					encoder, needed, joined)
+			}
 		}
 	}
 
-	// Every other family takes software frames directly. Uploading them would
-	// need a device those machines may not have.
-	nvenc := strings.Join(probeArgs("h264_nvenc"), " ")
-	for _, unwanted := range []string{"-init_hw_device", "hwupload"} {
-		if strings.Contains(nvenc, unwanted) {
-			t.Errorf("the NVENC probe should not carry %q: %s", unwanted, nvenc)
+	// NVENC, AMF and QSV upload for themselves. Asking for a device they do not
+	// need would fail on machines that cannot create one.
+	for _, encoder := range []string{"h264_nvenc", "hevc_amf", "h264_qsv", "libx264"} {
+		joined := strings.Join(probeArgs(encoder), " ")
+		for _, unwanted := range []string{"-init_hw_device", "hwupload"} {
+			if strings.Contains(joined, unwanted) {
+				t.Errorf("the %s probe should not carry %q: %s", encoder, unwanted, joined)
+			}
+		}
+	}
+}
+
+// TestProbeAndConversionAskTheSameQuestion is the guard that makes the probe
+// worth trusting.
+//
+// A probe that sets up a device the conversion does not would pass and then
+// fail at encoding time -- the user watching a run fall back to the CPU after
+// being told the hardware path was ready. A probe that omits a device the
+// conversion does set up would condemn a working encoder. Both mistakes are
+// invisible in either function read on its own, so the two are checked against
+// each other here.
+func TestProbeAndConversionAskTheSameQuestion(t *testing.T) {
+	for _, encoder := range []string{
+		"h264_nvenc", "hevc_amf", "h264_qsv",
+		"h264_vaapi", "hevc_vulkan", "h264_d3d12va",
+		"h264_v4l2m2m", "libx264", "libx265",
+	} {
+		probe := strings.Join(probeArgs(encoder), " ")
+
+		// The conversion's device setup, verbatim from what it emits.
+		conversionDevice := strings.Join(hwDeviceArgs(encoder), " ")
+		if conversionDevice == "" {
+			if strings.Contains(probe, "-init_hw_device") {
+				t.Errorf("%s: the probe creates a device the conversion does not", encoder)
+			}
+		} else if !strings.Contains(probe, conversionDevice) {
+			t.Errorf("%s: the conversion sets up %q, the probe does not:\n  %s", encoder, conversionDevice, probe)
+		}
+
+		// And the upload steps, which the conversion appends to its remap chain.
+		chain := remapFilterChain("yuv420p", encoder)
+		uploads := strings.Contains(chain, "hwupload")
+		if uploads != strings.Contains(probe, "hwupload") {
+			t.Errorf("%s: conversion uploads=%v but probe uploads=%v\n  chain: %s\n  probe: %s",
+				encoder, uploads, !uploads, chain, probe)
 		}
 	}
 }
@@ -140,7 +187,10 @@ func TestEncodersToProbe(t *testing.T) {
 	}
 
 	got := strings.Join(encodersToProbe(ffmpeg), ",")
-	want := "libx264,h264_nvenc,h264_qsv,h264_vaapi,libx265,hevc_nvenc"
+	// h264_vulkan is in there: it is a hardware encoder like the rest, and the
+	// reason it exists in the candidate list is that it survives an NVENC the
+	// driver refuses. Probing it is how that survival gets established.
+	want := "libx264,h264_nvenc,h264_qsv,h264_vaapi,h264_vulkan,libx265,hevc_nvenc"
 
 	if got != want {
 		t.Errorf("encodersToProbe = %q, want %q", got, want)

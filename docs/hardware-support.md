@@ -157,12 +157,24 @@ Important limitations:
 
 ## What Superview actually targets
 
-Superview currently targets the following FFmpeg hardware encoders for H.264 and H.265:
+Superview currently targets the following FFmpeg hardware encoders for H.264 and H.265,
+in this order:
 
 - Nvidia: `h264_nvenc`, `hevc_nvenc`
 - AMD: `h264_amf`, `hevc_amf`
 - Intel: `h264_qsv`, `hevc_qsv`
+- VAAPI: `h264_vaapi`, `hevc_vaapi`
+- **Vendor-neutral**: `h264_d3d12va`, `hevc_d3d12va` (Windows) and `h264_vulkan`,
+  `hevc_vulkan`
+- V4L2: `h264_v4l2m2m`, `hevc_v4l2m2m`
 - CPU fallback: `libx264`, `libx265`
+
+The vendor encoders come first because they expose the rate control and presets Superview
+sets. The vendor-neutral pair matters for the failure this page describes: **D3D12 Video
+Encode and Vulkan video encode are driven by the display driver, not by NVENC's own API**,
+so they have no driver floor to miss. On a machine whose FFmpeg demands an NVIDIA driver it
+cannot install, they are the hardware path that remains — and the probe is what finds that
+out, without anyone having to know in advance which one works.
 
 ## If your GPU does not appear
 

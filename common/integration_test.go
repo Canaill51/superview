@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -384,4 +385,84 @@ func TestIntegration_CancelLeavesNoPartialOutput(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestIntegration_DeviceFrameEncoderRunsTheWholePipeline drives a conversion
+// through an encoder that cannot take frames from system memory.
+//
+// This is the path the unit tests cannot reach. VAAPI, Vulkan and D3D12 need
+// -init_hw_device before the input and an hwupload appended to the remap chain,
+// and a mistake in either one does not fail loudly: EncodeVideo falls back to
+// the CPU and the conversion succeeds, several times slower, having quietly
+// used none of the hardware the window announced. So the assertion that matters
+// is not that a file came out -- it is which path produced it.
+//
+// The encoder is chosen by probing, so the test runs wherever one of them works
+// and skips where none does, rather than naming a family that half the machines
+// do not have.
+func TestIntegration_DeviceFrameEncoderRunsTheWholePipeline(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	const inW, inH = 640, 480
+	input := makeTestClip(t, inW, inH, 2)
+
+	ffmpeg, err := CheckFfmpeg(nil)
+	if err != nil {
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
+	}
+
+	encoder := ""
+	for _, candidate := range []string{"h264_vulkan", "h264_vaapi", "h264_d3d12va"} {
+		if !strings.Contains(ffmpeg["encoders"], candidate) {
+			continue
+		}
+		if probe := ProbeEncoder(context.Background(), candidate); probe.Usable {
+			encoder = candidate
+			break
+		} else {
+			t.Logf("%s is advertised but refused the probe: %s", candidate, probe.Reason)
+		}
+	}
+	if encoder == "" {
+		// Not skipWithoutFFmpeg: this is about the machine's GPU, not about
+		// ffmpeg being installed, and CI runners have no usable one. Failing
+		// here would make the suite red on hardware grounds.
+		t.Skip("no device-frame encoder is usable on this machine")
+	}
+	t.Logf("using %s", encoder)
+
+	// PerformEncoding opens and closes the session itself, the way the GUI
+	// calls it.
+	output := filepath.Join(t.TempDir(), "output.mp4")
+	ui := &integrationUI{bitrate: 2_000_000, encoder: encoder}
+
+	if err := PerformEncoding(nil, input, output, ui, ffmpeg, make(chan struct{})); err != nil {
+		t.Fatalf("PerformEncoding with %s: %v", encoder, err)
+	}
+
+	// The geometry must be the same as any other encoder produces: the upload
+	// is appended after the remap, so it cannot move a pixel.
+	outW, outH := probeDimensions(t, output)
+	if outH != inH {
+		t.Errorf("height changed: got %d, want %d", outH, inH)
+	}
+	height := inH
+	if wantW := int(float64(height)*(16.0/9.0)) / 2 * 2; outW != wantW {
+		t.Errorf("width = %d, want %d (16:9 of height %d)", outW, wantW, inH)
+	}
+
+	// And the run must have used the encoder it was given.
+	//
+	// The assertion has to be on what the summary says, not on whether it
+	// mentions the encoder: the fallback message is
+	// "Hardware: h264_vulkan failed; used CPU encode (libx264)", which names it
+	// too. The first version of this test checked for the name and passed with
+	// the device setup removed from the pipeline entirely -- it was reporting a
+	// CPU fallback as a success.
+	summary := GetLastHardwareAccelerationSummary()
+	if want := "Hardware: used " + encoder + " encode"; !strings.HasPrefix(summary, want) {
+		t.Errorf("the conversion did not use %s -- it fell back to the CPU: %q", encoder, summary)
+	}
 }

@@ -112,21 +112,23 @@ func (r *EncoderProbeReport) Unusable() []EncoderProbe {
 
 // probeArgs builds the argv for one probe.
 //
-// VAAPI is the exception that shapes this function. Its encoder only accepts
-// frames that already live on the device, so the same argv that works for every
-// other family fails on a pixel-format conversion that never reaches the
-// driver -- condemning a working encoder on the strength of a malformed
-// question. It needs a device and an explicit upload.
+// The device setup comes from the same two functions the conversion uses, and
+// that is the point rather than a convenience. VAAPI, Vulkan and D3D12 only
+// accept frames that already live on the device: an argv without the upload
+// fails in the filter graph, before the driver is ever consulted, and would
+// condemn a working encoder on the strength of a malformed question. An argv
+// with an upload the conversion does not perform would do the opposite -- pass
+// the probe, then fail at encoding time. Sharing the code is what keeps the two
+// from drifting into either mistake.
 func probeArgs(encoder string) []string {
-	onDevice := strings.Contains(encoder, "_vaapi")
-
 	args := []string{"-hide_banner", "-loglevel", "error"}
-	if onDevice {
-		args = append(args, "-init_hw_device", "vaapi=probe", "-filter_hw_device", "probe")
-	}
+	args = append(args, hwDeviceArgs(encoder)...)
 	args = append(args, "-f", "lavfi", "-i", "nullsrc=s="+probeFrameSize+":r=25:d=0.04")
-	if onDevice {
-		args = append(args, "-vf", "format=nv12,hwupload")
+
+	// The probe's own chain has no remap in it, so the upload steps arrive with
+	// a leading comma to strip.
+	if upload := hwUploadFilters(encoder, "yuv420p"); upload != "" {
+		args = append(args, "-vf", strings.TrimPrefix(upload, ","))
 	}
 
 	return append(args, "-c:v", encoder, "-f", "null", "-")
