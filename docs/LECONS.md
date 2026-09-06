@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 70 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 73 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
@@ -689,7 +689,86 @@ des widgets visibles (`Driver().AbsolutePositionForObject`). La contre-épreuve 
 « la rangée commence à x=4 dans une fenêtre de 980 px », ce qui est le défaut lui-même.
 Prolonge L-54 : une contre-épreuve doit rougir pour la bonne raison, pas seulement rougir.
 
+### L-71 — Une liste de capacités décrit le binaire, pas la machine — 2026-09-06
+`ffmpeg -encoders` et `ffmpeg -hwaccels` répondent à « avec quoi ai-je été compilé ». Superview
+en déduisait ce que la machine savait faire. Sur la machine de développement, six des encodeurs
+annoncés ne peuvent ouvrir aucun périphérique ; chez l'utilisateur, `h264_nvenc` était annoncé
+par un binaire dont le pilote refusait chaque trame. La fenêtre promettait alors une
+accélération qu'aucune couche n'avait vérifiée.
+→ Quand une capacité dépend d'une ressource extérieure au programme — un pilote, un
+périphérique, un service — la seule question honnête est de la solliciter. Ici : encoder une
+trame de 256×256 et lire le code de retour, 0,95 s pour dix encodeurs. Une déclaration
+d'intention n'est pas une mesure. Constat U-03.
+
+### L-72 — Un numéro de version n'est pas un contrat de compatibilité — 2026-09-06
+« FFmpeg 8.1.2 ne permet plus l'accélération matérielle » était vrai pour l'utilisateur et faux
+en général : `nvenc.c` est identique entre 8.0 et 8.1, et le plancher pilote est fixé par les
+`nv-codec-headers` de compilation. Mesuré : deux binaires « 8.1.2 » exigent l'un 570, l'autre
+610. Le même empaqueteur a franchi la marche entre 8.1.1 et 8.1.2 sans que le numéro le dise.
+→ Avant d'attribuer un comportement à une version, chercher la propriété qui le détermine
+vraiment, et la mesurer sur l'artefact. Ici elle était lisible dans le binaire :
+`strings ffmpeg.exe | grep -E '^(610\.00|570\.0|530\.41\.03)$'`. Corollaire pour l'utilisateur
+d'un signalement : demander **d'où vient** le binaire, pas seulement sa version.
+
+### L-73 — Une sonde mal formée accuse ce qu'elle mesure — 2026-09-06
+La première sonde VAAPI envoyait des trames logicielles à un encodeur qui n'accepte que des
+trames déjà sur le périphérique. Elle échouait dans le graphe de filtres, **avant** d'atteindre
+le pilote, et rendait « inutilisable » pour un encodeur parfaitement fonctionnel. Une telle
+sonde est pire que pas de sonde : elle retire du matériel aux machines qui en ont.
+→ Avant de tirer une conclusion d'un échec, vérifier que la question posée pouvait recevoir une
+réponse. Le symptôme à reconnaître : un message d'erreur qui parle d'autre chose que du sujet —
+ici `Impossible to convert between the formats supported by the filter`, qui ne mentionne ni
+pilote ni périphérique. Voir aussi L-49, où c'était l'environnement qui rendait la mesure muette.
+
 ## 3. Corrections appliquées
+
+### [2026-09-06] U-03 — L'accélération matérielle était promise sans avoir jamais été vérifiée
+
+| | |
+| --- | --- |
+| **Constat** | U-03 ([ANALYSE.md § 3septies](ANALYSE.md)) |
+| **Fichiers** | `common/probe.go` (nouveau), `common/common.go` (`newFFmpegCommandContext`), `common/health.go`, `gui_main.go` ; tests : `common/probe_test.go` (nouveau), `common/health_report_test.go`, `gui_main_test.go` |
+| **Commit** | non commité |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée, capturée, journal relu ✅ · 8 contre-épreuves ✅ |
+
+**Symptôme** — signalé par l'utilisateur : sur une NVIDIA RTX A1000 sous Windows, avec le FFmpeg
+8.1.2 installé par winget (gyan.dev), l'accélération matérielle ne fonctionne plus. Superview
+annonçait pourtant `Hardware: planned h264_nvenc encode + CUDA decode` et encodait sur le CPU.
+
+**Cause racine** — deux causes superposées, et une seule nous appartient.
+
+*Chez FFmpeg* : le plancher pilote NVENC est fixé à la compilation par les `nv-codec-headers`.
+gyan.dev est passé du SDK 13.0 au SDK 13.1 entre 8.1.1 et 8.1.2, portant l'exigence de 570 à
+610, alors que la branche pilote RTX Enterprise plafonne à 597.06. Mesures et sources :
+ANALYSE.md § 3septies.
+
+*Chez nous* : `CheckFfmpeg` déduisait les capacités de `ffmpeg -encoders` et `ffmpeg -hwaccels`,
+qui décrivent le binaire et pas la machine. Rien dans le programme n'était en mesure de
+distinguer « compilé avec » de « fonctionne ici ».
+
+**Correctif** — une sonde à l'exécution. Chaque encodeur annoncé encode une trame ; le code de
+retour décide. Les refusés disparaissent du profil ffmpeg, donc du menu déroulant, du plan
+annoncé et de la sélection. La ligne « Hardware » dit `checking which encoders this machine
+accepts...` tant que la sonde n'est pas revenue, plutôt que de nommer un encodeur invérifié. Le
+rapport Diagnostic gagne une section *Encoders* qui porte, pour chaque refus, les mots de ffmpeg
+— y compris `The minimum required Nvidia driver for nvenc is 610.00 or newer`, la ligne qui
+aurait épargné l'enquête entière.
+
+**Ce qui a été laissé** — l'empaquetage d'un FFmpeg épinglé (plancher 570, Windows et Linux,
+binaire embarqué prioritaire), décidé avec l'utilisateur et traité dans sa propre PR ; et les
+encodeurs `*_vulkan` / `*_d3d12va`, qui contournent la négociation NVENC et deviennent sûrs à
+ajouter maintenant que la sonde filtre ce qui ne marche pas.
+
+**Deux défauts trouvés par leur propre contre-épreuve** — le résumé d'erreur gardait les
+**dernières** lignes de ffmpeg, c'est-à-dire les conséquences, et jetait la cause : corrigé en
+gardant les premières (L-73 en est le voisin). Et le test de délai passait encore après
+suppression du délai, parce que celui de l'appelant le couvrait : il a été scindé en deux gardes
+dont chacune rougit pour sa propre raison (L-37, L-54).
+
+**Leçon** — L-71, L-72, L-73.
+
+---
+
 
 ### [2026-09-06] U-01, U-02 — Libellés rognés et rangée de boutons collée à gauche
 
@@ -697,7 +776,7 @@ Prolonge L-54 : une contre-épreuve doit rougir pour la bonne raison, pas seulem
 | --- | --- |
 | **Constat** | U-01, U-02 ([ANALYSE.md § 3sexies](ANALYSE.md)) |
 | **Fichiers** | `gui_main.go:34-76` (géométrie et helpers), `gui_main.go:1040` (rangée), `gui_main.go:1085-1088` (taille de fenêtre) ; `gui_main_test.go:142-241` |
-| **Commit** | non commité |
+| **Commit** | `7bb715e` (PR #51) |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée et capturée ✅ · contre-épreuves ✅ |
 
 **Symptôme** — signalé par l'utilisateur, capture à l'appui : les six boutons d'action ne sont

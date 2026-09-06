@@ -163,3 +163,40 @@ func TestLogHealth_WritesFailuresAtWarn(t *testing.T) {
 	// A nil health is what the GUI holds before the first Diagnostic run.
 	LogHealth(slog.New(slog.NewTextHandler(&buf, nil)), nil)
 }
+
+// TestCheckHealth_ReportsWhatTheEncodersAnswered guards the section a bug
+// report needs most.
+//
+// The README asks users to attach this report. Until the probe existed it
+// described ffmpeg, ffprobe, disk, memory and CPU -- everything except the one
+// subsystem that had silently stopped working, and the report was the reason
+// the cause took a full investigation to find.
+func TestCheckHealth_ReportsWhatTheEncodersAnswered(t *testing.T) {
+	if _, err := CheckFfmpeg(nil); err != nil {
+		skipWithoutFFmpeg(t, "ffmpeg is unavailable: %v", err)
+		return
+	}
+
+	health := CheckHealth(nil)
+	if health.Encoders == nil {
+		t.Fatal("ffmpeg is present but the report carries no encoder verdicts at all")
+	}
+	if len(health.Encoders.Results) == 0 {
+		t.Fatal("the probe ran and asked nothing")
+	}
+
+	report := GetHealthReport(health)
+	if !strings.Contains(report, "Encoders") {
+		t.Fatalf("the diagnostic report has no encoder section:\n%s", report)
+	}
+	for _, probe := range health.Encoders.Results {
+		if !strings.Contains(report, probe.Encoder) {
+			t.Errorf("%s was probed but does not appear in the report", probe.Encoder)
+		}
+		// The reason is the actionable half. A section that lists a refusal
+		// without ffmpeg's words is no better than the silence it replaced.
+		if !probe.Usable && !strings.Contains(report, probe.Reason) {
+			t.Errorf("%s was refused but the report omits why: %q", probe.Encoder, probe.Reason)
+		}
+	}
+}

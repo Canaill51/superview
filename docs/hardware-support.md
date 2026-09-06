@@ -1,22 +1,81 @@
 # Hardware support
 
-Superview does not carry a GPU whitelist. It asks the FFmpeg build you have
-installed what it can do, and that answer is the one that counts -- the lists
-below are a guide to what usually works, not a compatibility matrix the program
+Superview does not carry a GPU whitelist, and it no longer trusts the list
+`ffmpeg -encoders` prints either. At startup it **asks each encoder to encode a
+frame** and keeps only the ones that answer. What the GUI offers, what the
+hardware line announces and what the conversion runs all come from that
+measurement.
+
+The distinction matters more than it sounds. `ffmpeg -encoders` answers a
+compile-time question -- what the binary was built with -- and knows nothing
+about your driver. On the machine this was written on it advertises six
+encoders (`h264_qsv`, `hevc_qsv`, `h264_vaapi`, `hevc_vaapi`, `h264_v4l2m2m`,
+`hevc_v4l2m2m`) that cannot open a device at all.
+
+The lists below are a guide to what usually works, not a matrix the program
 consults.
-
-If a card here does not show its encoder in the GUI, the list is not what needs
-fixing; see [What to check when a supported GPU does not appear](#if-your-gpu-does-not-appear).
-
-Superview does not hardcode a fixed GPU whitelist at runtime. It relies on the hardware capabilities actually exposed by your installed FFmpeg build and graphics driver.
 
 For H.264 and H.265 hardware acceleration, the practical prerequisites are:
 
-- the GPU must provide hardware encode and decode support for the codec you want to use
-- the installed driver must expose that support correctly
-- the installed FFmpeg build must include the relevant hardware encoder (`nvenc`, `amf`, or `qsv`)
+- the GPU must provide hardware encode support for the codec you want
+- the installed driver must expose that support **at the API version your
+  FFmpeg build demands** -- see the section below, this is the one that bites
+- the installed FFmpeg build must include the relevant hardware encoder
+  (`nvenc`, `amf`, or `qsv`)
 
-On Windows, Superview can now combine these hardware encoders with `D3D11VA` or `DXVA2` decode when the vendor-specific `hwaccel` token is not exposed by FFmpeg.
+On Windows, Superview can combine these hardware encoders with `D3D11VA` or
+`DXVA2` decode when the vendor-specific `hwaccel` token is not exposed by
+FFmpeg.
+
+## The NVIDIA driver floor belongs to your FFmpeg build, not to FFmpeg
+
+NVENC negotiates an API version. If the version FFmpeg was **compiled** against
+is newer than the one your driver exposes, the encoder refuses the work:
+
+```
+Driver does not support the required nvenc API version. Required: 13.1 Found: 13.0
+The minimum required Nvidia driver for nvenc is 610.00 or newer
+```
+
+That minimum is fixed at build time by the `nv-codec-headers` the binary was
+compiled against, so **two builds that both call themselves "FFmpeg 8.1.2" can
+demand different drivers**. Measured by reading the compiled literal out of each
+binary, on 2026-09-06:
+
+| Build | FFmpeg | Minimum driver |
+| --- | --- | --- |
+| Ubuntu `libavcodec62` 7:8.0.1-3ubuntu2 | 8.0.1 | 530.41.03 |
+| gyan.dev `ffmpeg-8.1.1-full_build` (winget `Gyan.FFmpeg`) | 8.1.1 | 570.0 |
+| gyan.dev `ffmpeg-8.1.2-full_build` (winget `Gyan.FFmpeg`) | 8.1.2 | **610.00** |
+| gyan.dev `ffmpeg-9.0.1-full_build` | 9.0.1 | 610.00 |
+| BtbN `win64-gpl-8.1` | 8.1.2 | 570.0 |
+| BtbN `win64-gpl-9.0` | 9.0.1 | 610.00 |
+
+The upstream table those floors come from, published with each header release:
+
+| `nv-codec-headers` | Video Codec SDK | Minimum driver |
+| --- | --- | --- |
+| `n12.1.14.0` | 12.1 | 530.41.03 (Linux) / 531.61 (Windows) |
+| `n12.2.72.0` | 12.2 | 550.54.14 / 551.76 |
+| `n13.0.19.0` | 13.0 | 570.0 |
+| `n13.1.15.0` | 13.1 | 610.0 |
+
+Two consequences worth knowing:
+
+- **A newer FFmpeg can lose hardware acceleration that an older one had.** An
+  NVIDIA RTX A1000 on Windows is driven by the RTX Enterprise branch, which
+  tops out at 597.06 — so a build demanding 610 can never use NVENC on it, no
+  matter how current the driver is. Dropping back to a build with a 570 floor
+  is the fix.
+- **Video Codec SDK 13.1 dropped Maxwell, Pascal and Volta** from its supported
+  architectures; 13.0 still listed them. A build compiled against older headers
+  keeps those GPUs working.
+
+You can read the floor out of any build yourself:
+
+```bash
+strings ffmpeg.exe | grep -E "^(610\.00|570\.0|550\.54\.14|530\.41\.03)$"
+```
 
 ## Nvidia
 
@@ -83,9 +142,17 @@ Superview currently targets the following FFmpeg hardware encoders for H.264 and
 
 ## If your GPU does not appear
 
-If your GPU is theoretically compatible but the encoder does not appear in the GUI, the issue is usually one of these:
+**Press Diagnostic first.** Its *Encoders* section lists every encoder that was
+probed, and for each refusal it carries FFmpeg's own words. That line usually
+names the cause outright, and it is the single most useful thing to attach to a
+bug report.
 
+The common causes, in the order they occur:
+
+- the driver is older than the API version this FFmpeg build was compiled
+  against — the report says so explicitly, with the driver version it wants
 - FFmpeg was installed without the relevant hardware encoder enabled
-- the graphics driver is missing, outdated, or vendor-generic in a way that hides the video engine
-- the machine exposes decode support but not encode support for that specific card
+- the graphics driver is missing, or vendor-generic in a way that hides the
+  video engine
+- the machine exposes decode support but not encode support for that card
 - the codec is supported on paper by the family, but not by that exact SKU
