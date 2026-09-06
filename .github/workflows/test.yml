@@ -60,7 +60,12 @@ jobs:
     - name: Download dependencies
       run: go mod download
     
+    # ffmpeg is installed above, so a test that needs it must run rather than
+    # skip. Without this the whole integration suite reports success having
+    # encoded nothing, and only the coverage number hints at it.
     - name: Run tests with coverage
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: go test ./... -v -coverprofile=coverage.out -covermode=atomic
     
     - name: Display coverage summary
@@ -96,6 +101,8 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
 
     - name: Run tests with coverage
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: go test ./... -coverprofile=coverage.out -covermode=atomic
     
     - name: Check coverage threshold (50%)

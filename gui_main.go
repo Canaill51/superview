@@ -31,6 +31,21 @@ const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-fi
 // maxLogFileBytes caps the diagnostic log; past this size it restarts empty.
 const maxLogFileBytes = 5 << 20 // 5 MiB
 
+// Window and toolbar geometry.
+//
+// The window is fixed-size, so a toolbar wider than it clips buttons rather
+// than wrapping -- which is how adding the Diagnostic button, taking the row
+// from five entries to six, could have gone unnoticed. TestToolbarFitsWindow
+// guards against that, and reads these constants so it cannot disagree with
+// what main() actually builds; it used to carry its own copies of the numbers
+// with a comment asking the reader to keep them in step.
+const (
+	actionButtonWidth  = 150
+	actionButtonHeight = 34
+	windowWidth        = 980
+	windowHeight       = 470
+)
+
 const (
 	prefQualityProfile   = "ui.quality_profile"
 	prefEncoderSelection = "ui.encoder_selection"
@@ -952,7 +967,7 @@ func main() {
 	codecLabel := widget.NewLabel("Video codec")
 	codecLabel.Alignment = fyne.TextAlignLeading
 
-	buttonSize := fyne.NewSize(150, 34)
+	buttonSize := fyne.NewSize(actionButtonWidth, actionButtonHeight)
 	alignActionButton := func(btn *widget.Button) fyne.CanvasObject {
 		return container.NewGridWrap(buttonSize, btn)
 	}
@@ -1048,7 +1063,7 @@ func main() {
 
 	window.SetContent(content)
 
-	window.Resize(fyne.NewSize(980, 470))
+	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.SetFixedSize(true)
 
 	window.ShowAndRun()

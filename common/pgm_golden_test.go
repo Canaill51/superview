@@ -222,7 +222,7 @@ func TestGeneratePGM_MapsAreBigEndianP5(t *testing.T) {
 // break on every runner.
 func TestGeneratePGM_RemapOutputIsStable(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not installed; skipping remap equivalence test")
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
 	}
 
 	cases := []struct {
