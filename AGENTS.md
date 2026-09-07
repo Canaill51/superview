@@ -52,6 +52,7 @@ than it looks.
 | `common/common.go` is ~1600 lines | Known. Splitting `pgm.go` and `tools.go` out is identified and not urgent: it is 81% covered and `pgm_golden_test.go` pins the geometry byte for byte. |
 | The bundled FFmpeg is pinned to **8.1.1**, not the newest | What is pinned is its NVENC driver floor, 570.0, not its version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping the pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching it. |
 | The release workflow patches fyne's generated `Makefile` | It installs three named files, so the bundled `ffmpeg`/`ffprobe` have to be added to it, and its icon line is broken upstream (`$(Icon)` without the `.png`, so `make install` fails on its last line). The patch is keyed on the exact lines, and the job then runs `make install` into a throwaway directory: if fyne changes shape, the release fails there instead of shipping a package that installs nothing. |
+| The French README is `README_FR.md`, but the English one is not `README_EN.md` | GitHub renders a repository's landing page from `README.md` and no other name. Renaming the English half to `README_EN.md` for symmetry leaves the repository front page with no README at all — a visitor sees the file tree and nothing else. The asymmetry is the cost of the landing page. |
 | Progress events log at debug level | They fire several times a second. Raising them drowns the log the README asks users to attach to bug reports. |
 
 ## Contracts you must not break
@@ -78,6 +79,20 @@ than it looks.
 - **Build the package, never a file**: `go build .`. The native dialog files are
   build-tagged and `go build gui_main.go` fails.
 - Keep user-facing strings stable unless the task is about them.
+- **`README.md` and `README_FR.md` are one document in two languages.** Any
+  user-visible change goes into both, in the same pull request. CI enforces it
+  (`readme-parity` in `lint.yml`): it fails when one moves without the other,
+  and when their heading structures diverge. In the French file, **GUI labels
+  stay in English** and in their exact case -- translating *Choose input file*
+  sends the reader looking for a button that does not exist -- while Windows'
+  own strings are the French ones a French Windows shows (*Informations
+  complémentaires*, *Exécuter quand même*).
+- **The repository's language split**, until now unwritten: internal audit
+  journals (`docs/LECONS.md`, `docs/ANALYSE.md`, `docs/CONTRATS.md`,
+  `docs/ENVIRONNEMENT.md`) are in French; everything an outsider reads -- both
+  READMEs' English half, `RELEASING.md`, `AGENTS.md`, `SECURITY.md`,
+  `docs/hardware-support.md`, the GUI, error strings, commit and pull request
+  titles -- is in English.
 - After changing an exported signature, sweep the prose:
   `grep -rn "FunctionName" --include='*.md' .` — Markdown is not compiled, and a
   stale example in the README survived five audit passes here.

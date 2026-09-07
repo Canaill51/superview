@@ -6,7 +6,7 @@
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 9ᵉ (U-07), close le 2026-09-07 — comme les 7ᵉ et 8ᵉ,
+> Dernière passe : 9ᵉ (U-07, U-08), close le 2026-09-07 — comme les 7ᵉ et 8ᵉ,
 > un signalement de l'utilisateur et non une passe d'analyse.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
@@ -1978,7 +1978,8 @@ n'est pas une clé de configuration).
 
 Signalement : « en partageant mon projet à un utilisateur lambda, je lui ai demandé
 qu'il utilise la dernière version de l'application (Windows). Il n'a pas été capable
-de comprendre la partie installation. »
+de comprendre la partie installation. » Demande jointe : que le README existe en
+français **et** en anglais.
 
 La 8ᵉ passe avait corrigé ce que le README *affirmait* (U-06). Celle-ci porte sur ce
 qu'il *demande de faire*, et sur le fait qu'un lecteur l'a suivi sans y arriver.
@@ -2015,6 +2016,27 @@ Supprimer la section l'aurait déposé en haut du README, sans erreur. Constante
 renommée `installURL`, et `readme_link_test.go` interdit désormais à ce fragment de
 ne désigner aucun titre.
 
+### U-08 ✅ — ~~La documentation n'existait qu'en anglais~~ — **CORRIGÉ**
+
+Le dépôt s'adresse à un public qui n'est pas nécessairement anglophone, et la
+personne qui n'a pas su installer l'application est francophone.
+
+*Correctif* — `README_FR.md` à la racine, miroir complet, avec une ligne de sélection
+de langue en tête des deux fichiers. Trois règles de traduction, écrites dans
+`AGENTS.md` : les **libellés de l'interface restent en anglais** dans leur casse
+exacte, l'interface n'étant pas traduite — traduire *Choose input file* enverrait le
+lecteur chercher un bouton inexistant ; à l'inverse, les chaînes de **Windows** sont
+celles qu'affiche un Windows français ; et les deux fichiers se modifient ensemble.
+
+*Cause de fond* — la convention de langue du dépôt (journaux d'audit en français,
+tout ce qui est vu de l'extérieur en anglais) n'était **écrite nulle part**, cas de
+figure de L-47. Elle l'est maintenant, dans `AGENTS.md`.
+
+*Ce qui garde le miroir* — le job `readme-parity` de `.github/workflows/lint.yml`
+échoue quand une PR modifie un README sans l'autre, et quand leurs structures de
+titres divergent. `.all-contributorsrc` liste désormais les deux fichiers, sans quoi
+la PR du bot en toucherait un seul et échouerait à chaque nouveau contributeur.
+
 ---
 
 ## 4. État d'avancement
@@ -2032,7 +2054,7 @@ ne désigner aucun titre.
 | ✅ **Corrigé et vérifié — 7ᵉ passe** (2) | U-01, U-02 — barre d'outils : libellés rognés, rangée non centrée |
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
-| ✅ **Corrigé et vérifié — 9ᵉ passe** (1) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence |
+| ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
@@ -2205,4 +2227,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-06 | **U-05**, fin du chantier U-03 : ajout des encodeurs `*_vulkan` et `*_d3d12va`, qui passent par le pilote d'affichage et n'ont donc aucun plancher NVENC à manquer. Leur ajout a montré que `h264_vaapi`, candidat de longue date, n'avait jamais pu fonctionner faute de périphérique et d'upload dans le pipeline. Conversion réelle vérifiée par `h264_vulkan`. Deux contre-épreuves fausses corrigées en chemin. Leçons L-77, L-78. |
 | 2026-09-06 | Hygiène du journal des corrections : le gabarit de [LECONS.md § 3](LECONS.md) demandait le sha de fusion, valeur qui n'existe pas encore quand l'entrée s'écrit — dix entrées sur treize affichaient encore « non commité ». Champ remplacé par le **numéro de PR**, connu dès l'ouverture, et les dix-huit entrées renseignées après identification de leur PR par l'historique du code (`git log -S`) plutôt que par déduction. Leçon L-79. |
 | 2026-09-06 | **U-06**, relevé par l'utilisateur : les trois PR du chantier matériel n'avaient mis à jour que la section *Hardware acceleration* du README. Le § *Requirements* prescrivait toujours `winget install Gyan.FFmpeg` — le build à plancher 610 à l'origine du signalement — et donnait `ffmpeg -encoders \| grep nvenc` comme moyen de vérifier son GPU. Cause : le balayage prescrit porte sur les symboles, or aucun symbole n'avait changé ; ce sont des affirmations qui étaient devenues fausses. Leçon L-80. |
-| 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. Correctif : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test contre-éprouvé dans les deux sens. Leçons L-81, L-82. |
+| 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. `U-08` — la documentation n'existait qu'en anglais. Correctifs : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons ; `README_FR.md` et le job `readme-parity`. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test. Leçons L-81, L-82. |

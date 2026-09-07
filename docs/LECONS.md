@@ -837,7 +837,65 @@ une ancre, la pinner par un test qui relit le fichier Markdown — c'est fait ic
 `readme_link_test.go`, contre-éprouvé dans les deux sens (constante périmée, titre
 renommé).
 
+### L-83 — Publier en deux langues, c'est doubler la surface d'une affirmation fausse — 2026-09-07
+`README_FR.md` a été ajouté à côté de `README.md`. Le risque n'est pas la traduction :
+c'est que l'un des deux cesse d'être vrai sans que l'autre bouge — le défaut U-06, en
+double. Une règle écrite ne suffit pas : U-06 était déjà la démonstration qu'on oublie
+de balayer la prose.
+→ **Un miroir se garde par la CI, pas par la discipline.** Le job `readme-parity`
+refuse qu'une PR touche un README sans l'autre, et que leurs structures de titres
+divergent. Il compare les **niveaux** de titres, jamais les intitulés, qui sont
+traduits. Deux pièges à connaître : `.all-contributorsrc` doit lister les deux fichiers,
+sinon la PR du bot en touche un seul et échoue à chaque nouveau contributeur ; et sous
+`set -o pipefail`, `printf | grep -q` renvoie 141 quand `grep` sort à la première
+correspondance, ce qui **inverse le test au moment précis où le fichier est présent** —
+d'où la here-string.
+*Second volet* : la convention de langue du dépôt — journaux d'audit en français, tout
+ce qui est lu de l'extérieur en anglais — n'était écrite nulle part (L-47). Elle l'est
+dans `AGENTS.md`, avec la règle de co-modification. Dans le fichier français, les
+**libellés de l'interface restent en anglais** — l'interface n'est pas traduite, et
+traduire *Choose input file* enverrait le lecteur chercher un bouton inexistant —
+tandis que les chaînes de **Windows** sont celles d'un Windows français.
+
 ## 3. Corrections appliquées
+
+### [2026-09-07] U-08 — La documentation n'existait qu'en anglais
+
+**PR** — #58
+
+| | |
+| --- | --- |
+| **Constat** | U-08 ([ANALYSE.md § 3octies](ANALYSE.md)) |
+| **Fichiers** | `README_FR.md` (nouveau), `README.md` (ligne de langue), `.github/workflows/lint.yml` (job `readme-parity`), `.all-contributorsrc`, `AGENTS.md`, `docs/CONTRATS.md` § 1 |
+| **Vérification** | parité de forme des deux fichiers ✅ · liens et cibles relatives des deux ✅ · ancres accentuées conservées ✅ · UTF-8 sans BOM, fins de ligne LF ✅ · logique du job éprouvée sur cinq cas, dont `docs/README.md` qui ne doit pas compter ✅ · `lint.yml` reparsé ✅ · suite complète rejouée ✅ |
+
+**Symptôme** — le dépôt s'adresse à un public qui n'est pas nécessairement anglophone, et
+la personne qui n'a pas su installer l'application est francophone.
+
+**Cause racine** — la convention de langue du dépôt (journaux d'audit en français, tout
+ce qui est lu de l'extérieur en anglais) n'était **écrite nulle part** : cas de figure de
+L-47. Rien n'avait donc jamais tranché la question de la langue du README.
+
+**Correctif** — `README_FR.md` à la racine, miroir complet, ligne de sélection de langue
+en tête des deux. Les libellés de l'interface restent en anglais dans le fichier
+français, l'interface n'étant pas traduite ; les chaînes de Windows, elles, sont celles
+d'un Windows français. La convention et la règle de co-modification sont écrites dans
+`AGENTS.md`, et `docs/CONTRATS.md` § 1 nomme désormais les deux fichiers.
+
+**Ce qui garde le miroir** — le job `readme-parity` échoue quand une PR modifie un README
+sans l'autre, et quand leurs structures de titres divergent. `.all-contributorsrc` liste
+les deux fichiers, sinon la PR du bot en toucherait un seul et échouerait à chaque
+nouveau contributeur ; son `projectOwner` était par ailleurs resté sur `Niek` alors que
+la table générée pointe sur `Canaill51`, ce qui aurait produit des liens faux sur deux
+fichiers au premier passage du bot.
+
+**Ce qui a été délibérément laissé** — l'interface graphique reste en anglais, et il n'y
+a pas d'i18n dans le code. Traduire l'interface est un autre chantier ; le faire à moitié
+aurait désaccordé le README français des boutons qu'il décrit.
+
+**Leçon** — L-83.
+
+---
 
 ### [2026-09-07] U-07 — Le README n'était pas suivable par son destinataire
 
