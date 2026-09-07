@@ -91,3 +91,63 @@ jobs:
           exit 1
         fi
         echo "✅ Code formatting is correct"
+
+  # README.md and README_FR.md are one document in two languages. The defect
+  # this guards against is U-06's, doubled: a section that stops being true
+  # survives because nobody was reminded the other file says it too.
+  readme-parity:
+    name: README parity (EN/FR)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    # Compares the sequence of heading levels, never the titles: the French
+    # ones are translated, their shape is not. Fenced blocks are skipped so a
+    # "#" opening a comment inside one is not read as a heading.
+    - name: The two READMEs have the same shape
+      run: |
+        set -euo pipefail
+        shape() {
+          awk '
+            /^```/            { fence = !fence; next }
+            !fence && /^#+ /  { print substr($0, 1, index($0, " ") - 1) }
+          ' "$1"
+        }
+        if ! diff -u <(shape README.md) <(shape README_FR.md); then
+          echo "::error file=README_FR.md::README.md and README_FR.md no longer have the same sections. One file gained or lost a heading the other did not."
+          exit 1
+        fi
+        echo "✅ Both READMEs have the same section structure"
+
+    # A section can be rewritten without its heading moving, and the shape
+    # check would see nothing. On a pull request, also require both files.
+    - name: The two READMEs changed together
+      if: github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        # The API, not git: on pull_request the checkout is refs/pull/N/merge,
+        # and base.sha is not in a fetch-depth 1 clone, so a git diff against
+        # it fails with "bad object". --paginate because the endpoint stops at
+        # 30 files.
+        files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+        # A here-string, not a pipe: with pipefail, "printf | grep -q" reports
+        # 141 when grep exits early on a match, which would invert the test
+        # exactly when the file is present.
+        en=0; fr=0
+        if grep -qxF 'README.md'    <<<"$files"; then en=1; fi
+        if grep -qxF 'README_FR.md' <<<"$files"; then fr=1; fi
+        if [ "$en" -ne "$fr" ]; then
+          if [ "$en" -eq 1 ]; then missing=README_FR.md; else missing=README.md; fi
+          echo "::error file=${missing}::This pull request changes one README and not the other. A reader following a stale install step is exactly the reader these files exist for. Make the same change in ${missing}."
+          exit 1
+        fi
+        echo "✅ Both READMEs were updated together"

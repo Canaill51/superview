@@ -1,6 +1,7 @@
 {
   "files": [
-    "README.md"
+    "README.md",
+    "README_FR.md"
   ],
   "imageSize": 100,
   "commit": false,
@@ -46,7 +47,7 @@
   ],
   "contributorsPerLine": 7,
   "projectName": "superview",
-  "projectOwner": "Niek",
+  "projectOwner": "Canaill51",
   "repoType": "github",
   "repoHost": "https://github.com",
   "skipCi": true
