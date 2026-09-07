@@ -27,7 +27,7 @@ import (
 //go:embed Icon.png
 var appIconPNG []byte
 
-const requirementsURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#requirements"
+const installURL = "https://github.com/Canaill51/superview?tab=readme-ov-file#download-and-install"
 
 // maxLogFileBytes caps the diagnostic log; past this size it restarts empty.
 const maxLogFileBytes = 5 << 20 // 5 MiB
@@ -223,7 +223,7 @@ func showPrerequisiteDialog(window fyne.Window, err error, onRetry func()) bool 
 		return false
 	}
 
-	parsedURL, parseErr := url.Parse(requirementsURL)
+	parsedURL, parseErr := url.Parse(installURL)
 	if parseErr != nil {
 		dialog.ShowError(err, window)
 		return true
@@ -232,7 +232,7 @@ func showPrerequisiteDialog(window fyne.Window, err error, onRetry func()) bool 
 	content := container.NewVBox(
 		widget.NewLabel("cannot find ffmpeg/ffprobe on your system"),
 		widget.NewLabel("make sure to install it first:"),
-		widget.NewHyperlink(requirementsURL, parsedURL),
+		widget.NewHyperlink(installURL, parsedURL),
 	)
 
 	if onRetry == nil {

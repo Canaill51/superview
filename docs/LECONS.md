@@ -804,7 +804,90 @@ ne peut répondre à aucune des trois.
 *Corollaire mesuré ici* : modifier un fichier dans une PR ne le met pas à jour. Les trois PR
 avaient toutes touché `README.md` — une seule section chacune.
 
+### L-81 — Un binaire non signé a une étape d'installation que le README ne voit pas — 2026-09-07
+Un utilisateur lambda n'a pas su installer l'application sous Windows. Le README
+donnait pourtant le bon nom d'archive et la bonne commande. Ce qu'il ne donnait pas,
+c'est ce que Windows interpose entre le téléchargement et le premier lancement :
+`.github/workflows/release.yml` ne signe pas les binaires, donc SmartScreen affiche
+« Windows a protégé votre ordinateur », une fenêtre qui ne propose que *Ne pas
+exécuter* et cache *Exécuter quand même* derrière un lien *Informations
+complémentaires*. Personne dans le projet ne l'avait jamais vu : on lance ses propres
+compilations, jamais un fichier marqué du web.
+→ **La documentation d'installation décrit le trajet du lecteur, pas celui de
+l'auteur.** Tout ce que le système d'exploitation, le navigateur ou l'antivirus
+interpose entre le clic de téléchargement et la fenêtre de l'application *est* une
+étape d'installation, et doit y figurer avec le libellé exact de ses boutons. Trois
+questions le trouvent : que voit le lecteur **avant** que le fichier arrive, que voit-il
+**quand il l'ouvre**, et qu'est-ce qui, dans son environnement mais pas dans le nôtre,
+lui refuse quelque chose ?
+*Corollaire* : une instruction en forme de commande de terminal (`cd`, `.\prog.exe`)
+adressée à un utilisateur final est une instruction fausse — non parce qu'elle ne
+marche pas, mais parce qu'il ne l'exécutera pas. Prolonge L-64.
+
+### L-82 — Une ancre de documentation citée par le code est une API — 2026-09-07
+Restructurer le README a failli casser `#requirements`, codé en dur dans
+`gui_main.go` et répété dans le texte d'erreur de `common/common.go` — l'URL montrée
+précisément à l'utilisateur qui n'a pas FFmpeg. Un fragment qui ne désigne aucun titre
+ne produit pas d'erreur : il dépose le lecteur en haut du document, en silence. Le
+balayage de L-29 ne l'aurait pas vu, puisqu'il porte sur les noms de symboles et qu'ici
+c'est une chaîne de caractères qui pointe vers du Markdown.
+→ **Avant de renommer ou de supprimer un titre, chercher son ancre dans le code** :
+`grep -rn "readme-ov-file\|#nom-du-titre" --include='*.go' .`. Et quand le code cite
+une ancre, la pinner par un test qui relit le fichier Markdown — c'est fait ici par
+`readme_link_test.go`, contre-éprouvé dans les deux sens (constante périmée, titre
+renommé).
+
 ## 3. Corrections appliquées
+
+### [2026-09-07] U-07 — Le README n'était pas suivable par son destinataire
+
+**PR** — #57
+
+| | |
+| --- | --- |
+| **Constat** | U-07 ([ANALYSE.md § 3octies](ANALYSE.md)) |
+| **Fichiers** | `README.md` (restructuré), `gui_main.go` (`installURL`), `common/common.go` (texte d'erreur), `readme_link_test.go` (nouveau), `docs/ENVIRONNEMENT.md` (renvoi de section) |
+| **Vérification** | `gofmt -l .` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · contre-épreuve du test d'ancre dans les deux sens ✅ · archive Windows v0.2.6 téléchargée, `unzip -l` ✅ · archive Linux v0.2.6 : `sha256sum -c` ✅, `tar -xJf` et structure ✅ · liens et ancres du README ✅ · **séquence Windows non vérifiée, voir ci-dessous** |
+
+**Symptôme** — un utilisateur lambda, à qui il était demandé d'installer la dernière
+version sous Windows, n'y est pas arrivé.
+
+**Cause racine** — le README décrivait le trajet de l'auteur, pas celui du lecteur. Il
+ouvrait sur treize lignes de FFmpeg/NVENC qui ne concernent que les compilations depuis
+les sources ; il donnait ses instructions en PowerShell à quelqu'un qui double-clique ;
+et il ne mentionnait nulle part que, les binaires n'étant pas signés, Windows interpose
+un écran qui ne propose que *Ne pas exécuter*. Voir L-81.
+
+**Correctif** — `## Download and install` devient la première section H2, en six étapes
+numérotées sans terminal, l'écran SmartScreen décrit avec les libellés exacts de ses
+boutons et un `#### Why Windows warns about Superview` qui dit pourquoi et ce qu'on peut
+vérifier à la place. `## Requirements` disparaît, réparti entre l'installation, un
+nouveau `### If something goes wrong` et `## Development`. Plus aucun numéro de version
+n'est écrit : « the file ending in `-windows-x86_64.zip` » ne périme pas.
+
+**Ce qui a été déplacé, pas supprimé** — les avertissements mesurés (winget `8.1.1`,
+plancher pilote 610.00) descendent en `## Development`, seul endroit où quelqu'un tape
+`winget` ; l'argument long contre `ffmpeg -encoders` renvoie à
+`docs/hardware-support.md`, qui le porte déjà. Aucune phrase retirée du README sans
+avoir été retrouvée ailleurs.
+
+**Défaut trouvé en chemin** — `gui_main.go` et `common/common.go` codaient en dur
+`?tab=readme-ov-file#requirements`, l'URL montrée à l'utilisateur privé de FFmpeg.
+Supprimer la section l'aurait déposé en haut du README, sans erreur. Constante renommée
+`installURL`, et `readme_link_test.go` interdit à ce fragment de ne désigner aucun titre.
+Voir L-82.
+
+**Ce qui n'a pas été vérifié, et pourquoi** — toute la séquence Windows : les libellés
+SmartScreen, le chemin *Extraire tout…*, l'emboîtement des dossiers, le comportement des
+antivirus. Le poste de vérification est sous Linux, et **un exécuteur `windows-latest` ne
+peut pas servir d'oracle** : il télécharge par API, donc sans Mark-of-the-Web, SmartScreen
+y est désactivé et la boîte est interactive. Ce qui a pu être prouvé l'a été sur les
+archives réelles de la v0.2.6. L'oracle restant est l'utilisateur qui a échoué : lui
+faire suivre la nouvelle section mot à mot.
+
+**Leçon** — L-81, L-82.
+
+---
 
 ### [2026-09-06] U-06 — Le README prescrivait encore le build qui casse l'encodage matériel
 

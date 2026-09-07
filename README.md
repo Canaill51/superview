@@ -3,240 +3,218 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-Transform 4:3 aspect ratio videos to 16:9 using intelligent dynamic scaling, inspired by the GoPro SuperView method. This Go program smoothly stretches outer areas while preserving the center, creating a natural-looking widescreen conversion.
-
-> It is an *approximation* of GoPro's SuperView, not a reproduction of it: the distortion curve comes from [Banelle's original implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview) and aims for a comparable result, not identical output.
-
-> Officially supported platforms: **Windows** and **Linux** (Ubuntu 24.04 LTS+).
-> Superview is distributed and maintained as a **GUI-only** application.
-> The current codebase targets **Go 1.26+**.
-
-## Quick Links
-
-- [Overview](#overview)
-- [Requirements](#requirements)
-- [Hardware acceleration](#hardware-acceleration)
-- [Installation](#installation)
-- [Usage (GUI)](#usage)
-- [Configuration](#configuration)
-- [Architecture](#architecture)
-- [Development](#development)
-
-For contributors: [RELEASING.md](RELEASING.md) covers how a release is made,
-[docs/CONTRATS.md](docs/CONTRATS.md) what the code guarantees, and
-[docs/hardware-support.md](docs/hardware-support.md) which GPUs generally work.
-
-## Overview
-
-This program applies sophisticated distortion to convert 4:3 video to 16:9 widescreen:
-
-- **Dynamic Scaling**: Outer areas stretched more aggressively, center maintains aspect ratio
-- **Hardware Acceleration**: Supports available H.264/H.265 encoders and GPU acceleration
-- **Flexible Configuration**: Customizable bitrate constraints and encoder selection
-- **MP4 in, MP4 out**: the file pickers offer MP4 only, and the output extension is enforced
-- **Faithful to the source**: 10-bit footage stays 10-bit when encoding to H.265 (HERO 10 and
-  later record 10-bit), every audio track is carried over, and the recording date is preserved
-- **Simplified GUI Flow**: 3-step guided workflow with native file dialogs
-- **Squeeze Mode**: tick *Source already stretched to 16:9 (un-squeeze)* when the camera already
-  stored a 4:3 capture stretched to 16:9 -- GoPro's SuperView recording modes, the Caddx Tarsier
-  and similar. Superview then un-stretches the centre instead of widening the frame. The curve is
-  an approximation of the inverse stretch, not a reproduction of any camera's own algorithm
-- **System Diagnostic**: the *Diagnostic* button reports ffmpeg/ffprobe availability, free disk
-  space, memory and CPU, and **which encoders this machine actually accepts**, with FFmpeg's own
-  words for each refusal -- attach its output to any bug report
-
-The algorithm is based on [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview), adapted for Go and FFmpeg.
-
-Here is a quick animation showing the scaling, note how the text in the center stays the same:
+Turn 4:3 footage into 16:9 without black bars and without cropping the picture.
+Superview stretches the edges progressively and leaves the centre alone, the way
+GoPro's SuperView does.
 
 ![Sample of scaling result](.github/sample.gif)
 
-## Requirements
+Notice how the text in the centre keeps its shape while the sides widen.
 
-**If you use a release archive, there is nothing to install.** It ships its own
-`ffmpeg` and `ffprobe`, and Superview uses those in preference to anything on your
+> Officially supported platforms: **Windows** and **Linux** (Ubuntu 24.04 LTS+).
+> Superview is distributed and maintained as a **GUI-only** application.
+
+## Download and install
+
+There is nothing to install alongside it. Each archive carries its own `ffmpeg`
+and `ffprobe`, and Superview uses those in preference to anything on the
 machine — deliberately, because which FFmpeg build is installed decides whether
-hardware encoding works at all. See [Hardware acceleration](#hardware-acceleration).
+hardware encoding works at all.
 
-You only need FFmpeg on `PATH` when you **build from source**, which produces no
-bundle.
+### Windows
 
-> ⚠️ **Do not follow the obvious advice for Windows.** `winget install Gyan.FFmpeg`
-> currently installs a build compiled against NVIDIA headers that demand driver
-> **610.00** — a version the RTX Enterprise branch, which drives professional cards,
-> does not reach. On such a machine NVENC can never start, whatever the driver.
-> `winget install Gyan.FFmpeg --version 8.1.1` demands 570.0 and works.
-> [docs/hardware-support.md](docs/hardware-support.md) has the measured table.
+1. Open the **[latest release](https://github.com/Canaill51/superview/releases/latest)**.
+   Under **Assets**, click the file whose name ends in **`-windows-x86_64.zip`**.
+   It is around 95 MB — most of that is FFmpeg — and it lands in your
+   `Downloads` folder.
 
-### Linux, to build from source
+2. Your browser may say the file is not commonly downloaded and offer to discard
+   it. Choose **Keep**.
+   [Why Windows warns about Superview](#why-windows-warns-about-superview)
+   explains what that warning is about.
 
-```bash
-sudo apt update
-sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
-```
+3. **Extract the zip before doing anything else.** Right-click it →
+   **Extract All…** → **Extract**. Double-clicking a zip only shows you what is
+   inside; Superview cannot start from that preview, because it needs
+   `ffmpeg.exe` and `ffprobe.exe` as real files next to it.
 
-> `libwayland-dev` and `libxkbcommon-dev` are needed since Fyne 2.8, which moved
-> to GLFW 3.4 and its Wayland backend. They are build-time requirements only.
+4. Open the folder you just extracted, and keep opening folders until you see
+   these four files — Windows puts a folder inside a folder of almost the same
+   name here:
 
-Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
+   ```
+   superview-gui-windows-amd64.exe
+   ffmpeg.exe
+   ffprobe.exe
+   THIRD_PARTY_NOTICES.md
+   ```
 
-```bash
-sudo apt install -y zenity
-```
+   If your Windows hides file extensions, the names show up without `.exe`. The
+   one you want is `superview-gui-windows-amd64`, the one carrying the Superview
+   icon. `ffmpeg` and `ffprobe` are the tools it drives: double-clicking those
+   flashes a black window and does nothing.
 
-### Checking whether your GPU will be used
+5. **Double-click `superview-gui-windows-amd64.exe`.**
 
-Not with `ffmpeg -encoders | grep nvenc`. That list is compiled into the binary and
-knows nothing about your driver: it names encoders that refuse every frame. **Open
-Superview and press *Diagnostic*** — it asks each encoder to encode one, and prints
-what FFmpeg said about the ones that refused.
+6. Windows shows a blue window titled **"Windows protected your PC"**. It offers
+   only **Don't run**, which is not what you want. Click the small **More info**
+   link, then the **Run anyway** button that appears underneath. Superview
+   opens. Windows asks this once, not on every launch.
 
-## Hardware acceleration
+**Keep the four files together.** Superview looks for `ffmpeg.exe` beside
+itself. Dragging just the `.exe` onto your desktop leaves it falling back to
+whatever FFmpeg the machine has, or reporting `cannot find ffmpeg/ffprobe on
+your system`. To put Superview somewhere else, move the whole folder; to launch
+it from the desktop, right-click the `.exe` → **Show more options** →
+**Send to** → **Desktop (create shortcut)**, which leaves the file where it is.
 
-**The release archives ship their own FFmpeg**, and Superview prefers it over
-whatever is installed on the machine. That is not tidiness: the NVENC driver
-requirement is fixed when FFmpeg is compiled, so two builds both calling
-themselves "8.1.2" can demand different NVIDIA drivers, and the wrong one costs
-you hardware encoding with no symptom but a slow conversion. Point
-`SUPERVIEW_FFMPEG_DIR` at a directory containing `ffmpeg` and `ffprobe` to use
-your own instead.
+#### Why Windows warns about Superview
 
-At startup Superview asks each encoder to encode one frame, and keeps only the
-ones that answer. It targets `h264_nvenc`/`hevc_nvenc` (Nvidia),
-`h264_amf`/`hevc_amf` (AMD), `h264_qsv`/`hevc_qsv` (Intel) and VAAPI, then the
-vendor-neutral `h264_d3d12va` and `h264_vulkan` — which are driven by the
-display driver rather than by NVENC's own API, so they are still there when an
-FFmpeg build demands an NVIDIA driver the machine cannot install. It falls back
-to `libx264`/`libx265` on the CPU whenever no hardware path is usable.
+The releases are not signed with a code-signing certificate. Those are rented
+yearly from a certificate authority, and this project has none — so Windows has
+no publisher name to show you, and SmartScreen has no download history for a
+file it is seeing for the first time. The warning says Windows does not know who
+made this, not that the file is harmful. Some antivirus products go further and
+quarantine the file without asking; the cause is the same missing signature.
 
-Asking rather than reading `ffmpeg -encoders` is the point: that list says what
-the binary was compiled with and cannot see your driver. An FFmpeg built against
-newer NVIDIA headers than your driver supports advertises `h264_nvenc` and then
-refuses every frame — which is how a conversion ends up on the CPU with nothing
-on screen to say why.
+What you can check instead: every release ships a `checksums.txt`, the source of
+what you are running is this repository, and the archive is assembled by
+[`.github/workflows/release.yml`](.github/workflows/release.yml) on GitHub's own
+runners — not on anybody's laptop.
 
-The GUI shows the planned path before launch, for example `h264_nvenc + D3D11VA`,
-and the path actually used once the run finishes. **Diagnostic** lists every
-encoder that was probed and, for each refusal, what FFmpeg said about it.
+### Linux
 
-For the GPU families that generally work, and what to check when a card that should
-be supported does not appear, see **[docs/hardware-support.md](docs/hardware-support.md)**.
-
-## Installation
-
-### Option 1: Use prebuilt binaries (recommended for final users)
-
-Every release publishes an archive per platform plus a `checksums.txt`, on the
-[Releases](https://github.com/Canaill51/superview/releases) page.
-
-Both archives carry `ffmpeg` and `ffprobe` alongside the application, plus
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Keep them together: Superview looks
-for them beside itself, and moving the executable out on its own leaves it falling back
-to whatever FFmpeg the machine has.
-
-**Windows** — download `superview-gui-<version>-windows-x86_64.zip` and extract it. It
-unpacks to a single folder holding the application and its FFmpeg:
-
-```powershell
-cd superview-<version>-windows-x86_64
-.\superview-gui-windows-amd64.exe
-```
-
-**Linux** — download `superview-gui-<version>-linux-x86_64.tar.xz`. The archive carries
-the binary, its FFmpeg, a `.desktop` entry, an icon and a `Makefile`, so you can either
-run it in place or install it:
+Download the file whose name ends in `-linux-x86_64.tar.xz` from the
+[latest release](https://github.com/Canaill51/superview/releases/latest). It
+carries the binary, its FFmpeg, a `.desktop` entry, an icon and a `Makefile`, so
+you can either run it in place or install it:
 
 ```bash
-tar -xJf superview-gui-<version>-linux-x86_64.tar.xz
+tar -xJf superview-gui-*-linux-x86_64.tar.xz
 
 ./superview/usr/local/bin/superview      # run it where it is
 sudo make -C superview install           # or install it into /usr/local
 ```
 
 Installing puts the application in `/usr/local/bin` and its FFmpeg in
-`/usr/local/lib/superview` — not beside the application, where it would shadow the
-system's `ffmpeg` for every program on the machine.
+`/usr/local/lib/superview` — not beside the application, where it would shadow
+the system's `ffmpeg` for every program on the machine.
 
-**Verify what you downloaded.** Put `checksums.txt` next to the archives and run:
+### Verify your download
+
+Optional, and worth doing if you want more than the archive's word for itself.
+Put `checksums.txt`, published beside the archives, in the same folder:
 
 ```bash
 sha256sum -c checksums.txt          # Linux
 ```
 
-```powershell
-Get-FileHash superview-gui-*-windows-x86_64.zip -Algorithm SHA256   # Windows
-```
-
-The binary reports its own identity -- release number, the commit it was built from,
-and whether the tree was modified -- in the window title, the first line of the
-Diagnostic report and the log at startup. Quote it in any bug report.
-
-### Option 2: Build from source
-
-Official local build flow (Windows GUI):
+On Windows, print the two values and compare them by eye:
 
 ```powershell
-go build -ldflags="-H=windowsgui" -o superview-gui.exe .
+(Get-FileHash .\superview-gui-*-windows-x86_64.zip -Algorithm SHA256).Hash
+Select-String -Path .\checksums.txt -Pattern windows
 ```
 
-Then launch:
+They must show the same 64 characters, ignoring case.
 
-```powershell
-.\superview-gui.exe
-```
+## Using Superview
 
-Linux:
-```bash
-go build -o superview-gui .
-```
-
-Then launch:
-
-```bash
-./superview-gui
-```
-
-## Usage
-
-### Quick Run
-
-Windows (PowerShell) — from a release archive, the executable keeps the name it was
-built under, and the FFmpeg beside it is the one Superview will use:
-
-```powershell
-.\superview-gui-windows-amd64.exe
-```
-
-A source build produces whatever `go build -o` was given, `superview-gui.exe` above.
-
-GUI workflow:
-1. Click **Choose input file**
-2. Select a **Quality profile** (**Fast** or **Balanced**)
-3. (Optional) Select a **Video codec**
-4. Click **Choose output file**
-5. Click **Start transformation**
-6. Wait for encoding completion
-
-Notes:
-- Both quality profiles request the same bitrate: 4/3 of the source's, which is
-  exactly how much the pixel count grows when a 4:3 frame is widened to 16:9, so
-  the output holds the bits per pixel of the source. They differ by encoder
-  preset alone.
-- `Fast`: quicker encode, same bitrate.
-- `Balanced`: slower preset, slightly better detail at the same size.
-- The app asks for confirmation before overwriting an existing output file.
-- The GUI shows the planned hardware path before launch and the actual path used after encoding completes.
+1. Click **Choose input file** and pick a 4:3 MP4.
+2. Select a **Quality profile** — **Fast** or **Balanced**.
+3. Optionally select a **Video codec**.
+4. Click **Choose output file**.
+5. Click **Start transformation**.
+6. Wait for the encode to finish.
 
 ![GUI Screenshot](.github/sample-gui.png)
 
-If you get `Cannot find ffmpeg/ffprobe` from a release archive, its `ffmpeg` and
-`ffprobe` are no longer beside the application — extract the archive again rather than
-moving the executable out of its folder. From a source build, put FFmpeg on `PATH`.
+**MP4 in, MP4 out.** The file pickers offer MP4 only, and the output extension
+is enforced.
 
-To make Superview use a particular FFmpeg, point `SUPERVIEW_FFMPEG_DIR` at the directory
-holding `ffmpeg` and `ffprobe`. It wins over the bundled copy and over `PATH`.
+**If your camera already stretched the picture**, tick *Source already stretched
+to 16:9 (un-squeeze)* — GoPro's SuperView recording modes, the Caddx Tarsier and
+similar store a 4:3 capture stretched to 16:9. Superview then un-stretches the
+centre instead of widening the frame. The curve is an approximation of the
+inverse stretch, not a reproduction of any camera's own algorithm.
 
-### Configuration
+Notes:
+
+- Both quality profiles request the same bitrate: 4/3 of the source's, which is
+  exactly how much the pixel count grows when a 4:3 frame is widened to 16:9, so
+  the output holds the bits per pixel of the source. They differ by encoder
+  preset alone. `Fast` is a quicker encode; `Balanced` is a slower preset with
+  slightly better detail at the same size.
+- The app asks for confirmation before overwriting an existing output file.
+- The GUI shows the planned hardware path before launch, for example
+  `h264_nvenc + D3D11VA`, and the path actually used once the run finishes.
+
+### If something goes wrong
+
+**Press *Diagnostic*.** It reports ffmpeg/ffprobe availability, free disk space,
+memory and CPU, and **which encoders this machine actually accepts**, with
+FFmpeg's own words for each refusal. Attach its output to any bug report.
+
+That button is also the answer to "will my GPU be used?" — not
+`ffmpeg -encoders | grep nvenc`, which lists what the binary was compiled with
+and knows nothing about your driver. See
+[docs/hardware-support.md](docs/hardware-support.md) for the GPU families that
+generally work and what to check when a card that should be supported does not
+appear.
+
+`cannot find ffmpeg/ffprobe on your system`, from a release archive, means its
+`ffmpeg` and `ffprobe` are no longer beside the application: extract the archive
+again rather than moving the executable out of its folder. From a source build,
+put FFmpeg on `PATH`. To make Superview use a particular FFmpeg, point
+`SUPERVIEW_FFMPEG_DIR` at the directory holding the two — it wins over the
+bundled copy and over `PATH`.
+
+The binary reports its own identity — release number, the commit it was built
+from, and whether the tree was modified — in the window title, the first line of
+the Diagnostic report and the log at startup. Quote it in any bug report.
+
+## What Superview does
+
+- **Dynamic scaling**: outer areas stretched more aggressively, centre keeps its
+  aspect ratio
+- **Hardware acceleration**: uses the H.264/H.265 encoders this machine actually
+  accepts, and falls back to the CPU otherwise
+- **Faithful to the source**: 10-bit footage stays 10-bit when encoding to H.265
+  (HERO 10 and later record 10-bit), every audio track is carried over, and the
+  recording date is preserved
+- **Flexible configuration**: customisable bitrate constraints and encoder
+  selection
+- **Guided workflow**: three steps, with native file dialogs
+
+The algorithm is based on
+[Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview),
+adapted for Go and FFmpeg.
+
+> It is an *approximation* of GoPro's SuperView, not a reproduction of it: the
+> distortion curve comes from
+> [Banelle's original implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview)
+> and aims for a comparable result, not identical output.
+
+## Hardware acceleration
+
+At startup Superview asks each encoder to encode one frame, and keeps only the
+ones that answer. It falls back to `libx264`/`libx265` on the CPU whenever no
+hardware path is usable. Asking rather than reading `ffmpeg -encoders` is the
+point: that list says what the binary was compiled with and cannot see your
+driver.
+
+**The release archives ship their own FFmpeg**, and Superview prefers it over
+whatever is installed on the machine. The NVENC driver requirement is fixed when
+FFmpeg is compiled, so two builds both calling themselves "8.1.2" can demand
+different NVIDIA drivers, and the wrong one costs you hardware encoding with no
+symptom but a slow conversion. `SUPERVIEW_FFMPEG_DIR` is the way out — see
+[Configuration](#configuration).
+
+Which encoders are targeted, which GPU families work, and why the driver floor
+belongs to the FFmpeg build rather than to FFmpeg:
+**[docs/hardware-support.md](docs/hardware-support.md)**.
+
+## Configuration
 
 Superview looks for `superview.yaml` in this order, and uses the first file it finds:
 
@@ -332,7 +310,27 @@ Input → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo →
 
 ## Development
 
-A source build ships no FFmpeg, so a development machine needs one on `PATH`:
+> The current codebase targets **Go 1.26+**.
+
+A source build ships no FFmpeg, so a development machine needs one on `PATH`.
+
+### Linux build dependencies
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+```
+
+> `libwayland-dev` and `libxkbcommon-dev` are needed since Fyne 2.8, which moved
+> to GLFW 3.4 and its Wayland backend. They are build-time requirements only.
+
+Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
+
+```bash
+sudo apt install -y zenity
+```
+
+### Windows toolchain
 
 ```powershell
 winget install -e --id Gyan.FFmpeg --version 8.1.1 --accept-package-agreements --accept-source-agreements
@@ -340,9 +338,33 @@ winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agr
 winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
 ```
 
-> The pinned `8.1.1` is not caution about newness: 8.1.2 demands NVIDIA driver 610.00
-> and so cannot use NVENC on a professional card. Testing the hardware paths against it
-> would measure the wrong thing. See [RELEASING.md](RELEASING.md#bumping-the-bundled-ffmpeg).
+> ⚠️ **The `--version 8.1.1` is load-bearing; do not drop it.** Plain
+> `winget install Gyan.FFmpeg` currently installs a build compiled against NVIDIA
+> headers that demand driver **610.00** — a version the RTX Enterprise branch,
+> which drives professional cards, does not reach: its driver branch stops at
+> 597.06. On such a machine NVENC can never start, whatever the driver. `8.1.1`
+> demands 570.0 and works, so testing the hardware paths against 8.1.2 would
+> measure the wrong thing.
+> [docs/hardware-support.md](docs/hardware-support.md) has the measured table,
+> and [RELEASING.md](RELEASING.md#bumping-the-bundled-ffmpeg) covers the pin.
+
+### Build from source
+
+A source build produces no bundle, so it uses whatever FFmpeg is on `PATH`.
+
+Windows GUI:
+
+```powershell
+go build -ldflags="-H=windowsgui" -o superview-gui.exe .
+.\superview-gui.exe
+```
+
+Linux:
+
+```bash
+go build -o superview-gui .
+./superview-gui
+```
 
 ### Build & Test
 
@@ -362,6 +384,10 @@ this is what CI does, so that a green suite cannot mean "encoded nothing".
 
 Releases are made from the Actions tab and are documented in
 [RELEASING.md](RELEASING.md). There is no local release script.
+
+For contributors: [RELEASING.md](RELEASING.md) covers how a release is made,
+[docs/CONTRATS.md](docs/CONTRATS.md) what the code guarantees, and
+[docs/hardware-support.md](docs/hardware-support.md) which GPUs generally work.
 
 ## Contributors ✨
 

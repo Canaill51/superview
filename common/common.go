@@ -433,7 +433,7 @@ func CheckFfmpeg(cfg *Config) (map[string]string, error) {
 	version, err := cmd.CombinedOutput()
 
 	if err != nil {
-		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Canaill51/superview?tab=readme-ov-file#requirements")
+		return nil, errors.New("cannot find ffmpeg/ffprobe on your system\nmake sure to install it first: https://github.com/Canaill51/superview?tab=readme-ov-file#download-and-install")
 	}
 
 	ret["version"] = parseFFmpegVersion(string(version))

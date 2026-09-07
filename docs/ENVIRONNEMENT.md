@@ -50,7 +50,7 @@ export PATH=$HOME/.local/go/bin:$PATH && go version
 #    dans la liste d'origine, écrite avant le passage à Fyne 2.8 : celle-ci
 #    produisait un sysroot où GL et X11 étaient présents et où la compilation
 #    échouait quand même, sur wayland-client-core.h. Fyne 2.8 est passé à
-#    GLFW 3.4 et à son backend Wayland (cf. README, § Linux).
+#    GLFW 3.4 et à son backend Wayland (cf. README, § *Linux build dependencies*).
 mkdir -p /tmp/glue/debs && cd /tmp/glue/debs
 apt-get download libgl-dev libgl1-mesa-dev libglx-dev libx11-dev libxcursor-dev \
   libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxext-dev \
