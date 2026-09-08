@@ -192,16 +192,21 @@ un FFmpeg particulier à Superview, faites pointer `SUPERVIEW_FFMPEG_DIR` sur le
 dossier qui contient les deux — il l'emporte sur la copie embarquée et sur le
 `PATH`.
 
-**Si la conversion s'arrête d'elle-même et que la fenêtre se ferme**, la machine
-a manqué de mémoire : le système a tué l'encodeur, et sous Linux il arrête
-ensuite l'application entière avec lui. Un encodage sur processeur demande
-environ 0,27 Go de mémoire par mégapixel de l'image **de sortie**, et 0,43 Go
-quand la source est en 10 bits — un clip 4K en 4:3 s'élargit en 5120×2880, soit
-environ 6 Go. Le journal le nomme, avec la mémoire disponible à cet instant :
-cherchez `ffmpeg was killed by the system` ou `The system signalled the
-application to stop`. Fermez d'autres applications, ou choisissez un encodeur
+**`not enough memory for this conversion`** est Superview qui refuse de démarrer
+ce que la machine ne peut pas tenir. Un encodage sur processeur demande environ
+0,27 Go de mémoire par mégapixel de l'image **de sortie**, et 0,43 Go quand la
+source est en 10 bits — un clip 4K en 4:3 s'élargit en 5120×2880, soit environ
+6 Go. Le message cite les deux chiffres. Fermez d'autres applications,
+convertissez une vidéo comptant moins de pixels, ou choisissez un encodeur
 matériel dans la liste des codecs si *Diagnostic* dit que cette machine en
-accepte un.
+accepte un : un encodage sur GPU n'est pas soumis à cette vérification.
+
+**Si une conversion s'arrête malgré tout d'elle-même et que la fenêtre se
+ferme**, la mémoire a quand même manqué — l'estimation ci-dessus est une
+moyenne, pas une garantie. Le système tue l'encodeur, et sous Linux il arrête
+ensuite l'application entière avec lui. Le journal le nomme aussi, avec la
+mémoire disponible à cet instant : cherchez `ffmpeg was killed by the system` ou
+`The system signalled the application to stop`.
 
 Le binaire annonce sa propre identité — numéro de version, commit à partir
 duquel il a été construit, et si l'arbre était modifié — dans le titre de la

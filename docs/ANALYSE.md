@@ -2176,12 +2176,37 @@ Sonder à la géométrie réelle répondrait à la question qui compte, sans tab
 par constructeur — c'est la même philosophie que U-03. À mesurer avant d'écrire : le coût
 d'une sonde d'une image à 15 Mpx, payé au début de chaque conversion.
 
-### U-11 ⏸️ — Rien ne vérifie la mémoire disponible avant un encodage
+### U-11 ✅ — ~~Rien ne vérifie la mémoire disponible avant un encodage~~ — **CORRIGÉ**
 
-`checkTempSpaceForMaps` refuse de démarrer quand le tmpfs ne peut pas tenir 57 Mo de
-cartes ; rien ne regarde les ~6 Gio que l'encodage va demander, dont l'échec est bien
-plus brutal. `checkMemoryHealth` existe mais ne teste qu'un seuil fixe de 1 Gio, sans
-rapport avec la résolution, et n'est appelé que depuis le bouton *Diagnostic*.
+`checkTempSpaceForMaps` refusait de démarrer quand le tmpfs ne pouvait pas tenir 57 Mo
+de cartes ; rien ne regardait les ~6 Gio que l'encodage allait demander, dont l'échec est
+bien plus brutal. `checkMemoryHealth` existe mais ne teste qu'un seuil fixe de 1 Gio,
+sans rapport avec la résolution, et n'est appelé que depuis le bouton *Diagnostic*.
+
+`checkMemoryForEncode` est l'équivalent mémoire du contrôle disque, posé juste après lui
+dans `PerformEncoding` — après le choix de l'encodeur, parce que le coût en dépend.
+
+**Le chiffre vient du banc, pas d'un raisonnement** : 290 octets par pixel de sortie en
+8 bits, 455 en 10 bits, mesurés sur la géométrie du signalement. Trois propriétés
+justifient de le traiter comme une constante : il appartient à l'image et non au codec
+(libx264 à 1 % de libx265 sur la même image), il ne croît pas avec la durée du clip, et
+il dérive légèrement *vers le haut* sur les petites images, là où la valeur absolue ne
+décide rien.
+
+Trois choix à noter :
+
+1. **Aucune estimation pour les encodeurs matériels.** Rien ici ne les a mesurés, et les
+   tampons qui dominent le chiffre appartiennent à l'encodeur logiciel. Refuser sur un
+   nombre inventé serait pire que ne pas vérifier.
+2. **Un refus en dessous du besoin, un avertissement jusqu'à un quart au-dessus.**
+   L'estimation est une moyenne mesurée ; refuser une machine qui s'en serait tirée est
+   un échec en soi.
+3. **Une lecture impossible n'est pas un refus** — même règle que le contrôle disque.
+   Sans `/proc/meminfo`, donc sous Windows, la vérification ne se déclenche jamais.
+
+`encodesInTenBits` est extrait pour que la chaîne de filtres et l'estimation décident de
+la profondeur au même endroit : deux copies de ce test auraient fait dériver l'estimation
+d'une moitié en plus sans que rien ne le signale.
 
 ### U-12 ⏸️ — Bruit et seuils faux dans le journal
 
@@ -2215,8 +2240,8 @@ rapport avec la résolution, et n'est appelé que depuis le bouton *Diagnostic*.
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
-| ✅ **Corrigé et vérifié — 10ᵉ passe** (2) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur |
-| ⏸️ **Ouvert** (3) | U-11 — aucune vérification de la mémoire avant encodage. U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs. U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
+| ✅ **Corrigé et vérifié — 10ᵉ passe** (3) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc |
+| ⏸️ **Ouvert** (2) | U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs. U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
