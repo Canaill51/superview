@@ -253,6 +253,14 @@ cela coûte : une source en 10 bits est enregistrée en 8 bits quand la conversi
 passe en H.264. Choisir vous-même un encodeur dans la liste des codecs l'emporte
 toujours sur ce comportement.
 
+Un encodeur matériel est également interrogé sur l'image qu'il va réellement
+recevoir, et pas seulement sur une petite. Les encodeurs ont des bornes — ce même
+Intel HD 620 plafonne à 4096 pixels de côté, et un clip 4K en 4:3 s'élargit à
+5120 — donc la question est reposée à la vraie taille dès qu'un fichier est
+choisi, et Superview recule sur le processeur avant de démarrer si la réponse est
+non. La fenêtre dit quel encodeur va réellement tourner, et pourquoi, avant même
+que vous appuyiez sur *Start transformation*.
+
 **Les archives de release embarquent leur propre FFmpeg**, et Superview le
 préfère à celui qui est installé sur la machine. L'exigence de pilote de NVENC
 est figée à la compilation de FFmpeg : deux versions se réclamant toutes deux de

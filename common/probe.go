@@ -37,12 +37,19 @@ import (
 // timeout entirely left the test green. It guarded nothing.
 var probeTimeout = 15 * time.Second
 
-// probeFrameSize is the frame every probe encodes. Small enough to cost
+// probeFrameSize is the frame the startup sweep encodes. Small enough to cost
 // nothing, and above the minimum dimensions the hardware encoders enforce.
 //
-// A probe at this size cannot prove that a 4K frame will also encode: some
-// encoders have an upper bound too, and a few refuse specific pixel formats.
-// It proves the part that fails in practice -- that the driver answers at all.
+// A probe at this size cannot prove that a large frame will also encode, and
+// that is not a theoretical gap: an Intel HD 620 accepts h264_vaapi here and
+// then answers, at the size a 4:3 4K clip actually widens to,
+//
+//	Hardware does not support encoding at size 5120x2880
+//	(constraints: width 32-4096 height 32-4096)
+//
+// The startup sweep cannot ask the real question, because no file has been
+// chosen when it runs. probeEncoderAtSize asks it later, once the geometry is
+// known -- see verifyEncoderForOutput.
 const probeFrameSize = "256x256"
 
 // probeReasonLines caps how much of ffmpeg's complaint is kept.
@@ -120,10 +127,10 @@ func (r *EncoderProbeReport) Unusable() []EncoderProbe {
 // with an upload the conversion does not perform would do the opposite -- pass
 // the probe, then fail at encoding time. Sharing the code is what keeps the two
 // from drifting into either mistake.
-func probeArgs(encoder string) []string {
+func probeArgs(encoder, size string) []string {
 	args := []string{"-hide_banner", "-loglevel", "error"}
 	args = append(args, hwDeviceArgs(encoder)...)
-	args = append(args, "-f", "lavfi", "-i", "nullsrc=s="+probeFrameSize+":r=25:d=0.04")
+	args = append(args, "-f", "lavfi", "-i", "nullsrc=s="+size+":r=25:d=0.04")
 
 	// The probe's own chain has no remap in it, so the upload steps arrive with
 	// a leading comma to strip.
@@ -137,12 +144,24 @@ func probeArgs(encoder string) []string {
 // ProbeEncoder encodes one frame with the given encoder and reports what
 // happened. It never returns an error: a refusal is the answer, not a failure.
 func ProbeEncoder(ctx context.Context, encoder string) EncoderProbe {
+	return probeEncoderAtSize(ctx, encoder, probeFrameSize)
+}
+
+// probeEncoderAtSize is ProbeEncoder with the frame size spelled out, for the
+// caller that knows what the conversion is about to produce.
+//
+// Measured, because the whole question is whether this is affordable at the
+// start of every conversion: a probe that succeeds costs about 0.30 s and the
+// size does not move it -- 0.29 s at 256x256, 0.30 s at 5120x2880, 0.33 s at
+// 7082x3984 on h264_nvenc. What is being paid for is the process start and the
+// device handshake, not the pixels. A refusal comes back in 0.02 s.
+func probeEncoderAtSize(ctx context.Context, encoder, size string) EncoderProbe {
 	started := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 
-	cmd := newFFmpegCommandContext(ctx, probeArgs(encoder)...)
+	cmd := newFFmpegCommandContext(ctx, probeArgs(encoder, size)...)
 	prepareBackgroundCommand(cmd)
 	output, err := cmd.CombinedOutput()
 

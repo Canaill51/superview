@@ -958,7 +958,75 @@ inexprimable et, cette fois, testable dans `common` — le test rejoue la séque
 de `main()`. L'ancienne fonction, dont rien d'autre ne se servait, est retirée plutôt que
 laissée en piège.
 
+### L-93 — Une sonde répond à la question qu'elle pose, pas à celle qu'on se pose — 2026-09-09
+La sonde de démarrage encode du 256×256 et prouve que le pilote répond. Le code le disait
+lui-même — « A probe at this size cannot prove that a 4K frame will also encode » — et
+c'est resté une remarque pendant trois passes, jusqu'à ce qu'un Intel HD 620 réponde
+`Hardware does not support encoding at size 5120x2880 (constraints: width 32-4096)` à la
+conversion, après avoir accepté la sonde.
+→ **Un commentaire qui décrit une limite de la vérification est un constat, pas une
+excuse.** Et poser la vraie question s'est révélé gratuit : une sonde qui réussit coûte
+~0,30 s **quelle que soit la taille** (0,29 s à 256×256, 0,33 s à 7082×3984), parce qu'on
+paie le démarrage du processus, pas les pixels. Mesurer avant d'écrire a transformé « c'est
+peut-être trop cher au début de chaque conversion » en une constante connue.
+
+### L-94 — Un garde-fou doit suivre l'objet qu'il garde — 2026-09-09
+Le garde-fou mémoire chiffrait l'encodeur choisi au départ. Deux chemins pouvaient en
+changer ensuite — le recul devant une taille refusée, et la cascade de repli interne à
+`EncodeVideo` — et sur les deux il ne disait plus rien, alors que c'est précisément là que
+l'encodeur devient logiciel et cher. Un garde-fou qui protège la première décision et pas
+la dernière est une demi-vérité, et une demi-vérité rassure.
+→ **Vérifier au dernier point où la décision peut encore changer, pas au premier où on la
+connaît.** Corollaire pratique : quand la fonction qui décide n'a pas le contexte pour
+recalculer (`EncodeVideo` ne reçoit pas `squeeze`), lire l'artefact déjà produit — ici
+l'en-tête des cartes de remappage — vaut mieux que d'élargir une signature pour refaire un
+calcul qui pourrait diverger.
+
+### L-95 — Rendre asynchrone une méthode existante casse ses lecteurs — 2026-09-09
+`refreshHardwareStatus` écrivait une étiquette et rendait la main. Y avoir glissé une
+goroutine a produit une vraie course détectée par `-race` : huit tests lisent
+`hardwareStatus.Text` à la ligne suivante. La tentation immédiate est un drapeau « ne pas
+faire ça dans les tests » ; il aurait fait diverger le code testé du code livré.
+→ **Séparer la moitié lente dans sa propre méthode plutôt que de conditionner
+l'asynchronisme.** La méthode synchrone reste ce que ses appelants croient, la lente est
+invoquée aux endroits où ses *entrées* changent, et son point d'application
+(`applyVerifiedHardwareLine`) redevient testable de façon synchrone — compteur de
+génération compris, qui sans cela n'aurait été éprouvé par rien.
+
 ## 3. Corrections appliquées
+
+### [2026-09-09] U-13 + U-14 — L'encodeur promis, chiffré et exécuté doivent être le même
+
+**PR** — #64
+
+| | |
+| --- | --- |
+| **Constats** | U-13 et U-14 ([ANALYSE.md § 3nonies](ANALYSE.md)) |
+| **Fichiers** | `common/probe.go` (taille en paramètre), `common/hardware.go` (`outputFrameSize`, cache par taille, `verifyEncoderForOutput`, `DescribeVerifiedHardwarePlan`), `common/common.go` (appel dans `PerformEncoding`, `sessionOutputSize`, chiffrage du repli), `gui_main.go` (`verifyHardwareInBackground`, `applyVerifiedHardwareLine`, état `squeeze`), `common/sizeprobe_test.go` et `common/fallbackmemory_test.go` (nouveaux), `common/integration_test.go`, `gui_main_test.go`, `common/probe_test.go`, `README.md`, `README_FR.md` |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 71,1 % ✅ · GUI démarrée et vivante ✅ · 10 contre-épreuves, chacune vérifiée compilable ✅ |
+
+**Symptôme** — Sur le portable du signalement, la fenêtre annonçait `h264_vaapi` et la
+conversion tournait entièrement sur le processeur. Le pilote refuse les 5120 px de large,
+ce qu'aucune vérification ne demandait avant de promettre.
+
+**Cause racine** — Deux fois la même : quelque chose décidait à partir d'un encodeur qui
+n'était pas celui qui allait tourner. La sonde répondait pour une image de 256×256 ; le
+garde-fou mémoire chiffrait l'encodeur choisi au départ et pas celui qui prenait le relais.
+
+**Correctif** — Sonde paramétrée en taille, posée à la géométrie réelle dans
+`PerformEncoding` avant tout le reste, avec recul vers l'encodeur logiciel de la famille
+source. La ligne « Hardware » de la fenêtre est recalculée hors du fil d'interface, avec
+cache par (encodeur, taille) et compteur de génération. Le repli interne d'`EncodeVideo`
+chiffre l'encodeur qui prend le relais, en lisant la géométrie dans l'en-tête des cartes
+de la session.
+
+**Découvert en chemin** — Deux défauts introduits par le correctif lui-même et attrapés
+avant la fusion : le découpage de l'estimation mémoire avait fait passer un contrôle de
+nullité **après** `remapOutputSize`, qui déréférence `Streams[0]` sans garde (test existant
+rougi, L-05) ; et la ligne « Hardware » rendue asynchrone a produit une course sous `-race`
+(L-95).
+
+**Leçon** — L-93, L-94, L-95.
 
 ### [2026-09-08] U-12 — Bruit et seuils faux dans le journal
 
@@ -2273,3 +2341,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-08 | **U-10 corrigé** (arbitrage utilisateur : basculer et l'annoncer) : Superview prend l'encodeur matériel de l'autre famille de codec quand celle de la source n'en a aucun, dit ce que cela coûte, et replie sur le codec de la source si le matériel échoue. **U-13 ouvert** en chemin : la sonde encode du 256×256 et ne prouve rien sur une image de 15 Mpx. Leçon L-87. |
 | 2026-09-08 | **U-11 corrigé** : garde-fou mémoire avant encodage, chiffré au banc (290 o/px en 8 bits, 455 en 10 bits), refus sous le besoin et avertissement jusqu'à un quart au-dessus. Abstention sur le matériel, non mesuré, et quand `/proc/meminfo` n'existe pas. Leçons L-88, L-89. |
 | 2026-09-08 | **U-12 corrigé**, et la 10ᵉ passe close côté corrections : `N/A` n'est plus un avertissement, le seuil disque descend de 10 Go à 1 Go, la journalisation en double disparaît avec la sémantique d'ajout qui la causait, et le commentaire de `EncodeVideo` retrouve sa fonction. Reste **U-13** ouvert : sonder à la taille réellement encodée. Leçons L-90 à L-92. |
+| 2026-09-09 | **U-13 et U-14 corrigés**, sur retour d'essai de l'utilisateur : le pilote du HD 620 refuse `5120x2880` et donne ses bornes, ce que la sonde de 256×256 ne pouvait pas voir. Sonde à la géométrie réelle (mesurée gratuite : ~0,30 s quelle que soit la taille), recul propre vers l'encodeur logiciel de la famille source, fenêtre qui cesse de promettre, et garde-fou mémoire qui suit l'encodeur jusqu'au repli. Leçons L-93 à L-95. **Plus aucun constat ouvert.** |

@@ -988,3 +988,60 @@ func TestAppState_SetFFmpegUnblocksTheWindow(t *testing.T) {
 		}
 	}
 }
+
+// TestAppState_AStaleVerificationDoesNotOverwriteANewerLine pins the guard that
+// makes an off-thread verdict safe.
+//
+// The verification runs in a goroutine and can take a third of a second. A user
+// who ticks the squeeze box twice in that time starts two of them, and the first
+// to finish may be the one describing the geometry that is no longer selected.
+// Without the generation the window would settle on whichever answer happened to
+// arrive last.
+func TestAppState_AStaleVerificationDoesNotOverwriteANewerLine(t *testing.T) {
+	test.NewApp()
+
+	state := &appState{
+		ffmpegAvailable:   true,
+		ffmpeg:            map[string]string{"encoders": "libx264", "accels": ""},
+		video:             testVideo(),
+		hardwareStatus:    widget.NewLabel("current"),
+		hardwareStatusGen: 7,
+	}
+
+	state.applyVerifiedHardwareLine(6, "an answer for a state that is gone")
+	if got := state.hardwareStatus.Text; got != "current" {
+		t.Errorf("a stale verification overwrote the line: %q", got)
+	}
+
+	state.applyVerifiedHardwareLine(7, "the answer for the current state")
+	if got := state.hardwareStatus.Text; got != "the answer for the current state" {
+		t.Errorf("the current verification was dropped: %q", got)
+	}
+}
+
+// TestAppState_RefreshInvalidatesAVerificationInFlight is the other half: it is
+// refreshHardwareStatus that moves the generation on, so anything computed
+// before a click cannot land after it.
+func TestAppState_RefreshInvalidatesAVerificationInFlight(t *testing.T) {
+	test.NewApp()
+
+	state := &appState{
+		ffmpegAvailable: true,
+		ffmpeg:          map[string]string{"encoders": "libx264", "accels": ""},
+		video:           testVideo(),
+		hardwareStatus:  widget.NewLabel(""),
+	}
+	state.setEncoderProbe(&common.EncoderProbeReport{Results: []common.EncoderProbe{
+		{Encoder: "libx264", Usable: true},
+	}})
+
+	inFlight := state.hardwareStatusGen
+	state.refreshHardwareStatus()
+	settled := state.hardwareStatus.Text
+
+	state.applyVerifiedHardwareLine(inFlight, "computed before the refresh")
+
+	if got := state.hardwareStatus.Text; got != settled {
+		t.Errorf("a verification started before the refresh was allowed to land: %q", got)
+	}
+}

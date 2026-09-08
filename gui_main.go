@@ -427,6 +427,17 @@ type appState struct {
 	// says so rather than claiming a path it has not verified.
 	encoderProbe *common.EncoderProbeReport
 
+	// squeeze mirrors the "source already stretched" checkbox, because the
+	// hardware line depends on it: it changes the size of the output frame, and
+	// the size is exactly what a hardware encoder can refuse.
+	squeeze bool
+
+	// hardwareStatusGen counts refreshes of the hardware line, so a slow
+	// verification cannot overwrite a newer answer. Every refresh takes the next
+	// number; a background result applies only while its number is still the
+	// current one.
+	hardwareStatusGen int
+
 	// Encoding lifecycle. cancel is non-nil exactly while a conversion is
 	// running and has not been cancelled yet; requestCancel is the only place
 	// allowed to close it, because closing a channel twice panics.
@@ -510,7 +521,58 @@ func (s *appState) refreshHardwareStatus() {
 	if s.encoder != nil {
 		selection = common.ParseEncoderSelection(s.encoder.Selected)
 	}
+
 	s.hardwareStatus.SetText(common.DescribeHardwareAccelerationPlan(s.ffmpeg, s.video, selection))
+
+	// Any refresh invalidates a verification still in flight: the answer it is
+	// carrying was computed for the state this call has just replaced.
+	s.hardwareStatusGen++
+}
+
+// verifyHardwareInBackground asks the planned hardware encoder whether it will
+// take the frame this file will actually produce, and rewrites the line when the
+// answer changes it.
+//
+// Separate from refreshHardwareStatus, and deliberately so. That one is
+// synchronous -- it is called from widget callbacks that must not wait, and from
+// tests that read the label on the next line. Folding a goroutine into it made
+// the label a value nobody could read without racing the verification. So the
+// slow half is its own method, called from the places where the *inputs* to the
+// verdict change: the file, the squeeze checkbox, the codec selection, and the
+// startup probe that decides which encoders are even eligible.
+//
+// A probe not asked before costs about 0.30 s; the answers are cached for the
+// session, so every repeat is free.
+func (s *appState) verifyHardwareInBackground() {
+	if s.hardwareStatus == nil || s.video == nil || !s.ffmpegAvailable || s.encoderProbe == nil {
+		return
+	}
+
+	selection := ""
+	if s.encoder != nil {
+		selection = common.ParseEncoderSelection(s.encoder.Selected)
+	}
+
+	generation := s.hardwareStatusGen
+	ffmpeg, video, squeeze := s.ffmpeg, s.video, s.squeeze
+
+	go func() {
+		verified := common.DescribeVerifiedHardwarePlan(context.Background(), ffmpeg, video, squeeze, selection)
+		fyne.Do(func() { s.applyVerifiedHardwareLine(generation, verified) })
+	}()
+}
+
+// applyVerifiedHardwareLine writes a verified line, unless the state it was
+// computed for has moved on.
+//
+// The generation is what makes a slow verdict harmless: a user who ticks the
+// squeeze box twice in a second starts two verifications, and the first must not
+// land after the second and describe a geometry that is no longer selected.
+func (s *appState) applyVerifiedHardwareLine(generation int, text string) {
+	if s.hardwareStatus == nil || generation != s.hardwareStatusGen {
+		return
+	}
+	s.hardwareStatus.SetText(text)
 }
 
 // setEncoderProbe records the probe verdicts and drops the encoders that
@@ -742,8 +804,14 @@ func main() {
 	squeezeSource := prefs.Bool(prefSqueezeSource)
 	squeezeCheck := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(checked bool) {
 		squeezeSource = checked
+		state.squeeze = checked
 		prefs.SetBool(prefSqueezeSource, checked)
+		// The output frame changes width with this box, and a hardware encoder
+		// refuses on width. The line has to be recomputed, not just kept.
+		state.refreshHardwareStatus()
+		state.verifyHardwareInBackground()
 	})
+	state.squeeze = squeezeSource
 	squeezeCheck.SetChecked(squeezeSource)
 
 	var open *widget.Button
@@ -911,6 +979,7 @@ func main() {
 					return
 				}
 				state.setInput(video)
+				state.verifyHardwareInBackground()
 				selectedFile.SetText(filepath.Base(video.File))
 				status.SetText("Status: Input loaded")
 			}, window)
@@ -934,6 +1003,7 @@ func main() {
 			return
 		}
 		state.setInput(video)
+		state.verifyHardwareInBackground()
 		selectedFile.SetText(filepath.Base(video.File))
 		status.SetText("Status: Input loaded")
 	})
@@ -1018,6 +1088,7 @@ func main() {
 	encoder = widget.NewSelect(encoderOptions, func(selection string) {
 		prefs.SetString(prefEncoderSelection, selection)
 		state.refreshHardwareStatus()
+		state.verifyHardwareInBackground()
 	})
 	state.encoder = encoder
 	encoder.Alignment = fyne.TextAlignCenter
@@ -1066,6 +1137,7 @@ func main() {
 				state.setEncoderProbe(report)
 				refreshEncoderOptions()
 				state.refreshHardwareStatus()
+				state.verifyHardwareInBackground()
 				state.refreshStart()
 			})
 		}()

@@ -524,3 +524,57 @@ func TestIntegration_MemoryCheckStopsBeforeFfmpegRuns(t *testing.T) {
 		t.Error("ffmpeg was started before the memory check ran")
 	}
 }
+
+// TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame proves the
+// size-aware verification is wired into the pipeline, and wired in early enough
+// to change what runs.
+//
+// The stand-in ffmpeg refuses everything, so the probe comes back "unusable" for
+// h264_vaapi exactly as an Intel HD 620 does at 5120x2880. What the test reads
+// is the argv of the conversion itself: there must be exactly one, and it must
+// name the CPU encoder. Without the verification the pipeline would launch three
+// -- two with the hardware encoder, then the fallback.
+func TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// The real ffmpeg renders the clip, before the stand-in takes over PATH.
+	input := makeTestClip(t, 640, 480, 1)
+
+	freshSizeProbeCache(t)
+	dir := t.TempDir()
+	ledger := filepath.Join(dir, "calls.txt")
+	fakeRefusingFFmpeg(t, dir, ledger)
+
+	capabilities := map[string]string{"encoders": "h264_vaapi,libx264,libx265", "accels": "vaapi"}
+	ui := &integrationUI{bitrate: 2_000_000} // no explicit encoder: the automatic path
+
+	if err := PerformEncoding(nil, input, filepath.Join(t.TempDir(), "out.mp4"), ui, capabilities, make(chan struct{})); err == nil {
+		t.Fatal("the stand-in ffmpeg refuses everything, so an error was expected")
+	}
+
+	recorded, err := os.ReadFile(ledger)
+	if err != nil {
+		t.Fatalf("the stand-in ffmpeg was never run: %v", err)
+	}
+
+	conversions := []string{}
+	for _, line := range strings.Split(string(recorded), "\n") {
+		// The conversion is the invocation carrying the remap filter; the other
+		// one is the probe.
+		if strings.Contains(line, "remap") {
+			conversions = append(conversions, line)
+		}
+	}
+
+	if len(conversions) != 1 {
+		t.Fatalf("expected exactly one conversion attempt, got %d:\n%s", len(conversions), strings.Join(conversions, "\n"))
+	}
+	if !strings.Contains(conversions[0], "-c:v libx264") {
+		t.Errorf("the conversion should have run on the CPU encoder, got: %s", conversions[0])
+	}
+	if strings.Contains(conversions[0], "h264_vaapi") {
+		t.Errorf("the hardware encoder refused this frame and must not be used: %s", conversions[0])
+	}
+}

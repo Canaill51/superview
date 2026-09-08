@@ -1,9 +1,12 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 // MachineProfile describes runtime hardware/software capabilities detected from ffmpeg and host CPU.
@@ -456,4 +459,149 @@ func withCodecSwitchNote(video *VideoSpecs, encoder string, summary string) stri
 		return summary
 	}
 	return summary + " -- " + note
+}
+
+// outputFrameSize renders the frame the conversion will produce, in the "WxH"
+// form ffmpeg's lavfi sources take.
+func outputFrameSize(video *VideoSpecs, squeeze bool) string {
+	// Same reason as memoryNeededForEncode: remapOutputSize dereferences
+	// Streams[0] without checking, so the empty cases stop here.
+	if video == nil || len(video.Streams) == 0 {
+		return ""
+	}
+	outX, outY := remapOutputSize(video, squeeze)
+	if outX <= 0 || outY <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%dx%d", outX, outY)
+}
+
+// sizeProbeCache remembers what each encoder answered for a given frame size.
+//
+// A session-lifetime cache, and the same assumption the startup sweep already
+// makes: the driver's answer for one encoder at one size does not change while
+// the application is running. It matters because the window asks this question
+// again on every change of file, of the squeeze checkbox and of the codec
+// selection, and a probe costs about 0.30 s.
+var (
+	sizeProbeMu    sync.Mutex
+	sizeProbeCache = map[string]EncoderProbe{}
+)
+
+// resetSizeProbeCache empties the cache. Tests only: every one of them would
+// otherwise inherit the verdicts of the last.
+func resetSizeProbeCache() {
+	sizeProbeMu.Lock()
+	defer sizeProbeMu.Unlock()
+	sizeProbeCache = map[string]EncoderProbe{}
+}
+
+// probeEncoderForSizeCached is probeEncoderAtSize behind the cache.
+func probeEncoderForSizeCached(ctx context.Context, encoder, size string) EncoderProbe {
+	key := encoder + "@" + size
+
+	sizeProbeMu.Lock()
+	cached, ok := sizeProbeCache[key]
+	sizeProbeMu.Unlock()
+	if ok {
+		return cached
+	}
+
+	probe := probeEncoderAtSize(ctx, encoder, size)
+
+	sizeProbeMu.Lock()
+	sizeProbeCache[key] = probe
+	sizeProbeMu.Unlock()
+
+	return probe
+}
+
+// verifyEncoderForOutput asks a hardware encoder whether it will take the frame
+// this conversion is about to produce, and steps back to the CPU when it will
+// not. It returns the encoder to use and, when that is not the one it was
+// given, ffmpeg's own words for why.
+//
+// The startup sweep encodes 256x256, which is the only size available before a
+// file is chosen. It proves the driver answers; it cannot prove the driver will
+// take a 15-megapixel frame. On an Intel HD 620 the gap is exactly one message:
+//
+//	Hardware does not support encoding at size 5120x2880
+//	(constraints: width 32-4096 height 32-4096)
+//
+// Without this, that machine selected h264_vaapi, announced H.264 to the user,
+// failed twice inside EncodeVideo, and landed on libx265 -- whose memory
+// requirement the guard had already declined to estimate, because the encoder
+// it was shown was a hardware one. Asking here makes the announcement, the
+// memory estimate and the encoder that runs the same three things.
+//
+// Software encoders are returned untouched: they have no device to consult, and
+// a probe would only cost the conversion a process start.
+func verifyEncoderForOutput(ctx context.Context, encoder string, video *VideoSpecs, squeeze bool, ffmpeg map[string]string) (string, string) {
+	if encoder == "" || !isHardwareEncoder(encoder) {
+		return encoder, ""
+	}
+
+	size := outputFrameSize(video, squeeze)
+	if size == "" {
+		return encoder, ""
+	}
+
+	probe := probeEncoderForSizeCached(ctx, encoder, size)
+	if probe.Usable {
+		return encoder, ""
+	}
+
+	reason := fmt.Sprintf("%s cannot encode %s on this machine: %s", encoder, size, probe.Reason)
+
+	fallback := softwareEncoderForFallback(video, encoder, AnalyzeMachineProfile(ffmpeg))
+	if fallback == "" {
+		// Nothing to step back to. Say so and leave the encoder alone: the
+		// cascade in EncodeVideo is then the only thing left, exactly as before.
+		logger.Warn("The hardware encoder refuses this frame and there is no CPU encoder to fall back to",
+			slog.String("encoder", encoder),
+			slog.String("output_size", size),
+			slog.String("reason", probe.Reason),
+		)
+		return encoder, reason
+	}
+
+	logger.Warn("The hardware encoder refuses this frame; using the CPU encoder instead",
+		slog.String("encoder", encoder),
+		slog.String("output_size", size),
+		slog.String("reason", probe.Reason),
+		slog.String("using", fallback),
+	)
+
+	return fallback, reason
+}
+
+// DescribeVerifiedHardwarePlan is DescribeHardwareAccelerationPlan with the
+// hardware encoder actually asked about the frame it would be given.
+//
+// It takes a context and can spend a probe, so it belongs off the UI thread --
+// the window already runs the startup sweep that way. The cache makes every
+// repeat of the same question free.
+func DescribeVerifiedHardwarePlan(ctx context.Context, ffmpeg map[string]string, video *VideoSpecs, squeeze bool, requestedEncoder string) string {
+	if video == nil {
+		return "Hardware: waiting for input video"
+	}
+
+	plan, err := BuildHardwarePlan(ffmpeg, video, requestedEncoder)
+	if err != nil {
+		return fmt.Sprintf("Hardware: %s", err.Error())
+	}
+
+	verified, refusal := verifyEncoderForOutput(ctx, plan.Encoder, video, squeeze, ffmpeg)
+	if refusal == "" {
+		return describePlannedHardwarePath(plan)
+	}
+
+	// Rebuild the plan around the encoder that will really run, so the decode
+	// path and the codec-switch note describe it and not the one that refused.
+	plan.Encoder = verified
+	plan.HardwareEncode = isHardwareEncoder(verified)
+	plan.DecodeAccel = selectHardwareDecodeAccel(verified, AnalyzeMachineProfile(ffmpeg))
+	plan.CodecSwitch = describeCodecFamilySwitch(video, verified)
+
+	return describePlannedHardwarePath(plan) + " -- " + refusal
 }
