@@ -27,7 +27,7 @@ func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
 		"hevc_vulkan":  "vulkan",
 		"h264_d3d12va": "d3d12va",
 	} {
-		joined := strings.Join(probeArgs(encoder), " ")
+		joined := strings.Join(probeArgs(encoder, probeFrameSize), " ")
 
 		for _, needed := range []string{
 			"-init_hw_device " + deviceType + "=" + hwDeviceAlias,
@@ -44,7 +44,7 @@ func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
 	// NVENC, AMF and QSV upload for themselves. Asking for a device they do not
 	// need would fail on machines that cannot create one.
 	for _, encoder := range []string{"h264_nvenc", "hevc_amf", "h264_qsv", "libx264"} {
-		joined := strings.Join(probeArgs(encoder), " ")
+		joined := strings.Join(probeArgs(encoder, probeFrameSize), " ")
 		for _, unwanted := range []string{"-init_hw_device", "hwupload"} {
 			if strings.Contains(joined, unwanted) {
 				t.Errorf("the %s probe should not carry %q: %s", encoder, unwanted, joined)
@@ -68,7 +68,7 @@ func TestProbeAndConversionAskTheSameQuestion(t *testing.T) {
 		"h264_vaapi", "hevc_vulkan", "h264_d3d12va",
 		"h264_v4l2m2m", "libx264", "libx265",
 	} {
-		probe := strings.Join(probeArgs(encoder), " ")
+		probe := strings.Join(probeArgs(encoder, probeFrameSize), " ")
 
 		// The conversion's device setup, verbatim from what it emits.
 		conversionDevice := strings.Join(hwDeviceArgs(encoder), " ")
@@ -93,7 +93,7 @@ func TestProbeAndConversionAskTheSameQuestion(t *testing.T) {
 // TestProbeArgs_NamesTheEncoderAndDiscardsOutput checks the probe is a probe:
 // it encodes with the requested encoder and writes nothing anywhere.
 func TestProbeArgs_NamesTheEncoderAndDiscardsOutput(t *testing.T) {
-	args := probeArgs("hevc_nvenc")
+	args := probeArgs("hevc_nvenc", probeFrameSize)
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-c:v hevc_nvenc") {

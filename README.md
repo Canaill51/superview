@@ -228,6 +228,13 @@ the log say so, and say what it costs: a 10-bit source is stored as 8-bit when
 the conversion moves to H.264. Picking an encoder yourself in the codec dropdown
 always wins over this.
 
+A hardware encoder is also asked about the frame it will actually be given, not
+just about a small one. Encoders have upper bounds — the same Intel HD 620 tops
+out at 4096 pixels a side, and a 4:3 4K clip widens to 5120 — so the question is
+put again at the real size once a file is chosen, and Superview steps back to the
+CPU before starting if the answer is no. The window says which encoder will
+really run, and why, before you press *Start transformation*.
+
 **The release archives ship their own FFmpeg**, and Superview prefers it over
 whatever is installed on the machine. The NVENC driver requirement is fixed when
 FFmpeg is compiled, so two builds both calling themselves "8.1.2" can demand

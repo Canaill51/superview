@@ -2163,7 +2163,7 @@ Corrigé en trois pièces :
 **Non traité, et consigné en U-13** : la sonde encode du 256×256, ce qui ne prouve rien
 sur une image de 5120×2880. Un encodeur peut passer la sonde et refuser la conversion.
 
-### U-13 ⏸️ — La sonde ne prouve rien sur la taille réellement encodée
+### U-13 ✅ — ~~La sonde ne prouve rien sur la taille réellement encodée~~ — **CORRIGÉ**
 
 `probeFrameSize` vaut `256x256`, et son propre commentaire le dit : « A probe at this
 size cannot prove that a 4K frame will also encode: some encoders have an upper bound
@@ -2172,9 +2172,60 @@ too. » Le cas est concret — l'encodeur H.264 des Intel d'avant la 11ᵉ gén�
 donc être déclaré utilisable, être choisi, et échouer sur la vraie image : le coût est un
 run ffmpeg complet avant que la cascade de repli ne s'en aperçoive.
 
-Sonder à la géométrie réelle répondrait à la question qui compte, sans table de limites
-par constructeur — c'est la même philosophie que U-03. À mesurer avant d'écrire : le coût
-d'une sonde d'une image à 15 Mpx, payé au début de chaque conversion.
+Sonder à la géométrie réelle répond à la question qui compte, sans table de limites par
+constructeur — c'est la même philosophie que U-03.
+
+**Confirmé sur le matériel du signalement**, le 2026-09-09, en posant la question du
+pipeline à la vraie taille :
+
+```
+Hardware does not support encoding at size 5120x2880
+(constraints: width 32-4096 height 32-4096)
+```
+
+Le pilote **donne ses bornes**. Ce que la machine faisait avant ce correctif : sonde à
+256×256 acceptée → `h264_vaapi` choisi → fenêtre annonçant H.264 et la perte des 10 bits →
+deux démarrages ffmpeg refusés → repli sur `libx265`, dont le garde-fou mémoire avait
+justement refusé de chiffrer le coût, puisqu'on lui avait montré un encodeur matériel.
+Autrement dit, U-10 n'apportait rien à cette machine et sa promesse était fausse.
+
+**Mesure préalable, comme demandé** : une sonde qui *réussit* coûte ~0,30 s et **la taille
+n'y change rien** — 0,29 s à 256×256, 0,30 s à 5120×2880, 0,33 s à 7082×3984 sur
+`h264_nvenc`. Ce qui se paie est le démarrage du processus et la poignée de main avec le
+pilote, pas les pixels. Un refus revient en 0,02 s. Le coût est donc une constante par
+conversion, pas une fonction de la résolution.
+
+Correctif en trois pièces :
+
+1. `probeArgs` et `probeEncoderAtSize` prennent la taille en paramètre. La sonde de
+   démarrage garde 256×256 : quand elle tourne, aucun fichier n'est choisi.
+2. `verifyEncoderForOutput`, appelée dans `PerformEncoding` **avant** le contrôle disque
+   et le garde-fou mémoire, pose la question à la géométrie réelle et recule sur
+   l'encodeur logiciel de la famille source si le matériel refuse. L'annonce, l'estimation
+   mémoire et l'encodeur qui tourne deviennent alors la même chose.
+3. La fenêtre ne promet plus ce que la machine refusera : `DescribeVerifiedHardwarePlan`
+   recalcule la ligne « Hardware » hors du fil d'interface après le chargement d'un
+   fichier, un changement de case *squeeze* ou de codec. Un cache par (encodeur, taille)
+   rend gratuits les appels répétés ; un compteur de génération empêche une réponse lente
+   d'écraser une plus récente.
+
+### U-14 ✅ — ~~Le garde-fou mémoire n'était pas reconsulté sur le chemin de repli~~ — **CORRIGÉ**
+
+Trouvé en instruisant U-13, et c'est un trou dans U-11 tel que livré. `checkMemoryForEncode`
+n'était appelé qu'une fois, dans `PerformEncoding`, **avec l'encodeur choisi au départ**.
+Pour un encodeur matériel il s'abstient — c'est correct, aucun n'a été mesuré. Mais la
+cascade de repli vit à l'intérieur d'`EncodeVideo`, qui se rappelle elle-même avec
+`libx265` : le garde-fou n'était jamais reconsulté, et la machine retombait sur les 6,25 Go
+sans le refus censé l'en protéger.
+
+Corrigé : le repli chiffre l'encodeur qui prend le relais avant de démarrer. La géométrie
+vient de l'en-tête du `x.pgm` de la session (`sessionOutputSize`) plutôt que d'un recalcul
+— `EncodeVideo` ne reçoit pas `squeeze`, et les cartes sont la déclaration que la
+conversion fait elle-même de l'image qu'elle produit. Une lecture impossible ne bloque
+rien, comme partout ailleurs ici.
+
+Avec U-13, ce chemin ne devrait plus être atteint par une limite de taille ; il le reste
+pour tout autre échec matériel à l'exécution.
 
 ### U-11 ✅ — ~~Rien ne vérifie la mémoire disponible avant un encodage~~ — **CORRIGÉ**
 
@@ -2263,8 +2314,8 @@ des secondes. À reprendre si un utilisateur le redemande.
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
-| ✅ **Corrigé et vérifié — 10ᵉ passe** (4) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin |
-| ⏸️ **Ouvert** (1) | U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
+| ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
+| ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·

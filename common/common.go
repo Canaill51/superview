@@ -593,6 +593,44 @@ func getSessionPaths() (xPath, yPath string, err error) {
 // CheckVideo loads and validates video metadata using ffprobe.
 // It extracts codec, dimensions, duration, and bitrate from the first video stream.
 // Returns InvalidVideoError if required metadata is missing or invalid.
+// sessionOutputSize reads the frame geometry out of the remap map this session
+// generated.
+//
+// The maps are the conversion's own statement of what it is producing, so a
+// caller that has them needs no squeeze flag and cannot disagree with what
+// ffmpeg is about to be fed. GeneratePGM writes the header as
+// "P5 <width> <height> 65535\n", which is the whole of what is read here.
+//
+// Not being able to read it is not an error worth propagating: the caller uses
+// the size to price memory, and no price is better than a wrong one.
+func sessionOutputSize() (width, height int, ok bool) {
+	xPath, _, err := getSessionPaths()
+	if err != nil {
+		return 0, 0, false
+	}
+
+	file, err := os.Open(xPath)
+	if err != nil {
+		return 0, 0, false
+	}
+	defer func() { _ = file.Close() }()
+
+	// The header is at most a few dozen bytes; the rest of the file is samples.
+	header := make([]byte, 64)
+	n, err := file.Read(header)
+	if n == 0 && err != nil {
+		return 0, 0, false
+	}
+
+	if _, err := fmt.Sscanf(string(header[:n]), "P5 %d %d", &width, &height); err != nil {
+		return 0, 0, false
+	}
+	if width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	return width, height, true
+}
+
 func CheckVideo(file string) (*VideoSpecs, error) {
 	// Check specs of the input video (codec, dimensions, duration, bitrate)
 	cmd := newFFprobeCommand("-i", file, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,duration,bit_rate,pix_fmt,r_frame_rate", "-print_format", "json")
@@ -769,11 +807,24 @@ const memoryHeadroomDivisor = 4
 // encode keeps its reference frames in video memory instead. Refusing a
 // conversion on a number nobody measured would be worse than not checking.
 func memoryNeededForEncode(video *VideoSpecs, squeeze bool, encoder string) uint64 {
+	// remapOutputSize reads Streams[0] without a guard of its own, so the empty
+	// cases are settled before it is called rather than inside it.
+	if video == nil || len(video.Streams) == 0 {
+		return 0
+	}
+	outX, outY := remapOutputSize(video, squeeze)
+	return memoryNeededForFrame(outX, outY, video, encoder)
+}
+
+// memoryNeededForFrame is the estimate for a frame whose size is already known.
+//
+// Split out for the caller that has the geometry but not the squeeze flag: the
+// fallback inside EncodeVideo, which reads the size from the remap maps rather
+// than recomputing it.
+func memoryNeededForFrame(outX, outY int, video *VideoSpecs, encoder string) uint64 {
 	if video == nil || len(video.Streams) == 0 || encoder == "" || isHardwareEncoder(encoder) {
 		return 0
 	}
-
-	outX, outY := remapOutputSize(video, squeeze)
 	if outX <= 0 || outY <= 0 {
 		return 0
 	}
@@ -803,7 +854,16 @@ func formatGB(bytes uint64) string {
 // A reading that cannot be taken is not a refusal -- same rule as the disk
 // check. On Windows there is no /proc/meminfo, so this never fires there.
 func checkMemoryForEncode(video *VideoSpecs, squeeze bool, encoder string) error {
-	needed := memoryNeededForEncode(video, squeeze, encoder)
+	if video == nil || len(video.Streams) == 0 {
+		return nil
+	}
+	outX, outY := remapOutputSize(video, squeeze)
+	return checkMemoryForFrame(outX, outY, video, encoder)
+}
+
+// checkMemoryForFrame is checkMemoryForEncode for a frame already measured.
+func checkMemoryForFrame(outX, outY int, video *VideoSpecs, encoder string) error {
+	needed := memoryNeededForFrame(outX, outY, video, encoder)
 	if needed == 0 {
 		return nil
 	}
@@ -817,7 +877,6 @@ func checkMemoryForEncode(video *VideoSpecs, squeeze bool, encoder string) error
 		return nil
 	}
 
-	outX, outY := remapOutputSize(video, squeeze)
 	depth := "8-bit"
 	if encodesInTenBits(sourcePixelFormat(video), encoder) {
 		depth = "10-bit"
@@ -1603,6 +1662,27 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		fallbackEncoder := softwareEncoderForFallback(video, encoder, profile)
 
 		if fallbackEncoder != "" {
+			// Price the encoder that is about to take over, not the one that
+			// was priced before the conversion started.
+			//
+			// PerformEncoding's guard was shown a hardware encoder and declined
+			// to estimate it, which is correct -- none has been measured. But
+			// the encoder arriving here is a software one, and on the machine
+			// that produced this finding it is the expensive one: 6.2 GB of
+			// libx265 on a laptop with 8, which is how the kernel came to kill
+			// ffmpeg in the first place. Falling into that silently would have
+			// made the guard a half-truth.
+			if outX, outY, known := sessionOutputSize(); known {
+				if memErr := checkMemoryForFrame(outX, outY, video, fallbackEncoder); memErr != nil {
+					logger.Error("The CPU encoder that would take over does not fit in memory",
+						slog.String("failed_encoder", encoder),
+						slog.String("fallback_encoder", fallbackEncoder),
+						slog.String("error", memErr.Error()),
+					)
+					return memErr
+				}
+			}
+
 			logger.Warn("Hardware encoder failed, retrying with CPU encoder",
 				slog.String("failed_encoder", encoder),
 				slog.String("fallback_encoder", fallbackEncoder),
@@ -1795,6 +1875,20 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 		return err
 	}
 
+	// Ask the UI once and reuse the answer: the size check just below, the space
+	// check and the map generation further down must all agree on which geometry
+	// is being produced.
+	squeeze := ui.GetSqueeze()
+
+	// Ask a hardware encoder whether it will take the frame it is about to be
+	// given, and step back to the CPU here if it will not.
+	//
+	// Here rather than inside EncodeVideo, because everything downstream is
+	// entitled to know which encoder will really run: the memory estimate
+	// declines to price a hardware encoder, and the metrics and the log would
+	// otherwise record one that never encoded a frame.
+	encoder, _ = verifyEncoderForOutput(context.Background(), encoder, video, squeeze, ffmpeg)
+
 	profile := AnalyzeMachineProfile(ffmpeg)
 	logger.Info("Machine profile analyzed",
 		slog.Int("cpu_cores", profile.CPUCores),
@@ -1805,10 +1899,6 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 
 	// ==== OBSERVABILITY: Record output metadata ====
 	metrics.RecordOutputMetadata(bitrate, encoder)
-
-	// Ask the UI once and reuse the answer: the space check below and the map
-	// generation further down must agree on which geometry is being produced.
-	squeeze := ui.GetSqueeze()
 
 	if err := checkTempSpaceForMaps(video, squeeze); err != nil {
 		metrics.RecordError(exitCodeUnavailable, err.Error())
