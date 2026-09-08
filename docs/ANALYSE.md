@@ -2208,7 +2208,7 @@ Trois choix à noter :
 la profondeur au même endroit : deux copies de ce test auraient fait dériver l'estimation
 d'une moitié en plus sans que rien ne le signale.
 
-### U-12 ⏸️ — Bruit et seuils faux dans le journal
+### U-12 ✅ — ~~Bruit et seuils faux dans le journal~~ — **CORRIGÉ**
 
 - `Failed to parse progress value raw_value=N/A` en `WARN`, **45 fois en 81 secondes** :
   `out_time_ms=N/A` est ce que ffmpeg émet avant la première image sortie. Ce n'est pas
@@ -2221,6 +2221,29 @@ d'une moitié en plus sans que rien ne le signale.
 - Les événements `start`, `error` et `encoding failed` sont journalisés **en double**.
 - Le commentaire de `EncodeVideo` est orphelin : il est posé au-dessus de
   `sourcePixelFormat`, que godoc documente donc avec le texte d'une autre fonction.
+
+Les quatre corrigés :
+
+1. **`out_time_ms=N/A` est la réponse normale de ffmpeg** tant qu'aucune image n'est
+   sortie du graphe de filtres. Reconnu comme tel et journalisé en `Debug` ; une valeur
+   qui n'est ni `N/A` ni un nombre reste un `WARN`, parce qu'elle voudrait dire que le
+   format de progression a changé. Et la fenêtre dit désormais ce qu'elle attend
+   (`Starting the encoder... (no progress until the first frame)`) au lieu d'afficher une
+   barre à zéro.
+2. **Le seuil disque passe de 10 Go à 1 Go**, avec un message qui dit à quoi sert le
+   répertoire. Les cartes du plus grand format traité font 113 Mo ; c'est
+   `checkTempSpaceForMaps` qui décide vraiment, en connaissant la géométrie.
+3. **La journalisation en double venait de `main()`** : le logger est construit deux fois
+   — une fois pour en avoir un, une fois le niveau configuré connu — et chaque
+   construction *ajoutait* un gestionnaire. `SetObservabilityHandler` remplace au lieu
+   d'ajouter, ce qui rend le défaut inexprimable ; `RegisterObservabilityHandler`, dont
+   la sémantique d'ajout était le piège et que rien d'autre n'utilisait, est retirée.
+4. Le commentaire orphelin est revenu au-dessus de `EncodeVideo`.
+
+**Non fait, et assumé** : un compteur de temps écoulé pendant l'attente de la première
+image. Le texte d'attente dit ce qui se passe ; un compteur vivant demanderait un
+ticker, sa goroutine et son annulation, pour un gain de confort sur une phase qui dure
+des secondes. À reprendre si un utilisateur le redemande.
 
 ---
 
@@ -2240,8 +2263,8 @@ d'une moitié en plus sans que rien ne le signale.
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
-| ✅ **Corrigé et vérifié — 10ᵉ passe** (3) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc |
-| ⏸️ **Ouvert** (2) | U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs. U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
+| ✅ **Corrigé et vérifié — 10ᵉ passe** (4) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin |
+| ⏸️ **Ouvert** (1) | U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·

@@ -298,6 +298,15 @@ func (c encodingControls) setEnabled(enabled bool) {
 // The estimate is left out entirely until there is one. Rendering a zero as
 // "about 0s left" would read as "nearly done" at the very moment the encode is
 // starting, which is the opposite of the truth.
+// startingEncoderStatus is what the window says between "Start transformation"
+// and the first progress figure ffmpeg produces.
+//
+// That gap is not instant: ffmpeg reports out_time_ms=N/A until a frame has come
+// out of the filter graph, which on a 15 Mpx frame is seconds and can be a
+// minute. Saying so is the difference between a window that looks stuck and one
+// that is visibly working.
+const startingEncoderStatus = "Status: Starting the encoder... (no progress until the first frame)"
+
 func formatEncodingStatus(percent float64, remaining time.Duration) string {
 	if remaining <= 0 {
 		return fmt.Sprintf("Status: Transforming... %.0f%%", percent)
@@ -605,7 +614,7 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 	common.SetLogger(gui_logger)
-	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
+	common.SetObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
 	if logPath != "" {
 		gui_logger.Info("Superview starting", slog.String("log_file", logPath))
 	}
@@ -627,7 +636,7 @@ func main() {
 		Level: common.ParseLogLevel(cfg.LogLevel),
 	}))
 	common.SetLogger(gui_logger)
-	common.RegisterObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
+	common.SetObservabilityHandler(common.NewDefaultObservabilityHandler(gui_logger))
 	gui_logger.Info("Configuration resolved",
 		slog.String("config_file", configPath),
 		slog.String("log_level", cfg.LogLevel),
@@ -780,7 +789,11 @@ func main() {
 				profileBitrate = cfg.MaxBitrate
 			}
 
-			status.SetText("Status: Transforming...")
+			// Not "Transforming... 0%": ffmpeg produces no progress figure at all
+			// until the first frame leaves the filter graph, and on a large frame
+			// that takes seconds to a minute. One user watched a bar sit at zero for
+			// 81 seconds and cancelled a conversion that was working.
+			status.SetText(startingEncoderStatus)
 
 			// beginEncoding hands back the channel rather than leaving the
 			// goroutine to read it off the struct, which is what used to race

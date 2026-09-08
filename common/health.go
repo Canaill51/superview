@@ -135,6 +135,10 @@ func checkFFprobeHealth(timestamp int64) HealthCheckResult {
 	return result
 }
 
+// minimumTempFreeGB is the floor below which the temp directory is worth
+// reporting. See checkDiskSpaceHealth for why it is not larger.
+const minimumTempFreeGB = 1
+
 // checkDiskSpaceHealth verifies sufficient disk space for encoding operations.
 // Checks both temp directory and output directory.
 func checkDiskSpaceHealth(timestamp int64) HealthCheckResult {
@@ -152,11 +156,20 @@ func checkDiskSpaceHealth(timestamp int64) HealthCheckResult {
 		return result
 	}
 
-	// Warning threshold: less than 10GB free
-	if tempFreeGB < 10 {
+	// The temp directory holds the two remap maps and nothing else: the output
+	// is written next to the destination the user picked. Even the largest frame
+	// this pipeline handles -- a 5.3K 4:3 source widened to 7082x3984 -- makes
+	// about 113 MB of maps, so a floor of 1 GB is already generous.
+	//
+	// It used to be 10 GB, a number no per-conversion need justified and that a
+	// tmpfs cannot satisfy: current distributions size /tmp at half the RAM, so
+	// an 8 GiB machine reported UNHEALTHY for its entire life while holding
+	// thirty times what the conversion needed. The check that actually decides
+	// is checkTempSpaceForMaps, which knows the geometry being produced.
+	if tempFreeGB < minimumTempFreeGB {
 		result.Healthy = false
 		result.Value = fmt.Sprintf("%.1f GB free", tempFreeGB)
-		result.Message = fmt.Sprintf("Insufficient temp disk space: %.1f GB (minimum 10GB recommended)", tempFreeGB)
+		result.Message = fmt.Sprintf("Very little space in %s: %.1f GB, and the remap maps are written there", tempDir, tempFreeGB)
 		return result
 	}
 

@@ -206,6 +206,18 @@ func NewEventRecorder() *EventRecorder {
 	}
 }
 
+// SetHandler replaces every registered handler with this one, or with none when
+// handler is nil.
+func (r *EventRecorder) SetHandler(handler ObservabilityHandler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.handlers = r.handlers[:0]
+	if handler != nil {
+		r.handlers = append(r.handlers, handler)
+	}
+}
+
 // RegisterHandler adds a new observability handler.
 func (r *EventRecorder) RegisterHandler(handler ObservabilityHandler) {
 	if handler == nil {
@@ -354,12 +366,20 @@ func SetLastHardwareAccelerationSummary(summary string) {
 	lastHardwareAccelerationSummary = summary
 }
 
-// RegisterObservabilityHandler registers a global observability handler.
-// This allows UI code to subscribe to encoding events.
-func RegisterObservabilityHandler(handler ObservabilityHandler) {
-	if globalEventRecorder != nil {
-		globalEventRecorder.RegisterHandler(handler)
+// SetObservabilityHandler makes handler the one recipient of encoding events,
+// replacing whatever was registered before. Passing nil leaves the recorder
+// with no handler at all.
+//
+// It replaces rather than appends, and that is the whole point. The GUI builds
+// its logger twice -- once to have one at all, then again once the configured
+// level is known -- and the old Register call appended both, so every encoding
+// event was written to the log file twice for the life of the process. The
+// duplicate pairs are visible in any log from before this change.
+func SetObservabilityHandler(handler ObservabilityHandler) {
+	if globalEventRecorder == nil {
+		return
 	}
+	globalEventRecorder.SetHandler(handler)
 }
 
 // RecordEncodingEvent records an event to the global recorder.
