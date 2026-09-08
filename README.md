@@ -172,6 +172,16 @@ put FFmpeg on `PATH`. To make Superview use a particular FFmpeg, point
 `SUPERVIEW_FFMPEG_DIR` at the directory holding the two — it wins over the
 bundled copy and over `PATH`.
 
+**If the conversion stops on its own and the window closes**, the machine ran
+out of memory: the operating system killed the encoder, and on Linux it then
+stops the whole application with it. Encoding on the CPU needs roughly 0.27 GB
+of memory per megapixel of the *output* frame, and 0.43 GB when the source is
+10-bit — a 4:3 4K clip widens to 5120×2880, which is about 6 GB. The log names
+it, with the memory that was free at that moment: look for `ffmpeg was killed by
+the system` or `The system signalled the application to stop`. Close other
+applications, or pick a hardware encoder in the codec dropdown if *Diagnostic*
+says this machine accepts one.
+
 The binary reports its own identity — release number, the commit it was built
 from, and whether the tree was modified — in the window title, the first line of
 the Diagnostic report and the log at startup. Quote it in any bug report.

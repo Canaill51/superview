@@ -2039,6 +2039,132 @@ la PR du bot en toucherait un seul et échouerait à chaque nouveau contributeur
 
 ---
 
+## 3nonies. Dixième passe (2026-09-08) — signalement utilisateur : mémoire épuisée
+
+Signalement : « Je viens de tester l'application sur un portable sous Kubuntu 26.04.1
+LTS — i5-7200U, 8 Gio de RAM, Intel HD Graphics 620. Il y a eu le fallback CPU, puis un
+crash de l'application car il manquait de mémoire vive. Détermine si c'est normal. »
+
+Journal fourni (`~/.cache/superview/superview.log`, build `0.2.6 (3b9357c)`) et
+`journalctl` du poste. La réponse est oui, c'est arithmétique — et trois défauts la
+rendaient illisible.
+
+### Ce que la machine a réellement fait
+
+Clip d'entrée : `DJI_…_D.MP4`, HEVC, **3840×2880**, 43 s. Sortie remappée
+**5120×2880**, soit 14,7 Mpx. Encodeur retenu : `libx265`, 4 threads, preset `medium`.
+
+```
+13:57:44  rustdesk déclenche l'OOM killer global
+13:57:45  le noyau tue ffmpeg (pid 51447) — anon-rss 5 497 312 kB, total-vm 7 444 860 kB
+13:57:45  systemd : « The kernel OOM killer killed some processes in this unit »
+          → OOMPolicy (défaut : stop) arrête app-com.canaill51.superview@….service
+          → SIGTERM à superview
+13:57:45  le gestionnaire de signaux attrape le SIGTERM et journalise
+          « encoding interrupted by user »
+13:57:46  Failed with result 'oom-kill' — l'unité est démontée, la fenêtre disparaît
+```
+
+`systemd-oomd`, `earlyoom` et `nohang` sont tous `inactive` sur ce poste : c'est bien
+le noyau, puis systemd.
+
+### Mesures — pic de RSS de ffmpeg, géométrie reproduite à l'identique
+
+Banc : maps produites par le vrai `GeneratePGM`, chaîne de `buildEncodeBaseArgs`,
+`-threads 4` et `pools=4` pour simuler les 4 cœurs du poste.
+
+| Chaîne | Pic |
+| --- | --- |
+| 8 bits, `yuv444p` → `yuv420p`, `libx265 medium` | 3,97 Gio |
+| 8 bits, même chaîne, `libx264` | 3,99 Gio |
+| **10 bits, `yuv444p10le` → `yuv420p10le`, `libx265 medium`** | **6,25 Gio** |
+| 10 bits, `preset veryfast` | 3,69 Gio (8 bits) |
+| relevé du noyau à l'instant du kill | 5,24 Gio, en cours de montée |
+
+Deux conclusions. **Ce n'est pas x265** : à taille d'image égale, x264 demande autant.
+C'est la géométrie — ≈ **0,27 Gio par mégapixel de sortie en 8 bits**, ≈ **0,43 en
+10 bits**, le facteur 1,6 venant de la bascule 10 bits de `remapFilterChain`, qui est
+délibérée (N-03) et juste. Et la sortie fait 4/3 des pixels de l'entrée par
+construction. **Et l'ordre de grandeur est indépendant de la durée du clip** : ce sont
+des tampons d'images, pas un flux accumulé.
+
+Pour situer : une Hero 11/12/13 en 5,3K 4:3 (5312×3984) produit 7082×3984 = 28,2 Mpx,
+soit ~7,6 Gio en 8 bits et ~12 Gio en 10 bits. Une machine à 16 Gio y passe mal.
+
+### Ce que la sonde ne pouvait pas voir
+
+`h264_vaapi` **n'apparaît pas** dans la liste des refus du journal, alors que tous les
+encodeurs matériels annoncés sont sondés (`encodersToProbe`). Il a donc passé la sonde :
+**le HD 620 savait encoder en H.264 sur ce poste.** Seule la famille HEVC a échoué —
+`hevc_vaapi : No usable encoding entrypoint found for profile VAProfileHEVCMain (17)`,
+signature d'un pilote `i965` là où `intel-media-va-driver` serait attendu.
+
+La source étant du HEVC, `FindEncoder` n'a parcouru que `candidateEncodersForCodec("hevc")`,
+n'y a trouvé aucun encodeur matériel utilisable, et est tombé sur `libx265`. Choisir
+`h264_vaapi` réglait les trois problèmes d'un coup : encodage matériel, 8 bits, et
+quelques minutes au lieu d'un quart d'heure.
+
+### U-09 ✅ — ~~Un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur~~ — **CORRIGÉ**
+
+`ErrCancelled` couvrait deux choses sans rapport : la fermeture du canal `cancel`
+(bouton *Cancel*, ou la boîte « cancel and quit » de la croix) et le gestionnaire de
+signaux sur `SIGINT`/`SIGTERM`. Les deux passaient par un même canal d'entiers vides.
+Conséquences, toutes vérifiées sur le journal du poste :
+
+1. **Le message était faux.** « encoding interrupted by user » pour un arrêt que
+   l'utilisateur n'a pas demandé — c'est ce qui a rendu le journal incompréhensible et
+   a fait perdre le premier tour de diagnostic.
+2. **La cause réelle n'était nulle part.** Aucune ligne ne portait l'état de la mémoire
+   au moment de l'arrêt.
+3. **Un `SIGKILL` du noyau sur ffmpeg produisait « ffmpeg failed: signal: killed »**,
+   sans le mot mémoire, alors que c'est le seul diagnostic qui compte.
+4. **L'application survivait au SIGTERM.** systemd arrêtait l'unité, l'application
+   refusait de mourir, et le SIGKILL qui suit ne laisse rien nettoyer : le fichier de
+   travail `.superview-partial-*.mp4` et le répertoire de session restaient derrière.
+
+Corrigé : sentinelle `ErrStoppedBySignal` distincte, portant le nom du signal ;
+`classifyFfmpegFailure` nomme un processus tué de l'extérieur comme un manque de
+mémoire probable, avec le relevé `MemAvailable` ; la GUI quitte sur
+`ErrStoppedBySignal`, après que `PerformEncoding` a déroulé ses nettoyages.
+
+**Laissé délibérément** : un signal reçu *hors* encodage tue toujours le processus sans
+un mot, le gestionnaire n'étant armé que pendant `run()`. Rien n'est alors en vol, et
+armer un gestionnaire permanent ferait courir la fermeture de l'application contre les
+nettoyages en cours.
+
+### U-10 ⏸️ — Le repli CPU ignore un encodeur matériel disponible dans l'autre famille
+
+Voir ci-dessus : `h264_vaapi` était utilisable, `FindEncoder` ne l'a pas regardé. Le
+critère « conserver le codec de la source » l'emporte aujourd'hui sur « utiliser le
+matériel de la machine », sans que rien ne le dise à l'utilisateur.
+
+Arbitrage à trancher, parce que le choix n'est pas gratuit : passer une source HEVC
+10 bits sur un encodeur H.264 matériel fait perdre les 10 bits (`remapFilterChain` ne
+les garde que pour la famille HEVC).
+
+### U-11 ⏸️ — Rien ne vérifie la mémoire disponible avant un encodage
+
+`checkTempSpaceForMaps` refuse de démarrer quand le tmpfs ne peut pas tenir 57 Mo de
+cartes ; rien ne regarde les ~6 Gio que l'encodage va demander, dont l'échec est bien
+plus brutal. `checkMemoryHealth` existe mais ne teste qu'un seuil fixe de 1 Gio, sans
+rapport avec la résolution, et n'est appelé que depuis le bouton *Diagnostic*.
+
+### U-12 ⏸️ — Bruit et seuils faux dans le journal
+
+- `Failed to parse progress value raw_value=N/A` en `WARN`, **45 fois en 81 secondes** :
+  `out_time_ms=N/A` est ce que ffmpeg émet avant la première image sortie. Ce n'est pas
+  une anomalie, et pendant ces 81 s la barre est restée à 0 % — c'est vraisemblablement
+  ce qui a motivé l'annulation du premier essai.
+- `Insufficient temp disk space: 3.8 GB (minimum 10GB recommended)` : le seuil de 10 Go
+  porte sur le répertoire temporaire, qui est un tmpfs dimensionné à la moitié de la
+  RAM. Sur une machine de 8 Gio il est **structurellement insatisfiable** — `UNHEALTHY`
+  à vie — alors que le besoin réel (57 Mo) est vérifié ailleurs et passe.
+- Les événements `start`, `error` et `encoding failed` sont journalisés **en double**.
+- Le commentaire de `EncodeVideo` est orphelin : il est posé au-dessus de
+  `sourcePixelFormat`, que godoc documente donc avec le texte d'une autre fonction.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -2055,7 +2181,8 @@ la PR du bot en toucherait un seul et échouerait à chaque nouveau contributeur
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
-| ⏸️ **Ouvert** | *aucun.* |
+| ✅ **Corrigé et vérifié — 10ᵉ passe** (1) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire |
+| ⏸️ **Ouvert** (3) | U-10 — le repli CPU ignore un encodeur matériel disponible dans l'autre famille de codec (**arbitrage produit : perte des 10 bits**). U-11 — aucune vérification de la mémoire avant encodage. U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
