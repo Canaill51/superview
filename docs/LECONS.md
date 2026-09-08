@@ -887,7 +887,45 @@ suite était rouge, la case était cochée — et le test n'avait pas tourné un
 contre-épreuve avait été réécrite pour que le défaut réintroduit laisse le code
 compilable, et c'est seulement là qu'elle a démontré ce qu'elle prétendait.
 
+### L-87 — Une préférence ne l'emporte pas sur une capacité — 2026-09-08
+`FindEncoder` ne consultait que la liste du codec de la source. Sur un HD 620 qui refuse
+tout le HEVC et accepte le H.264, cela a coûté un quart d'heure d'encodage logiciel et
+6 Go de mémoire sur une machine qui en avait 8 — alors qu'un encodeur matériel attendait
+dans l'autre liste.
+→ **Conserver le codec de la source est une préférence ; utiliser le matériel de la
+machine est une capacité.** Quand les deux s'opposent, c'est la capacité qui décide, et
+ce que la préférence abandonne se dit à l'utilisateur au lieu de se découvrir dans le
+fichier produit. Corollaire vérifié en contre-épreuve : la bascule ne se justifie que
+par le matériel — échanger deux encodeurs logiciels ne ferait que changer de codec pour
+rien — et le repli, si le matériel refuse ensuite la vraie image, doit revenir à la
+famille de la source, sans quoi la bascule laisse une trace après avoir échoué.
+
 ## 3. Corrections appliquées
+
+### [2026-09-08] U-10 — Le repli CPU ignorait un encodeur matériel disponible dans l'autre famille
+
+**PR** — #61
+
+| | |
+| --- | --- |
+| **Constat** | U-10 ([ANALYSE.md § 3nonies](ANALYSE.md)) |
+| **Fichiers** | `common/hardware.go` (familles de codecs, `crossFamilyHardwareEncoder`, `describeCodecFamilySwitch`, `softwareEncoderForFallback`, `HardwarePlan.CodecSwitch`), `common/common.go` (`FindEncoder`, cascade de repli, lignes de résumé), `common/crossfamily_test.go` (nouveau), `README.md`, `README_FR.md` |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 69,8 % ✅ · GUI démarrée et vivante ✅ · 6 contre-épreuves, chacune vérifiée compilable ✅ |
+
+**Symptôme** — Une source HEVC sur une machine dont seul `h264_vaapi` fonctionne partait
+sur `libx265`, à quatre threads, pour 6 Go de mémoire — et le journal n'en disait rien.
+
+**Cause racine** — `FindEncoder` ne parcourait que `candidateEncodersForCodec` du codec
+**de la source**. Aucune ligne de code ne regardait l'autre famille, et le choix
+implicite — conserver le codec plutôt qu'utiliser le matériel — n'était écrit nulle part.
+
+**Correctif** — Bascule vers un encodeur matériel de l'autre famille quand la famille de
+la source n'en a aucun d'utilisable, annoncée dans la ligne « Hardware: » et dans le
+journal, coût compris (une source 10 bits devient 8 bits en H.264). Le repli logiciel
+revient désormais à la famille de la source, ce qui rend la bascule sans regret. Un
+encodeur choisi explicitement dans la liste n'est jamais remplacé.
+
+**Leçon** — L-87.
 
 ### [2026-09-08] U-09 — Un arrêt décidé par le système rapporté comme une annulation de l'utilisateur
 
@@ -2118,3 +2156,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-05 | **v0.2.3 publiée**, première release en un clic : le bouton *Run workflow* a testé, construit, tagué depuis `RELEASE_NOTES.md` et publié. Vérification menée jusqu'à l'exécution du binaire téléchargé — `sha256sum -c` vert, notes conformes, version et commit exacts. **R-06 découvert là** : le `, modified` que le binaire affiche vient de la réécriture de `FyneApp.toml` par `fyne package`, observation que #39 avait notée puis classée « harmless ». Leçon L-56. |
 | 2026-09-05 | **R-06 corrigé, et son diagnostic de la veille rectifié** : la cause n'était pas la réécriture de `FyneApp.toml` mais les fichiers que `fyne package` crée puis efface, trouvés en échantillonnant `git status --porcelain` pendant le packaging — `fyne_metadata_init.go` sur les deux plateformes, plus `fyne.syso` et `superview.exe` sur Windows. Mécanisme démontré isolément sur un dépôt jetable. Garde-fou ajouté sur le binaire produit : c'est lui qui a révélé que le correctif ne valait d'abord que pour Linux. **R-07 trouvé en chemin** : l'essai à blanc échouait depuis toute branche au nom contenant une barre oblique. Vérifié en exécutant le binaire d'un essai à blanc complet — `build="0.0.0 (71e04a9)"`. Leçons L-57, L-58. |
 | 2026-09-08 | **10ᵉ passe, signalement utilisateur : mémoire épuisée sur un portable de 8 Gio.** Le journal du poste et son `journalctl` établissent la chaîne complète — noyau, ffmpeg, `OOMPolicy` de systemd, SIGTERM. Mesures du pic de RSS à géométrie reproduite : ≈ 0,27 Gio par mégapixel de sortie en 8 bits, ≈ 0,43 en 10 bits, indépendamment de x264 ou x265. **U-09 corrigé** ; U-10, U-11, U-12 ouverts. Leçons L-84 à L-86. |
+| 2026-09-08 | **U-10 corrigé** (arbitrage utilisateur : basculer et l'annoncer) : Superview prend l'encodeur matériel de l'autre famille de codec quand celle de la source n'en a aucun, dit ce que cela coûte, et replie sur le codec de la source si le matériel échoue. **U-13 ouvert** en chemin : la sonde encode du 256×256 et ne prouve rien sur une image de 15 Mpx. Leçon L-87. |

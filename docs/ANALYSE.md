@@ -2132,15 +2132,49 @@ un mot, le gestionnaire n'étant armé que pendant `run()`. Rien n'est alors en 
 armer un gestionnaire permanent ferait courir la fermeture de l'application contre les
 nettoyages en cours.
 
-### U-10 ⏸️ — Le repli CPU ignore un encodeur matériel disponible dans l'autre famille
+### U-10 ✅ — ~~Le repli CPU ignore un encodeur matériel disponible dans l'autre famille~~ — **CORRIGÉ**
 
-Voir ci-dessus : `h264_vaapi` était utilisable, `FindEncoder` ne l'a pas regardé. Le
-critère « conserver le codec de la source » l'emporte aujourd'hui sur « utiliser le
-matériel de la machine », sans que rien ne le dise à l'utilisateur.
+`h264_vaapi` était utilisable, `FindEncoder` ne l'a pas regardé : la liste parcourue
+était `candidateEncodersForCodec("hevc")` et rien d'autre. Le critère « conserver le
+codec de la source » l'emportait sur « utiliser le matériel de la machine », sans que
+rien ne le dise à l'utilisateur.
 
-Arbitrage à trancher, parce que le choix n'est pas gratuit : passer une source HEVC
-10 bits sur un encodeur H.264 matériel fait perdre les 10 bits (`remapFilterChain` ne
-les garde que pour la famille HEVC).
+**Arbitrage utilisateur du 2026-09-08 : basculer, et l'annoncer.** Le choix n'est pas
+gratuit — passer une source HEVC 10 bits sur un encodeur H.264 matériel fait perdre les
+10 bits, `remapFilterChain` ne les gardant que pour la famille HEVC (N-03). La bascule
+se fait donc, et la ligne « Hardware: » de la fenêtre comme le journal disent ce qui a
+été échangé, la perte des 10 bits comprise.
+
+Corrigé en trois pièces :
+
+1. `FindEncoder` ne bascule que depuis un encodeur **logiciel** — la liste étant
+   ordonnée matériel d'abord, y atterrir signifie qu'aucun matériel de la famille source
+   n'est utilisable — et seulement vers un encodeur **matériel** de l'autre famille.
+   Échanger `libx265` contre `libx264` n'achèterait rien et coûterait le codec.
+2. `describeCodecFamilySwitch` formule le coût en une clause, et ne mentionne les 8 bits
+   que quand la source est effectivement en 10 bits.
+3. **Le repli logiciel revient à la famille de la source.** La règle suivait la famille
+   de l'encodeur échoué : « votre GPU ne sait pas faire du H.265, donc du H.264 sur le
+   GPU » serait devenu « … donc du H.264 sur le processeur », c'est-à-dire un codec que
+   personne n'avait de raison de vouloir une fois le GPU écarté. C'est ce qui rend la
+   bascule sans regret : si le matériel refuse la vraie image, on atterrit où la machine
+   serait allée sans elle.
+
+**Non traité, et consigné en U-13** : la sonde encode du 256×256, ce qui ne prouve rien
+sur une image de 5120×2880. Un encodeur peut passer la sonde et refuser la conversion.
+
+### U-13 ⏸️ — La sonde ne prouve rien sur la taille réellement encodée
+
+`probeFrameSize` vaut `256x256`, et son propre commentaire le dit : « A probe at this
+size cannot prove that a 4K frame will also encode: some encoders have an upper bound
+too. » Le cas est concret — l'encodeur H.264 des Intel d'avant la 11ᵉ génération plafonne
+à 4096 px de côté, et la sortie du signalement fait 5120 px de large. Un encodeur peut
+donc être déclaré utilisable, être choisi, et échouer sur la vraie image : le coût est un
+run ffmpeg complet avant que la cascade de repli ne s'en aperçoive.
+
+Sonder à la géométrie réelle répondrait à la question qui compte, sans table de limites
+par constructeur — c'est la même philosophie que U-03. À mesurer avant d'écrire : le coût
+d'une sonde d'une image à 15 Mpx, payé au début de chaque conversion.
 
 ### U-11 ⏸️ — Rien ne vérifie la mémoire disponible avant un encodage
 
@@ -2181,8 +2215,8 @@ rapport avec la résolution, et n'est appelé que depuis le bouton *Diagnostic*.
 | ✅ **Corrigé et vérifié — 8ᵉ passe** (4) | U-03 — capacités matérielles déduites d'une liste de compilation ; sonde à l'exécution. U-04 — FFmpeg empaqueté, plancher pilote épinglé et vérifié en CI. U-05 — chemins Vulkan et D3D12 ajoutés, et VAAPI réparé au passage. U-06 — la documentation utilisateur contredisait les trois correctifs |
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
-| ✅ **Corrigé et vérifié — 10ᵉ passe** (1) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire |
-| ⏸️ **Ouvert** (3) | U-10 — le repli CPU ignore un encodeur matériel disponible dans l'autre famille de codec (**arbitrage produit : perte des 10 bits**). U-11 — aucune vérification de la mémoire avant encodage. U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs |
+| ✅ **Corrigé et vérifié — 10ᵉ passe** (2) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur |
+| ⏸️ **Ouvert** (3) | U-11 — aucune vérification de la mémoire avant encodage. U-12 — bruit du journal et seuil disque insatisfiable sur un tmpfs. U-13 — la sonde encode du 256×256 et ne prouve rien sur la taille réelle |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
