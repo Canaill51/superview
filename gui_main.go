@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"image/color"
 	"io"
@@ -801,6 +802,21 @@ func main() {
 				}
 
 				if err := common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelChannel); err != nil {
+					// A system signal is an order, not a failure to report.
+					// systemd stops the whole application unit when the kernel's
+					// OOM killer takes one of its processes, and holding the
+					// window open at that point only delays the SIGKILL that
+					// follows -- which would leave the working file and the
+					// session directory behind. PerformEncoding has already
+					// unwound both by the time it returns here, so the one thing
+					// left is to obey.
+					if errors.Is(err, common.ErrStoppedBySignal) {
+						common.GetLogger().Error("Quitting: the system asked the application to stop",
+							slog.String("error", err.Error()),
+						)
+						fyne.Do(func() { app.Quit() })
+						return
+					}
 					fyne.Do(func() {
 						status.SetText("Status: Failed")
 						results.SetText("Results: last run failed")

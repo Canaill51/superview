@@ -261,6 +261,23 @@ func (e *EncoderError) Error() string {
 // Callers should test it with errors.Is, never by matching the message.
 var ErrCancelled = errors.New("encoding interrupted by user")
 
+// ErrStoppedBySignal is returned when the operating system asked the
+// application to quit, which is not the same thing as a user cancelling.
+//
+// The distinction is not academic, and it cost a full investigation to
+// establish. On a machine that ran out of memory, the kernel's OOM killer took
+// ffmpeg; systemd then applied its default OOMPolicy and stopped the whole
+// application unit, which arrives here as a SIGTERM. That SIGTERM was reported
+// as ErrCancelled, so the log read "encoding interrupted by user" for a
+// conversion nobody had touched, and the real cause -- memory exhaustion --
+// appeared in no line of it. Anything that reads this error apart from
+// ErrCancelled must keep reading it apart: the message is the only trace the
+// user gets of a decision taken outside the application.
+//
+// Callers should test it with errors.Is: the signal name is wrapped into the
+// message, so the value returned is not this sentinel itself.
+var ErrStoppedBySignal = errors.New("encoding stopped because the system asked the application to quit")
+
 // SessionError is returned when encoding session initialization or cleanup fails.
 // It indicates problems with temporary directory management.
 type SessionError struct {
@@ -1165,6 +1182,47 @@ func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
 	return preset
 }
 
+// classifyFfmpegFailure turns a failed ffmpeg run into an error that says what
+// happened, rather than one that only says that it happened.
+//
+// The case worth naming is a kill signal we did not send. Everything this
+// program sends ffmpeg is accounted for before the call gets here -- a
+// cancellation and a system signal both return their own reason -- so a process
+// killed from outside is the machine intervening, and on Linux that is almost
+// always the out-of-memory killer. What the user saw before this existed was
+// "ffmpeg failed: signal: killed", with no mention of memory anywhere, for an
+// encode that had asked for 5.2 GB on a machine holding 8.
+//
+// The stderr of an ordinary failure is still attached, unchanged: a kill leaves
+// none, and every other failure needs it.
+func classifyFfmpegFailure(err error, stderr string) error {
+	sig, killed := killedBySignal(err)
+	if !killed {
+		if stderr != "" {
+			return fmt.Errorf("ffmpeg failed: %w\nffmpeg stderr:\n%s", err, stderr)
+		}
+		return fmt.Errorf("ffmpeg failed: %w", err)
+	}
+
+	available := formatAvailableMemory()
+	logger.Error("ffmpeg was killed by the system",
+		slog.String("signal", sig),
+		slog.String("memory_available", available),
+	)
+
+	memory := ""
+	if available != unknownMemory {
+		memory = fmt.Sprintf(" Memory available when it stopped: %s.", available)
+	}
+
+	return &EncoderError{Msg: fmt.Sprintf(
+		"ffmpeg was killed by the system (signal: %s). Nothing in Superview sent that signal, "+
+			"which on this platform almost always means the machine ran out of memory.%s "+
+			"Close other applications, choose a hardware encoder if this machine offers one, "+
+			"or convert a video with fewer pixels.",
+		sig, memory)}
+}
+
 func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
 	SetLastHardwareAccelerationSummary("")
 
@@ -1208,32 +1266,43 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 			return fmt.Errorf("failed to start ffmpeg: %w", err)
 		}
 
-		// Stop ffmpeg on Ctrl+C and return a clean interruption error.
+		// Stop ffmpeg when the user cancels or the system signals us, and record
+		// which of the two it was.
+		//
+		// The two used to share one empty-struct channel, so both came back as
+		// ErrCancelled -- "encoding interrupted by user" for a stop the user had
+		// nothing to do with. The channel now carries the reason.
 		sigC := make(chan os.Signal, 1)
 		done := make(chan struct{})
-		interrupted := make(chan struct{}, 1)
+		stopped := make(chan error, 1)
 		signalNotify(sigC, os.Interrupt, syscall.SIGTERM)
 		defer signalStop(sigC)
 
 		go func() {
+			var reason error
+
 			select {
-			case <-sigC:
-				if cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
-				select {
-				case interrupted <- struct{}{}:
-				default:
-				}
+			case sig := <-sigC:
+				reason = fmt.Errorf("%w (signal: %v)", ErrStoppedBySignal, sig)
+				// Error, not Warn: this is the line that has to survive in a log
+				// the user sends with a bug report, and the memory reading beside
+				// it is what says whether the machine was out of room.
+				logger.Error("The system signalled the application to stop",
+					slog.String("signal", sig.String()),
+					slog.String("memory_available", formatAvailableMemory()),
+				)
 			case <-cancel:
-				if cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
-				select {
-				case interrupted <- struct{}{}:
-				default:
-				}
+				reason = ErrCancelled
 			case <-done:
+				return
+			}
+
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			select {
+			case stopped <- reason:
+			default:
 			}
 		}()
 		defer close(done)
@@ -1291,14 +1360,11 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 
 		if err := cmd.Wait(); err != nil {
 			select {
-			case <-interrupted:
-				return ErrCancelled
+			case reason := <-stopped:
+				return reason
 			default:
 			}
-			if stderrBytes.Len() > 0 {
-				return fmt.Errorf("ffmpeg failed: %w\nffmpeg stderr:\n%s", err, stderrBytes.String())
-			}
-			return fmt.Errorf("ffmpeg failed: %w", err)
+			return classifyFfmpegFailure(err, stderrBytes.String())
 		}
 
 		return nil

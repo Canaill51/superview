@@ -166,6 +166,68 @@ func checkDiskSpaceHealth(timestamp int64) HealthCheckResult {
 	return result
 }
 
+// unknownMemory is what the memory helpers report where the reading cannot be
+// taken. It is a word rather than a zero on purpose: "0 MB available" and "we
+// could not look" lead to opposite decisions.
+const unknownMemory = "unknown"
+
+// availableMemoryBytes reports how much memory the kernel says it can hand out
+// without swapping.
+//
+// MemAvailable, not MemFree. The free figure leaves out the page cache, which
+// the kernel reclaims on demand, so reading it makes a healthy desktop that has
+// been up for a day look like it is out of memory. MemAvailable is the kernel's
+// own estimate of what an allocation can actually get.
+//
+// The second return value is false where the reading cannot be taken -- no
+// /proc/meminfo, which includes every Windows machine. Callers must have an
+// answer for "unknown": reporting an encode as impossible because the question
+// could not be asked would be worse than letting it try.
+func availableMemoryBytes() (uint64, bool) {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0, false
+	}
+	return parseMemAvailable(data)
+}
+
+// parseMemAvailable pulls the MemAvailable line out of /proc/meminfo's contents.
+//
+// Separate from the file read so the rejections can be tested: a file without
+// the line, a truncated line, a value that is not a number. Reading the real
+// /proc/meminfo can only ever exercise the success path, and a parser whose
+// failure paths are never run is a parser whose failure paths are guesses.
+func parseMemAvailable(data []byte) (uint64, bool) {
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "MemAvailable:") {
+			continue
+		}
+		// "MemAvailable:   3894132 kB" -- the value is always in kB, and the
+		// unit is part of the format rather than something that varies.
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			return 0, false
+		}
+		kb, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return kb * 1024, true
+	}
+
+	return 0, false
+}
+
+// formatAvailableMemory renders the reading for a log line or a message, or the
+// word unknownMemory when there is none.
+func formatAvailableMemory() string {
+	available, ok := availableMemoryBytes()
+	if !ok {
+		return unknownMemory
+	}
+	return fmt.Sprintf("%.1f GB", float64(available)/(1024*1024*1024))
+}
+
 // checkMemoryHealth verifies sufficient system memory for encoding.
 func checkMemoryHealth(timestamp int64) HealthCheckResult {
 	result := HealthCheckResult{
@@ -180,30 +242,19 @@ func checkMemoryHealth(timestamp int64) HealthCheckResult {
 	totalMB := float64(m.TotalAlloc) / (1024 * 1024)
 	sysMB := float64(m.Sys) / (1024 * 1024)
 
-	// Check system memory using /proc/meminfo if available
-	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
-		// Parse meminfo for MemAvailable
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "MemAvailable:") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					if availKB, err := strconv.ParseFloat(parts[1], 64); err == nil {
-						availGB := availKB / (1024 * 1024)
-						result.Value = fmt.Sprintf("%.1f GB available (Proc: %.0f MB alloc, %.0f MB total)", availGB, allocMB, totalMB)
+	// Check system memory using the kernel's own estimate, where there is one.
+	if available, ok := availableMemoryBytes(); ok {
+		availGB := float64(available) / (1024 * 1024 * 1024)
+		result.Value = fmt.Sprintf("%.1f GB available (Proc: %.0f MB alloc, %.0f MB total)", availGB, allocMB, totalMB)
 
-						if availGB < 1.0 {
-							result.Healthy = false
-							result.Message = fmt.Sprintf("Low memory available: %.1f GB", availGB)
-						} else {
-							result.Healthy = true
-							result.Message = fmt.Sprintf("Sufficient memory: %.1f GB available", availGB)
-						}
-						return result
-					}
-				}
-			}
+		if availGB < 1.0 {
+			result.Healthy = false
+			result.Message = fmt.Sprintf("Low memory available: %.1f GB", availGB)
+		} else {
+			result.Healthy = true
+			result.Message = fmt.Sprintf("Sufficient memory: %.1f GB available", availGB)
 		}
+		return result
 	}
 
 	// Fallback to runtime stats

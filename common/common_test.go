@@ -630,7 +630,15 @@ func TestBuildEncodeBaseArgs_Libx265AddsQuietParams(t *testing.T) {
 	}
 }
 
-func TestEncodeVideo_InterruptedByUser(t *testing.T) {
+// TestEncodeVideo_SystemSignalIsNotReportedAsUserCancellation pins the
+// distinction the whole ErrStoppedBySignal sentinel exists for.
+//
+// This test used to assert the opposite -- that a signal produced "encoding
+// interrupted by user" -- which is how the behaviour survived: the log of a
+// machine whose ffmpeg had just been killed by the OOM killer read as though
+// somebody had clicked Cancel. Asserting the old message here again is the
+// counter-proof: it reddens.
+func TestEncodeVideo_SystemSignalIsNotReportedAsUserCancellation(t *testing.T) {
 	tempDir := t.TempDir()
 
 	fakeHangingFFmpeg(t, tempDir)
@@ -693,8 +701,16 @@ func TestEncodeVideo_InterruptedByUser(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected interruption error, got nil")
 		}
-		if !strings.Contains(err.Error(), "encoding interrupted by user") {
-			t.Fatalf("unexpected error: %v", err)
+		if !errors.Is(err, ErrStoppedBySignal) {
+			t.Fatalf("a system signal must report ErrStoppedBySignal, got %v", err)
+		}
+		if errors.Is(err, ErrCancelled) {
+			t.Fatalf("a system signal must not be reported as a user cancellation: %v", err)
+		}
+		// The signal is named in the message: a log saying only "the system
+		// stopped it" would leave the reader no better off than before.
+		if !strings.Contains(err.Error(), "interrupt") {
+			t.Fatalf("expected the signal to be named in %q", err.Error())
 		}
 	case <-time.After(8 * time.Second):
 		t.Fatal("EncodeVideo did not return after interruption")

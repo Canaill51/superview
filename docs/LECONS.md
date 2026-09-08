@@ -857,7 +857,71 @@ dans `AGENTS.md`, avec la règle de co-modification. Dans le fichier français, 
 traduire *Choose input file* enverrait le lecteur chercher un bouton inexistant —
 tandis que les chaînes de **Windows** sont celles d'un Windows français.
 
+### L-84 — Un signal reçu n'est pas une action de l'utilisateur — 2026-09-08
+`ErrCancelled` couvrait le bouton *Cancel* et un `SIGTERM` du système. Sur le poste d'un
+utilisateur, le noyau a tué ffmpeg par manque de mémoire, systemd a arrêté l'unité, et le
+journal a écrit « encoding interrupted by user » pour un arrêt que personne n'avait
+demandé. Le premier tour de diagnostic est parti dans la mauvaise direction à cause de
+cette seule ligne, et la cause réelle n'apparaissait dans aucune autre.
+→ **Un message d'erreur nomme l'acteur qu'il connaît, pas celui qui est commode.** Deux
+causes qui n'ont ni le même responsable ni le même remède ne partagent pas une
+sentinelle, même quand elles empruntent le même chemin de code. Et un arrêt subi se
+journalise avec l'état de la machine au moment où il arrive : ici `MemAvailable`, la
+seule mesure qui aurait permis de conclure sans enquête.
+
+### L-85 — Un processus tué de l'extérieur porte un diagnostic, pas seulement un échec — 2026-09-08
+Un ffmpeg tué par l'OOM killer ressortait en « ffmpeg failed: signal: killed ». Tout est
+exact et rien n'est utile : le mot mémoire n'y figure pas, alors que c'est la seule
+chose que l'utilisateur puisse corriger.
+→ **Quand tout ce que le programme envoie à un enfant est déjà comptabilisé, un enfant
+tué l'a été par la machine, et le statut d'attente le dit.** Le distinguer d'un code de
+sortie non nul demande un fichier par plateforme — le signal vit dans un champ Unix du
+`WaitStatus` — et c'est ce qui sépare un diagnostic d'une supposition attachée à tous
+les échecs.
+
+### L-86 — Une contre-épreuve qui ne compile pas n'a rien éprouvé — 2026-09-08
+Une des quatre contre-épreuves de U-09 a produit `declared and not used: status`. La
+suite était rouge, la case était cochée — et le test n'avait pas tourné une seule fois.
+→ **Lire ce qui a rougi, pas seulement qu'il a rougi.** Un `FAIL` de compilation et un
+`FAIL` d'assertion s'affichent presque pareil ; seul le second prouve quelque chose. La
+contre-épreuve avait été réécrite pour que le défaut réintroduit laisse le code
+compilable, et c'est seulement là qu'elle a démontré ce qu'elle prétendait.
+
 ## 3. Corrections appliquées
+
+### [2026-09-08] U-09 — Un arrêt décidé par le système rapporté comme une annulation de l'utilisateur
+
+**PR** — #59
+
+| | |
+| --- | --- |
+| **Constat** | U-09 ([ANALYSE.md § 3nonies](ANALYSE.md)) |
+| **Fichiers** | `common/common.go` (sentinelle, goroutine de signal, `classifyFfmpegFailure`), `common/health.go` (`availableMemoryBytes`, `parseMemAvailable`, `formatAvailableMemory`), `common/exitsignal_unix.go` et `common/exitsignal_windows.go` (nouveaux), `gui_main.go` (sortie sur signal), `common/stopreason_test.go` et `common/stopreason_unix_test.go` (nouveaux), `common/common_test.go` |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 69,0 % (seuil 50 %) ✅ · GUI démarrée et vivante (code 124) ✅ · 4 contre-épreuves, dont une réécrite parce qu'elle ne compilait pas (L-86) ✅ |
+
+**Symptôme** — Sur un portable de 8 Gio, le noyau tue ffmpeg par manque de mémoire ; le
+journal annonce « encoding interrupted by user » et la fenêtre disparaît sans un mot.
+L'utilisateur n'avait touché à rien.
+
+**Cause racine** — Trois confusions empilées. `ErrCancelled` couvrait à la fois
+l'annulation par l'utilisateur et un signal du système, les deux passant par un canal
+d'entiers vides qui ne portait aucune raison. Un `SIGKILL` reçu par ffmpeg ressortait en
+« ffmpeg failed: signal: killed », sans que rien ne regarde la mémoire. Et le
+gestionnaire de signaux intercepte `SIGTERM` sans quitter, alors que systemd, qui
+applique son `OOMPolicy` à l'unité entière, vient précisément de demander l'arrêt : le
+`SIGKILL` qui suit ne laisse plus rien nettoyer.
+
+**Correctif** — Sentinelle `ErrStoppedBySignal` distincte de `ErrCancelled`, portant le
+nom du signal dans son message. Le canal d'arrêt transporte désormais la raison au lieu
+d'un `struct{}`. `classifyFfmpegFailure` diagnostique un processus tué de l'extérieur
+comme un manque de mémoire probable et joint le relevé `MemAvailable`, que
+`checkMemoryHealth` partage maintenant au lieu de le reparser pour lui seul. La GUI
+quitte sur `ErrStoppedBySignal`, après le déroulé des nettoyages de `PerformEncoding`.
+**Laissé délibérément** : un signal reçu hors encodage tue toujours le processus sans
+trace — rien n'est alors en vol, et un gestionnaire permanent ferait courir la fermeture
+contre les nettoyages.
+
+**Leçon** — L-84, L-85, L-86.
 
 ### [2026-09-07] U-08 — La documentation n'existait qu'en anglais
 
@@ -2053,4 +2117,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-05 | **Release en un clic** : le bouton *Run workflow* prend une version, teste, construit, tague et publie. Les notes vivent dans `RELEASE_NOTES.md`, relu en PR, et deviennent le message du tag annoté — le tag reste donc la source des notes (#37). Le tag n'est posé qu'après les deux builds, pour qu'un échec Windows ne brûle pas un numéro. Trois garde-fous refusent de démarrer : version hors `x.y.z`, tag déjà existant, notes qui ne mentionnent pas la version demandée. Script de planification essayé hors YAML sur huit cas (L-53). `RELEASING.md` créé. |
 | 2026-09-05 | **v0.2.3 publiée**, première release en un clic : le bouton *Run workflow* a testé, construit, tagué depuis `RELEASE_NOTES.md` et publié. Vérification menée jusqu'à l'exécution du binaire téléchargé — `sha256sum -c` vert, notes conformes, version et commit exacts. **R-06 découvert là** : le `, modified` que le binaire affiche vient de la réécriture de `FyneApp.toml` par `fyne package`, observation que #39 avait notée puis classée « harmless ». Leçon L-56. |
 | 2026-09-05 | **R-06 corrigé, et son diagnostic de la veille rectifié** : la cause n'était pas la réécriture de `FyneApp.toml` mais les fichiers que `fyne package` crée puis efface, trouvés en échantillonnant `git status --porcelain` pendant le packaging — `fyne_metadata_init.go` sur les deux plateformes, plus `fyne.syso` et `superview.exe` sur Windows. Mécanisme démontré isolément sur un dépôt jetable. Garde-fou ajouté sur le binaire produit : c'est lui qui a révélé que le correctif ne valait d'abord que pour Linux. **R-07 trouvé en chemin** : l'essai à blanc échouait depuis toute branche au nom contenant une barre oblique. Vérifié en exécutant le binaire d'un essai à blanc complet — `build="0.0.0 (71e04a9)"`. Leçons L-57, L-58. |
-
+| 2026-09-08 | **10ᵉ passe, signalement utilisateur : mémoire épuisée sur un portable de 8 Gio.** Le journal du poste et son `journalctl` établissent la chaîne complète — noyau, ffmpeg, `OOMPolicy` de systemd, SIGTERM. Mesures du pic de RSS à géométrie reproduite : ≈ 0,27 Gio par mégapixel de sortie en 8 bits, ≈ 0,43 en 10 bits, indépendamment de x264 ou x265. **U-09 corrigé** ; U-10, U-11, U-12 ouverts. Leçons L-84 à L-86. |
