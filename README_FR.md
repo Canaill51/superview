@@ -239,6 +239,15 @@ processeur, dès qu'aucun chemin matériel n'est utilisable. Demander plutôt qu
 lire `ffmpeg -encoders` est tout l'intérêt : cette liste dit avec quoi le
 binaire a été compilé et ne peut pas voir votre pilote.
 
+Quand aucun encodeur matériel ne fonctionne pour le codec de la source mais
+qu'un encodeur de l'autre famille fonctionne, Superview l'utilise plutôt que de
+retomber sur le processeur — un Intel HD 620 refuse tous les encodeurs H.265 et
+accepte le H.264, et encoder du H.264 sur le GPU l'emporte largement sur du
+H.265 sur quatre cœurs. La fenêtre et le journal l'annoncent, et disent ce que
+cela coûte : une source en 10 bits est enregistrée en 8 bits quand la conversion
+passe en H.264. Choisir vous-même un encodeur dans la liste des codecs l'emporte
+toujours sur ce comportement.
+
 **Les archives de release embarquent leur propre FFmpeg**, et Superview le
 préfère à celui qui est installé sur la machine. L'exigence de pilote de NVENC
 est figée à la compilation de FFmpeg : deux versions se réclamant toutes deux de

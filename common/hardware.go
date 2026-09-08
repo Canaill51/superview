@@ -18,6 +18,11 @@ type HardwarePlan struct {
 	Encoder        string
 	DecodeAccel    string
 	HardwareEncode bool
+	// CodecSwitch is the cost of encoding into a family the source is not in,
+	// empty when the plan stays in the source's own family. It is part of the
+	// plan rather than derived by the caller because the plan is what the window
+	// shows before anything runs, and this is the half of it a user can act on.
+	CodecSwitch string
 }
 
 // AnalyzeMachineProfile analyzes host and ffmpeg capabilities for encoder selection.
@@ -189,15 +194,20 @@ func describePlannedHardwarePath(plan HardwarePlan) string {
 		return "Hardware: no compatible encoder selected"
 	}
 
-	if !plan.HardwareEncode {
-		return fmt.Sprintf("Hardware: planned CPU encode (%s) + CPU decode", plan.Encoder)
+	line := ""
+	switch {
+	case !plan.HardwareEncode:
+		line = fmt.Sprintf("Hardware: planned CPU encode (%s) + CPU decode", plan.Encoder)
+	case plan.DecodeAccel != "":
+		line = fmt.Sprintf("Hardware: planned %s encode + %s decode", plan.Encoder, strings.ToUpper(plan.DecodeAccel))
+	default:
+		line = fmt.Sprintf("Hardware: planned %s encode + CPU decode fallback", plan.Encoder)
 	}
 
-	if plan.DecodeAccel != "" {
-		return fmt.Sprintf("Hardware: planned %s encode + %s decode", plan.Encoder, strings.ToUpper(plan.DecodeAccel))
+	if plan.CodecSwitch != "" {
+		line += " -- " + plan.CodecSwitch
 	}
-
-	return fmt.Sprintf("Hardware: planned %s encode + CPU decode fallback", plan.Encoder)
+	return line
 }
 
 // BuildHardwarePlan determines the most likely encoder and decode path for the current input.
@@ -216,6 +226,7 @@ func BuildHardwarePlan(ffmpeg map[string]string, video *VideoSpecs, requestedEnc
 		Encoder:        encoder,
 		DecodeAccel:    selectHardwareDecodeAccel(encoder, profile),
 		HardwareEncode: isHardwareEncoder(encoder),
+		CodecSwitch:    describeCodecFamilySwitch(video, encoder),
 	}, nil
 }
 
@@ -274,4 +285,175 @@ func canUseEncoderWithProfile(encoder string, profile *MachineProfile) bool {
 	}
 	accelSet := toSet(profile.HardwareAccels)
 	return accelSet[requiredAccel]
+}
+
+// codecFamilies is the pair of families this pipeline knows how to encode into.
+// Everything here is written against exactly these two, and a source outside
+// them takes no part in the cross-family logic below.
+const (
+	familyH264 = "h264"
+	familyHEVC = "hevc"
+)
+
+// normalizeCodecFamily maps a codec name as ffprobe reports it onto one of the
+// two families, or "" for anything else.
+func normalizeCodecFamily(codec string) string {
+	switch strings.ToLower(strings.TrimSpace(codec)) {
+	case "h264", "avc":
+		return familyH264
+	case "h265", "hevc":
+		return familyHEVC
+	default:
+		return ""
+	}
+}
+
+// encoderCodecFamily maps an encoder name onto the family it produces.
+//
+// isHEVCEncoder is asked first because it matches on "265" as well as "hevc",
+// which is what puts libx265 in the right family; only then does the H.264 test
+// run, so libx264rgb and h264_vaapi land where they belong.
+func encoderCodecFamily(encoder string) string {
+	name := strings.ToLower(encoder)
+	switch {
+	case name == "":
+		return ""
+	case isHEVCEncoder(name):
+		return familyHEVC
+	case strings.Contains(name, "h264") || strings.Contains(name, "x264"):
+		return familyH264
+	default:
+		return ""
+	}
+}
+
+// sourceCodecFamily is the family of the video being converted, or "".
+func sourceCodecFamily(video *VideoSpecs) string {
+	if video == nil || len(video.Streams) == 0 {
+		return ""
+	}
+	return normalizeCodecFamily(video.Streams[0].Codec)
+}
+
+// otherCodecFamily names the family a source is not in.
+func otherCodecFamily(codec string) string {
+	switch normalizeCodecFamily(codec) {
+	case familyH264:
+		return familyHEVC
+	case familyHEVC:
+		return familyH264
+	default:
+		return ""
+	}
+}
+
+// softwareEncoderForFamily is the CPU encoder that produces a given family.
+func softwareEncoderForFamily(family string) string {
+	switch family {
+	case familyH264:
+		return "libx264"
+	case familyHEVC:
+		return "libx265"
+	default:
+		return ""
+	}
+}
+
+// displayCodecFamily is how a family is named to a user, who has never heard of
+// "hevc" but knows what H.265 is.
+func displayCodecFamily(family string) string {
+	switch family {
+	case familyH264:
+		return "H.264"
+	case familyHEVC:
+		return "H.265"
+	default:
+		return family
+	}
+}
+
+// crossFamilyHardwareEncoder returns a usable hardware encoder from the codec
+// family the source is *not* in, or "" when there is none.
+//
+// This exists because of a measured case. On an Intel HD 620 laptop, every
+// hevc_* encoder was refused by the driver -- "No usable encoding entrypoint
+// found for profile VAProfileHEVCMain" -- while h264_vaapi passed its probe.
+// The source was HEVC, so the search never looked at the H.264 list, and a
+// machine with a working hardware encoder spent a quarter of an hour on libx265
+// and 6 GB of memory it did not have.
+//
+// A source outside the two known families yields nothing, because
+// candidateEncodersForCodec answers such a source with CPU encoders only.
+func crossFamilyHardwareEncoder(codec string, profile *MachineProfile) string {
+	for _, candidate := range candidateEncodersForCodec(otherCodecFamily(codec)) {
+		if isHardwareEncoder(candidate) && canUseEncoderWithProfile(candidate, profile) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// describeCodecFamilySwitch states what a cross-family choice costs, in the one
+// clause the GUI has room for. It returns "" for the ordinary case, where the
+// encoder is in the source's own family.
+//
+// The clause is not decoration. Moving a conversion to H.264 to reach the
+// hardware also drops a 10-bit source to 8 bits, because remapFilterChain keeps
+// ten bits only for HEVC encoders -- and a quality decision the user is not told
+// about is one they will discover in the output file.
+func describeCodecFamilySwitch(video *VideoSpecs, encoder string) string {
+	source := sourceCodecFamily(video)
+	target := encoderCodecFamily(encoder)
+	if source == "" || target == "" || source == target {
+		return ""
+	}
+
+	note := fmt.Sprintf("%s has no usable hardware encoder here, so the output is %s",
+		displayCodecFamily(source), displayCodecFamily(target))
+	if target == familyH264 && isHighBitDepth(sourcePixelFormat(video)) {
+		note += "; the 10-bit source is stored as 8-bit"
+	}
+	return note
+}
+
+// softwareEncoderForFallback picks the CPU encoder to retry with after a
+// hardware encoder has failed outright.
+//
+// The source's own family is tried first, and that is a change of rule: it used
+// to follow the family of the *failed encoder*. Since Superview now moves a
+// conversion to the other family when that is where the usable hardware is, the
+// old rule turned "your GPU cannot do H.265, so H.264 on the GPU" into "... so
+// H.264 on the CPU" -- a codec nobody had a reason to want once the GPU was out
+// of the picture, and one that costs a 10-bit source its extra bits. Falling
+// back inside the source's family lands where the machine would have gone had
+// the cross-family move never been attempted.
+//
+// The failed encoder's own family is still the second choice: it covers a
+// source whose codec is neither H.264 nor H.265, and the case where the
+// source's CPU encoder is missing from this FFmpeg build.
+func softwareEncoderForFallback(video *VideoSpecs, failed string, profile *MachineProfile) string {
+	for _, family := range []string{sourceCodecFamily(video), encoderCodecFamily(failed)} {
+		candidate := softwareEncoderForFamily(family)
+		if candidate == "" || candidate == failed {
+			continue
+		}
+		if canUseEncoderWithProfile(candidate, profile) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// withCodecSwitchNote appends the cost of a cross-family choice to a hardware
+// summary line, and returns the line unchanged when there was no such choice.
+//
+// The summary is the one place in the window where a user learns which encoder
+// ran, so it is where the trade has to be stated. The log carries the same
+// sentence at selection time, for the reader who has only the log file.
+func withCodecSwitchNote(video *VideoSpecs, encoder string, summary string) string {
+	note := describeCodecFamilySwitch(video, encoder)
+	if note == "" {
+		return summary
+	}
+	return summary + " -- " + note
 }

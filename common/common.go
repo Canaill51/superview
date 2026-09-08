@@ -943,6 +943,30 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 			}
 		}
 
+		// The list above is ordered hardware first, so landing on a CPU encoder
+		// means this machine has no usable hardware encoder *for the source's
+		// codec*. That is not the same as having none at all, and the difference
+		// was measured: an Intel HD 620 refused every hevc_* encoder and
+		// accepted h264_vaapi, and because the clip was HEVC the H.264 list was
+		// never consulted. The conversion ran on libx265 -- a quarter of an
+		// hour, and 6 GB of memory on a machine with 8, which the kernel ended
+		// by killing ffmpeg.
+		//
+		// Keeping the source's codec is a preference. Using the machine's
+		// encoder is worth more, and what it costs is said out loud rather than
+		// discovered in the output: see describeCodecFamilySwitch.
+		if encoder != "" && !isHardwareEncoder(encoder) {
+			if crossFamily := crossFamilyHardwareEncoder(video.Streams[0].Codec, profile); crossFamily != "" {
+				logger.Info("No hardware encoder for the source codec; using the other codec family",
+					slog.String("source_codec", video.Streams[0].Codec),
+					slog.String("instead_of", encoder),
+					slog.String("encoder", crossFamily),
+					slog.String("cost", describeCodecFamilySwitch(video, crossFamily)),
+				)
+				encoder = crossFamily
+			}
+		}
+
 		if encoder == "" {
 			for _, enc := range profile.AvailableEncoders {
 				if enc != "" {
@@ -1403,7 +1427,8 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		)
 		err := runWithAudioFallback(hwaccel)
 		if err == nil {
-			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + %s decode", encoder, strings.ToUpper(hwaccel)))
+			SetLastHardwareAccelerationSummary(withCodecSwitchNote(video, encoder,
+				fmt.Sprintf("Hardware: used %s encode + %s decode", encoder, strings.ToUpper(hwaccel))))
 			return nil
 		}
 		// A cancellation is not a reason to try another path: the user asked for
@@ -1429,29 +1454,27 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 	}
 	if err == nil {
 		if isHardwareEncoder(encoder) {
-			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used %s encode + CPU decode fallback", encoder))
+			SetLastHardwareAccelerationSummary(withCodecSwitchNote(video, encoder,
+				fmt.Sprintf("Hardware: used %s encode + CPU decode fallback", encoder)))
 		} else {
-			SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: used CPU encode (%s) + CPU decode", encoder))
+			SetLastHardwareAccelerationSummary(withCodecSwitchNote(video, encoder,
+				fmt.Sprintf("Hardware: used CPU encode (%s) + CPU decode", encoder)))
 		}
 		return nil
 	}
 
 	if isHardwareEncoder(encoder) {
-		fallbackEncoder := ""
-		if strings.Contains(encoder, "h264") {
-			fallbackEncoder = "libx264"
-		} else if strings.Contains(encoder, "hevc") || strings.Contains(encoder, "265") {
-			fallbackEncoder = "libx265"
-		}
+		fallbackEncoder := softwareEncoderForFallback(video, encoder, profile)
 
-		if fallbackEncoder != "" && fallbackEncoder != encoder && canUseEncoderWithProfile(fallbackEncoder, profile) {
+		if fallbackEncoder != "" {
 			logger.Warn("Hardware encoder failed, retrying with CPU encoder",
 				slog.String("failed_encoder", encoder),
 				slog.String("fallback_encoder", fallbackEncoder),
 			)
 			fallbackErr := EncodeVideo(cfg, video, fallbackEncoder, bitrate, output, ffmpeg, callback, cancel)
 			if fallbackErr == nil {
-				SetLastHardwareAccelerationSummary(fmt.Sprintf("Hardware: %s failed; used CPU encode (%s) + CPU decode", encoder, fallbackEncoder))
+				SetLastHardwareAccelerationSummary(withCodecSwitchNote(video, fallbackEncoder,
+					fmt.Sprintf("Hardware: %s failed; used CPU encode (%s) + CPU decode", encoder, fallbackEncoder)))
 			}
 			return fallbackErr
 		}

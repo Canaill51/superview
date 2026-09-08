@@ -216,6 +216,14 @@ hardware path is usable. Asking rather than reading `ffmpeg -encoders` is the
 point: that list says what the binary was compiled with and cannot see your
 driver.
 
+When no hardware encoder works for the source's own codec but one works for the
+other codec family, Superview uses it rather than falling back to the CPU — an
+Intel HD 620 refuses every H.265 encoder and accepts H.264, and encoding H.264
+on the GPU beats encoding H.265 on four cores by a wide margin. The window and
+the log say so, and say what it costs: a 10-bit source is stored as 8-bit when
+the conversion moves to H.264. Picking an encoder yourself in the codec dropdown
+always wins over this.
+
 **The release archives ship their own FFmpeg**, and Superview prefers it over
 whatever is installed on the machine. The NVENC driver requirement is fixed when
 FFmpeg is compiled, so two builds both calling themselves "8.1.2" can demand
