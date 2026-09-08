@@ -924,7 +924,71 @@ troisième copie.** `encodesInTenBits` est ce que la contre-épreuve a validé :
 ignorer l'encodeur rougit le test de l'estimation, ce qu'une condition recopiée n'aurait
 pas permis d'éprouver d'un seul geste.
 
+### L-90 — Un état normal journalisé en avertissement noie le journal — 2026-09-08
+`out_time_ms=N/A` est ce que ffmpeg répond tant qu'aucune image n'est sortie du graphe
+de filtres. Le programme le traitait comme un échec d'analyse : 45 `WARN` en 81 secondes
+dans le journal d'un utilisateur, pour une conversion qui fonctionnait — et c'est le
+fichier que le README demande de joindre à un rapport de bug.
+→ **Avant de journaliser un cas en avertissement, vérifier qu'il est anormal.** Ici la
+distinction est nette et vaut d'être codée : `N/A` est prévu et part en `Debug`, une
+valeur qui n'est ni `N/A` ni un nombre reste un avertissement, parce qu'elle signifierait
+que le format de progression a changé sous nos pieds. Corollaire côté interface : quand
+un état normal dure — ici des secondes à une minute sans le moindre chiffre — la fenêtre
+doit le dire, sans quoi l'utilisateur annule une conversion qui marche.
+
+### L-91 — Un seuil de santé doit se dériver du besoin, pas d'un chiffre rond — 2026-09-08
+Le contrôle de santé exigeait 10 Go libres dans le répertoire temporaire, qui n'accueille
+que les cartes de remappage — 113 Mo pour le plus grand format traité. Sur une machine de
+8 Gio, où `/tmp` est un tmpfs dimensionné à la moitié de la RAM, le seuil était
+**structurellement insatisfiable** : `UNHEALTHY` à vie, en tenant trente fois ce que la
+conversion demandait. Un utilisateur a joint ce diagnostic à son signalement, et il
+pointait dans la mauvaise direction.
+→ **Un seuil se justifie par ce que l'espace sert à contenir.** Sinon il n'informe pas :
+il crie en permanence, et un contrôle qui échoue toujours ne se lit plus.
+
+### L-92 — Une API dont la mauvaise utilisation est invisible se remplace, pas se documente — 2026-09-08
+`main()` construit son logger deux fois — une fois pour en avoir un, une fois le niveau
+configuré connu — et appelait `RegisterObservabilityHandler` à chaque fois. L'appel
+*ajoutait*, donc les deux gestionnaires restaient et chaque événement d'encodage était
+écrit deux fois dans le journal, pour toute la vie du processus. Aucun test ne pouvait le
+voir : `main()` n'est pas testable, et chaque appel pris isolément était correct.
+→ **Quand le mésusage ne produit ni erreur ni test rouge, changer la sémantique plutôt
+que d'ajouter un commentaire.** `SetObservabilityHandler` remplace, ce qui rend le défaut
+inexprimable et, cette fois, testable dans `common` — le test rejoue la séquence exacte
+de `main()`. L'ancienne fonction, dont rien d'autre ne se servait, est retirée plutôt que
+laissée en piège.
+
 ## 3. Corrections appliquées
+
+### [2026-09-08] U-12 — Bruit et seuils faux dans le journal
+
+**PR** — #63
+
+| | |
+| --- | --- |
+| **Constat** | U-12 ([ANALYSE.md § 3nonies](ANALYSE.md)) |
+| **Fichiers** | `common/common.go` (lecture de progression, commentaire orphelin), `common/health.go` (`minimumTempFreeGB`), `common/observability.go` (`SetHandler`, `SetObservabilityHandler`, retrait de `RegisterObservabilityHandler`), `gui_main.go` (installation du gestionnaire, texte d'attente), `common/lognoise_test.go` (nouveau), `common/observability_test.go` |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 70,6 % ✅ · GUI démarrée et vivante ✅ · balayage du symbole retiré dans la prose (L-29) ✅ · 4 contre-épreuves, chacune vérifiée compilable ✅ |
+
+**Symptôme** — Quatre défauts lisibles dans un seul journal utilisateur : 45 `WARN` sur
+une valeur normale, un contrôle disque en échec permanent, chaque événement écrit deux
+fois, et un commentaire godoc attaché à la mauvaise fonction.
+
+**Cause racine** — Un état normal traité comme une anomalie ; un seuil rond que rien ne
+justifiait ; une API d'enregistrement qui ajoute là où l'appelant voulait remplacer ; un
+bloc de commentaire déplacé lors d'une réorganisation.
+
+**Correctif** — `N/A` reconnu et journalisé en `Debug`, le reste toujours en `WARN` ;
+seuil disque ramené à 1 Go avec un message qui dit à quoi sert le répertoire ;
+`SetObservabilityHandler` remplace au lieu d'ajouter et `RegisterObservabilityHandler`
+est retirée ; commentaire remis en place. La fenêtre annonce l'attente de la première
+image au lieu d'afficher une barre à zéro.
+
+**Laissé délibérément** — Un compteur de temps écoulé pendant cette attente : le texte
+suffit à dire ce qui se passe, un compteur vivant demanderait un ticker et son
+annulation pour une phase de quelques secondes.
+
+**Leçon** — L-90, L-91, L-92.
 
 ### [2026-09-08] U-11 — Rien ne vérifiait la mémoire disponible avant un encodage
 
@@ -2208,3 +2272,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-08 | **10ᵉ passe, signalement utilisateur : mémoire épuisée sur un portable de 8 Gio.** Le journal du poste et son `journalctl` établissent la chaîne complète — noyau, ffmpeg, `OOMPolicy` de systemd, SIGTERM. Mesures du pic de RSS à géométrie reproduite : ≈ 0,27 Gio par mégapixel de sortie en 8 bits, ≈ 0,43 en 10 bits, indépendamment de x264 ou x265. **U-09 corrigé** ; U-10, U-11, U-12 ouverts. Leçons L-84 à L-86. |
 | 2026-09-08 | **U-10 corrigé** (arbitrage utilisateur : basculer et l'annoncer) : Superview prend l'encodeur matériel de l'autre famille de codec quand celle de la source n'en a aucun, dit ce que cela coûte, et replie sur le codec de la source si le matériel échoue. **U-13 ouvert** en chemin : la sonde encode du 256×256 et ne prouve rien sur une image de 15 Mpx. Leçon L-87. |
 | 2026-09-08 | **U-11 corrigé** : garde-fou mémoire avant encodage, chiffré au banc (290 o/px en 8 bits, 455 en 10 bits), refus sous le besoin et avertissement jusqu'à un quart au-dessus. Abstention sur le matériel, non mesuré, et quand `/proc/meminfo` n'existe pas. Leçons L-88, L-89. |
+| 2026-09-08 | **U-12 corrigé**, et la 10ᵉ passe close côté corrections : `N/A` n'est plus un avertissement, le seuil disque descend de 10 Go à 1 Go, la journalisation en double disparaît avec la sémantique d'ajout qui la causait, et le commentaire de `EncodeVideo` retrouve sa fonction. Reste **U-13** ouvert : sonder à la taille réellement encodée. Leçons L-90 à L-92. |

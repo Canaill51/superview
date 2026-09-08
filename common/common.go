@@ -1097,10 +1097,6 @@ func FindEncoder(codec string, ffmpeg map[string]string, video *VideoSpecs) (str
 	return encoder, nil
 }
 
-// EncodeVideo runs ffmpeg with the remap filter to apply the superview distortion.
-// It reads PGM filter maps from the current session and encodes using the specified encoder and quality settings.
-// The callback function is called with progress percentage (0-100) for UI updates.
-// Returns nil on successful completion, or an error if ffmpeg fails.
 // sourcePixelFormat returns the pixel format ffprobe reported for the input, or
 // "" when it is unknown. "" is read as 8-bit everywhere, which is the previous
 // behaviour and the safe answer: no encoder can reject a format we did not ask
@@ -1370,6 +1366,10 @@ func classifyFfmpegFailure(err error, stderr string) error {
 		sig, memory)}
 }
 
+// EncodeVideo runs ffmpeg with the remap filter to apply the superview distortion.
+// It reads PGM filter maps from the current session and encodes using the specified encoder and quality settings.
+// The callback function is called with progress percentage (0-100) for UI updates.
+// Returns nil on successful completion, or an error if ffmpeg fails.
 func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, output string, ffmpeg map[string]string, callback func(float64), cancel <-chan struct{}) error {
 	SetLastHardwareAccelerationSummary("")
 
@@ -1475,11 +1475,24 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 				}
 
 				if bytes.Contains(line, []byte("out_time_ms=")) {
-					time := bytes.Replace(line, []byte("out_time_ms="), nil, 1)
-					timeF, err := strconv.ParseFloat(string(time), 64)
+					raw := bytes.TrimSpace(bytes.Replace(line, []byte("out_time_ms="), nil, 1))
+
+					// ffmpeg answers N/A until the first frame reaches the far
+					// end of the filter graph, and on a large frame that is the
+					// normal state for the first seconds: one user's log carried
+					// 45 of these in 81 seconds, at WARN, for a conversion that
+					// was working. It is the log the README asks people to
+					// attach to a bug report, so what is normal does not go in
+					// it at warning level.
+					if bytes.EqualFold(raw, []byte("N/A")) {
+						logger.Debug("ffmpeg has not produced a frame yet")
+						continue
+					}
+
+					timeF, err := strconv.ParseFloat(string(raw), 64)
 					if err != nil {
 						logger.Warn("Failed to parse progress value",
-							slog.String("raw_value", string(time)),
+							slog.String("raw_value", string(raw)),
 							slog.String("error", err.Error()),
 						)
 						continue

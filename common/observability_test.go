@@ -149,7 +149,7 @@ func TestGlobalRecorderFunctions(t *testing.T) {
 	r := NewEventRecorder()
 	globalEventRecorder = r
 	h := &testObsHandler{ch: make(chan string, 8)}
-	RegisterObservabilityHandler(h)
+	SetObservabilityHandler(h)
 
 	RecordEncodingEvent(&EncodingEvent{EventType: "start", Message: "starting"})
 	RecordEncodingProgress(10, "p")
@@ -169,3 +169,61 @@ func TestGlobalRecorderFunctions(t *testing.T) {
 		}
 	}
 }
+
+// TestSetObservabilityHandler_ReplacesRatherThanAppends is the regression this
+// whole change exists for.
+//
+// main() builds its logger twice -- once to have one at all, then again once the
+// configured level is known -- and registered a handler each time. Registration
+// appended, so both stayed, and every encoding event was written to the log file
+// twice for the life of the process. The duplicate pairs are visible in any log
+// from before this: two "encoding_event event_type=start" lines bearing the same
+// timestamp.
+func TestSetObservabilityHandler_ReplacesRatherThanAppends(t *testing.T) {
+	old := globalEventRecorder
+	defer func() { globalEventRecorder = old }()
+	globalEventRecorder = NewEventRecorder()
+
+	first := &countingHandler{}
+	second := &countingHandler{}
+
+	// Exactly what main() does: install a handler, then install another once the
+	// configured log level is known.
+	SetObservabilityHandler(first)
+	SetObservabilityHandler(second)
+
+	RecordEncodingEvent(&EncodingEvent{EventType: "start", Message: "starting"})
+
+	if first.events != 0 {
+		t.Errorf("the replaced handler still received %d event(s)", first.events)
+	}
+	if second.events != 1 {
+		t.Errorf("the current handler received %d event(s), want exactly 1", second.events)
+	}
+}
+
+func TestSetObservabilityHandler_NilLeavesNoHandler(t *testing.T) {
+	old := globalEventRecorder
+	defer func() { globalEventRecorder = old }()
+	globalEventRecorder = NewEventRecorder()
+
+	handler := &countingHandler{}
+	SetObservabilityHandler(handler)
+	SetObservabilityHandler(nil)
+
+	RecordEncodingEvent(&EncodingEvent{EventType: "start", Message: "starting"})
+
+	if handler.events != 0 {
+		t.Errorf("a cleared handler received %d event(s)", handler.events)
+	}
+}
+
+// countingHandler counts what reaches it, and nothing else.
+type countingHandler struct {
+	events int
+}
+
+func (h *countingHandler) OnEvent(*EncodingEvent)                { h.events++ }
+func (h *countingHandler) OnProgress(float64, string)            {}
+func (h *countingHandler) OnError(error, map[string]interface{}) {}
+func (h *countingHandler) OnComplete(*EncodingMetrics)           {}
