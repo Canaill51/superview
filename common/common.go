@@ -730,6 +730,119 @@ func checkTempSpaceForMaps(video *VideoSpecs, squeeze bool) error {
 		tempDir, required/(1024*1024), needed/(1024*1024), free/(1024*1024))}
 }
 
+// Memory a software encode asks for, per pixel of the output frame.
+//
+// Measured, not reasoned. The geometry is the one from the report that produced
+// this check -- a 3840x2880 source widened to 5120x2880 -- encoded with libx265
+// at preset medium, "-threads 4" and "pools=4", which is what a four-core
+// laptop runs:
+//
+//	8-bit source .... 3.97 GiB peak RSS -> 290 bytes per output pixel
+//	10-bit source ... 6.25 GiB peak RSS -> 455 bytes per output pixel
+//
+// Three properties of that figure matter here. It belongs to the frame rather
+// than to the codec: libx264 on the same frame peaked within 1% of libx265. It
+// does not grow with the clip's length -- these are frame buffers, not an
+// accumulating stream. And it drifts slightly *up* on smaller frames (312 bytes
+// per pixel at 2560x1440), where the absolute requirement is small enough for
+// the difference not to decide anything.
+const (
+	softwareEncodeBytesPerPixel      = 290
+	softwareEncodeBytesPerPixel10Bit = 455
+)
+
+// readAvailableMemory is the memory reading, behind a variable so a test can
+// hand the check a machine that is out of memory. Swapping the reading is the
+// only way to exercise the refusal: the alternative is filling the test
+// machine's RAM, which proves the same thing and takes it down with it.
+var readAvailableMemory = availableMemoryBytes
+
+// memoryHeadroomDivisor sets the margin below which the estimate is worth a
+// warning: needed + needed/4.
+const memoryHeadroomDivisor = 4
+
+// memoryNeededForEncode estimates the peak memory a conversion will ask for, or
+// 0 when there is no estimate to give.
+//
+// Hardware encoders return 0 deliberately. Nothing here has measured one, and
+// the buffers that dominate the figure above belong to the CPU encoder -- a GPU
+// encode keeps its reference frames in video memory instead. Refusing a
+// conversion on a number nobody measured would be worse than not checking.
+func memoryNeededForEncode(video *VideoSpecs, squeeze bool, encoder string) uint64 {
+	if video == nil || len(video.Streams) == 0 || encoder == "" || isHardwareEncoder(encoder) {
+		return 0
+	}
+
+	outX, outY := remapOutputSize(video, squeeze)
+	if outX <= 0 || outY <= 0 {
+		return 0
+	}
+
+	perPixel := uint64(softwareEncodeBytesPerPixel)
+	if encodesInTenBits(sourcePixelFormat(video), encoder) {
+		perPixel = softwareEncodeBytesPerPixel10Bit
+	}
+
+	return uint64(outX) * uint64(outY) * perPixel
+}
+
+// formatGB renders a byte count the way the messages here quote memory.
+func formatGB(bytes uint64) string {
+	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
+}
+
+// checkMemoryForEncode refuses to start a conversion this machine cannot hold,
+// and warns when it will only just fit.
+//
+// The disk equivalent, checkTempSpaceForMaps, has guarded 57 MB of remap maps
+// since the sixth pass. Nothing guarded the several gigabytes the encode itself
+// asks for, and that failure is the worse of the two by far: the kernel kills
+// ffmpeg, systemd stops the whole application unit with it, and the window
+// disappears mid-conversion. It happened to a user on 8 GiB.
+//
+// A reading that cannot be taken is not a refusal -- same rule as the disk
+// check. On Windows there is no /proc/meminfo, so this never fires there.
+func checkMemoryForEncode(video *VideoSpecs, squeeze bool, encoder string) error {
+	needed := memoryNeededForEncode(video, squeeze, encoder)
+	if needed == 0 {
+		return nil
+	}
+
+	available, ok := readAvailableMemory()
+	if !ok {
+		return nil
+	}
+
+	if available >= needed+needed/memoryHeadroomDivisor {
+		return nil
+	}
+
+	outX, outY := remapOutputSize(video, squeeze)
+	depth := "8-bit"
+	if encodesInTenBits(sourcePixelFormat(video), encoder) {
+		depth = "10-bit"
+	}
+
+	logger.Warn("Memory will be tight for this conversion",
+		slog.Int("output_width", outX),
+		slog.Int("output_height", outY),
+		slog.String("encoder", encoder),
+		slog.String("depth", depth),
+		slog.String("needed", formatGB(needed)),
+		slog.String("available", formatGB(available)),
+	)
+
+	if available >= needed {
+		return nil
+	}
+
+	return &EncoderError{Msg: fmt.Sprintf(
+		"not enough memory for this conversion: encoding a %dx%d %s frame with %s needs about %s, "+
+			"and only %s is available. Close other applications, convert a video with fewer pixels, "+
+			"or pick a hardware encoder in the codec list if Diagnostic says this machine accepts one.",
+		outX, outY, depth, encoder, formatGB(needed), formatGB(available))}
+}
+
 // putMapSample writes one remap coordinate into dst as the big-endian 16-bit
 // sample the PGM P5 format mandates. Little-endian would produce maps that are
 // silently wrong rather than rejected, so the order is not an implementation
@@ -1057,9 +1170,19 @@ func isHEVCEncoder(encoder string) bool {
 // modes record HEVC, so the case that matters is covered without risking a
 // failed encode on the H.264 path. Sources deeper than 10 bits are brought to
 // 10, not to their native depth: nothing in this pipeline targets Main12.
+// encodesInTenBits reports whether a conversion keeps its source's ten bits.
+//
+// One function rather than the same condition written twice: the filter chain
+// decides the working depth here, and the memory estimate has to reach the same
+// answer -- ten bits costs about half as much memory again, so a copy of this
+// test that drifted would silently make the estimate wrong by that much.
+func encodesInTenBits(pixFmt, encoder string) bool {
+	return isHighBitDepth(pixFmt) && isHEVCEncoder(encoder)
+}
+
 func remapFilterChain(pixFmt, encoder string) string {
 	intermediate, output := "yuv444p", "yuv420p"
-	if isHighBitDepth(pixFmt) && isHEVCEncoder(encoder) {
+	if encodesInTenBits(pixFmt, encoder) {
 		intermediate, output = "yuv444p10le", "yuv420p10le"
 	}
 	// remap is a CPU filter, so the frames are in system memory at this point
@@ -1677,6 +1800,15 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	if err := checkTempSpaceForMaps(video, squeeze); err != nil {
 		metrics.RecordError(exitCodeUnavailable, err.Error())
 		RecordEncodingError(err, map[string]interface{}{"stage": "space_check"})
+		return err
+	}
+
+	// After the encoder is known, because what a conversion costs in memory
+	// depends on it: a hardware encoder is not measured here, and a 10-bit
+	// source only stays 10-bit on an HEVC one.
+	if err := checkMemoryForEncode(video, squeeze, encoder); err != nil {
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "memory_check"})
 		return err
 	}
 

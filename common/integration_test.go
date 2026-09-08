@@ -466,3 +466,61 @@ func TestIntegration_DeviceFrameEncoderRunsTheWholePipeline(t *testing.T) {
 		t.Errorf("the conversion did not use %s -- it fell back to the CPU: %q", encoder, summary)
 	}
 }
+
+// TestIntegration_MemoryCheckStopsBeforeFfmpegRuns proves the guard is wired
+// into PerformEncoding, and wired in *early*.
+//
+// The unit tests around checkMemoryForEncode prove the arithmetic; only this
+// one proves the pipeline consults it. It checks two things a stubbed test
+// could not: that the refusal reaches the caller from the real orchestration,
+// and that nothing was produced -- no output file, no working file left beside
+// it. A check placed after the encode would satisfy the first and fail the
+// second.
+func TestIntegration_MemoryCheckStopsBeforeFfmpegRuns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	input := makeTestClip(t, 640, 480, 1)
+
+	ffmpeg, err := CheckFfmpeg(nil)
+	if err != nil {
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
+	}
+	if !strings.Contains(ffmpeg["encoders"], "libx264") {
+		skipWithoutFFmpeg(t, "libx264 not available in this ffmpeg build")
+	}
+
+	// A machine with 64 MB free: far under what even this small frame needs.
+	previous := readAvailableMemory
+	readAvailableMemory = func() (uint64, bool) { return 64 * 1024 * 1024, true }
+	t.Cleanup(func() { readAvailableMemory = previous })
+
+	outputDir := t.TempDir()
+	output := filepath.Join(outputDir, "output.mp4")
+	ui := &integrationUI{bitrate: 2_000_000, encoder: "libx264"}
+
+	err = PerformEncoding(nil, input, output, ui, ffmpeg, make(chan struct{}))
+	if err == nil {
+		t.Fatal("expected the conversion to be refused for lack of memory")
+	}
+	if !strings.Contains(err.Error(), "not enough memory") {
+		t.Fatalf("the refusal must name the reason, got: %v", err)
+	}
+
+	if _, statErr := os.Stat(output); statErr == nil {
+		t.Error("a refused conversion produced an output file")
+	}
+
+	entries, readErr := os.ReadDir(outputDir)
+	if readErr != nil {
+		t.Fatalf("cannot read the output directory: %v", readErr)
+	}
+	for _, entry := range entries {
+		t.Errorf("a refused conversion left %q behind", entry.Name())
+	}
+
+	if ui.progressCall != 0 {
+		t.Error("ffmpeg was started before the memory check ran")
+	}
+}

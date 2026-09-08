@@ -900,7 +900,57 @@ par le matériel — échanger deux encodeurs logiciels ne ferait que changer de
 rien — et le repli, si le matériel refuse ensuite la vraie image, doit revenir à la
 famille de la source, sans quoi la bascule laisse une trace après avoir échoué.
 
+### L-88 — Un garde-fou se chiffre au banc, et refuse ce qu'il a mesuré — 2026-09-08
+Le contrôle disque veillait sur 57 Mo de cartes ; les 6 Go de l'encodage n'étaient
+gardés par rien, alors que leur échec tue le processus. Écrire le garde-fou manquant
+demandait un nombre, et un nombre plausible n'aurait rien valu : c'est le banc qui a dit
+290 octets par pixel de sortie en 8 bits et 455 en 10 bits, et qui a montré que la
+dépense appartient à l'image — libx264 à 1 % de libx265 — et non au codec ni à la durée
+du clip.
+→ **Un garde-fou ne s'étend pas au-delà de ce qui a été mesuré.** Les encodeurs matériels
+n'ont pas de chiffre ici, donc ils n'ont pas de refus : refuser sur un nombre inventé est
+pire que ne pas vérifier. Et une lecture impossible n'est pas un refus — sans
+`/proc/meminfo`, la vérification s'abstient, exactement comme le contrôle disque quand
+l'espace libre ne se lit pas.
+
+### L-89 — Deux endroits qui décident de la même chose finissent par diverger — 2026-09-08
+La chaîne de filtres choisit la profondeur de travail, et l'estimation mémoire doit
+retomber sur la même réponse : dix bits coûtent une moitié de plus. Recopier la
+condition `isHighBitDepth(pixFmt) && isHEVCEncoder(encoder)` aurait suffi à faire dériver
+l'estimation d'autant, sans qu'aucun test ne s'en aperçoive — les deux copies restant
+vraies séparément.
+→ **Une décision partagée s'extrait en fonction dès la deuxième lecture, pas à la
+troisième copie.** `encodesInTenBits` est ce que la contre-épreuve a validé : lui faire
+ignorer l'encodeur rougit le test de l'estimation, ce qu'une condition recopiée n'aurait
+pas permis d'éprouver d'un seul geste.
+
 ## 3. Corrections appliquées
+
+### [2026-09-08] U-11 — Rien ne vérifiait la mémoire disponible avant un encodage
+
+**PR** — #62
+
+| | |
+| --- | --- |
+| **Constat** | U-11 ([ANALYSE.md § 3nonies](ANALYSE.md)) |
+| **Fichiers** | `common/common.go` (`encodesInTenBits`, constantes mesurées, `memoryNeededForEncode`, `checkMemoryForEncode`, appel dans `PerformEncoding`), `common/memoryguard_test.go` (nouveau), `common/integration_test.go`, `README.md`, `README_FR.md` |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 70,3 % ✅ · GUI démarrée et vivante ✅ · 5 contre-épreuves, chacune vérifiée compilable ✅ |
+
+**Symptôme** — Une conversion qui ne peut pas tenir en mémoire démarrait quand même,
+jusqu'à ce que le noyau tue ffmpeg et que systemd emporte la fenêtre avec.
+
+**Cause racine** — Le contrôle disque existait pour 57 Mo de cartes, mais rien ne
+regardait les gigaoctets de l'encodage lui-même. `checkMemoryHealth` teste un seuil fixe
+de 1 Gio sans rapport avec la résolution, et n'est câblé que sur le bouton *Diagnostic*.
+
+**Correctif** — `checkMemoryForEncode`, posé juste après le contrôle disque et après le
+choix de l'encodeur, dont le coût dépend. Estimation mesurée au banc : 290 octets par
+pixel de sortie en 8 bits, 455 en 10 bits. Refus en dessous du besoin, avertissement
+jusqu'à un quart au-dessus, abstention pour les encodeurs matériels (non mesurés) et
+quand la lecture mémoire est impossible. Un test d'intégration prouve le câblage et la
+position : rien n'est produit, et ffmpeg n'a pas démarré.
+
+**Leçon** — L-88, L-89.
 
 ### [2026-09-08] U-10 — Le repli CPU ignorait un encodeur matériel disponible dans l'autre famille
 
@@ -2157,3 +2207,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-05 | **R-06 corrigé, et son diagnostic de la veille rectifié** : la cause n'était pas la réécriture de `FyneApp.toml` mais les fichiers que `fyne package` crée puis efface, trouvés en échantillonnant `git status --porcelain` pendant le packaging — `fyne_metadata_init.go` sur les deux plateformes, plus `fyne.syso` et `superview.exe` sur Windows. Mécanisme démontré isolément sur un dépôt jetable. Garde-fou ajouté sur le binaire produit : c'est lui qui a révélé que le correctif ne valait d'abord que pour Linux. **R-07 trouvé en chemin** : l'essai à blanc échouait depuis toute branche au nom contenant une barre oblique. Vérifié en exécutant le binaire d'un essai à blanc complet — `build="0.0.0 (71e04a9)"`. Leçons L-57, L-58. |
 | 2026-09-08 | **10ᵉ passe, signalement utilisateur : mémoire épuisée sur un portable de 8 Gio.** Le journal du poste et son `journalctl` établissent la chaîne complète — noyau, ffmpeg, `OOMPolicy` de systemd, SIGTERM. Mesures du pic de RSS à géométrie reproduite : ≈ 0,27 Gio par mégapixel de sortie en 8 bits, ≈ 0,43 en 10 bits, indépendamment de x264 ou x265. **U-09 corrigé** ; U-10, U-11, U-12 ouverts. Leçons L-84 à L-86. |
 | 2026-09-08 | **U-10 corrigé** (arbitrage utilisateur : basculer et l'annoncer) : Superview prend l'encodeur matériel de l'autre famille de codec quand celle de la source n'en a aucun, dit ce que cela coûte, et replie sur le codec de la source si le matériel échoue. **U-13 ouvert** en chemin : la sonde encode du 256×256 et ne prouve rien sur une image de 15 Mpx. Leçon L-87. |
+| 2026-09-08 | **U-11 corrigé** : garde-fou mémoire avant encodage, chiffré au banc (290 o/px en 8 bits, 455 en 10 bits), refus sous le besoin et avertissement jusqu'à un quart au-dessus. Abstention sur le matériel, non mesuré, et quand `/proc/meminfo` n'existe pas. Leçons L-88, L-89. |
