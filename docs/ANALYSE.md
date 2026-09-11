@@ -2367,6 +2367,58 @@ absent — et la cible censée l'enlever ne le connaissait pas.
 `make clean`, `git status --porcelain --ignored` ne montre plus que le `Makefile`
 modifié, et `superview.yaml` est intact.
 
+### M-03 ✅ — ~~La règle de fusion d'`AGENTS.md` est fausse pour la PR du bas d'une pile~~ — **CORRIGÉ**
+
+🟠 Relevé par l'utilisateur devant le bouton de fusion de #66 : « quelle option dois-je
+choisir ? ». La question n'aurait pas dû se poser, et la réponse écrite était piégeuse.
+
+`AGENTS.md` concluait : « The `base` field says which case you are in: if it is not
+`master`, you are stacked. » **La PR du bas d'une pile a `master` pour base** et doit
+pourtant passer par un commit de fusion, puisque le squash réécrit le SHA sur lequel la
+suivante est posée. #59, #61 et #62 ont toutes été fusionnées par commit de fusion contre
+ce que le fichier disait — le constat était donc déjà démontré par l'historique, et
+consigné nulle part.
+
+**Le vrai critère** — « une PR ouverte est-elle basée sur ma branche ? », pas « quelle est
+ma base ». Une requête y répond :
+`gh pr list --base "$(gh pr view <NN> --json headRefName -q .headRefName)" --state open`.
+
+**Correctif, en deux temps.** La phrase est corrigée ; puis, l'arbitrage utilisateur étant
+« que l'utilisateur n'ait pas à se poser la question »,
+[`merge-on-label.yml`](../.github/workflows/merge-on-label.yml) applique la règle : label
+`merge` → interrogation de l'API, choix de la méthode, armement de la fusion, et un
+commentaire sur la PR disant quoi et pourquoi. Le déclenchement reste manuel : l'utilisateur
+décide **quand**, plus jamais **comment**.
+
+**Mesuré, et contraire à l'intuition** — `mergeStateStatus` n'est pas fiable à la demande.
+GitHub calcule la fusionnabilité paresseusement et a répondu `UNKNOWN` sur #66 pendant
+plusieurs minutes et une douzaine de lectures, pendant que #67 répondait `CLEAN`. Le
+workflow lit donc `UNKNOWN` comme « armer et attendre » plutôt que « fusionner maintenant »,
+avec fusion directe seulement si GitHub refuse l'armement *parce qu'*il n'y a plus rien à
+attendre.
+
+**L'état du dépôt était plus faible que ce que la documentation laissait croire** :
+`master` n'avait **aucune protection ni ruleset** — rien n'obligeait les douze contrôles à
+passer avant une fusion, et rien n'empêchait le push direct que la règle « toute
+modification passe par une PR » interdit sur le papier. Créé : un ruleset qui refuse le
+push direct et impose sept contrôles. Contre-épreuve — commit vide poussé sur `master`,
+refusé : *« Changes must be made through a pull request. 7 of 7 required status checks are
+expected. »*
+
+**Sept, et pas douze, délibérément** : `Coverage Report & Gate` et les deux `Native Build`
+déclarent `needs: test`, donc les exiger exige transitivement les deux jobs de test **sans
+nommer la version de Go**. Exiger `Test Go 1.26.x on ubuntu-latest` aurait fait qu'une
+montée de version renomme un contrôle requis et bloque toute fusion, en silence.
+Contournement administrateur limité aux PR (`can_bypass: pull_requests_only`) : pas de
+push direct possible, mais pas de verrouillage possible non plus.
+
+**Deux réglages retirent une sous-question au lieu de la documenter** : « Rebase and merge »
+est retiré du menu — il n'écrit ni `Title (#NN)` ni commit de fusion et n'a jamais servi
+ici — et le titre de squash est épinglé au titre de la PR. Il valait `COMMIT_OR_PR_TITLE` :
+sur une PR à **un seul commit**, il prenait le sujet du *commit*, ce qu'`AGENTS.md` interdit
+(« Commit messages do not appear there »). Défaut réel, jamais visible parce que les deux
+textes ont toujours coïncidé jusqu'ici.
+
 ---
 
 ## 4. État d'avancement
@@ -2387,6 +2439,7 @@ modifié, et `superview.yaml` est intact.
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
 | ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
 | ✅ **Corrigé et vérifié — 11ᵉ passe** (2) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un |
+| ✅ **Corrigé et vérifié — 11ᵉ passe** (1) | M-03 — la règle de fusion d'`AGENTS.md` était fausse pour la PR du bas d'une pile ; corrigée, puis appliquée par un workflow sur label, et `master` doté du ruleset qu'il n'avait pas |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
@@ -2561,3 +2614,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-06 | **U-06**, relevé par l'utilisateur : les trois PR du chantier matériel n'avaient mis à jour que la section *Hardware acceleration* du README. Le § *Requirements* prescrivait toujours `winget install Gyan.FFmpeg` — le build à plancher 610 à l'origine du signalement — et donnait `ffmpeg -encoders \| grep nvenc` comme moyen de vérifier son GPU. Cause : le balayage prescrit porte sur les symboles, or aucun symbole n'avait changé ; ce sont des affirmations qui étaient devenues fausses. Leçon L-80. |
 | 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. `U-08` — la documentation n'existait qu'en anglais. Correctifs : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons ; `README_FR.md` et le job `readme-parity`. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test. Leçons L-81, L-82. |
 | 2026-09-11 | **11ᵉ passe, à `08dae40`** : passe de propreté, sans signalement. § 3decies, constats `M-01` et `M-02`, tous deux dans le `Makefile`. `M-01` — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1`, donc la commande qu'un contributeur tape pouvait être verte en ayant sauté quinze tests, dont les sept `TestIntegration_*` et l'équivalence du remap ; mesuré sur un PATH sans ffmpeg, 15 sauts silencieux → 0. `-race` et `-count=1` alignés sur la recette d'`AGENTS.md`. `M-02` — `make clean` supprimait `dist/`, que rien ne produit, et laissait les six résidus de `fyne package` que `.gitignore` a appris un par un via R-06. Trouvé et non corrigé : deux tests de `lognoise_test.go` ont besoin de ffmpeg sans être gardés. Leçon L-96. |
+| 2026-09-11 | **M-03**, relevé par l'utilisateur devant le bouton de fusion de #66 : la règle d'`AGENTS.md` concluait « if it is not `master`, you are stacked », faux pour la PR du bas d'une pile — #59, #61 et #62 l'avaient déjà démontré. Phrase corrigée, puis règle rendue inutile à retenir : `merge-on-label.yml` choisit la méthode et fusionne sur label `merge`, en commentant sa décision. Trouvé en chemin : `master` n'avait **aucune protection** malgré la règle « toute modification passe par une PR », et le titre de squash valait `COMMIT_OR_PR_TITLE`, qui prend le sujet du commit sur une PR à un seul commit. Ruleset créé (7 contrôles, choisis pour ne pas nommer la version de Go), « Rebase and merge » retiré. Leçon L-97. |

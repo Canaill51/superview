@@ -1007,7 +1007,73 @@ Corollaire de balayage : après avoir écrit une variable d'environnement obliga
 un workflow, `grep -rn "go test" --include='Makefile' --include='*.yml' .` et vérifier
 que chaque invocation la porte.
 
+### L-97 — Une règle qu'il faut se rappeler au moment de cliquer finit par être mal appliquée — 2026-09-11
+La règle de fusion était écrite, argumentée, et **fausse** sur son cas le plus piégeux :
+« si votre base n'est pas `master`, vous êtes empilé » — or la PR du bas d'une pile a
+justement `master` pour base et doit quand même passer par un commit de fusion. #59, #61 et
+#62 l'ont toutes prouvé le même jour, chacune fusionnée à la main contre ce que le fichier
+disait. Corriger la phrase ne suffit pas : la prochaine fois, la question se reposera devant
+le bouton vert, à un moment où personne ne relit `AGENTS.md`.
+→ **Quand la règle est décidable par une requête, la faire décider par la machine et ne
+laisser à l'humain que le déclenchement.** `merge-on-label.yml` interroge
+`gh pr list --base <tête>`, choisit la méthode, fusionne et **écrit sur la PR ce qu'il a
+choisi et pourquoi** — la trace vaut autant que l'automatisme, parce qu'une décision
+automatique muette n'est pas vérifiable. Corollaire : ce qui reste réglable en configuration
+doit l'être plutôt que redit en prose — « Rebase and merge » retiré du menu vaut mieux qu'un
+paragraphe qui demande de ne pas le cliquer.
+
 ## 3. Corrections appliquées
+
+### [2026-09-11] M-03 — La règle de fusion était fausse, et personne n'a plus à se la rappeler
+
+**PR** — #67
+
+| | |
+| --- | --- |
+| **Constat** | M-03 ([ANALYSE.md § 3decies](ANALYSE.md)) |
+| **Fichiers** | `AGENTS.md` (§ *Landing a change*), `.github/workflows/merge-on-label.yml` (nouveau) ; hors dépôt : réglages de fusion et ruleset `master` |
+| **Vérification** | `actionlint` 0 alerte sur le nouveau workflow **et sur les six autres** ✅ · YAML et corps shell reparsés ✅ · logique de décision rejouée contre l'API sur #66 et #67 ✅ · contre-épreuve du ruleset : push direct sur `master` refusé, *« Changes must be made through a pull request. 7 of 7 required status checks are expected »* ✅ · `can_bypass` relu = `pull_requests_only` ✅ |
+
+**Symptôme** — `AGENTS.md` concluait sa règle de fusion par « The `base` field says which
+case you are in: if it is not `master`, you are stacked. » C'est faux pour la PR du bas
+d'une pile, qui a `master` pour base et dont le squash réécrit le SHA sur lequel la
+suivante est posée. #59, #61 et #62 ont toutes dû être fusionnées par commit de fusion
+contre ce que le fichier prescrivait.
+
+**Cause racine** — La règle est décidable par une requête (« une PR ouverte est-elle basée
+sur ma branche ? ») mais était formulée par un raccourci lisible qui se trouve être faux.
+Et même corrigée, elle restait une chose à se rappeler **devant le bouton**, c'est-à-dire au
+seul moment où personne ne relit le fichier.
+
+**Correctif** — La phrase est remplacée par le vrai critère et sa commande. Surtout,
+`merge-on-label.yml` l'applique : label `merge` → le workflow interroge l'API, choisit
+squash ou commit de fusion, arme la fusion pour quand les contrôles requis passent, et
+commente la PR avec sa décision et sa raison. Il traite les états inconfortables au lieu
+de les supposer absents — brouillon refusé, conflit signalé, `mergeStateStatus` à `UNKNOWN`
+lu comme « armer et attendre » et non « fusionner maintenant ». Découvert en le mesurant :
+`UNKNOWN` n'est pas transitoire, GitHub l'a renvoyé sur #66 pendant plusieurs minutes alors
+que #67 répondait `CLEAN`.
+
+Trois réglages et un ruleset tiennent le reste, et retirent les sous-questions plutôt que
+de les documenter : auto-merge activé ; **« Rebase and merge » retiré du menu** (il n'écrit
+ni `Title (#NN)` ni commit de fusion, et n'a jamais servi ici) ; **titre de squash épinglé
+au titre de la PR** — il valait `COMMIT_OR_PR_TITLE`, donc sur une PR à un seul commit il
+prenait le sujet du **commit**, contredisant « Commit messages do not appear there » ;
+**ruleset sur `master`** qui refuse le push direct et impose sept contrôles.
+
+**Sur le choix des sept** — `Coverage Report & Gate` et les deux `Native Build` déclarent
+`needs: test`, donc exiger ces trois-là exige **transitivement** les deux jobs de test sans
+nommer la version de Go. Exiger `Test Go 1.26.x on ubuntu-latest` aurait fait qu'une montée
+de version renomme un contrôle requis et bloque toute fusion, en silence. L'administrateur
+garde un contournement **limité aux PR** : il ne peut pas pousser sur `master`, mais peut
+forcer une fusion si un contrôle se coince — pas de verrouillage possible.
+
+**Délibérément laissé** — la fusion entièrement automatique, sans label. Arbitrage
+utilisateur : il veut décider **quand**, plus jamais **comment**.
+
+**Leçon** — L-97.
+
+---
 
 ### [2026-09-11] M-01 + M-02 — Le `Makefile` lance maintenant les tests comme la CI les lance
 
