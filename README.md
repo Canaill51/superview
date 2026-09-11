@@ -400,6 +400,8 @@ go build -o superview-gui .
 
 ### Build & Test
 
+#### TEMPORARY heading that breaks README parity on purpose
+
 ```bash
 make test        # go test -race ./... -- the whole module, as CI does
 make coverage    # coverage over ./..., which the 50% CI gate measures
