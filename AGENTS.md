@@ -109,10 +109,23 @@ sentence about what changed — *Stop release binaries from announcing themselve
 as modified*, not *fix bug*. Commit messages do not appear there.
 
 **Squash and merge**, which is what the whole history uses: one commit per pull
-request, titled `Title (#NN)`. Use *Create a merge commit* only when the pull
-request is based on another that is still open — squash rewrites the SHA and the
-next one in the stack then loses its base and conflicts. The `base` field says
-which case you are in: if it is not `master`, you are stacked.
+request, titled `Title (#NN)`. Use *Create a merge commit* only when another
+open pull request is based on this one — squash rewrites the SHA, and the one
+stacked above then loses its base and conflicts.
+
+**The question is what sits on top of you, not what you sit on**, and one
+command answers it. Run it before touching the merge button:
+
+```bash
+gh pr list --base "$(gh pr view <NN> --json headRefName -q .headRefName)" --state open
+```
+
+Nothing listed → *Squash and merge*. Anything listed → *Create a merge commit*,
+and merge the stack from the bottom up. **A `base` of `master` settles nothing**:
+the bottom pull request of a stack has exactly that base and still must not be
+squashed. That is how #59, #61 and #62 came to need merge commits while their
+base read `master` — the earlier wording here said the opposite, and following
+it would have orphaned the pull request above each of them.
 
 Releases are one button, documented in [`RELEASING.md`](RELEASING.md). Nothing to
 prepare, no file to write, no version to bump. Never tag by hand unless the
