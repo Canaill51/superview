@@ -1,0 +1,121 @@
+name: Merge on label
+
+# Picks the merge method so nobody has to.
+#
+# The rule it applies is the one written in AGENTS.md § Landing a change:
+# squash, unless an open pull request is based on this branch, because squash
+# rewrites the SHA and the one stacked above then loses its base. That rule was
+# stated wrongly here for a long time -- "if your base is not master, you are
+# stacked" -- which is false for the bottom pull request of a stack, and #59,
+# #61 and #62 all had to be merged by hand against what the file said.
+#
+# A rule a human has to remember at the moment of clicking is a rule that gets
+# it wrong eventually. This job answers the question from the API instead, and
+# the answer is posted on the pull request so the choice stays auditable.
+#
+# Trigger: add the "merge" label. Nothing else starts it, so you still decide
+# when a pull request lands -- only never how.
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+# pull_request_target runs the workflow from the base branch with a writable
+# token, which is only safe because this job never checks out, builds or runs
+# a single line of the pull request's code. It talks to the API and nothing
+# else. Do not add a checkout step here.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    name: Arm the merge
+    if: github.event.label.name == 'merge'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Pick the method and arm the merge
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        IS_DRAFT: ${{ github.event.pull_request.draft }}
+        RULE_URL: ${{ github.server_url }}/${{ github.repository }}/blob/master/AGENTS.md#landing-a-change
+      run: |
+        set -euo pipefail
+
+        if [ "$IS_DRAFT" = "true" ]; then
+          gh pr comment "$PR" --repo "$REPO" --body \
+            "🏷️ \`merge\` seen, but this pull request is a draft. Mark it ready for review and re-apply the label."
+          echo "::notice::draft, nothing armed"
+          exit 0
+        fi
+
+        # Is anything stacked on top of us?
+        #
+        # A pull request can only be based on a branch of this repository, so a
+        # head branch living in a fork can carry nothing above it -- and asking
+        # anyway would match an unrelated branch of ours that happens to share
+        # the name.
+        above=0
+        if [ "$HEAD_REPO" = "$REPO" ]; then
+          above="$(gh pr list --repo "$REPO" --base "$HEAD_REF" --state open --json number --jq 'length')"
+        fi
+
+        if [ "$above" -eq 0 ]; then
+          method=--squash
+          name="Squash and merge"
+          why="nothing is based on \`$HEAD_REF\`"
+        else
+          method=--merge
+          name="Create a merge commit"
+          why="$above open pull request(s) are based on \`$HEAD_REF\`, and squashing would rewrite the SHA they sit on"
+        fi
+
+        # mergeStateStatus is UNKNOWN while GitHub recomputes mergeability,
+        # which is exactly the state a pull request is in right after a push.
+        state=UNKNOWN
+        for _ in 1 2 3 4 5 6; do
+          state="$(gh pr view "$PR" --repo "$REPO" --json mergeStateStatus --jq .mergeStateStatus)"
+          if [ "$state" != "UNKNOWN" ]; then break; fi
+          sleep 5
+        done
+
+        if [ "$state" = "DIRTY" ]; then
+          gh pr comment "$PR" --repo "$REPO" --body \
+            "🏷️ \`merge\` seen. Method would be **$name** ($why), but the branch conflicts with \`master\`. Resolve the conflict and re-apply the label."
+          echo "::error::conflicts with base"
+          exit 1
+        fi
+
+        # CLEAN means every required check already passed, so there is nothing
+        # for auto-merge to wait on -- and GitHub refuses to arm it in that
+        # state. UNKNOWN is not rare: GitHub computes mergeability lazily and
+        # will hand back UNKNOWN for as long as it pleases, so the loop above
+        # cannot be made to guarantee an answer. Arming is the safe reading of
+        # it -- it waits rather than merges -- with a direct merge only if the
+        # refusal turns out to be "there is nothing left to wait for".
+        if [ "$state" = "CLEAN" ]; then
+          gh pr merge "$PR" --repo "$REPO" "$method"
+          verdict="merged now with **$name**"
+        elif gh pr merge "$PR" --repo "$REPO" --auto "$method"; then
+          verdict="**$name** armed; it lands as soon as the required checks pass"
+        else
+          state="$(gh pr view "$PR" --repo "$REPO" --json mergeStateStatus --jq .mergeStateStatus)"
+          if [ "$state" = "CLEAN" ]; then
+            gh pr merge "$PR" --repo "$REPO" "$method"
+            verdict="merged now with **$name**"
+          else
+            gh pr comment "$PR" --repo "$REPO" --body \
+              "🏷️ \`merge\` seen. Method is **$name** ($why), but GitHub refused both arming and merging, with the pull request in state \`$state\`. Nothing was merged."
+            echo "::error::could not arm or merge, state=$state"
+            exit 1
+          fi
+        fi
+
+        gh pr comment "$PR" --repo "$REPO" --body \
+          "🏷️ \`merge\` seen — $verdict, because $why. ([AGENTS.md § Landing a change]($RULE_URL))"
+        echo "::notice::$verdict"
