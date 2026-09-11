@@ -993,7 +993,60 @@ invoquée aux endroits où ses *entrées* changent, et son point d'application
 (`applyVerifiedHardwareLine`) redevient testable de façon synchrone — compteur de
 génération compris, qui sans cela n'aurait été éprouvé par rien.
 
+### L-96 — Un garde-fou que la CI seule applique n'en est pas un — 2026-09-11
+`SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les `t.Skip` liés à ffmpeg, sans quoi
+quinze tests — dont les sept d'intégration et l'équivalence du remap — rapportent succès
+sans avoir encodé une image. `test.yml` la posait, `AGENTS.md` y consacrait un paragraphe,
+et `make test`, la commande qu'un contributeur tape réellement, ne la posait pas. Le
+contributeur voit vert, la CI voit rouge, et c'est la CI qui a raison — au mieux. Au pire
+il n'ouvre jamais de PR et ne le saura pas.
+→ **Poser le garde-fou dans le point d'entrée local, pas seulement dans le workflow.** La
+règle documentée et la commande qui l'enfreint ont cohabité dix jours ; le paragraphe
+d'avertissement ne suffit pas, parce qu'il faut le lire *avant* de croire un vert.
+Corollaire de balayage : après avoir écrit une variable d'environnement obligatoire dans
+un workflow, `grep -rn "go test" --include='Makefile' --include='*.yml' .` et vérifier
+que chaque invocation la porte.
+
 ## 3. Corrections appliquées
+
+### [2026-09-11] M-01 + M-02 — Le `Makefile` lance maintenant les tests comme la CI les lance
+
+**PR** — #65
+
+| | |
+| --- | --- |
+| **Constats** | M-01 et M-02 ([ANALYSE.md § 3decies](ANALYSE.md)) |
+| **Fichiers** | `Makefile` (cibles `test`, `coverage`, `clean`, texte d'aide), `README.md`, `README_FR.md`, `docs/CONTRATS.md` (commande d'intégration sans garde-fou, trouvée par le balayage de L-96 ; ligne 10 du tableau des contrats) |
+| **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · `make check` de bout en bout ✅, couverture module 71,1 % · job `readme-parity` rejoué à la main ✅ · 2 contre-épreuves ✅ |
+
+**Symptôme** — `make test` rendait 0 sur une machine sans ffmpeg, en ayant sauté quinze
+tests dont les sept `TestIntegration_*` et `TestGeneratePGM_RemapOutputIsStable` : tout ce
+qui vérifie une conversion réelle de bout en bout. `make clean`, lui, supprimait `dist/` —
+produit par rien dans ce dépôt — et laissait les six résidus que `fyne package` écrit dans
+la racine.
+
+**Cause racine** — Le garde-fou existait et n'était appliqué que par la CI. `test.yml` pose
+`SUPERVIEW_REQUIRE_FFMPEG=1` depuis le chantier D, `AGENTS.md` en fait un paragraphe du §
+*Verifying a change*, mais les cibles `test` et `coverage` ne l'ont jamais posé. Pour
+`clean`, la liste des résidus d'empaquetage s'est construite dans `.gitignore`, une
+publication à la fois, au fil de R-06 ; personne n'a répercuté dans la cible censée les
+enlever. Un fichier ignoré est caché, pas absent.
+
+**Correctif** — `SUPERVIEW_REQUIRE_FFMPEG := 1` exporté sur `test` et `coverage`,
+`TEST_FLAGS := -race -count=1` sur les deux, pour que la cible *soit* la recette
+d'`AGENTS.md` et non son approximation. `clean` perd `dist/` et gagne
+`fyne_metadata_init.go`, `*.syso`, `superview`, `superview.exe`, `tmp-pkg/` et les deux
+archives, avec le commentaire qui rattache la liste à `.gitignore`. Les deux README
+décrivent ces cibles : mis à jour ensemble, `make clean` ajouté et l'exigence ffmpeg dite.
+
+**Délibérément laissé** — deux tests de `common/lognoise_test.go` appellent le vrai
+`EncodeVideo`, donc le vrai ffmpeg, sans passer par `skipWithoutFFmpeg` : sans ffmpeg elles
+échouent au lieu de se sauter. Même famille, mais c'est une modification de tests, hors du
+périmètre arbitré ici. Consigné en M-01.
+
+**Leçon** — L-96, dont le balayage a été exécuté : treize invocations de `go test` dans le dépôt, une seule sans garde-fou, corrigée.
+
+---
 
 ### [2026-09-09] U-13 + U-14 — L'encodeur promis, chiffré et exécuté doivent être le même
 

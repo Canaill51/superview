@@ -2298,6 +2298,77 @@ des secondes. À reprendre si un utilisateur le redemande.
 
 ---
 
+## 3decies. Onzième passe (2026-09-11) — passe de propreté : ce que `make` fait vraiment
+
+Aucun signalement. Revue d'entretien du dépôt à `08dae40`, à la recherche de
+résidus : code mort, dérive doc/code, cibles périmées. `go mod tidy` ne bouge rien,
+aucun `TODO`, aucun helper de test dupliqué, aucun nom de fonction périmé cité dans
+la prose. Deux constats, tous deux dans le `Makefile` — c'est-à-dire dans le seul
+endroit du dépôt censé rendre les pièges difficiles.
+
+### M-01 ✅ — ~~`make test` peut être vert sans avoir encodé une seule image~~ — **CORRIGÉ**
+
+🔴 `make test` faisait `go test -v ./...` et `make coverage` `go test ./...
+-coverprofile=…`, ni l'un ni l'autre ne posant `SUPERVIEW_REQUIRE_FFMPEG=1`.
+
+C'est exactement le défaut que `skipWithoutFFmpeg` et le § *Verifying a change*
+d'`AGENTS.md` décrivent, resté dans la commande qu'un contributeur tape réellement.
+`test.yml` pose la variable depuis le chantier D ; le `Makefile` ne l'a jamais fait.
+Le paragraphe d'`AGENTS.md` qui met en garde et la cible qui tombe dans le piège
+cohabitaient depuis.
+
+**Mesuré** — PATH reconstruit sans `ffmpeg` ni `ffprobe` (2 588 liens vers
+`/usr/bin`, les deux outils exclus), `make test` :
+
+| | Sauts silencieux | Échecs |
+| --- | --- | --- |
+| Avant | **15**, dont les 7 `TestIntegration_*` et `TestGeneratePGM_RemapOutputIsStable` | 2 |
+| Après | **0** | 17 |
+
+Les quinze deviennent des échecs nommés — `SUPERVIEW_REQUIRE_FFMPEG=1 but this test
+cannot run: ffmpeg not installed`. Avec `ffmpeg` présent : 0 saut, 0 échec, 0 course.
+
+`-race` et `-count=1` ajoutés au passage, pour que la cible soit la recette
+d'`AGENTS.md` et non une approximation : l'encodage tourne dans une goroutine et
+rend compte à l'interface par une autre, et un résultat vert mis en cache ne dit
+rien de l'arbre qu'on a sous la main.
+
+**Balayage prescrit par L-96, exécuté** — `grep -rn "go test" --include='Makefile'
+--include='*.yml' --include='*.md' .` sur tout le dépôt : treize invocations. Les quatre
+de `test.yml` et `release.yml` portent la variable par un `env:` d'étape, que le grep ne
+montre pas mais qui est bien là. Une manquait, et à l'endroit qui compte —
+[`docs/CONTRATS.md`](CONTRATS.md) § *Vérification fonctionnelle réelle* donnait
+`go test ./common -run TestIntegration -v` comme moyen de vérifier une conversion réelle,
+c'est-à-dire la commande qui saute les sept tests en question et affiche `ok`. Corrigée
+et rejouée : 7 PASS.
+
+**Découvert en chemin, non corrigé** — `TestEncodeVideo_ProgressNotAvailableIsNotAWarning`
+et `TestEncodeVideo_UnparsableProgressIsStillAWarning`
+([`common/lognoise_test.go`](../common/lognoise_test.go)) remplacent
+`commandStdoutPipe` mais appellent le vrai `EncodeVideo`, donc le vrai `ffmpeg` : sans
+lui, elles échouent au lieu de se sauter, n'étant pas gardées par `skipWithoutFFmpeg`.
+Ce sont les deux « échecs avant » du tableau. Troisième cas de la même famille, hors
+du périmètre arbitré pour cette passe.
+
+### M-02 ✅ — ~~`make clean` nettoie un répertoire qui n'existe pas et laisse ceux qui existent~~ — **CORRIGÉ**
+
+🟡 La dernière ligne de la cible supprimait `dist/`, produit par rien dans ce dépôt —
+aucune cible du `Makefile`, aucune étape du workflow de publication, et pas même une
+entrée dans `.gitignore`. En face, elle ignorait tout ce que `fyne package` écrit dans
+la racine : `fyne_metadata_init.go`, `*.syso`, `superview`, `superview.exe`,
+`tmp-pkg/`, `superview-gui-*.tar.xz|zip`.
+
+Ces noms-là ne sont pas cosmétiques : c'est la liste que R-06 a fait apprendre à
+`.gitignore` une publication à la fois, parce que `cmd/go` lit `git status
+--porcelain` pour décider de `vcs.modified`. Un fichier ignoré est caché, pas
+absent — et la cible censée l'enlever ne le connaissait pas.
+
+**Contre-épreuve** — les onze résidus fabriqués à la racine, plus `tmp-pkg/` ; après
+`make clean`, `git status --porcelain --ignored` ne montre plus que le `Makefile`
+modifié, et `superview.yaml` est intact.
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -2315,6 +2386,7 @@ des secondes. À reprendre si un utilisateur le redemande.
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
 | ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
+| ✅ **Corrigé et vérifié — 11ᵉ passe** (2) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
 
@@ -2488,3 +2560,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-06 | Hygiène du journal des corrections : le gabarit de [LECONS.md § 3](LECONS.md) demandait le sha de fusion, valeur qui n'existe pas encore quand l'entrée s'écrit — dix entrées sur treize affichaient encore « non commité ». Champ remplacé par le **numéro de PR**, connu dès l'ouverture, et les dix-huit entrées renseignées après identification de leur PR par l'historique du code (`git log -S`) plutôt que par déduction. Leçon L-79. |
 | 2026-09-06 | **U-06**, relevé par l'utilisateur : les trois PR du chantier matériel n'avaient mis à jour que la section *Hardware acceleration* du README. Le § *Requirements* prescrivait toujours `winget install Gyan.FFmpeg` — le build à plancher 610 à l'origine du signalement — et donnait `ffmpeg -encoders \| grep nvenc` comme moyen de vérifier son GPU. Cause : le balayage prescrit porte sur les symboles, or aucun symbole n'avait changé ; ce sont des affirmations qui étaient devenues fausses. Leçon L-80. |
 | 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. `U-08` — la documentation n'existait qu'en anglais. Correctifs : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons ; `README_FR.md` et le job `readme-parity`. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test. Leçons L-81, L-82. |
+| 2026-09-11 | **11ᵉ passe, à `08dae40`** : passe de propreté, sans signalement. § 3decies, constats `M-01` et `M-02`, tous deux dans le `Makefile`. `M-01` — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1`, donc la commande qu'un contributeur tape pouvait être verte en ayant sauté quinze tests, dont les sept `TestIntegration_*` et l'équivalence du remap ; mesuré sur un PATH sans ffmpeg, 15 sauts silencieux → 0. `-race` et `-count=1` alignés sur la recette d'`AGENTS.md`. `M-02` — `make clean` supprimait `dist/`, que rien ne produit, et laissait les six résidus de `fyne package` que `.gitignore` a appris un par un via R-06. Trouvé et non corrigé : deux tests de `lognoise_test.go` ont besoin de ffmpeg sans être gardés. Leçon L-96. |

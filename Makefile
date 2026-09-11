@@ -19,8 +19,8 @@ help:
 	@echo "  build-gui-linux   Build Linux GUI binary"
 	@echo ""
 	@echo "Test & Quality targets:"
-	@echo "  test           Run all tests"
-	@echo "  coverage       Run tests with coverage report"
+	@echo "  test           Run all tests (needs ffmpeg on PATH)"
+	@echo "  coverage       Run tests with coverage report (needs ffmpeg)"
 	@echo "  coverage-html  Generate HTML coverage report"
 	@echo "  lint           Run golangci-lint"
 	@echo "  vet            Run go vet"
@@ -32,7 +32,7 @@ help:
 	@echo "Utility targets:"
 	@echo "  install-tools  Install linting and analysis tools"
 	@echo "  version        Show version information"
-	@echo "  clean          Remove build artifacts and coverage files"
+	@echo "  clean          Remove build, coverage and packaging leftovers"
 	@echo ""
 	@echo "Releases are made from the Actions tab, not from here -- see RELEASING.md."
 	@echo ""
@@ -62,14 +62,29 @@ build-gui-linux:
 	@echo "✅ Linux GUI binary created: superview-gui-linux-$(ARCH)"
 
 # Test targets
+#
+# SUPERVIEW_REQUIRE_FFMPEG=1 is not a convenience, it is the whole point of
+# running the suite: without it every test that shells out to ffmpeg calls
+# t.Skip instead of failing, and a skip is invisible. That is the four
+# integration tests and the remap equivalence test -- the whole of what checks
+# a real conversion end to end. "make test" was green on a machine with no
+# ffmpeg at all, having encoded nothing. CI sets it (test.yml), AGENTS.md asks
+# for it, and this is the command a contributor actually types.
+#
+# -race for the same reason: the encode runs in a goroutine and reports to the
+# UI through another, so the suite is only meaningful under the detector.
+# -count=1 because a cached green result proves nothing about the tree at hand.
+TEST_FLAGS := -race -count=1
+test coverage: export SUPERVIEW_REQUIRE_FFMPEG := 1
+
 test:
 	@echo "Running tests..."
-	go test -v ./...
+	go test $(TEST_FLAGS) -v ./...
 	@echo "✅ Tests passed"
 
 coverage:
 	@echo "Running tests with coverage analysis..."
-	go test ./... -coverprofile=coverage.out -covermode=atomic
+	go test $(TEST_FLAGS) ./... -coverprofile=coverage.out -covermode=atomic
 	@echo ""
 	@echo "Coverage summary:"
 	@go tool cover -func=coverage.out | grep total
@@ -125,14 +140,32 @@ install-tools:
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	@echo "✅ Development tools installed"
 
+# Removes what this Makefile and "fyne package" produce, and nothing else.
+#
+# The packaging leftovers are not cosmetic. "fyne package" writes into the
+# project root while it works -- the metadata file, the Windows resource
+# object, an intermediate binary named after the module, a staging directory --
+# and cmd/go reads "git status --porcelain" to decide vcs.modified. Every
+# release up to v0.2.3 therefore announced itself as ", modified" (R-06).
+# .gitignore learned these names one release at a time; keep the two lists
+# together, because an ignored file is hidden, not gone.
+#
+# "dist/" used to be on the last rm line and is produced by nothing in this
+# repository -- not by any target here, not by the release workflow, and it is
+# not even in .gitignore.
 clean:
 	@echo "Cleaning up..."
 	rm -f superview-gui superview-gui.exe
 	rm -f superview-gui-windows-*.exe
 	rm -f superview-gui-linux-*
 	rm -f coverage.out coverage.html
+	@# Left behind by "fyne package"; mirrors .gitignore.
+	rm -f superview superview.exe fyne_metadata_init.go
+	rm -f *.syso
+	rm -f superview-gui-*.tar.xz superview-gui-*.zip
+	rm -rf tmp-pkg/
 	go clean
-	rm -rf dist/ build/
+	rm -rf build/
 	@echo "✅ Cleanup complete"
 
 # Version info

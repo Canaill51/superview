@@ -401,11 +401,17 @@ go build -o superview-gui .
 ### Build & Test
 
 ```bash
-make test        # go test ./... -- the whole module, as CI does
+make test        # go test -race ./... -- the whole module, as CI does
 make coverage    # coverage over ./..., which the 50% CI gate measures
 make check       # fmt, vet, lint, coverage and govulncheck
 make build       # GUI binary for the current platform
+make clean       # build, coverage and packaging leftovers
 ```
+
+`make test` and `make coverage` need **ffmpeg on your PATH** and fail without
+it, rather than quietly skipping the tests that use it -- the four integration
+tests and the remap equivalence test, which are the whole of what checks a real
+conversion end to end.
 
 `make build-gui-windows` is Windows-native: Fyne draws through cgo, so setting
 `GOOS=windows` from Linux gives no C toolchain and the link step fails. The release
