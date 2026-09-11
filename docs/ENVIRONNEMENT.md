@@ -98,3 +98,5 @@ SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...
 
 `SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les `t.Skip` liés à ffmpeg. Sans
 elle, une suite verte peut n'avoir encodé aucune image.
+
+<!-- TEMP bench, never to be merged -->
