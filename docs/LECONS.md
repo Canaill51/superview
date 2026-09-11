@@ -4,22 +4,27 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 80 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 98 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
-> La file d'attente qui figurait ici a disparu avec son dernier item : les 67
+> La file d'attente qui figurait ici a disparu avec son dernier item : les 105
 > constats sont clos. L'état d'avancement vit désormais dans
-> [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne.
+> [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
+> périment à chaque leçon et à chaque passe** — ils étaient restés à 80 et 67
+> jusqu'au 2026-09-11 (M-04).
 
 Les identifiants `Q-xx` renvoient aux **questions ouvertes** de
-[ANALYSE.md § 5bis](ANALYSE.md) : ce ne sont pas des constats, mais des points dont
+[ANALYSE.md § 5](ANALYSE.md) : ce ne sont pas des constats, mais des points dont
 on ignore encore s'ils constituent un défaut.
 
 Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 [ANALYSE.md § 3](ANALYSE.md) (1ʳᵉ et 2ᵉ passes), `N-xx` à
 [§ 3bis](ANALYSE.md) (3ᵉ passe, empirique), `P-xx` à [§ 3ter](ANALYSE.md)
-(4ᵉ passe) et `R-xx` à [§ 3quater](ANALYSE.md) (5ᵉ passe).
+(4ᵉ passe), `R-xx` à [§ 3quater](ANALYSE.md) (5ᵉ passe), `D-xx` et `V-xx` à
+[§ 3quinquies](ANALYSE.md) (6ᵉ passe), `U-xx` aux [§ 3sexies à § 3nonies](ANALYSE.md)
+(7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur) et `M-xx` à
+[§ 3decies](ANALYSE.md) (11ᵉ passe, entretien).
 
 ---
 
@@ -1022,7 +1027,73 @@ automatique muette n'est pas vérifiable. Corollaire : ce qui reste réglable en
 doit l'être plutôt que redit en prose — « Rebase and merge » retiré du menu vaut mieux qu'un
 paragraphe qui demande de ne pas le cliquer.
 
+### L-98 — Un document ne compile pas : ce qu'il compte vieillit sans rien casser — 2026-09-11
+L'en-tête d'`ANALYSE.md` annonçait « cinq passes et les 67 constats » alors qu'il en portait
+onze et 105 ; son ordre de lecture s'arrêtait deux passes plus tôt ; `AGENTS.md` donnait
+`common.go` à « ~1600 lines » pour 2023 et `main()` à « ~540 » pour 585. Aucune de ces
+phrases n'était fausse quand elle a été écrite, et aucune n'a jamais rougi. Le balayage de
+L-80 ne les attrape pas : il porte sur ce que la doc **promet**, pas sur ce qu'elle
+**compte**.
+→ **Un chiffre dans de la prose est un test sans assertion.** Trois remèdes, par ordre de
+solidité : ne pas l'écrire quand la phrase tient sans lui ; l'arrondir à un ordre de
+grandeur qui survit à la dérive (« ~2000 lignes » plutôt que « 1600 ») ; et, quand il est
+là pour naviguer, écrire à côté **ce qui l'invalide** — l'en-tête d'`ANALYSE.md` dit
+désormais qu'ajouter une passe oblige à le rouvrir. Corollaire de balayage : en ajoutant une
+passe ou une section, relire l'en-tête et le sommaire du même fichier, jamais seulement le
+corps.
+
 ## 3. Corrections appliquées
+
+### [2026-09-11] M-04 — Les chiffres et la numérotation qui servaient à naviguer avaient dérivé
+
+**PR** — #70
+
+| | |
+| --- | --- |
+| **Constat** | M-04 ([ANALYSE.md § 3decies](ANALYSE.md)) |
+| **Fichiers** | `AGENTS.md` (tableau *decisions that look like defects*, § *Landing a change*), `docs/ANALYSE.md` (en-tête, § 4, renumérotation § 5/§ 6), `docs/LECONS.md` (en-tête : comptes et légende des préfixes, plus le renvoi) |
+| **Vérification** | documentation seule, aucun fichier Go modifié · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · chiffres remesurés à `996bed5` (2023 lignes, `main()` 585, `common.go` 82,7 %) ✅ · total des constats recompté depuis le § 4, 105 ✅ · plus aucun renvoi pendant à `§ 5bis` ✅ |
+
+**Symptôme** — `AGENTS.md` donnait `common/common.go` à « ~1600 lines » (2023 en réalité) et
+`main()` à « ~540 lines » (585). L'en-tête d'`ANALYSE.md`, celui qui sert à naviguer le
+document, annonçait « cinq passes et les 67 constats » et « Dernière passe : 9ᵉ », et son
+ordre de lecture s'arrêtait à § 3octies. `## 5bis` était placé **avant** `## 5`, alors que
+*bis* veut dire « après ». Le § 4 portait deux lignes « 11ᵉ passe » distinctes, séquelle de
+deux éditions successives dans la même passe.
+
+**Cause racine** — Rien ne compile un document. Ces phrases étaient vraies à l'écriture, et
+une passe met à jour le corps sans relire l'en-tête qu'elle vient de périmer. Le balayage de
+L-80 ne les attrape pas : il porte sur ce que la documentation *promet* (installer,
+vérifier, recevoir), pas sur ce qu'elle *compte*.
+
+**Correctif** — Chiffres remesurés et **arrondis à la centaine**, pour qu'ils vieillissent
+plus lentement qu'une valeur précise et fausse. En-tête refait, ordre de lecture complété, et
+une phrase ajoutée qui dit qu'il périme : ajouter une passe oblige à le rouvrir.
+« Questions ouvertes » devient § 5 et « Journal des révisions » § 6 — la renumérotation plutôt
+que le déplacement, pour que le journal reste la dernière section comme dans ce fichier-ci.
+Les trois renvois à `§ 5bis` suivent ; l'entrée historique du 2026-09-04 garde sa formulation
+d'époque avec la mention du renumérotage, plutôt que d'être réécrite. Les deux lignes du § 4
+sont fusionnées en une, à quatre constats.
+
+**Aussi dans cette PR, hors constat** — la façon de poser le label `merge` depuis un terminal
+est écrite dans `AGENTS.md` : `gh pr edit --add-label` échoue sur ce dépôt (il lit
+`projectCards`, retiré avec les Projects classiques) et **échoue en silence** si stderr est
+redirigé, ce qui a fait croire une fois que `merge-on-label.yml` ne se déclenchait pas. Le
+contournement est l'endpoint REST.
+
+**Délibérément laissé** — le point 3 de la revue d'entretien, `EventRecorder.RegisterHandler`
+sans appelant en production, en attente d'arbitrage utilisateur : c'est une suppression d'API
+exportée, pas une correction de documentation.
+
+**Balayage de L-98, exécuté** — ce fichier-ci portait la même dérive, trouvée en la
+cherchant : « 80 règles » pour 98, « les 67 constats sont clos » pour 105, et une légende
+des préfixes qui s'arrêtait à `R-xx`, sans `D/V`, `U` ni `M`. `CONTRATS.md`,
+`ENVIRONNEMENT.md`, `hardware-support.md` et les deux README ne portent aucun compte :
+rien à y dériver.
+
+**Leçon** — L-98.
+
+---
 
 ### [2026-09-11] M-03 — La règle de fusion était fausse, et personne n'a plus à se la rappeler
 
