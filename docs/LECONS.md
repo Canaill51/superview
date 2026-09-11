@@ -1011,7 +1011,7 @@ que chaque invocation la porte.
 
 ### [2026-09-11] M-01 + M-02 — Le `Makefile` lance maintenant les tests comme la CI les lance
 
-**PR** — #65
+**PR** — #66
 
 | | |
 | --- | --- |
