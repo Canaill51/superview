@@ -47,9 +47,9 @@ than it looks.
 | --- | --- |
 | `.golangci.yml` restricts staticcheck to `SA*`+`S1*` | `QF*` would rewrite the `math.Pow` calls in `GeneratePGM`, which mirror a published reference algorithm and must stay readable against it. `ST*` is off deliberately too. Never add a second linter job beside golangci-lint: it would enforce what the config disables. |
 | `FyneApp.toml` has no `Version` | The version comes from the tag, via `fyne package --app-version`, so a published binary cannot claim a number a committed file drifted away from. A plain `go build` reports `dev`. **Do not add one back.** |
-| `main()` is ~540 lines | Deliberate. The defect was that its *state* was unreachable, fixed by the `appState` type and its methods. Widget construction has nothing to gain from being split. |
+| `main()` is ~600 lines | Deliberate. The defect was that its *state* was unreachable, fixed by the `appState` type and its methods. Widget construction has nothing to gain from being split. |
 | `.github/release.yml` has a `"*"` catch-all | Load-bearing. GitHub drops any pull request matching no category, and this repository labels none of its own — removing it empties every release. |
-| `common/common.go` is ~1600 lines | Known. Splitting `pgm.go` and `tools.go` out is identified and not urgent: it is 81% covered and `pgm_golden_test.go` pins the geometry byte for byte. |
+| `common/common.go` is ~2000 lines | Known. Splitting `pgm.go` and `tools.go` out is identified and not urgent: it is 83% covered and `pgm_golden_test.go` pins the geometry byte for byte. |
 | The bundled FFmpeg is pinned to **8.1.1**, not the newest | What is pinned is its NVENC driver floor, 570.0, not its version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping the pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching it. |
 | The release workflow patches fyne's generated `Makefile` | It installs three named files, so the bundled `ffmpeg`/`ffprobe` have to be added to it, and its icon line is broken upstream (`$(Icon)` without the `.png`, so `make install` fails on its last line). The patch is keyed on the exact lines, and the job then runs `make install` into a throwaway directory: if fyne changes shape, the release fails there instead of shipping a package that installs nothing. |
 | The French README is `README_FR.md`, but the English one is not `README_EN.md` | GitHub renders a repository's landing page from `README.md` and no other name. Renaming the English half to `README_EN.md` for symmetry leaves the repository front page with no README at all — a visitor sees the file tree and nothing else. The asymmetry is the cost of the landing page. |
@@ -116,6 +116,18 @@ request saying which method it took and why. Nothing else starts it, so an
 unlabelled pull request stays where it is: you still decide *when* something
 lands, you no longer decide *how*. If the label produced no comment, remove it
 and put it back — a label already present fires nothing.
+
+From a terminal, label through the REST endpoint, not `gh pr edit`:
+
+```bash
+gh api -X POST "repos/$REPO/issues/<NN>/labels" -f "labels[]=merge"
+```
+
+`gh pr edit --add-label` fails on this repository — it reads `projectCards`,
+which GitHub has retired with Projects (classic) — and it fails *silently* if
+stderr is redirected, which once looked exactly like the workflow not firing.
+`gh pr edit --title` goes the same way; `gh api -X PATCH repos/$REPO/pulls/<NN>
+-f title=…` does not. From the web interface the label behaves normally.
 
 The rule it applies, which is also the one to follow when merging by hand:
 

@@ -1,19 +1,24 @@
 # Superview — Analyse complète du projet
 
-> **Journal d'audit, pas documentation de référence.** Ce fichier consigne cinq
-> passes d'analyse et les 67 constats qu'elles ont produits, avec ce qui a été
+> **Journal d'audit, pas documentation de référence.** Ce fichier consigne onze
+> passes d'analyse et les 105 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 9ᵉ (U-07, U-08), close le 2026-09-07 — comme les 7ᵉ et 8ᵉ,
-> un signalement de l'utilisateur et non une passe d'analyse.
+> Dernière passe : 11ᵉ (M-01 à M-04), close le 2026-09-11 — passe d'entretien,
+> sans signalement, à la différence des 7ᵉ à 10ᵉ qui en sont toutes parties.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
 > **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
 > N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → § 3quinquies
-> (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ), § 3septies (8ᵉ) et § 3octies (9ᵉ), U-xx → **§ 4 (état d'avancement, le
+> (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ), § 3septies (8ᵉ), § 3octies (9ᵉ) et
+> § 3nonies (10ᵉ), U-xx → § 3decies (11ᵉ, M-xx) → **§ 4 (état d'avancement, le
 > seul tableau qui fasse foi)**.
+>
+> **Ce compte et cette liste périment dès qu'une passe s'ajoute**, et ils l'ont
+> fait : le total est resté à « cinq passes, 67 constats » de la 5ᵉ à la 10ᵉ
+> (M-04). Ajouter une passe, c'est aussi rouvrir ce paragraphe.
 
 ---
 
@@ -151,7 +156,7 @@ Sévérité : 🔴 haute · 🟠 moyenne · 🟡 basse.
 >
 > **La source de vérité sur l'état d'un constat reste le § 4bis, « État d'avancement ».**
 >
-> Enfin, le préfixe **Q-xx** (§ 5bis) ne désigne **pas** un constat mais une **question
+> Enfin, le préfixe **Q-xx** (§ 5) ne désigne **pas** un constat mais une **question
 > ouverte** : quelque chose dont on ne sait pas encore si c'est un défaut. Ne pas les mélanger
 > aux N-xx et P-xx, qui sont des défauts établis.
 > Ces deux conventions n'étaient pas écrites, et quatre titres des § 3bis/3ter avaient dérivé en
@@ -2298,7 +2303,7 @@ des secondes. À reprendre si un utilisateur le redemande.
 
 ---
 
-## 3decies. Onzième passe (2026-09-11) — passe de propreté : ce que `make` fait vraiment
+## 3decies. Onzième passe (2026-09-11) — entretien : ce que `make` fait, comment on fusionne, ce que les documents comptent
 
 Aucun signalement. Revue d'entretien du dépôt à `08dae40`, à la recherche de
 résidus : code mort, dérive doc/code, cibles périmées. `go mod tidy` ne bouge rien,
@@ -2419,6 +2424,41 @@ sur une PR à **un seul commit**, il prenait le sujet du *commit*, ce qu'`AGENTS
 (« Commit messages do not appear there »). Défaut réel, jamais visible parce que les deux
 textes ont toujours coïncidé jusqu'ici.
 
+### M-04 ✅ — ~~L'en-tête de ce document et sa numérotation de sections avaient dérivé~~ — **CORRIGÉ**
+
+🟡 Trouvé en corrigeant les deux chiffres périmés d'`AGENTS.md` : les mêmes symptômes ici,
+en pire, parce que ce sont les lignes qui servent à **naviguer** le document.
+
+| Ce qui était écrit | Réalité |
+| --- | --- |
+| « consigne **cinq** passes et les **67** constats » | onze passes, **105** constats — le compte n'a plus bougé depuis la 5ᵉ |
+| « Dernière passe : **9ᵉ**, close le 2026-09-07 » | 11ᵉ, close le 2026-09-11 |
+| Ordre de lecture s'arrêtant à § 3octies | § 3nonies et § 3decies manquaient |
+| `## 5bis` placé **avant** `## 5` | *bis* veut dire « après » ; il était avant |
+| Deux lignes « 11ᵉ passe » distinctes au § 4 | une passe, une ligne |
+| `LECONS.md` : « 80 règles », « les 67 constats sont clos » | 98 règles, 105 constats |
+| `LECONS.md` : légende des préfixes s'arrêtant à `R-xx` | `D/V`, `U` et `M` manquaient |
+
+Le `5bis` n'était pas seulement inesthétique : le § 4 et le § 2 y renvoient, et le journal
+des révisions doit rester la dernière section, comme dans
+[`LECONS.md`](LECONS.md). La renumérotation « Questions ouvertes » → § 5 et « Journal des
+révisions » → § 6 remet l'ordre et les renvois d'accord sans déplacer le journal.
+
+**Pourquoi personne ne l'avait vu** — rien ne compile un document. Les chiffres
+d'`AGENTS.md` (`common.go` « ~1600 lines » alors qu'il en fait 2023, `main()` « ~540 »
+pour 585) et ceux-ci ont vieilli exactement pareil : ils étaient vrais à l'écriture, et
+aucune passe ne relit l'en-tête qu'elle périme. Le balayage prescrit par L-80 porte sur ce
+que la doc *promet* ; celui-ci porte sur ce qu'elle *compte*.
+
+Les deux dernières lignes viennent du balayage que prescrit L-98 — relire l'en-tête et le
+sommaire du fichier qu'on vient d'allonger. `CONTRATS.md`, `ENVIRONNEMENT.md`,
+`hardware-support.md` et les deux README ne portent aucun compte, donc rien à y dériver.
+
+**Correctif** — chiffres refaits, sections renumérotées, renvois suivis, lignes du § 4
+fusionnées, et l'en-tête porte désormais la phrase qui dit qu'il périme et qu'ajouter une
+passe oblige à le rouvrir. Les chiffres d'`AGENTS.md` sont arrondis à la centaine (« ~2000
+lines », « ~600 lines ») pour vieillir plus lentement que des valeurs précises et fausses.
+
 ---
 
 ## 4. État d'avancement
@@ -2438,10 +2478,9 @@ textes ont toujours coïncidé jusqu'ici.
 | 📌 **Consigné, hors périmètre — 6ᵉ passe** (4) | R-08 à R-11 — la release a été mise hors périmètre pour ce chantier. **R-08 est le seul qui appelle une action** : le correctif R-06 n'est pas publié. |
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
 | ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
-| ✅ **Corrigé et vérifié — 11ᵉ passe** (2) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un |
-| ✅ **Corrigé et vérifié — 11ᵉ passe** (1) | M-03 — la règle de fusion d'`AGENTS.md` était fausse pour la PR du bas d'une pile ; corrigée, puis appliquée par un workflow sur label, et `master` doté du ruleset qu'il n'avait pas |
+| ✅ **Corrigé et vérifié — 11ᵉ passe** (4) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un. M-03 — la règle de fusion d'`AGENTS.md` était fausse pour la PR du bas d'une pile ; corrigée, puis appliquée par un workflow sur label, et `master` doté du ruleset qu'il n'avait pas. M-04 — l'en-tête de ce document et sa numérotation de sections avaient dérivé |
 | ⏸️ **Ouvert** | *aucun.* |
-| ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5bis |
+| ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5 |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
 `go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
@@ -2492,7 +2531,7 @@ Détail des mesures obtenues :
 
 ---
 
-## 5bis. Questions ouvertes
+## 5. Questions ouvertes
 
 Convention : **Q-xx**. Ce ne sont **pas** des constats. Une question ouverte est un point dont on
 ignore encore s'il constitue un défaut — la consigner évite qu'elle se reperde, sans l'inscrire
@@ -2590,7 +2629,7 @@ contre-épreuve (les quatre cas rougissent sur 1,6), README corrigé.
 **Portée.** Un seul clip, un seul type de contenu, deux encodeurs HEVC ; H.264 non testé. La marge
 réelle est probablement plus large que mesurée, le contenu choisi étant défavorable.
 
-## 5. Journal des révisions de ce document
+## 6. Journal des révisions de ce document
 
 | Date | Modification |
 | --- | --- |
@@ -2605,7 +2644,7 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-04 | **N-07 révisé.** La mesure d'origine (~5 %) était faite sur une mire à 2 Mbps, qui se décode quasi gratuitement. Refaite sur une source type GoPro à 127 Mbps : décodage matériel **+9,9 %**, encodage matériel **×3,18**. L'arbitrage s'inverse — recommandation : conserver. Leçon L-46. |
 | 2026-09-04 | Cohérence du document : quatre titres (N-03, N-04, N-05, P-11) portaient encore leur pastille de sévérité alors que le § 4bis les donnait corrigés. Restylés, et les **deux conventions de marquage sont maintenant écrites** en tête du § 3 — elles ne l'étaient pas, d'où la dérive. Leçon L-47. |
 | 2026-09-04 | **P-12** et **P-13**, trouvés en cherchant ce qui du mode squeeze était vérifiable sans fichier GoPro. La formule squeeze est conçue pour valoir zéro au centre — démontré algébriquement — mais des divisions entières y laissaient une couture de 1 à 2,6 px. Défaut hérité de l'amont, identique caractère pour caractère. Le libellé de la case promettait par ailleurs une compatibilité GoPro que l'amont dément. Leçon L-48. |
-| 2026-09-04 | Ajout du § 5bis « Questions ouvertes » et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
+| 2026-09-04 | Ajout du § 5bis « Questions ouvertes » *(renuméroté § 5 le 2026-09-11, M-04)* et de la convention **Q-xx**, distincte des constats. Première entrée : **Q-01**, le facteur 1,6 du profil « Balanced », qui vaut exactement le ratio géométrique 4/3 majoré de 20 % sans que cette marge soit documentée. |
 | 2026-09-06 | **7ᵉ passe, à `2cf0020`** : deux défauts d'affichage signalés par l'utilisateur, § 3sexies. `U-01` — un `GridWrap` de 150 × 34 rognait trois libellés sur six, et `TestToolbarFitsWindow` mesurait la cellule imposée au lieu du bouton, sur des boutons sans icône : il était vert. `U-02` — un `HBox` nu collait la rangée à gauche. Cellule dérivée du minimum du bouton, rangée centrée, fenêtre élargie à son contenu. Leçons L-69, L-70 ; L-20 mise à jour. |
 | 2026-09-06 | **8ᵉ passe, à `7bb715e`** : § 3septies, constat `U-03`. Enquête sur un signalement d'accélération matérielle perdue : FFmpeg 8.1 n'y est pour rien (`nvenc.c` identique à 8.0), le plancher pilote est fixé par les `nv-codec-headers` de compilation et gyan.dev l'a porté de 570 à 610 entre 8.1.1 et 8.1.2, au-dessus du maximum atteignable par une carte professionnelle (597.06). Correctif : sonde à l'exécution, section *Encoders* dans le Diagnostic, ligne « Hardware » qui ne promet plus rien d'invérifié. Leçons L-71 à L-73. |
 | 2026-09-06 | **U-04**, suite de U-03 : les archives Windows et Linux embarquent un FFmpeg épinglé sur son **plancher pilote** (570.0), relu dans le binaire par la CI. Sources choisies pour la permanence de leurs URL — gyan.dev versionne ses releases, BtbN conserve ses builds de fin de mois (celui d'octobre 2024 répond encore). Découvert en route : `make install` d'un paquet fyne 1.7.2 échoue sur la ligne de l'icône, donc **aucune archive Linux publiée n'était installable**. Leçons L-74 à L-76. |
@@ -2615,3 +2654,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. `U-08` — la documentation n'existait qu'en anglais. Correctifs : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons ; `README_FR.md` et le job `readme-parity`. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test. Leçons L-81, L-82. |
 | 2026-09-11 | **11ᵉ passe, à `08dae40`** : passe de propreté, sans signalement. § 3decies, constats `M-01` et `M-02`, tous deux dans le `Makefile`. `M-01` — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1`, donc la commande qu'un contributeur tape pouvait être verte en ayant sauté quinze tests, dont les sept `TestIntegration_*` et l'équivalence du remap ; mesuré sur un PATH sans ffmpeg, 15 sauts silencieux → 0. `-race` et `-count=1` alignés sur la recette d'`AGENTS.md`. `M-02` — `make clean` supprimait `dist/`, que rien ne produit, et laissait les six résidus de `fyne package` que `.gitignore` a appris un par un via R-06. Trouvé et non corrigé : deux tests de `lognoise_test.go` ont besoin de ffmpeg sans être gardés. Leçon L-96. |
 | 2026-09-11 | **M-03**, relevé par l'utilisateur devant le bouton de fusion de #66 : la règle d'`AGENTS.md` concluait « if it is not `master`, you are stacked », faux pour la PR du bas d'une pile — #59, #61 et #62 l'avaient déjà démontré. Phrase corrigée, puis règle rendue inutile à retenir : `merge-on-label.yml` choisit la méthode et fusionne sur label `merge`, en commentant sa décision. Trouvé en chemin : `master` n'avait **aucune protection** malgré la règle « toute modification passe par une PR », et le titre de squash valait `COMMIT_OR_PR_TITLE`, qui prend le sujet du commit sur une PR à un seul commit. Ruleset créé (7 contrôles, choisis pour ne pas nommer la version de Go), « Rebase and merge » retiré. Leçon L-97. |
+| 2026-09-11 | **M-04**, trouvé en corrigeant les chiffres périmés d'`AGENTS.md` : l'en-tête de ce document annonçait encore « cinq passes et 67 constats » et « dernière passe : 9ᵉ », l'ordre de lecture s'arrêtait à § 3octies, `## 5bis` était placé **avant** `## 5`, et le § 4 portait deux lignes « 11ᵉ passe ». Compte refait (105), sections renumérotées (Questions ouvertes → § 5, Journal des révisions → § 6) et renvois suivis, lignes fusionnées. L'en-tête porte maintenant la phrase qui dit qu'il périme. Côté `AGENTS.md` : `common.go` « ~1600 » → ~2000 lignes (2023 réelles), `main()` « ~540 » → ~600 (585), couverture 81 % → 83 %, arrondis à la centaine pour vieillir moins vite. Leçon L-98. |
