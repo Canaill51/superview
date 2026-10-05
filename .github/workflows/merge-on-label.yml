@@ -2,7 +2,7 @@ name: Merge on label
 
 # Picks the merge method so nobody has to.
 #
-# The rule it applies is the one written in AGENTS.md § Landing a change:
+# The rule it applies is the one written in docs/MERGING.md (summarised in AGENTS.md § Landing a change):
 # squash, unless an open pull request is based on this branch, because squash
 # rewrites the SHA and the one stacked above then loses its base. That rule was
 # stated wrongly here for a long time -- "if your base is not master, you are
@@ -43,7 +43,7 @@ jobs:
         HEAD_REF: ${{ github.event.pull_request.head.ref }}
         HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         IS_DRAFT: ${{ github.event.pull_request.draft }}
-        RULE_URL: ${{ github.server_url }}/${{ github.repository }}/blob/master/AGENTS.md#landing-a-change
+        RULE_URL: ${{ github.server_url }}/${{ github.repository }}/blob/master/docs/MERGING.md
       run: |
         set -euo pipefail
 
@@ -117,5 +117,5 @@ jobs:
         fi
 
         gh pr comment "$PR" --repo "$REPO" --body \
-          "🏷️ \`merge\` seen — $verdict, because $why. ([AGENTS.md § Landing a change]($RULE_URL))"
+          "🏷️ \`merge\` seen — $verdict, because $why. ([docs/MERGING.md]($RULE_URL))"
         echo "::notice::$verdict"
