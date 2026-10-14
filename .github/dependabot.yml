@@ -15,6 +15,14 @@ updates:
     labels:
       - "dependencies"
 
+  # Port Rust (DEC-43). Même étiquette que gomod : .github/release.yml trie dessus.
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

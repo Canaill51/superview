@@ -48,7 +48,7 @@ counter-proof itself is valid — an environment can make it mute.
 
 `rust/` is a Cargo workspace (`superview-core`, `superview-harness`, `superview-app`) that
 grows beside the Go code; Go stays the reference and the shipped product until parity.
-`scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`. Install with rustup into
+`scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`, so the pre-commit hook now needs cargo for every commit, Go-only ones included. Install with rustup into
 `~/.cargo` (no sudo, `docs/ENVIRONNEMENT.md`). The gate-by-gate form, from `rust/`:
 
 ```bash
