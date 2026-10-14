@@ -1,0 +1,114 @@
+{
+  "1080x1440_squeeze=false": {
+    "error": {
+      "message": "invalid video: the frame is 1080x1440, taller than 9:8; widening it to 16:9 (2560x1440) would fold the image back on itself at both edges. Superview converts 4:3 footage; a portrait clip cannot be widened",
+      "type": "InvalidVideoError"
+    },
+    "out_height": 1440,
+    "out_width": 2560
+  },
+  "1080x1440_squeeze=true": {
+    "out_height": 1440,
+    "out_width": 1080,
+    "x_bytes": 3110419,
+    "x_sha256": "04fa77fa09f27a507c8c49249abf55520924650a3349dc71dffac1b2ebad124d",
+    "y_bytes": 3110419,
+    "y_sha256": "f398776d066d94d9f7cd285c30188a5be1752482a3c1947f44590246d97ba140"
+  },
+  "1440x1080_squeeze=false": {
+    "out_height": 1080,
+    "out_width": 1920,
+    "x_bytes": 4147219,
+    "x_sha256": "2227c17119b499db7ce11bc27376e423ecccbfe24bf4a9f6c49363312261202f",
+    "y_bytes": 4147219,
+    "y_sha256": "87348bfb3fbb4a513dfc5f02293445c09e940ab663f1befb033c8dc383b9e6fa"
+  },
+  "1440x1080_squeeze=true": {
+    "out_height": 1080,
+    "out_width": 1440,
+    "x_bytes": 3110419,
+    "x_sha256": "f9c97781445026e2d306e05b521df416e77bca843e66b04ea3c60a44e31c6421",
+    "y_bytes": 3110419,
+    "y_sha256": "38cb195cc83f764cab65cd5c3db87de8a4a66b16bdaf2e68b55b994ef807a33e"
+  },
+  "1920x1440_squeeze=false": {
+    "out_height": 1440,
+    "out_width": 2560,
+    "x_bytes": 7372819,
+    "x_sha256": "24d682bcbfc31161e35a9fc871e46ad31b5237d9e13ba176430395a17ddc567e",
+    "y_bytes": 7372819,
+    "y_sha256": "eaa0017555b370c5bcd4a63c852ff93c7c7edb412698e34f50a76649f36c55f0"
+  },
+  "1920x1440_squeeze=true": {
+    "out_height": 1440,
+    "out_width": 1920,
+    "x_bytes": 5529619,
+    "x_sha256": "ccc97b2ef7ed514aa69d56eab73c0b062a8250903fd1578cb0eb8002acd6aba1",
+    "y_bytes": 5529619,
+    "y_sha256": "09bda155b7974b589a51930c1fb983988446e36da3819f703a321ccfe578d527"
+  },
+  "480x640_squeeze=false": {
+    "error": {
+      "message": "invalid video: the frame is 480x640, taller than 9:8; widening it to 16:9 (1136x640) would fold the image back on itself at both edges. Superview converts 4:3 footage; a portrait clip cannot be widened",
+      "type": "InvalidVideoError"
+    },
+    "out_height": 640,
+    "out_width": 1136
+  },
+  "480x640_squeeze=true": {
+    "out_height": 640,
+    "out_width": 480,
+    "x_bytes": 614417,
+    "x_sha256": "85e12fd4e8737bb1a6e7bb198c8b1f6b46c133a18848f01311f3b77e53995782",
+    "y_bytes": 614417,
+    "y_sha256": "d401235f421bfcb666d806dbc20c72fc7abcd4076c2a7f280dcfdde2f3a6bfa1"
+  },
+  "5120x3840_squeeze=false": {
+    "out_height": 3840,
+    "out_width": 6826,
+    "x_bytes": 52423699,
+    "x_sha256": "7f28e999ebc80c87f78e29bcb50df7f35d7c4175eb89866edeada9901b4cde3a",
+    "y_bytes": 52423699,
+    "y_sha256": "47729c724e614b4a761d99d13f2b4d2cc4aec55ed6082c1aa21f6464d7bb7fa3"
+  },
+  "5120x3840_squeeze=true": {
+    "out_height": 3840,
+    "out_width": 5120,
+    "x_bytes": 39321619,
+    "x_sha256": "198bbc986a7ab5116446cfc17c91d7d44b79eafbd744aab54f6948f53453e291",
+    "y_bytes": 39321619,
+    "y_sha256": "b851a75f7bd53da5f244959a50d4ad5daa6afeffbe91017ec900c65564bae13a"
+  },
+  "640x480_squeeze=false": {
+    "out_height": 480,
+    "out_width": 852,
+    "x_bytes": 817937,
+    "x_sha256": "4f916bc40be88d0937cc796293b0b5f107d97a14c5704723cda67c8189e43a9b",
+    "y_bytes": 817937,
+    "y_sha256": "9b06cf256b6aa9dfb5a7c80764ca5b97fc000e6ea27450a17359310e6acc404e"
+  },
+  "640x480_squeeze=true": {
+    "out_height": 480,
+    "out_width": 640,
+    "x_bytes": 614417,
+    "x_sha256": "cf3f3abc193283a796f12b83c165be56e08b3f0bcd21a008ec83d689db2e64bc",
+    "y_bytes": 614417,
+    "y_sha256": "c824a6aa1c05ba4ff0dc9c6f97990fecc8fa6d2c391cc574eac1018abe3f213e"
+  },
+  "641x481_squeeze=false": {
+    "out_height": 481,
+    "out_width": 854,
+    "x_bytes": 821565,
+    "x_sha256": "e500fe0ca537005f4d9a9c78b2a25492cc7e5bb0592dd0d7f4df856166897a8e",
+    "y_bytes": 821565,
+    "y_sha256": "aeddcf2ebad943c66d267d387f77eb63ab49491a7945d473a6e0e1f881656cfa"
+  },
+  "641x481_squeeze=true": {
+    "out_height": 481,
+    "out_width": 641,
+    "x_bytes": 616659,
+    "x_sha256": "a10aa7c6ead73b685b651cb4e04d338ae3ebda4e2e6144b533705667de5f1e46",
+    "y_bytes": 616659,
+    "y_sha256": "aace303c7eb5336eba6bdec932e263f3610a377731e01cdbdffde248380abb72"
+  }
+}

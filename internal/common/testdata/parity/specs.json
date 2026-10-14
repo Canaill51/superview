@@ -1,0 +1,118 @@
+{
+  "bitrate-absent.json": {
+    "error": {
+      "message": "invalid video: bitrate information not available",
+      "type": "InvalidVideoError"
+    }
+  },
+  "bitrate-not-numeric.json": {
+    "error": {
+      "message": "invalid bitrate value 'N/A': strconv.Atoi: parsing \"N/A\": invalid syntax",
+      "type": "plain"
+    }
+  },
+  "codec-absent.json": {
+    "error": {
+      "message": "invalid video: no codec information",
+      "type": "InvalidVideoError"
+    }
+  },
+  "dimensions-zero.json": {
+    "error": {
+      "message": "invalid video: invalid dimensions: 0x0",
+      "type": "InvalidVideoError"
+    }
+  },
+  "duration-not-numeric.json": {
+    "error": {
+      "message": "invalid duration value 'N/A': strconv.ParseFloat: parsing \"N/A\": invalid syntax",
+      "type": "plain"
+    }
+  },
+  "frame-rate-and-pixfmt-absent.json": {
+    "file": "input.mp4",
+    "streams": [
+      {
+        "bitrate": "192648",
+        "bitrate_int": 192648,
+        "codec": "h264",
+        "duration": "8.400000",
+        "duration_float": 8.4,
+        "frame_rate": 0,
+        "height": 1080,
+        "pix_fmt": "",
+        "r_frame_rate": "",
+        "width": 1440
+      }
+    ]
+  },
+  "frame-rate-zero-denominator.json": {
+    "file": "input.mp4",
+    "streams": [
+      {
+        "bitrate": "192648",
+        "bitrate_int": 192648,
+        "codec": "h264",
+        "duration": "8.400000",
+        "duration_float": 8.4,
+        "frame_rate": 0,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "r_frame_rate": "0/0",
+        "width": 1440
+      }
+    ]
+  },
+  "no-streams.json": {
+    "error": {
+      "message": "invalid video: no video streams in file",
+      "type": "InvalidVideoError"
+    }
+  },
+  "not-json.txt": {
+    "error": {
+      "message": "failed to parse video metadata: invalid character 'i' looking for beginning of value",
+      "type": "plain"
+    }
+  },
+  "truncated.json": {
+    "error": {
+      "message": "failed to parse video metadata: unexpected end of JSON input",
+      "type": "plain"
+    }
+  },
+  "valid-h264-4x3.json": {
+    "file": "input.mp4",
+    "streams": [
+      {
+        "bitrate": "192648",
+        "bitrate_int": 192648,
+        "codec": "h264",
+        "duration": "1.000000",
+        "duration_float": 1,
+        "frame_rate": 30,
+        "height": 1080,
+        "pix_fmt": "yuv420p",
+        "r_frame_rate": "30/1",
+        "width": 1440
+      }
+    ]
+  },
+  "valid-hevc-10bit.json": {
+    "file": "input.mp4",
+    "streams": [
+      {
+        "bitrate": "78451200",
+        "bitrate_int": 78451200,
+        "codec": "hevc",
+        "duration": "12.512500",
+        "duration_float": 12.5125,
+        "frame_rate": 29.97002997002997,
+        "height": 3000,
+        "pix_fmt": "yuv420p10le",
+        "r_frame_rate": "30000/1001",
+        "width": 4000
+      }
+    ]
+  }
+}
