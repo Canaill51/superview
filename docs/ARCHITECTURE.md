@@ -34,7 +34,7 @@ sortie : contrainte produit, pas un oubli.
 | `internal/common/` | la logique ; `testdata/ffprobe/` = sorties ffprobe enregistrées |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/go.sh` |
 | `.github/` | CI, release, `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
-| `rust/` | **port en cours (DEC-43)** : workspace Cargo `superview-core` (logique), `superview-harness` (banc d'essai jamais livré, DEC-44), `superview-app` (Slint). Go reste la référence |
+| `rust/` | **port en cours (DEC-43)** : workspace Cargo `superview-core` (logique : `error`, `video`, `pgm`), `superview-harness` (banc d'essai jamais livré, DEC-44), `superview-app` (Slint). Go reste la référence |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` (AppImage) : DEC-41 |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
 

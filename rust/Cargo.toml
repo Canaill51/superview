@@ -1,4 +1,4 @@
-# Workspace du portage Rust (DEC-43). Go reste la référence jusqu'à la parité.
+# Workspace of the Rust port (DEC-43). Go stays the reference until parity.
 [workspace]
 resolver = "3"
 members = ["crates/*"]
