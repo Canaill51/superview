@@ -50,17 +50,23 @@ exec "$HERE/usr/bin/superview" "$@"
 EOF
 chmod 0755 "$APPDIR/AppRun"
 
-cat > "$APPDIR/superview.desktop" <<'EOF'
+# The file is named after the application ID the GUI passes to app.NewWithID, and Icon= after
+# it too. On Wayland the window carries that ID as its app_id and the compositor finds the
+# icon by looking for a desktop file of exactly that name: with `superview.desktop` KDE shows
+# its generic icon instead of ours (measured, 2026-10-14). appimagetool wants the icon beside
+# the desktop file under the name Icon= gives.
+APP_ID="com.canaill51.superview"
+cat > "$APPDIR/$APP_ID.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Superview
 Comment=Convert 4:3 video to 16:9 by dynamic distortion
 Exec=superview
-Icon=superview
+Icon=$APP_ID
 Terminal=false
 Categories=AudioVideo;Video;
 EOF
-cp "$ROOT/cmd/superview/Icon.png" "$APPDIR/superview.png"
+cp "$ROOT/cmd/superview/Icon.png" "$APPDIR/$APP_ID.png"
 cp "$ROOT/cmd/superview/Icon.png" "$APPDIR/.DirIcon"
 
 # APPIMAGE_EXTRACT_AND_RUN: appimagetool is itself an AppImage, run here without FUSE
