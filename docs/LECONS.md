@@ -4,11 +4,11 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 99 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 100 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
-> La file d'attente qui figurait ici a disparu avec son dernier item : les 106
+> La file d'attente qui figurait ici a disparu avec son dernier item : les 107
 > constats sont clos. L'état d'avancement vit désormais dans
 > [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
 > périment à chaque leçon et à chaque passe** — ils étaient restés à 80 et 67
@@ -1061,7 +1061,50 @@ grep -c "uses: actions/setup-go" .github/workflows/*.yml | awk -F: '{n+=$2} END 
 ```
 Les deux nombres doivent être égaux.
 
+### L-100 — Un réglage du dépôt ne vaut pas pour ce que fait le jeton d'un workflow — 2026-10-14
+*Delete branch on merge* était activé, et vérifié quand on fusionnait à la main. M-03 a
+confié la fusion à `merge-on-label.yml`, et le réglage a cessé de s'appliquer sans rien dire :
+GitHub ne déclenche aucun automatisme sur ce que fait `GITHUB_TOKEN`, ni suppression de
+branche, ni workflow. Le défaut est resté invisible un mois parce que les seules PR fusionnées
+par le workflow étaient celles de Dependabot, qui supprime ses propres branches.
+→ **Quand un workflow reprend un geste humain, relire la liste des réglages qui réagissaient
+à ce geste** : chacun cesse de s'appliquer. Et une vérification sur une population qui
+nettoie derrière elle ne prouve rien pour les autres. Pour lister ce qui reste :
+
+```bash
+git fetch --prune && for b in $(git branch -r --format='%(refname:lstrip=3)' | grep -v '^HEAD$\|^master$'); do
+  s=$(gh pr list --head "$b" --state merged --json number --jq 'length'); [ "$s" -gt 0 ] && echo "fusionnée, encore là : $b"
+done
+```
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] M-06 — Les branches fusionnées par le workflow n'étaient pas supprimées
+
+**PR** — à venir
+
+| | |
+| --- | --- |
+| **Constat** | M-06 ([ANALYSE.md § 3undecies](ANALYSE.md)) |
+| **Fichiers** | `.github/workflows/merge-on-label.yml` (pas *Delete the branch once merged*), `docs/MERGING.md`, `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **Vérification** | workflow et documentation seuls · YAML valide · requêtes du script rejouées sur l'API réelle : `autoMergeRequest` vaut `true` pour #73 armée et `false` pour #76 fusionnée, `DELETE` d'une référence absente renvoie `Reference does not exist` (422) sur stderr · contre-épreuve en conditions réelles : la branche de cette PR doit disparaître après sa fusion par le workflow, comme celle de #76 ne l'a pas fait |
+
+**Symptôme** — Après la fusion de #76 par le workflow, `origin/ci/go-check-latest` existait
+encore, malgré `delete_branch_on_merge: true`.
+
+**Cause racine** — La fusion est faite avec le `GITHUB_TOKEN` du workflow, directement ou en
+armant l'auto-fusion, que GitHub termine au nom de qui l'a armée. Aucun automatisme de GitHub
+ne réagit à ce jeton. #74 et #75, fusionnées de la même façon, ont perdu leur branche parce
+que Dependabot les a supprimées lui-même.
+
+**Correctif** — Second pas dans le workflow : attente de la fusion (une heure au plus),
+puis suppression par l'API. Abstention si une PR ouverte est basée sur la branche (la
+suppression par l'API la fermerait, quand le réglage l'aurait reciblée), si la branche vit
+dans un fork, si la fusion a été désarmée ou la PR fermée. Branche déjà supprimée = succès.
+
+**Leçon** — L-100.
+
+---
 
 ### [2026-10-14] M-05 — La CI prenait le Go en cache du runner, pas le dernier correctif
 
@@ -2587,3 +2630,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-08 | **U-12 corrigé**, et la 10ᵉ passe close côté corrections : `N/A` n'est plus un avertissement, le seuil disque descend de 10 Go à 1 Go, la journalisation en double disparaît avec la sémantique d'ajout qui la causait, et le commentaire de `EncodeVideo` retrouve sa fonction. Reste **U-13** ouvert : sonder à la taille réellement encodée. Leçons L-90 à L-92. |
 | 2026-09-09 | **U-13 et U-14 corrigés**, sur retour d'essai de l'utilisateur : le pilote du HD 620 refuse `5120x2880` et donne ses bornes, ce que la sonde de 256×256 ne pouvait pas voir. Sonde à la géométrie réelle (mesurée gratuite : ~0,30 s quelle que soit la taille), recul propre vers l'encodeur logiciel de la famille source, fenêtre qui cesse de promettre, et garde-fou mémoire qui suit l'encodeur jusqu'au repli. Leçons L-93 à L-95. **Plus aucun constat ouvert.** |
 | 2026-10-14 | **M-05 corrigé** : la CI résolvait `1.26.x` sur le Go en cache des runners (1.26.8) au lieu du correctif 1.26.9, et `Vulnerability Scan` bloquait les trois PR Dependabot ouvertes. `check-latest: true` sur les neuf étapes `setup-go`. Leçon L-99. |
+| 2026-10-14 | **M-06 corrigé** : les branches fusionnées par `merge-on-label.yml` restaient, parce que le réglage du dépôt ne s'applique pas à ce que fait `GITHUB_TOKEN`. Le workflow les supprime lui-même, sauf empilement. Leçon L-100. |

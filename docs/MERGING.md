@@ -62,6 +62,13 @@ here has ever used it; the squash title is pinned to the pull request title,
 which used to fall back to the commit subject on a single-commit pull request
 and quietly contradict the paragraph above; and the branch is deleted on merge.
 
+That last setting does nothing for a pull request the workflow merges: GitHub
+runs none of its automations on what the workflow's own token does. So the
+workflow waits for the merge and deletes the branch itself -- except when
+another open pull request is based on it, because deleting a base branch through
+the API closes the pull request above instead of retargeting it. It comments on
+the pull request when it keeps a branch for that reason.
+
 Releases are one button, documented in [`RELEASING.md`](../RELEASING.md). Nothing to
 prepare, no file to write, no version to bump. Never tag by hand unless the
 intent is explicitly to release.

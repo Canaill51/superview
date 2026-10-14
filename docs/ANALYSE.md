@@ -1,12 +1,12 @@
 # Superview — Analyse complète du projet
 
 > **Journal d'audit, pas documentation de référence.** Ce fichier consigne douze
-> passes d'analyse et les 106 constats qu'elles ont produits, avec ce qui a été
+> passes d'analyse et les 107 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md).
 >
-> Dernière passe : 12ᵉ (M-05), close le 2026-10-14 — passe d'entretien, comme la
+> Dernière passe : 12ᵉ (M-05, M-06), close le 2026-10-14 — passe d'entretien, comme la
 > 11ᵉ, sans signalement, à la différence des 7ᵉ à 10ᵉ qui en sont toutes parties.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
 >
@@ -2496,6 +2496,31 @@ le pilote VAAPI n'accepte que le mode de débit CQP, la sonde l'accepte parce qu
 demande aucun débit, et la conversion, qui en demande un, retombe sur le CPU. Le test est
 sauté en CI, faute de GPU. À consigner dans sa propre PR.
 
+### M-06 ✅ — ~~Les branches fusionnées par `merge-on-label.yml` ne sont pas supprimées~~ — **CORRIGÉ**
+
+🟡 Relevé par l'utilisateur après la fusion de #76 : `origin/ci/go-check-latest` existait
+encore, alors que le dépôt a `delete_branch_on_merge: true`.
+
+| PR | Fusionnée par | Branche supprimée par |
+| --- | --- | --- |
+| #70, #72 | l'utilisateur, à la main | le réglage du dépôt |
+| #74, #75 | `github-actions[bot]` | Dependabot, qui nettoie ses propres branches |
+| #76 | `github-actions[bot]` | personne |
+
+Depuis M-03, c'est `merge-on-label.yml` qui fusionne, avec son `GITHUB_TOKEN` — y compris
+quand la fusion est seulement armée : GitHub la termine au nom de qui l'a armée. Et GitHub
+ne déclenche aucun de ses automatismes sur ce que fait ce jeton. #76 est la première PR
+fusionnée par le workflow que Dependabot ne possédait pas ; le défaut existait depuis M-03,
+masqué par le fait que les seules PR concernées jusque-là nettoyaient derrière elles.
+Établi sur cette seule observation, cohérente avec le tableau, et non sur une documentation.
+
+**Correctif** — un second pas dans `merge-on-label.yml` attend la fusion (au plus une heure)
+et supprime la branche par l'API. Il s'abstient quand une PR ouverte est basée sur elle : le
+réglage du dépôt aurait reciblé la PR du dessus sur `master`, alors que la suppression par
+l'API la **ferme**. Il le dit alors en commentaire. Il s'abstient aussi pour une branche de
+fork, que le jeton ne peut pas toucher, quand la fusion est désarmée, et tient une branche
+déjà supprimée pour un succès.
+
 ---
 
 ## 4. État d'avancement
@@ -2516,7 +2541,7 @@ sauté en CI, faute de GPU. À consigner dans sa propre PR.
 | ✅ **Corrigé et vérifié — 9ᵉ passe** (2) | U-07 — le README n'était pas suivable par un utilisateur lambda sous Windows : ordre des sections, instructions en forme de terminal, SmartScreen passé sous silence. U-08 — documentation publiée en français à côté de l'anglais, parité tenue par la CI |
 | ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
 | ✅ **Corrigé et vérifié — 11ᵉ passe** (4) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un. M-03 — la règle de fusion d'`AGENTS.md` était fausse pour la PR du bas d'une pile ; corrigée, puis appliquée par un workflow sur label, et `master` doté du ruleset qu'il n'avait pas. M-04 — l'en-tête de ce document et sa numérotation de sections avaient dérivé |
-| ✅ **Corrigé et vérifié — 12ᵉ passe** (1) | M-05 — `go-version: '1.26.x'` sans `check-latest` désignait le Go en cache du runner (1.26.8), pas le dernier correctif : `govulncheck` rouge sur toutes les PR, et une release aurait embarqué neuf vulnérabilités de la bibliothèque standard |
+| ✅ **Corrigé et vérifié — 12ᵉ passe** (2) | M-05 — `go-version: '1.26.x'` sans `check-latest` désignait le Go en cache du runner (1.26.8), pas le dernier correctif : `govulncheck` rouge sur toutes les PR, et une release aurait embarqué neuf vulnérabilités de la bibliothèque standard. M-06 — les branches fusionnées par le workflow restaient, le réglage du dépôt ne s'appliquant pas à ce que fait `GITHUB_TOKEN` |
 | ⏸️ **Ouvert** | *aucun.* |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5 |
 
@@ -2694,3 +2719,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-11 | **M-03**, relevé par l'utilisateur devant le bouton de fusion de #66 : la règle d'`AGENTS.md` concluait « if it is not `master`, you are stacked », faux pour la PR du bas d'une pile — #59, #61 et #62 l'avaient déjà démontré. Phrase corrigée, puis règle rendue inutile à retenir : `merge-on-label.yml` choisit la méthode et fusionne sur label `merge`, en commentant sa décision. Trouvé en chemin : `master` n'avait **aucune protection** malgré la règle « toute modification passe par une PR », et le titre de squash valait `COMMIT_OR_PR_TITLE`, qui prend le sujet du commit sur une PR à un seul commit. Ruleset créé (7 contrôles, choisis pour ne pas nommer la version de Go), « Rebase and merge » retiré. Leçon L-97. |
 | 2026-09-11 | **M-04**, trouvé en corrigeant les chiffres périmés d'`AGENTS.md` : l'en-tête de ce document annonçait encore « cinq passes et 67 constats » et « dernière passe : 9ᵉ », l'ordre de lecture s'arrêtait à § 3octies, `## 5bis` était placé **avant** `## 5`, et le § 4 portait deux lignes « 11ᵉ passe ». Compte refait (105), sections renumérotées (Questions ouvertes → § 5, Journal des révisions → § 6) et renvois suivis, lignes fusionnées. L'en-tête porte maintenant la phrase qui dit qu'il périme. Côté `AGENTS.md` : `common.go` « ~1600 » → ~2000 lignes (2023 réelles), `main()` « ~540 » → ~600 (585), couverture 81 % → 83 %, arrondis à la centaine pour vieillir moins vite. Leçon L-98. |
 | 2026-10-14 | **12ᵉ passe, M-05**, partie des trois PR Dependabot bloquées (#73, #74, #75) : `Vulnerability Scan` rouge sur toutes, à cause de Go 1.26.8 pris dans le cache du runner alors que 1.26.9 corrigeait neuf vulnérabilités de la bibliothèque standard. `check-latest: true` sur les neuf étapes `setup-go`. Mesuré en local : Go 1.26.9 suffit, `golang.org/x/net` n'a pas à bouger. L'échec Windows de #74 était un 504 de Chocolatey, sans rapport. Trouvé en chemin : le défaut VAAPI/CQP, consigné au § 3undecies, à traiter à part. Leçon L-99. |
+| 2026-10-14 | **M-06**, relevé par l'utilisateur : la branche de #76 restait après sa fusion. Le réglage *delete branch on merge* ne vaut pas pour une fusion faite avec le `GITHUB_TOKEN` de `merge-on-label.yml`, ce qui était vrai depuis M-03 et masqué par Dependabot, qui supprime ses propres branches. Le workflow attend la fusion et supprime la branche, sauf si une PR est empilée dessus. Leçon L-100. |
