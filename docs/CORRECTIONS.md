@@ -9,6 +9,19 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] L'AppImage affiche l'icône générique « W » sous Wayland (KDE)
+
+| | |
+| --- | --- |
+| **Constat** | l'utilisateur voit un « W » dans la barre de titre au lieu de l'icône « SV », alors que `window.SetIcon` est correct |
+| **Cause** | sous Wayland l'application ne peut pas imposer l'icône de sa fenêtre : KWin cherche un fichier `.desktop` dont le **nom** est l'`app_id` (`com.canaill51.superview`, donné à `app.NewWithID`). L'AppImage embarquait `superview.desktop` ; `StartupWMClass` n'y change rien sous Wayland (essayé) |
+| **Fichiers** | `packaging/linux/build_appimage.sh`, `cmd/superview/appimage_appid_test.go` |
+| **PR** | fix/appimage-desktop-name |
+| **Vérification** | mesuré en local : `superview.desktop` + `StartupWMClass` → « W » ; `com.canaill51.superview.desktop` → « SV », même avec une icône sans extension · `TestAppImageDesktopFileIsNamedAfterTheAppID` rouge avec l'ancien nom (contre-épreuve) |
+
+Le fichier `.desktop` d'une AppImage intégrée au bureau par un lanceur tiers est recréé par ce lanceur :
+c'est son nom qui compte, d'où le correctif dans le script de construction.
+
 ### [2026-10-14] DEC-41 — La release livre un installateur Windows et une AppImage Linux
 
 | | |
