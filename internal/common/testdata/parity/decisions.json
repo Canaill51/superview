@@ -1,0 +1,3269 @@
+{
+  "FindEncoder/amf_windows/src=HEVC_upper/requested=": {
+    "encoder": "hevc_amf"
+  },
+  "FindEncoder/amf_windows/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/amf_windows/src=avc/requested=": {
+    "encoder": "h264_amf"
+  },
+  "FindEncoder/amf_windows/src=h264/requested=": {
+    "encoder": "h264_amf"
+  },
+  "FindEncoder/amf_windows/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_amf,hevc_amf,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/amf_windows/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_amf,hevc_amf,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/amf_windows/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/amf_windows/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_amf,hevc_amf,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/amf_windows/src=h265/requested=": {
+    "encoder": "hevc_amf"
+  },
+  "FindEncoder/amf_windows/src=hevc_10bit/requested=": {
+    "encoder": "hevc_amf"
+  },
+  "FindEncoder/amf_windows/src=hevc_padded/requested=": {
+    "encoder": "h264_amf"
+  },
+  "FindEncoder/amf_windows/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/amf_windows/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/amf_windows/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/amf_windows/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/amf_windows/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/amf_windows/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_only/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_only/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_only/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_only/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=HEVC_upper/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=h265/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=hevc_10bit/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/cpu_x264_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x264_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=av1/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=avc/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=h264/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=hevc_padded/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=no_codec_name/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/cpu_x265_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/cpu_x265_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/csv_with_spaces/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders:  libx265 , ,libx264 ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders:  libx265 , ,libx264 ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders:  libx265 , ,libx264 ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/csv_with_spaces/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/csv_with_spaces/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/csv_with_spaces/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/csv_with_spaces/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=HEVC_upper/requested=": {
+    "encoder": "hevc_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_with_accel/src=avc/requested=": {
+    "encoder": "h264_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=h264/requested=": {
+    "encoder": "h264_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_with_accel/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=h265/requested=": {
+    "encoder": "hevc_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=hevc_10bit/requested=": {
+    "encoder": "hevc_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=hevc_padded/requested=": {
+    "encoder": "h264_d3d12va"
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_with_accel/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/d3d12va_without_accel/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_d3d12va,hevc_d3d12va,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/d3d12va_without_accel/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/d3d12va_without_accel/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/d3d12va_without_accel/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/empty/src=HEVC_upper/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=av1/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=avc/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h264/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=h265/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=hevc_10bit/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=hevc_padded/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=no_codec_name/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/empty/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/empty/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/empty/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/empty/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/empty/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=HEVC_upper/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=av1/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=avc/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h264/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_nvenc",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_nvenc",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: h264_nvenc",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_nvenc",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=h265/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=hevc_10bit/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=hevc_padded/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_codec_name/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/hardware_only_no_cpu/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nil_map/src=HEVC_upper/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=av1/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=avc/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h264/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: ",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=h265/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=hevc_10bit/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=hevc_padded/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_codec_name/requested=": {
+    "error": {
+      "message": "encoder error: no encoder found",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nil_map/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia/src=HEVC_upper/requested=": {
+    "encoder": "hevc_nvenc"
+  },
+  "FindEncoder/nvidia/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia/src=avc/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia/src=h264/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_nvenc,hevc_nvenc,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nvidia/src=h264/requested=hevc_nvenc": {
+    "encoder": "hevc_nvenc"
+  },
+  "FindEncoder/nvidia/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_nvenc,hevc_nvenc,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nvidia/src=h265/requested=": {
+    "encoder": "hevc_nvenc"
+  },
+  "FindEncoder/nvidia/src=hevc_10bit/requested=": {
+    "encoder": "hevc_nvenc"
+  },
+  "FindEncoder/nvidia/src=hevc_padded/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=HEVC_upper/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia_h264_only/src=avc/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=h264/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_nvenc,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_nvenc,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia_h264_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_nvenc,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=h265/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=hevc_10bit/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=hevc_padded/requested=": {
+    "encoder": "h264_nvenc"
+  },
+  "FindEncoder/nvidia_h264_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/nvidia_h264_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/nvidia_h264_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=HEVC_upper/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=av1/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=avc/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=h264/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: libx264rgb",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: libx264rgb",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: libx264rgb",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: libx264rgb",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=h265/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=hevc_10bit/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=hevc_padded/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=no_codec_name/requested=": {
+    "encoder": "libx264rgb"
+  },
+  "FindEncoder/only_libx264rgb/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/only_libx264rgb/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=HEVC_upper/requested=": {
+    "encoder": "hevc_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/qsv_without_accel/src=avc/requested=": {
+    "encoder": "h264_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=h264/requested=": {
+    "encoder": "h264_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_qsv,hevc_qsv,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_qsv,hevc_qsv,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/qsv_without_accel/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_qsv,hevc_qsv,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=h265/requested=": {
+    "encoder": "hevc_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=hevc_10bit/requested=": {
+    "encoder": "hevc_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=hevc_padded/requested=": {
+    "encoder": "h264_qsv"
+  },
+  "FindEncoder/qsv_without_accel/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/qsv_without_accel/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/qsv_without_accel/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=HEVC_upper/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=av1/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=avc/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=h264/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: foo_enc,libaom-av1",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: foo_enc,libaom-av1",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=h264/requested=libx264": {
+    "error": {
+      "message": "encoder error: encoder libx264 not available. Available encoders: foo_enc,libaom-av1",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: foo_enc,libaom-av1",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=h265/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=hevc_10bit/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=hevc_padded/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=no_codec_name/requested=": {
+    "encoder": "foo_enc"
+  },
+  "FindEncoder/unknown_encoder_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/unknown_encoder_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=HEVC_upper/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/v4l2m2m_only/src=avc/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=h264/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_v4l2m2m,libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_v4l2m2m,libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/v4l2m2m_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_v4l2m2m,libx264",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=h265/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=hevc_10bit/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=hevc_padded/requested=": {
+    "encoder": "h264_v4l2m2m"
+  },
+  "FindEncoder/v4l2m2m_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/v4l2m2m_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/v4l2m2m_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: h264_vaapi,hevc_vaapi,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_vaapi,hevc_vaapi,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_vaapi,hevc_vaapi,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_encoder_without_accel/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=HEVC_upper/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_h264_only/src=avc/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=h264/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=h264/requested=h264_vaapi": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: h264_vaapi,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_h264_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: h264_vaapi,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=h265/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=hevc_10bit/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=hevc_padded/requested=": {
+    "encoder": "h264_vaapi"
+  },
+  "FindEncoder/vaapi_h264_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vaapi_h264_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vaapi_h264_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=HEVC_upper/requested=": {
+    "encoder": "hevc_vulkan"
+  },
+  "FindEncoder/vulkan_hevc_only/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_only/src=avc/requested=": {
+    "encoder": "hevc_vulkan"
+  },
+  "FindEncoder/vulkan_hevc_only/src=h264/requested=": {
+    "encoder": "hevc_vulkan"
+  },
+  "FindEncoder/vulkan_hevc_only/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_only/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=h265/requested=": {
+    "encoder": "hevc_vulkan"
+  },
+  "FindEncoder/vulkan_hevc_only/src=hevc_10bit/requested=": {
+    "encoder": "hevc_vulkan"
+  },
+  "FindEncoder/vulkan_hevc_only/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_only/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=HEVC_upper/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=av1/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=avc/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h264/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h264/requested=h264_vaapi": {
+    "error": {
+      "message": "encoder error: encoder h264_vaapi not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h264/requested=hevc_nvenc": {
+    "error": {
+      "message": "encoder error: encoder hevc_nvenc not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h264/requested=libx264": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h264/requested=nonexistent": {
+    "error": {
+      "message": "encoder error: encoder nonexistent not available. Available encoders: hevc_vulkan,libx264,libx265",
+      "type": "EncoderError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=h265/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=hevc_10bit/requested=": {
+    "encoder": "libx265"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=hevc_padded/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_codec_name/requested=": {
+    "encoder": "libx264"
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_streams/requested=": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_streams/requested=h264_vaapi": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_streams/requested=hevc_nvenc": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_streams/requested=libx264": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "FindEncoder/vulkan_hevc_without_accel/src=no_streams/requested=nonexistent": {
+    "error": {
+      "message": "invalid video: no video streams",
+      "type": "InvalidVideoError"
+    }
+  },
+  "selectHardwareDecodeAccel/cuda/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=hevc_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/cuda/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_amf": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_d3d12va": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_qsv": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=hevc_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/cuda_and_d3d11va/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_amf": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_d3d12va": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_nvenc": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_qsv": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=hevc_nvenc": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d11va_dxva2/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_amf": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_d3d12va": {
+    "accel": "d3d12va"
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_nvenc": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_qsv": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=hevc_nvenc": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/d3d12va_d3d11va/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_amf": {
+    "accel": "dxva2"
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_d3d12va": {
+    "accel": "dxva2"
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_nvenc": {
+    "accel": "dxva2"
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_qsv": {
+    "accel": "dxva2"
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=hevc_nvenc": {
+    "accel": "dxva2"
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/dxva2_only/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=hevc_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/empty/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/everything/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_amf": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_d3d12va": {
+    "accel": "d3d12va"
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_qsv": {
+    "accel": "d3d11va"
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/everything/enc=h264_vaapi": {
+    "accel": "vaapi"
+  },
+  "selectHardwareDecodeAccel/everything/enc=hevc_nvenc": {
+    "accel": "cuda"
+  },
+  "selectHardwareDecodeAccel/everything/enc=hevc_vulkan": {
+    "accel": "vulkan"
+  },
+  "selectHardwareDecodeAccel/everything/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/everything/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=hevc_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/nil/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=hevc_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/qsv/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=h264_vaapi": {
+    "accel": "vaapi"
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=hevc_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=hevc_vulkan": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vaapi/enc=libx265": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_amf": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_d3d12va": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_qsv": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_v4l2m2m": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=h264_vaapi": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=hevc_nvenc": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=hevc_vulkan": {
+    "accel": "vulkan"
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=libx264": {
+    "accel": ""
+  },
+  "selectHardwareDecodeAccel/vulkan/enc=libx265": {
+    "accel": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=avc/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=h264/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=nil_video/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_both/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=avc/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h264/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=nil_video/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x264/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=avc/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h264/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=nil_video/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/cpu_x265/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=avc/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h264/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=nil_video/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/empty/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=avc/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h264/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=nil_video/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/hardware_accels_only/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=avc/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h264/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=nil_video/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=h264_nvenc": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=hevc_amf": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=hevc_vaapi": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nil/src=no_streams/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=HEVC_upper/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=av1/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=avc/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=foo_bar": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=hevc_amf": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=hevc_vaapi": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h264/failed=libx265": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=h265/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_10bit/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=foo_bar": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=h264_nvenc": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=libx264": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=hevc_padded/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=nil_video/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_codec_name/failed=libx265": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=foo_bar": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=h264_nvenc": {
+    "encoder": "libx264"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=hevc_amf": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=hevc_vaapi": {
+    "encoder": "libx265"
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=libx264": {
+    "encoder": ""
+  },
+  "softwareEncoderForFallback/nvidia_full/src=no_streams/failed=libx265": {
+    "encoder": ""
+  }
+}
