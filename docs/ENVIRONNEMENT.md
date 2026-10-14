@@ -14,6 +14,7 @@
 | Composant | Emplacement | Survit au redémarrage |
 | --- | --- | --- |
 | Toolchain Go | `~/.local/go` | oui |
+| Toolchain Rust (port, DEC-43) | `~/.cargo`, `~/.rustup` | oui |
 | Sysroot GUI (en-têtes GL/X11/Wayland) | `/tmp/glue/sysroot` | **non — à reconstruire** |
 | `ffmpeg`, `ffprobe`, `zenity` | système | oui |
 
@@ -43,6 +44,11 @@ ls /tmp/glue/sysroot/usr/include/wayland-client-core.h 2>/dev/null || echo "sysr
 cd /tmp && curl -sLO https://go.dev/dl/go1.26.9.linux-amd64.tar.gz
 rm -rf ~/.local/go && mkdir -p ~/.local && tar -C ~/.local -xzf go1.26.9.linux-amd64.tar.gz
 export PATH=$HOME/.local/go/bin:$PATH && go version
+
+# 1bis. Toolchain Rust, sans sudo -- la version exacte est épinglée par rust/rust-toolchain.toml
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+sh /tmp/rustup-init.sh -y --profile minimal
+. "$HOME/.cargo/env" && rustup component add rustfmt clippy rust-docs && cargo --version
 
 # 2. En-têtes GUI sans sudo : télécharger les .deb et les extraire dans un sysroot.
 #
