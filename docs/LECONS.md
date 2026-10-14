@@ -1187,7 +1187,53 @@ soit qui puisse mener à celui qui l'attend ; garder le `defer` (via `sync.Once`
 panique seulement.** Pour chaque canal attendu à l'arrêt, suivre ce qu'appelle la goroutine
 après le travail : `grep -n "close(done)\|<-done" *.go common/*.go`.
 
+### L-111 — Un check requis sauté compte comme réussi — 2026-10-14
+`Coverage Report & Gate` était le seul check requis à porter le verdict des tests, par
+`needs: [test, test-windows]`. Un job en `needs` qui échoue fait **sauter** le job qui en
+dépend, et GitHub traite un check requis sauté comme satisfait : #85, #86 et #87 ont fusionné
+avec Windows rouge, sans que rien ne bloque. Le gate avait l'air d'un verrou et n'en était un
+que tant que tout était vert.
+→ **Tout check requis qui a des `needs:` porte `if: always()` et échoue lui-même si l'un des
+`needs.<job>.result` n'est pas `success`.** Et un gate se prouve en le voyant rougir sur un
+test rouge, pas en le voyant vert. Contrôle :
+`grep -n "needs:" -A8 .github/workflows/*.yml | grep -E "needs:|if: always"` — le seul job
+requis concerné ici, `coverage-report`, est couvert (contrôle fait le 2026-10-14).
+
+### L-112 — Le nom d'un test finit dans un chemin, et `cmd.exe` coupe un chemin à la virgule — 2026-10-14
+Le faux ffmpeg `.bat` de `stopcascade_test.go` vivait dans `t.TempDir()`, nommé d'après le
+sous-test « copy refused, AAC accepted ». `cmd.exe` sépare ses arguments à `,` `;` `=` même
+dans le chemin du script lancé : le `.bat` n'a jamais tourné, la seule trace était
+« `'…AACcopy_refused' is not recognized` », et le registre d'appels vide faisait chercher la
+cause dans `%*`. Les deux autres sous-tests, sans virgule, passaient.
+→ **Une fixture `.bat` refuse un répertoire contenant `,` `;` `=` avec un message qui nomme le
+nom du test.** Contrôle : `grep -nE 't\.Run\("[^"]*[,;=]' *_test.go common/*_test.go` dans
+les fichiers qui écrivent un `.bat` (`grep -l '\.bat"' *_test.go common/*_test.go`) — un seul
+cas trouvé le 2026-10-14, celui-ci.
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] E-26, E-27 — Le gate ne bloquait rien, et ce qu'il cachait sous Windows
+
+| | |
+| --- | --- |
+| **Constat** | E-26, E-27 ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `.github/workflows/test.yml` (gate) ; `common/observability.go` ; `common/observability_default_test.go`, `common/stopcascade_test.go`, `common/housekeeping*_test.go` |
+| **PR** | #88 |
+| **Vérification** | `gofmt` ✅ · `go vet` ✅ · tests ciblés ✅ sous Linux · Windows : runner CI (seule plateforme qui exécute le `.bat`) · gate prouvé : Windows rouge → gate rouge |
+
+**Symptôme** — #85 à #87 ont fusionné avec le job Windows rouge.
+
+**Cause racine** — le gate requis dépendait des tests par `needs:` ; un `needs` en échec le
+fait sauter, et un check requis sauté vaut réussite. Derrière : un plafond de journal qui ne
+s'appliquait pas sous Windows (`Truncate` sur une poignée `O_APPEND`), une isolation de cache
+Unix seulement, une poignée non fermée, et un `.bat` factice dont `cmd.exe` coupait le chemin
+à la virgule du nom du sous-test.
+
+**Correctif** — `if: always()` et contrôle explicite des deux résultats ; réouverture en
+`O_TRUNC` ; `LocalAppData` posé avec `XDG_CACHE_HOME` ; `Close` de la quatrième ouverture ;
+sous-test renommé et garde dans la fixture.
+
+**Leçon** — L-111, L-112.
 
 ### [2026-10-14] E-19 (fin, côté GUI) — Les tests de la fenêtre lisaient la ligne d'attente
 
@@ -3247,3 +3293,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-10-14 | **M-05 corrigé** : la CI résolvait `1.26.x` sur le Go en cache des runners (1.26.8) au lieu du correctif 1.26.9, et `Vulnerability Scan` bloquait les trois PR Dependabot ouvertes. `check-latest: true` sur les neuf étapes `setup-go`. Leçon L-99. |
 | 2026-10-14 | **M-06 corrigé** : les branches fusionnées par `merge-on-label.yml` restaient, parce que le réglage du dépôt ne s'applique pas à ce que fait `GITHUB_TOKEN`. Le workflow les supprime lui-même, sauf empilement. Leçon L-100. |
 | 2026-10-14 | **E-03, E-14, E-15, E-20 corrigés, E-23 en partie** (PR 2 du plan) : `appState.shutdown` attend la goroutine d'encodage depuis les trois sorties ; `completeEncoding` distingue l'annulation ; *Diagnostic* verrouillé ; encodeur capturé sur le fil UI et préférence préservée ; zenity 255 = erreur ; sélecteurs natifs hors du fil UI ; closures de `main()` repliées ; `fyneDo = true`. Leçon L-109, L-102 corrigée (le chemin signal de Fyne ne passe pas par `SetOnClosed`). |
+| 2026-10-14 | **E-26, E-27 corrigés** (#88) : le gate requis, sauté dès qu'un test échouait, comptait comme réussi ; quatre défauts Windows qu'il cachait. Leçons L-111, L-112. |

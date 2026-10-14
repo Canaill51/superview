@@ -192,7 +192,7 @@ func TestParseLogLevel(t *testing.T) {
 // TestOpenLogFile_CreatesAppends covers the file the README asks users to
 // attach: it must be created, and reopening must not lose what is in it.
 func TestOpenLogFile_CreatesAppends(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	isolateUserCacheDir(t)
 
 	f, path, err := OpenLogFile("superview-test", 1<<20)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestOpenLogFile_CreatesAppends(t *testing.T) {
 // This is the only thing standing between a long-running install and a log file
 // that grows without bound, and it had never been exercised.
 func TestOpenLogFile_TruncatesOversized(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	isolateUserCacheDir(t)
 
 	f, path, err := OpenLogFile("superview-test", 1<<20)
 	if err != nil {
@@ -278,8 +278,14 @@ func TestOpenLogFile_TruncatesOversized(t *testing.T) {
 	if err := f3.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if _, _, err := OpenLogFile("superview-test", 0); err != nil {
+	// Closed before the read: on Windows an open handle also keeps
+	// t.TempDir's cleanup from deleting the file, and the test fails there.
+	f4, _, err := OpenLogFile("superview-test", 0)
+	if err != nil {
 		t.Fatalf("fourth open: %v", err)
+	}
+	if err := f4.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	got, err := os.ReadFile(path)
 	if err != nil {
@@ -288,4 +294,20 @@ func TestOpenLogFile_TruncatesOversized(t *testing.T) {
 	if string(got) != "kept\n" {
 		t.Errorf("log = %q with maxLogBytes=0, want the content kept", got)
 	}
+}
+
+// isolateUserCacheDir points os.UserCacheDir at a fresh directory for this
+// test, on every platform.
+//
+// XDG_CACHE_HOME alone is Unix-only: on Windows UserCacheDir reads LocalAppData
+// and ignores it, so every log test there wrote into the runner's real cache
+// directory, into the same superview-test.log, and one test read back the
+// other's records (TestOpenLogFile_CreatesAppends found the capped writer's
+// "rrrr..." lines). Both variables are set, whatever the platform.
+func isolateUserCacheDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("LocalAppData", dir)
+	return dir
 }

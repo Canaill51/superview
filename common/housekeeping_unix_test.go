@@ -10,7 +10,7 @@ import (
 
 // TestOpenLogFile_Permissions: the log carries home-directory paths.
 func TestOpenLogFile_Permissions(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	isolateUserCacheDir(t)
 
 	w, path, err := OpenLogFile("superview-test", 1<<20)
 	if err != nil {
