@@ -83,6 +83,56 @@ func DefaultConfig() *Config {
 	return &cfg
 }
 
+// retiredConfigKeys are keys earlier releases shipped in superview.yaml and that
+// no longer mean anything (C-03 removed them in the first pass; v0.1.6 still
+// carried them). A user who copied that file and tuned it must not lose every
+// other setting to the strict decoder because of a key Superview itself once
+// wrote there: these are dropped with a warning, while any other unknown key
+// stays an error that names it.
+var retiredConfigKeys = map[string]bool{
+	"quality_preset":   true,
+	"min_video_width":  true,
+	"min_video_height": true,
+}
+
+// withoutRetiredKeys returns the document with the retired top-level keys
+// removed, or the input unchanged when it cannot be read as a mapping -- the
+// strict decode that follows then reports the real problem.
+func withoutRetiredKeys(data []byte, path string) []byte {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) == 0 {
+		return data
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return data
+	}
+
+	kept := make([]*yaml.Node, 0, len(root.Content))
+	dropped := false
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i]
+		if retiredConfigKeys[key.Value] {
+			logger.Warn("Ignoring a configuration key that no longer has any effect; it can be deleted",
+				slog.String("path", path),
+				slog.String("key", key.Value),
+			)
+			dropped = true
+			continue
+		}
+		kept = append(kept, key, root.Content[i+1])
+	}
+	if !dropped {
+		return data
+	}
+	root.Content = kept
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return data
+	}
+	return out
+}
+
 // configOrDefault returns cfg, or the built-in defaults when cfg is nil.
 //
 // The pipeline used to read a mutable package-level global instead of taking
@@ -180,7 +230,7 @@ func LoadConfig(filepath string) (*Config, error) {
 			// KnownFields: an unknown key is an error that names it. yaml.Unmarshal
 			// ignored it, so a misspelt "video-preset:" was dropped without a word
 			// -- the way a user's preset was already lost once (C-05).
-			dec := yaml.NewDecoder(bytes.NewReader(data))
+			dec := yaml.NewDecoder(bytes.NewReader(withoutRetiredKeys(data, filepath)))
 			dec.KnownFields(true)
 			// io.EOF is an empty document: a file holding only comments is valid
 			// and changes nothing, as it did with yaml.Unmarshal.

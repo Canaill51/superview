@@ -245,3 +245,48 @@ func TestIntegration_FullDestinationIsRefusedUpFront(t *testing.T) {
 		t.Error("ffmpeg was started towards a full destination")
 	}
 }
+
+// TestLoadConfig_AcceptsTheFileReleasesUsedToShip pins the review finding on
+// E-21: v0.1.6 shipped superview.yaml with quality_preset, min_video_width and
+// min_video_height. The strict decoder refused that whole file, so a user who
+// had copied and tuned it lost every setting on upgrade, with one log line to
+// say so. Retired keys are dropped with a warning; other unknown keys are still
+// errors.
+//
+// Counter-proof: empty retiredConfigKeys and the first case fails.
+func TestLoadConfig_AcceptsTheFileReleasesUsedToShip(t *testing.T) {
+	dir := t.TempDir()
+	legacy := filepath.Join(dir, "superview.yaml")
+	if err := os.WriteFile(legacy, []byte(`min_bitrate: 102400
+max_bitrate: 209715200
+quality_preset: balanced
+temp_dir_prefix: "superview-*"
+encoder_codecs:
+  - "264"
+  - "265"
+log_level: info
+performance_mode: safe
+video_preset: "slow"
+filter_threads: 0
+encoder_threads: 0
+min_video_width: 320
+min_video_height: 240
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(legacy)
+	if err != nil {
+		t.Fatalf("the file v0.1.6 shipped must still load, got: %v", err)
+	}
+	if cfg.VideoPreset != "slow" || cfg.PerformanceMode != "safe" {
+		t.Fatalf("the user's own settings must survive: preset=%q mode=%q", cfg.VideoPreset, cfg.PerformanceMode)
+	}
+
+	typo := filepath.Join(dir, "typo.yaml")
+	if err := os.WriteFile(typo, []byte("quality_preset: balanced\nvideo-preset: slow\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(typo); err == nil || !strings.Contains(err.Error(), "video-preset") {
+		t.Fatalf("an unknown key that was never shipped must still be an error naming it, got: %v", err)
+	}
+}
