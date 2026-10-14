@@ -310,7 +310,8 @@ origine du dépôt · Acceptée
 **Les dialogues de fichiers sont natifs d'abord, Fyne en repli.**
 origine · Acceptée · B-03 (invalidé)
 
-**Décision** — zenity puis kdialog sous Linux, PowerShell/WinForms sous Windows ; le dialogue Fyne si rien n'est disponible. Les codes de sortie 1 et 255 valent « annulé », pas « erreur ».
+**Décision** — zenity puis kdialog sous Linux, PowerShell/WinForms sous Windows ; le dialogue Fyne si rien n'est disponible. ~~Les codes de sortie 1 et 255 valent « annulé », pas « erreur ».~~
+**Amendée 2026-10-14 (E-20)** — Seul le code 1 vaut « annulé ». 255 est le −1 de zenity, « unexpected error » (zenity(1), *EXIT CODES*) : le prendre pour une annulation empêchait le repli Fyne, qui existe pour ce cas, de s'ouvrir. Le sélecteur tourne dans une goroutine et livre son résultat par `fyne.Do`.
 **À rouvrir si** — Fyne livre un dialogue natif portable (suivi : `fyne.io/fyne/v2/dialog`).
 
 ### DEC-35

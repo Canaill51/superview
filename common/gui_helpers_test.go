@@ -53,13 +53,31 @@ func TestNormalizeNativeDialogResult_CancellationExitCode1(t *testing.T) {
 }
 
 func TestNormalizeNativeDialogResult_UnexpectedError(t *testing.T) {
-	// Simulate an unexpected non-zero exit code (not 1 or 255)
+	// Simulate an unexpected non-zero exit code (not 1)
 	cmd := commandExitWithCode(2)
 	err := cmd.Run()
 
 	_, normErr := NormalizeNativeDialogResult("", err)
 	if normErr == nil {
 		t.Error("expected error for unexpected exit code 2, got nil")
+	}
+}
+
+// TestNormalizeNativeDialogResult_ZenityUnexpectedErrorIsAnError pins E-20.
+// zenity exits -1, which the shell reports as 255, on "an unexpected error",
+// and that used to be read as a cancellation: the click did nothing and the
+// Fyne fallback dialog, which exists for a zenity that does not work, never
+// opened. The error has to come back for the caller to fall back.
+func TestNormalizeNativeDialogResult_ZenityUnexpectedErrorIsAnError(t *testing.T) {
+	cmd := commandExitWithCode(255)
+	err := cmd.Run()
+
+	path, normErr := NormalizeNativeDialogResult("", err)
+	if normErr == nil {
+		t.Fatal("exit code 255 is zenity's unexpected error, not a cancellation: an error must come back so the Fyne fallback opens")
+	}
+	if path != "" {
+		t.Errorf("expected no path on an error, got %q", path)
 	}
 }
 

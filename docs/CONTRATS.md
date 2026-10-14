@@ -270,7 +270,9 @@ inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 
 | Règle | Pourquoi |
 | --- | --- |
-| `beginEncoding()` **retourne** le canal d'annulation ; la goroutine ne relit jamais `state.cancel` | La relecture était la course P-02. La signature est ce qui l'empêche de revenir (L-44) |
+| `beginEncoding()` **retourne** le canal d'annulation et le canal `done` ; la goroutine ne relit jamais `state.cancel`, et ferme `done` par `defer` en première ligne | La relecture était la course P-02. La signature est ce qui l'empêche de revenir (L-44). `done` est ce que `shutdown` attend : il doit être fermé par la goroutine elle-même, jamais depuis un `fyne.Do`, parce que le fil qui l'attend est le fil principal de Fyne (E-03) |
+| `shutdown(reason)` est la seule sortie : annule, attend `done` (borné), et chaque chemin y passe — `SetOnClosed` pour `app.Quit()`, la ligne après `ShowAndRun()` pour le `catchTerm` de Fyne | Le `catchTerm` de Fyne ne ferme aucune fenêtre (L-109) ; un `time.Sleep` avant `Quit` n'est pas une attente (L-102) |
+| `completeEncoding(err, output)` est la seule branche de fin, à quatre issues, et se tait quand `shuttingDown` est posé | Fyne exécute en ligne, sur la goroutine d'encodage, les `fyne.Do` postés après l'arrêt de sa boucle : la branche tournerait contre une fenêtre détruite (E-14, L-109) |
 | `requestCancel()` est le seul endroit qui ferme le canal, et le met à `nil` dans le même geste | Le bouton *Cancel* et l'interception de fermeture peuvent tous deux tirer ; fermer deux fois panique |
 | Un contrôle qui doit être inerte pendant un encodage va dans `state.locked`, jamais dans une séquence d'`Enable`/`Disable` écrite à la main | Deux séquences parallèles divergent toujours — c'est P-01, et le sélecteur de codec oublié dans le chemin « ffmpeg indisponible » |
 | Les widgets sont nil-vérifiés dans les méthodes | Ils sont assignés au fil de la construction de la fenêtre ; une réorganisation doit dégrader en « pas de mise à jour », pas en panique |

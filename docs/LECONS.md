@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 108 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 109 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée. Les **décisions** — ce qui ressemble à un défaut
 > et n'en est pas un — sont dans [DECISIONS.md](DECISIONS.md).
@@ -1100,6 +1100,10 @@ troisième chemin, son `catchTerm` sur SIGTERM, qui ne passe par aucun des deux.
 → **Pour toute sortie de l'application, lister les chemins qui y mènent — bouton, croix de
 la fenêtre, signal, menu — et les faire converger sur une seule fonction.** `SetOnClosed`
 est ce point de convergence chez Fyne ; un `time.Sleep` avant `Quit` n'est pas une attente.
+*Corrigé en appliquant E-03* : `SetOnClosed` ne converge que les chemins qui passent par
+`window.Close()`, c'est-à-dire `app.Quit()`. Le `catchTerm` de Fyne appelle `driver.Quit`
+directement (`driver_desktop.go:278-284`, `driver.go:132`), et aucune fenêtre n'est fermée :
+le chemin signal se rattrape **après le retour de `ShowAndRun()`**, voir L-109.
 
 ### L-103 — Un test « les deux posent la même question » doit comparer la question entière — 2026-10-14
 `TestProbeAndConversionAskTheSameQuestion` comparait les options de périphérique et la
@@ -1157,8 +1161,69 @@ module téléchargé, finissait toujours premier : il écrivait la clé avec 7,5
 → **Un job qui ne construit rien ne doit pas sauver de cache (`cache: false`), et un cache
 « restauré » se juge à sa taille, pas à son message.** Vérifier :
 `gh api repos/$REPO/actions/caches --jq '.actions_caches[] | "\(.size_in_bytes) \(.key)"'`.
+### L-109 — Un crochet de framework ne couvre que les chemins qui le traversent — 2026-10-14
+Le plan d'E-03 posait `SetOnClosed` comme le point par lequel passent `app.Quit()` et le
+gestionnaire de signaux de Fyne. Lu dans le code de fyne 2.8.2 avant d'y accrocher quoi que
+ce soit : `app.Quit()` ferme chaque fenêtre, et `window.Close()` appelle bien `onClosed` ;
+`catchTerm`, lui, fait `fyne.Do(d.Quit)` sur le **driver**, qui ferme son canal `done` et ne
+touche à aucune fenêtre. Le crochet n'aurait jamais vu SIGTERM, et le test unitaire du
+crochet aurait été vert. Le point qui voit vraiment tout est le retour de `ShowAndRun()` :
+quand la boucle s'arrête, par quelque chemin que ce soit, `main()` reprend la main.
+→ **Avant d'accrocher un crochet, suivre chaque chemin de sortie dans le code du framework
+jusqu'au crochet, ou jusqu'à la preuve qu'il n'y passe pas.** Et vérifier ce que le
+framework fait des appels en attente une fois arrêté : Fyne exécute en ligne, sur la
+goroutine appelante, les `fyne.Do` postés après le drain (`runOnMainWithWait`) — une
+branche de fin doit donc savoir que la fenêtre n'existe plus.
 
 ## 3. Corrections appliquées
+
+### [2026-10-14] E-03, E-14, E-15, E-20, E-23 (partiel) — Quit, la croix et SIGTERM attendent tous que l'encodage se défasse
+
+**PR** — *à ouvrir*
+
+| | |
+| --- | --- |
+| **Constat** | E-03, E-14, E-15, E-20, E-23 (closures de `main()`, `fyneDo`) ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `gui_main.go`, `gui_main_test.go`, `common/gui_helpers.go`, `common/gui_helpers_test.go`, `FyneApp.toml`, `docs/DECISIONS.md` (DEC-34), `docs/LECONS.md`, `docs/ANALYSE.md` |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race` ✅ sauf **1 rouge attendu** (E-01, VAAPI/CQP, dépend du GPU) · GUI lancée 8 s (`timeout 8`, code 124 : vivante), aucune panique, aucun avertissement `fyne.Do` ; `kill -TERM` après 3 s : sortie code 0 en 0,1 s, journal sans panique · huit contre-épreuves sur les six tests, chacune rougie puis retirée : 255 relu comme annulation ; *Diagnostic* retiré de `locked()` ; le `case ErrCancelled` supprimé ; `shutdown` qui n'attend pas `done` ; `shutdown` qui n'annule pas (délai de 20 s atteint) ; la garde `shuttingDown` retirée ; `restoringSelection` ignoré ; `GetEncoder` qui ne rend plus le nom capturé |
+
+**Symptôme** — *Quit* pendant un encodage : la fenêtre disparaît, ffmpeg continue jusqu'au
+bout dans le fichier de travail, le répertoire de session reste. La croix demandait
+confirmation puis dormait une seconde avant `app.Quit()`. SIGTERM : Fyne démontait sa boucle
+pendant que `PerformEncoding` retirait encore le fichier partiel. *Cancel* se soldait par
+*Status: Failed* et un dialogue **Error**. *Diagnostic* restait cliquable pendant un
+encodage matériel, et son retour écrasait le statut par *Ready*. Le nom d'encodeur était lu
+dans le widget depuis la goroutine, et un `SetSelected` programmé remplaçait pour de bon la
+préférence sauvegardée. zenity en erreur (255) passait pour une annulation. Les sélecteurs
+natifs gelaient la fenêtre.
+
+**Cause racine** — Trois sorties, trois chemins, aucun ne connaissant la goroutine
+d'encodage : rien ne disait quand elle avait fini. Les branches de fin étaient deux closures
+dans `main()`, sans test ; `ErrCancelled` y tombait dans `default`. La liste `state.locked`
+était écrite dans `main()`, hors d'atteinte des tests, et le bouton ajouté en 8ᵉ passe n'y
+a jamais été mis.
+
+**Correctif** — `beginEncoding()` rend aussi `done`, que la goroutine ferme par `defer` en
+première ligne. `appState.shutdown(reason)` : annule, attend `done` jusqu'à 20 s (la sonde
+pré-encodage, qui n'écoute pas l'annulation, a 15 s), journalise. Deux crochets y mènent :
+`window.SetOnClosed` (synchrone dans `window.Close()`, donc dans `app.Quit()`) et la ligne
+après `ShowAndRun()` — parce que, **vérifié dans fyne 2.8.2**, `catchTerm` appelle
+`driver.Quit`, pas `window.Close` : `SetOnClosed` ne voit jamais SIGTERM. *Quit* et la croix
+passent par la même confirmation. `completeEncoding(err, output)` est la seule branche de fin,
+à quatre issues (succès, annulation sans dialogue, signal système, échec), gardée par
+`shuttingDown` parce que Fyne exécute en ligne les `fyne.Do` en attente une fois sa boucle
+arrêtée. `windowControls.locked()` calcule la liste verrouillée, *Diagnostic* compris, et le
+test appelle cette fonction-là. `GUIHandler.encoderName` capturé sur le fil UI ;
+`restoringSelection` autour des `SetSelected` programmés ; `refreshEncoderOptions` et
+`encoderChanged` sont des méthodes. 255 n'est plus une annulation (DEC-34 amendée).
+Sélecteurs natifs dans une goroutine, résultat livré par `fyne.Do`, bouton tenu enfoncé
+pendant ce temps. `selectedQualityProfile` et `squeezeSource` repliés dans `appState`.
+`[Migrations] fyneDo = true`. **Laissé** : le reste d'E-23 (`SessionError`, cache de sonde
+annulée), PR 7.
+
+**Leçon** — L-109 ; L-102 corrigée.
+
+---
 
 ### [2026-10-14] E-05, E-16, E-17, E-21, E-12 — Refuser ce que le pipeline ne sait pas faire, et dire combien de temps il reste
 
@@ -2972,3 +3037,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-09 | **U-13 et U-14 corrigés**, sur retour d'essai de l'utilisateur : le pilote du HD 620 refuse `5120x2880` et donne ses bornes, ce que la sonde de 256×256 ne pouvait pas voir. Sonde à la géométrie réelle (mesurée gratuite : ~0,30 s quelle que soit la taille), recul propre vers l'encodeur logiciel de la famille source, fenêtre qui cesse de promettre, et garde-fou mémoire qui suit l'encodeur jusqu'au repli. Leçons L-93 à L-95. **Plus aucun constat ouvert.** |
 | 2026-10-14 | **M-05 corrigé** : la CI résolvait `1.26.x` sur le Go en cache des runners (1.26.8) au lieu du correctif 1.26.9, et `Vulnerability Scan` bloquait les trois PR Dependabot ouvertes. `check-latest: true` sur les neuf étapes `setup-go`. Leçon L-99. |
 | 2026-10-14 | **M-06 corrigé** : les branches fusionnées par `merge-on-label.yml` restaient, parce que le réglage du dépôt ne s'applique pas à ce que fait `GITHUB_TOKEN`. Le workflow les supprime lui-même, sauf empilement. Leçon L-100. |
+| 2026-10-14 | **E-03, E-14, E-15, E-20 corrigés, E-23 en partie** (PR 2 du plan) : `appState.shutdown` attend la goroutine d'encodage depuis les trois sorties ; `completeEncoding` distingue l'annulation ; *Diagnostic* verrouillé ; encodeur capturé sur le fil UI et préférence préservée ; zenity 255 = erreur ; sélecteurs natifs hors du fil UI ; closures de `main()` repliées ; `fyneDo = true`. Leçon L-109, L-102 corrigée (le chemin signal de Fyne ne passe pas par `SetOnClosed`). |

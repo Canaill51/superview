@@ -8,3 +8,10 @@
   # any other way has no version to claim, and says "dev" rather than repeat
   # whichever release this line last happened to name.
   Build = 1
+
+[Migrations]
+  # Every widget update from a goroutine goes through fyne.Do, so Fyne's
+  # legacy safety path -- which logged a misuse and re-routed the call instead
+  # of failing -- is switched off. It also masked a real one: the codec
+  # dropdown read from the encoding goroutine (E-15).
+  fyneDo = true
