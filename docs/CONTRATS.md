@@ -24,8 +24,8 @@
 | 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
 | 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Le fichier livré et le défaut interne concordent (`performance_mode: safe_performance`, DEC-33) ; garder les deux alignés. |  |
-| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U et leur état. | journal, voir son en-tête |
-| 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
+| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U/M/E et leur état ; le détail des passes 3 à 13 est dans [`archives/`](archives/ANALYSE-passes-3-a-13.md). | journal, voir son en-tête |
+| 8 | [`LECONS.md`](LECONS.md), [`CORRECTIONS.md`](CORRECTIONS.md), [`PIEGES.md`](PIEGES.md) | Leçons permanentes ; historique des corrections appliquées ; index des leçons par mot-clé. | journal, voir son en-tête |
 | 8bis | [`DECISIONS.md`](DECISIONS.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les 34 choix du dépôt, chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
 | 9 | `README.md` et `README_FR.md` | Comportement documenté côté utilisateur. Un seul document en deux langues : toute modification visible par l'utilisateur se fait dans les deux, dans la même PR. Le job `readme-parity` de `lint.yml` le vérifie. |  |
 | 10 | `Makefile` | Cibles de build et de qualité locales. Même portée que la CI (`./...`) et même garde-fou : `test` et `coverage` exportent `SUPERVIEW_REQUIRE_FFMPEG=1` et tournent sous `-race -count=1` (M-01). |  |
