@@ -78,6 +78,15 @@ jobs:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: go test -race -count=1 ./... -v -coverprofile=coverage.out -covermode=atomic
 
+    # The released binary is built by "fyne package", which reads the
+    # [Migrations] fyneDo key of FyneApp.toml and adds the migrated_fynedo
+    # build tag. Under that tag Fyne's internal mutexes become no-ops and its
+    # thread checks are disabled, so a widget touched off the UI thread is a
+    # real data race there -- and invisible in the run above, which builds
+    # without the tag. Only the GUI package changes under it.
+    - name: Run the GUI tests as the release builds them
+      run: go test -race -count=1 -tags migrated_fynedo .
+
     - name: Display coverage summary
       run: go tool cover -func=coverage.out | tail -5
 
