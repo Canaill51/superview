@@ -29,7 +29,7 @@ FFmpeg.
 
 ## Superview ships its own FFmpeg
 
-The Windows and Linux release archives carry `ffmpeg` and `ffprobe`, and
+The Windows installer and the Linux AppImage carry `ffmpeg` and `ffprobe`, and
 Superview uses those in preference to any FFmpeg on the machine. The reason is
 the section below: the NVENC driver requirement is a property of how FFmpeg was
 compiled, not of its version number, so leaving that choice to whatever the user

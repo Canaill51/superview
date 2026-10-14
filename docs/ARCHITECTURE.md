@@ -34,6 +34,7 @@ sortie : contrainte produit, pas un oubli.
 | `internal/common/` | la logique ; `testdata/ffprobe/` = sorties ffprobe enregistrées |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/go.sh` |
 | `.github/` | CI, release, `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
+| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` (AppImage) : DEC-41 |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
 
 ## Flux de données
@@ -49,8 +50,9 @@ processus ffmpeg, ni sortie partielle, ni dossier temporaire.
 | Service / lib | Pourquoi | Doc locale |
 |---------------|----------|------------|
 | Fyne v2 (2.8) | interface graphique (cgo : en-têtes GL/X11/Wayland requis) | `docs/ENVIRONNEMENT.md` |
-| FFmpeg / ffprobe | l'encodage ; livré dans les archives de release, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
-| `fyne.io/tools` | `fyne package` à la release (version tirée du tag) | `RELEASING.md` |
+| FFmpeg / ffprobe | l'encodage ; livré dans l'installateur et l'AppImage, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
+| `fyne.io/tools` | `fyne package` à la release (version tirée du tag) ; seul son binaire est repris | `RELEASING.md` |
+| Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)
 - Configuration passée explicitement (`CheckFfmpeg(cfg)`, …) : pas de global de configuration.

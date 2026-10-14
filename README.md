@@ -19,7 +19,7 @@ Notice how the text in the centre keeps its shape while the sides widen.
 
 ## Download and install
 
-There is nothing to install alongside it. Each archive carries its own `ffmpeg`
+There is nothing to install alongside it. Each download carries its own `ffmpeg`
 and `ffprobe`, and Superview uses those in preference to anything on the
 machine — deliberately, because which FFmpeg build is installed decides whether
 hardware encoding works at all.
@@ -27,7 +27,7 @@ hardware encoding works at all.
 ### Windows
 
 1. Open the **[latest release](https://github.com/Canaill51/superview/releases/latest)**.
-   Under **Assets**, click the file whose name ends in **`-windows-x86_64.zip`**.
+   Under **Assets**, click the file whose name ends in **`-windows-x86_64-setup.exe`**.
    It is around 95 MB — most of that is FFmpeg — and it lands in your
    `Downloads` folder.
 
@@ -36,40 +36,19 @@ hardware encoding works at all.
    [Why Windows warns about Superview](#why-windows-warns-about-superview)
    explains what that warning is about.
 
-3. **Extract the zip before doing anything else.** Right-click it →
-   **Extract All…** → **Extract**. Double-clicking a zip only shows you what is
-   inside; Superview cannot start from that preview, because it needs
-   `ffmpeg.exe` and `ffprobe.exe` as real files next to it.
+3. **Double-click the file you downloaded.** Windows shows a blue window titled
+   **"Windows protected your PC"**. It offers only **Don't run**, which is not
+   what you want. Click the small **More info** link, then the **Run anyway**
+   button that appears underneath. Windows asks this once per downloaded file.
 
-4. Open the folder you just extracted, and keep opening folders until you see
-   these four files — Windows puts a folder inside a folder of almost the same
-   name here:
+4. The installer needs no administrator rights: it installs Superview for your
+   user only, together with `ffmpeg.exe` and `ffprobe.exe`, in
+   `%LOCALAPPDATA%\Programs\Superview`. Click **Next** until **Install**, then
+   **Finish**. Tick *Create a desktop shortcut* on the way if you want one.
 
-   ```
-   superview-gui-windows-amd64.exe
-   ffmpeg.exe
-   ffprobe.exe
-   THIRD_PARTY_NOTICES.md
-   ```
-
-   If your Windows hides file extensions, the names show up without `.exe`. The
-   one you want is `superview-gui-windows-amd64`, the one carrying the Superview
-   icon. `ffmpeg` and `ffprobe` are the tools it drives: double-clicking those
-   flashes a black window and does nothing.
-
-5. **Double-click `superview-gui-windows-amd64.exe`.**
-
-6. Windows shows a blue window titled **"Windows protected your PC"**. It offers
-   only **Don't run**, which is not what you want. Click the small **More info**
-   link, then the **Run anyway** button that appears underneath. Superview
-   opens. Windows asks this once, not on every launch.
-
-**Keep the four files together.** Superview looks for `ffmpeg.exe` beside
-itself. Dragging just the `.exe` onto your desktop leaves it falling back to
-whatever FFmpeg the machine has, or reporting `cannot find ffmpeg/ffprobe on
-your system`. To put Superview somewhere else, move the whole folder; to launch
-it from the desktop, right-click the `.exe` → **Show more options** →
-**Send to** → **Desktop (create shortcut)**, which leaves the file where it is.
+Superview is in the Start menu from then on. To remove it, use **Settings** →
+**Apps** → **Installed apps** → **Superview** → **Uninstall**. Installing a newer
+version over an older one updates it in place.
 
 #### Why Windows warns about Superview
 
@@ -81,32 +60,33 @@ made this, not that the file is harmful. Some antivirus products go further and
 quarantine the file without asking; the cause is the same missing signature.
 
 What you can check instead: every release ships a `checksums.txt`, the source of
-what you are running is this repository, and the archive is assembled by
+what you are running is this repository, and the installer is assembled by
 [`.github/workflows/release.yml`](.github/workflows/release.yml) on GitHub's own
 runners — not on anybody's laptop.
 
 ### Linux
 
-Download the file whose name ends in `-linux-x86_64.tar.xz` from the
-[latest release](https://github.com/Canaill51/superview/releases/latest). It
-carries the binary, its FFmpeg, a `.desktop` entry, an icon and a `Makefile`, so
-you can either run it in place or install it:
+Download the file whose name ends in `-linux-x86_64.AppImage` from the
+[latest release](https://github.com/Canaill51/superview/releases/latest). It is a
+single file that carries the application and its FFmpeg: nothing to extract and
+nothing to install. Make it executable, then run it:
 
 ```bash
-tar -xJf superview-gui-*-linux-x86_64.tar.xz
-
-./superview/usr/local/bin/superview      # run it where it is
-sudo make -C superview install           # or install it into /usr/local
+chmod +x superview-*-linux-x86_64.AppImage
+./superview-*-linux-x86_64.AppImage
 ```
 
-Installing puts the application in `/usr/local/bin` and its FFmpeg in
-`/usr/local/lib/superview` — not beside the application, where it would shadow
-the system's `ffmpeg` for every program on the machine.
+In a file manager, the equivalent is right-click → **Properties** → allow
+executing the file as a program, then double-click it.
+
+An AppImage needs FUSE 2 to mount itself. Ubuntu 24.04 does not ship it; install
+it with `sudo apt install libfuse2t64`, or skip FUSE altogether and run
+`./superview-*-linux-x86_64.AppImage --appimage-extract-and-run`.
 
 ### Verify your download
 
-Optional, and worth doing if you want more than the archive's word for itself.
-Put `checksums.txt`, published beside the archives, in the same folder:
+Optional, and worth doing if you want more than the download's word for itself.
+Put `checksums.txt`, published beside the downloads, in the same folder:
 
 ```bash
 sha256sum -c checksums.txt          # Linux
@@ -115,7 +95,7 @@ sha256sum -c checksums.txt          # Linux
 On Windows, print the two values and compare them by eye:
 
 ```powershell
-(Get-FileHash .\superview-gui-*-windows-x86_64.zip -Algorithm SHA256).Hash
+(Get-FileHash .\superview-*-windows-x86_64-setup.exe -Algorithm SHA256).Hash
 Select-String -Path .\checksums.txt -Pattern windows
 ```
 
@@ -168,9 +148,9 @@ and knows nothing about your driver. See
 generally work and what to check when a card that should be supported does not
 appear.
 
-`cannot find ffmpeg/ffprobe on your system`, from a release archive, means its
-`ffmpeg` and `ffprobe` are no longer beside the application: extract the archive
-again rather than moving the executable out of its folder. From a source build,
+`cannot find ffmpeg/ffprobe on your system`, from an installed release, means its
+`ffmpeg` and `ffprobe` are no longer beside the application: reinstall it
+rather than moving or deleting those files. From a source build,
 put FFmpeg on `PATH`. To make Superview use a particular FFmpeg, point
 `SUPERVIEW_FFMPEG_DIR` at the directory holding the two — it wins over the
 bundled copy and over `PATH`.
@@ -238,7 +218,7 @@ put again at the real size once a file is chosen, and Superview steps back to th
 CPU before starting if the answer is no. The window says which encoder will
 really run, and why, before you press *Start transformation*.
 
-**The release archives ship their own FFmpeg**, and Superview prefers it over
+**The releases ship their own FFmpeg**, and Superview prefers it over
 whatever is installed on the machine. The NVENC driver requirement is fixed when
 FFmpeg is compiled, so two builds both calling themselves "8.1.2" can demand
 different NVIDIA drivers, and the wrong one costs you hardware encoding with no
@@ -336,9 +316,10 @@ superview/
 │   ├── *_test.go               # Unit, golden and integration tests
 │   └── testdata/ffprobe/       # Recorded ffprobe output the parser is tested against
 ├── docs/                       # Technical contracts, audit journal, hardware support
+├── packaging/                  # The Windows installer script and the Linux AppImage script
 ├── superview.yaml              # Default configuration
 ├── Makefile                    # Local build and quality targets
-├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped in the archives, and its licence
+├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped with the releases, and its licence
 ├── .github/scripts/            # Release-time checks (the NVENC driver floor guard)
 └── RELEASING.md                # How a release is made
 ```

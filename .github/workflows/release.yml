@@ -339,10 +339,14 @@ jobs:
         foreach ($f in 'superview.exe', 'ffmpeg.exe', 'ffprobe.exe', 'THIRD_PARTY_NOTICES.md') {
           if (-not (Test-Path "$dir\$f")) { Write-Error "$f missing from $dir"; exit 1 }
         }
-        & "$dir\ffmpeg.exe" -version | Select-Object -First 1
+        # The whole output is captured before the first line is taken: cutting the
+        # pipe early with Select-Object -First 1 makes the tool exit non-zero.
+        $out = & "$dir\ffmpeg.exe" -version
         if ($LASTEXITCODE -ne 0) { Write-Error "the installed ffmpeg.exe does not run"; exit 1 }
-        & "$dir\ffprobe.exe" -version | Select-Object -First 1
+        $out | Select-Object -First 1
+        $out = & "$dir\ffprobe.exe" -version
         if ($LASTEXITCODE -ne 0) { Write-Error "the installed ffprobe.exe does not run"; exit 1 }
+        $out | Select-Object -First 1
         Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT'
         Start-Sleep -Seconds 5
         if (Test-Path "$dir\superview.exe") { Write-Error "the uninstaller left superview.exe behind"; exit 1 }
@@ -555,8 +559,12 @@ jobs:
             exit 1
           fi
         done
-        squashfs-root/usr/lib/superview/ffmpeg -version | head -n 1
-        squashfs-root/usr/lib/superview/ffprobe -version | head -n 1
+        # Into a file first: "| head -n 1" closes the pipe early, and under pipefail
+        # the tool's SIGPIPE would then fail the step.
+        for tool in ffmpeg ffprobe; do
+          "squashfs-root/usr/lib/superview/${tool}" -version > "${RUNNER_TEMP}/${tool}-version.txt"
+          head -n 1 "${RUNNER_TEMP}/${tool}-version.txt"
+        done
         rm -rf squashfs-root
 
         set +e

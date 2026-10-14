@@ -22,60 +22,40 @@ s'élargissent.
 
 ## Téléchargement et installation
 
-Il n'y a rien à installer à côté. Chaque archive embarque son propre `ffmpeg` et
-son `ffprobe`, et Superview les utilise de préférence à ceux de la machine —
-délibérément, parce que la version de FFmpeg installée détermine si l'encodage
-matériel fonctionne, tout simplement.
+Il n'y a rien à installer à côté. Chaque téléchargement embarque son propre
+`ffmpeg` et son `ffprobe`, et Superview les utilise de préférence à ceux de la
+machine — délibérément, parce que la version de FFmpeg installée détermine si
+l'encodage matériel fonctionne, tout simplement.
 
 ### Windows
 
 1. Ouvrez la **[dernière version](https://github.com/Canaill51/superview/releases/latest)**.
    Sous **Assets**, cliquez sur le fichier dont le nom se termine par
-   **`-windows-x86_64.zip`**. Il pèse environ 95 Mo — c'est FFmpeg qui occupe
-   l'essentiel — et il arrive dans votre dossier `Téléchargements`.
+   **`-windows-x86_64-setup.exe`**. Il pèse environ 95 Mo — c'est FFmpeg qui
+   occupe l'essentiel — et il arrive dans votre dossier `Téléchargements`.
 
 2. Votre navigateur peut signaler que le fichier est rarement téléchargé et
    proposer de le supprimer. Choisissez **Conserver**.
    [Pourquoi Windows se méfie de Superview](#pourquoi-windows-se-méfie-de-superview)
    explique cet avertissement.
 
-3. **Extrayez le zip avant toute chose.** Clic droit dessus →
-   **Extraire tout…** → **Extraire**. Double-cliquer sur un zip ne fait que
-   montrer ce qu'il contient ; Superview ne peut pas démarrer depuis cet aperçu,
-   parce qu'il lui faut `ffmpeg.exe` et `ffprobe.exe` comme vrais fichiers à
-   côté de lui.
+3. **Double-cliquez sur le fichier téléchargé.** Windows affiche une fenêtre
+   bleue intitulée **« Windows a protégé votre ordinateur »**. Elle ne propose
+   que **Ne pas exécuter**, qui n'est pas ce que vous voulez. Cliquez sur le
+   petit lien **Informations complémentaires**, puis sur le bouton **Exécuter
+   quand même** qui apparaît en dessous. Windows ne pose la question qu'une fois
+   par fichier téléchargé.
 
-4. Ouvrez le dossier que vous venez d'extraire, et continuez d'ouvrir les
-   dossiers jusqu'à voir ces quatre fichiers — ici, Windows place un dossier
-   dans un dossier au nom presque identique :
+4. L'installateur ne demande aucun droit d'administrateur : il installe Superview
+   pour votre seul compte, avec `ffmpeg.exe` et `ffprobe.exe`, dans
+   `%LOCALAPPDATA%\Programs\Superview`. Cliquez sur **Suivant** jusqu'à
+   **Installer**, puis sur **Terminer**. Cochez au passage la création d'un
+   raccourci sur le Bureau si vous en voulez un.
 
-   ```
-   superview-gui-windows-amd64.exe
-   ffmpeg.exe
-   ffprobe.exe
-   THIRD_PARTY_NOTICES.md
-   ```
-
-   Si votre Windows masque les extensions, les noms s'affichent sans `.exe`.
-   Celui qu'il vous faut est `superview-gui-windows-amd64`, celui qui porte
-   l'icône de Superview. `ffmpeg` et `ffprobe` sont les outils qu'il pilote :
-   double-cliquer dessus fait clignoter une fenêtre noire et ne fait rien.
-
-5. **Double-cliquez sur `superview-gui-windows-amd64.exe`.**
-
-6. Windows affiche une fenêtre bleue intitulée **« Windows a protégé votre
-   ordinateur »**. Elle ne propose que **Ne pas exécuter**, qui n'est pas ce que
-   vous voulez. Cliquez sur le petit lien **Informations complémentaires**, puis
-   sur le bouton **Exécuter quand même** qui apparaît en dessous. Superview
-   s'ouvre. Windows ne pose la question qu'une fois, pas à chaque lancement.
-
-**Gardez les quatre fichiers ensemble.** Superview cherche `ffmpeg.exe` à côté
-de lui. Déplacer le seul `.exe` sur le Bureau le fait retomber sur le FFmpeg que
-la machine possède, ou signaler `cannot find ffmpeg/ffprobe on your system`.
-Pour ranger Superview ailleurs, déplacez le dossier entier ; pour le lancer
-depuis le Bureau, clic droit sur le `.exe` → **Afficher plus d'options** →
-**Envoyer vers** → **Bureau (créer un raccourci)**, ce qui laisse le fichier où
-il est.
+Superview est ensuite dans le menu Démarrer. Pour le retirer : **Paramètres** →
+**Applications** → **Applications installées** → **Superview** →
+**Désinstaller**. Installer une version plus récente par-dessus une ancienne la
+met à jour sur place.
 
 #### Pourquoi Windows se méfie de Superview
 
@@ -90,32 +70,34 @@ signature manquante.
 
 Ce que vous pouvez vérifier à la place : chaque version publie un
 `checksums.txt`, le code source de ce que vous exécutez est ce dépôt, et
-l'archive est assemblée par
+l'installateur est assemblé par
 [`.github/workflows/release.yml`](.github/workflows/release.yml) sur les
 serveurs de GitHub — pas sur l'ordinateur portable de quelqu'un.
 
 ### Linux
 
-Téléchargez le fichier dont le nom se termine par `-linux-x86_64.tar.xz` depuis
-la [dernière version](https://github.com/Canaill51/superview/releases/latest).
-L'archive contient le binaire, son FFmpeg, une entrée `.desktop`, une icône et
-un `Makefile` : vous pouvez donc l'exécuter sur place ou l'installer.
+Téléchargez le fichier dont le nom se termine par `-linux-x86_64.AppImage`
+depuis la [dernière version](https://github.com/Canaill51/superview/releases/latest).
+C'est un fichier unique qui contient l'application et son FFmpeg : rien à
+extraire, rien à installer. Rendez-le exécutable, puis lancez-le :
 
 ```bash
-tar -xJf superview-gui-*-linux-x86_64.tar.xz
-
-./superview/usr/local/bin/superview      # l'exécuter sur place
-sudo make -C superview install           # ou l'installer dans /usr/local
+chmod +x superview-*-linux-x86_64.AppImage
+./superview-*-linux-x86_64.AppImage
 ```
 
-L'installation place l'application dans `/usr/local/bin` et son FFmpeg dans
-`/usr/local/lib/superview` — pas à côté de l'application, où il masquerait le
-`ffmpeg` du système pour tous les programmes de la machine.
+Dans un gestionnaire de fichiers, l'équivalent est : clic droit →
+**Propriétés** → autoriser l'exécution du fichier comme un programme, puis
+double-clic.
+
+Une AppImage a besoin de FUSE 2 pour se monter. Ubuntu 24.04 ne l'installe pas :
+`sudo apt install libfuse2t64`, ou passez outre FUSE et lancez
+`./superview-*-linux-x86_64.AppImage --appimage-extract-and-run`.
 
 ### Vérifier votre téléchargement
 
-Facultatif, et utile si vous voulez autre chose que la parole de l'archive.
-Placez `checksums.txt`, publié à côté des archives, dans le même dossier :
+Facultatif, et utile si vous voulez autre chose que la parole du téléchargement.
+Placez `checksums.txt`, publié à côté des téléchargements, dans le même dossier :
 
 ```bash
 sha256sum -c checksums.txt          # Linux
@@ -124,7 +106,7 @@ sha256sum -c checksums.txt          # Linux
 Sous Windows, affichez les deux valeurs et comparez-les à l'œil :
 
 ```powershell
-(Get-FileHash .\superview-gui-*-windows-x86_64.zip -Algorithm SHA256).Hash
+(Get-FileHash .\superview-*-windows-x86_64-setup.exe -Algorithm SHA256).Hash
 Select-String -Path .\checksums.txt -Pattern windows
 ```
 
@@ -188,9 +170,9 @@ compilé et ne sait rien de votre pilote. Voir
 familles de GPU qui fonctionnent généralement, et ce qu'il faut vérifier quand
 une carte censée être prise en charge n'apparaît pas.
 
-`cannot find ffmpeg/ffprobe on your system`, depuis une archive de release,
+`cannot find ffmpeg/ffprobe on your system`, depuis une version installée,
 signifie que ses `ffmpeg` et `ffprobe` ne sont plus à côté de l'application :
-extrayez de nouveau l'archive plutôt que de sortir l'exécutable de son dossier.
+réinstallez-la plutôt que de déplacer ou de supprimer ces fichiers.
 Depuis une compilation des sources, mettez FFmpeg dans le `PATH`. Pour imposer
 un FFmpeg particulier à Superview, faites pointer `SUPERVIEW_FFMPEG_DIR` sur le
 dossier qui contient les deux — il l'emporte sur la copie embarquée et sur le
@@ -265,7 +247,7 @@ choisi, et Superview recule sur le processeur avant de démarrer si la réponse 
 non. La fenêtre dit quel encodeur va réellement tourner, et pourquoi, avant même
 que vous appuyiez sur *Start transformation*.
 
-**Les archives de release embarquent leur propre FFmpeg**, et Superview le
+**Les versions publiées embarquent leur propre FFmpeg**, et Superview le
 préfère à celui qui est installé sur la machine. L'exigence de pilote de NVENC
 est figée à la compilation de FFmpeg : deux versions se réclamant toutes deux de
 la « 8.1.2 » peuvent réclamer des pilotes NVIDIA différents, et la mauvaise vous
@@ -367,9 +349,10 @@ superview/
 │   ├── *_test.go               # Tests unitaires, tests golden et tests d'intégration
 │   └── testdata/ffprobe/       # Sorties ffprobe enregistrées, contre lesquelles l'analyseur est testé
 ├── docs/                       # Contrats techniques, journal d'audit, prise en charge matérielle
+├── packaging/                  # Script de l'installateur Windows et de l'AppImage Linux
 ├── superview.yaml              # Configuration par défaut
 ├── Makefile                    # Cibles locales de construction et de qualité
-├── THIRD_PARTY_NOTICES.md      # Le FFmpeg livré dans les archives, et sa licence
+├── THIRD_PARTY_NOTICES.md      # Le FFmpeg livré avec les versions, et sa licence
 ├── .github/scripts/            # Contrôles au moment de la publication (le plancher de pilote NVENC)
 └── RELEASING.md                # Comment une version est publiée
 ```
