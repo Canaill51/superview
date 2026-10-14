@@ -66,7 +66,8 @@ jobs:
     - name: Install the window trial tooling
       run: |
         set -euo pipefail
-        sudo apt-get install -y --no-install-recommends xvfb
+        # libxkbcommon-x11-0: winit loads it at run time on X11; the runner image has not got it.
+        sudo apt-get install -y --no-install-recommends xvfb libxkbcommon-x11-0
         curl -fsSL -o "${RUNNER_TEMP}/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
         echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  ${RUNNER_TEMP}/appimagetool" | sha256sum -c -
         chmod +x "${RUNNER_TEMP}/appimagetool"
