@@ -332,7 +332,7 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	// After the encoder is known, because what a conversion costs in memory
 	// depends on it: a hardware encoder is not measured here, and a 10-bit
 	// source only stays 10-bit on an HEVC one.
-	if err := checkMemoryForEncode(video, squeeze, encoder); err != nil {
+	if err := checkMemoryForEncode(video, squeeze, encoder, effectiveEncoderThreads(cfg, encoder)); err != nil {
 		metrics.RecordError(exitCodeUnavailable, err.Error())
 		RecordEncodingError(err, map[string]interface{}{"stage": "memory_check"})
 		return err

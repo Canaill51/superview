@@ -529,6 +529,46 @@ func TestIntegration_MemoryCheckStopsBeforeFfmpegRuns(t *testing.T) {
 	}
 }
 
+// TestIntegration_MemoryCheckPricesTheConfiguredThreads is the wiring of
+// PerformEncoding's guard: it must be handed the thread count the encode will
+// use. A 640x480 clip widens to 853x480; 160 MB covers its four-thread estimate
+// with the quarter of headroom (about 148 MB) and not the sixteen-thread one
+// (about 176 MB), so only the configured count decides.
+func TestIntegration_MemoryCheckPricesTheConfiguredThreads(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	input := makeTestClip(t, 640, 480, 1)
+
+	ffmpeg, err := CheckFfmpeg(nil)
+	if err != nil {
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
+	}
+	if !strings.Contains(ffmpeg["encoders"], "libx264") {
+		skipWithoutFFmpeg(t, "libx264 not available in this ffmpeg build")
+	}
+
+	previous := readAvailableMemory
+	readAvailableMemory = func() (uint64, bool) { return 160 * 1024 * 1024, true }
+	t.Cleanup(func() { readAvailableMemory = previous })
+
+	convert := func(threads int) error {
+		cfg := DefaultConfig()
+		cfg.EncoderThreads = threads
+		output := filepath.Join(t.TempDir(), "output.mp4")
+		ui := &integrationUI{bitrate: 2_000_000, encoder: "libx264"}
+		return PerformEncoding(cfg, input, output, ui, ffmpeg, make(chan struct{}))
+	}
+
+	if err := convert(16); err == nil || !strings.Contains(err.Error(), "not enough memory") {
+		t.Fatalf("16 threads must be refused with 160 MB free, got: %v", err)
+	}
+	if err := convert(4); err != nil {
+		t.Fatalf("4 threads fit in 160 MB and the conversion must run, got: %v", err)
+	}
+}
+
 // TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame proves the
 // size-aware verification is wired into the pipeline, and wired in early enough
 // to change what runs.
