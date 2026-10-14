@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 109 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 110 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée. Les **décisions** — ce qui ressemble à un défaut
 > et n'en est pas un — sont dans [DECISIONS.md](DECISIONS.md).
@@ -1175,6 +1175,18 @@ framework fait des appels en attente une fois arrêté : Fyne exécute en ligne,
 goroutine appelante, les `fyne.Do` postés après le drain (`runOnMainWithWait`) — une
 branche de fin doit donc savoir que la fenêtre n'existe plus.
 
+### L-110 — Un signal de fin se libère avant tout appel qui peut mener à celui qui l'attend — 2026-10-14
+La goroutine d'encodage fermait `done` par un `defer`, donc après la branche de fin. Or
+cette branche peut, sur un arrêt système, quitter l'application, ce qui ferme la fenêtre,
+dont le crochet attend `done` ; et une fois la boucle Fyne vidée, tout cela s'exécute en
+ligne sur la goroutine elle-même. Elle s'attendait elle-même jusqu'à l'expiration du délai.
+Un `defer close(done)` « en première ligne » paraît la forme la plus sûre ; il ne l'est que
+si rien, entre-temps, ne peut remonter jusqu'à l'attente.
+→ **Fermer un canal de fin dès que ce qu'il promet est vrai, avant d'appeler quoi que ce
+soit qui puisse mener à celui qui l'attend ; garder le `defer` (via `sync.Once`) pour la
+panique seulement.** Pour chaque canal attendu à l'arrêt, suivre ce qu'appelle la goroutine
+après le travail : `grep -n "close(done)\|<-done" *.go common/*.go`.
+
 ## 3. Corrections appliquées
 
 ### [2026-10-14] E-03, E-14, E-15, E-20, E-23 (partiel) — Quit, la croix et SIGTERM attendent tous que l'encodage se défasse
@@ -1221,7 +1233,38 @@ pendant ce temps. `selectedQualityProfile` et `squeezeSource` repliés dans `app
 `[Migrations] fyneDo = true`. **Laissé** : le reste d'E-23 (`SessionError`, cache de sonde
 annulée), PR 7.
 
-**Leçon** — L-109 ; L-102 corrigée.
+**Relecture** — sept constats, chacun avec un test rougi par la remise du défaut puis
+retiré (sauf le 5) :
+(1) sans ffmpeg, le démarrage verrouillait `state.locked`, *Diagnostic* compris — l'outil
+qui signale l'absence de ffmpeg devenait inaccessible. Deux listes :
+`windowControls.requiresFFmpeg()` (sans *Diagnostic*) et `locked()`, appliquées par
+`applyFFmpegAvailability`. Le retour de *Diagnostic* restaure désormais le statut d'avant
+au lieu d'écrire *Ready* par-dessus *ffmpeg unavailable*. Contre-épreuve :
+`requiresFFmpeg` qui rend `locked()` → rouge.
+(2) Un sélecteur natif validé après *Start* remplaçait `state.video` en plein encodage.
+`applyChosenInput` / `applyChosenOutput` (repli Fyne compris) l'ignorent et le
+journalisent. Contre-épreuve : garde `isEncoding` neutralisée → rouge sur les deux.
+(3) Après le vidage, `fyne.Do` s'exécute en ligne : un `ErrStoppedBySignal` menait sur la
+goroutine d'encodage à `quit` → `Close` → `shutdown`, qui attendait le `done` que seul le
+`defer` de cette même goroutine fermerait — 20 s d'auto-attente. Le corps de la goroutine
+est devenu `runEncoding`, qui ferme `done` **avant** de poster la fin (et par `defer` pour
+une panique). Contre-épreuves : fermeture par `defer` seul → rouge à 3,0 s ; `defer` retiré
+→ le test de panique rougit. Correction au passage : les closures *en file* au vidage sont
+jetées par `runGL`, pas exécutées ; seuls les `fyne.Do` postérieurs s'exécutent en ligne —
+la phrase du correctif ci-dessus le disait mal.
+(4) Une attente expirée dans le crochet de fermeture était refaite après `ShowAndRun()` :
+40 s. `shutdownGaveUp` rend `false` aussitôt. Contre-épreuve : garde retirée → second appel
+à 300 ms → rouge.
+(5) Le label du rapport *Diagnostic* était construit hors du fil UI ; déplacé dans le
+`fyne.Do`. Pas de test unitaire : vérifié par `go test -race -tags migrated_fynedo .`.
+(6) `refreshEncoderOptions` préférait la sélection courante — un repli — à la préférence
+sauvegardée : après une relance réussie, *hevc_nvenc* n'était pas restauré. Ordre :
+préférence, puis sélection courante, puis première option. Contre-épreuve : ancien ordre →
+rouge.
+(7) Un reste < 0,5 s affichait « about 0s left » : la comparaison porte désormais sur la
+valeur arrondie. Contre-épreuve : comparaison sur la valeur brute → rouge.
+
+**Leçon** — L-109 ; L-102 corrigée ; L-110 (relecture).
 
 ---
 

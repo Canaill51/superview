@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"superview/common"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -294,11 +295,6 @@ func (c encodingControls) setEnabled(enabled bool) {
 	}
 }
 
-// formatEncodingStatus builds the line shown while a conversion runs.
-//
-// The estimate is left out entirely until there is one. Rendering a zero as
-// "about 0s left" would read as "nearly done" at the very moment the encode is
-// starting, which is the opposite of the truth.
 // startingEncoderStatus is what the window says between "Start transformation"
 // and the first progress figure ffmpeg produces.
 //
@@ -308,12 +304,18 @@ func (c encodingControls) setEnabled(enabled bool) {
 // that is visibly working.
 const startingEncoderStatus = "Status: Starting the encoder... (no progress until the first frame)"
 
+// formatEncodingStatus builds the line shown while a conversion runs.
+//
+// The estimate is left out entirely until there is one. Rendering a zero as
+// "about 0s left" would read as "nearly done" at the very moment the encode is
+// starting, which is the opposite of the truth. The test is on the *rounded*
+// value: one under half a second used to pass "> 0" and print "0s" anyway.
 func formatEncodingStatus(percent float64, remaining time.Duration) string {
-	if remaining <= 0 {
+	rounded := remaining.Round(time.Second)
+	if rounded <= 0 {
 		return fmt.Sprintf("Status: Transforming... %.0f%%", percent)
 	}
-	return fmt.Sprintf("Status: Transforming... %.0f%% - about %s left",
-		percent, remaining.Round(time.Second))
+	return fmt.Sprintf("Status: Transforming... %.0f%% - about %s left", percent, rounded)
 }
 
 // GUIHandler implements UIHandler for GUI interface.
@@ -475,11 +477,19 @@ type appState struct {
 	done     <-chan struct{}
 
 	// shuttingDown is set by shutdown and read by the completion path, which
-	// may run after the Fyne loop has stopped: Fyne then executes queued
-	// fyne.Do closures inline on the calling goroutine, against a window that
-	// no longer exists. Atomic because that late execution is on the encoding
-	// goroutine while the main goroutine is the one that set it.
+	// may run after the Fyne loop has stopped. Closures still queued when the
+	// loop drains are discarded, never run (runGL in fyne v2.8.2); but a
+	// fyne.Do called *after* the drain executes inline on the calling
+	// goroutine, against a window that no longer exists. Atomic because that
+	// late call is on the encoding goroutine while the main goroutine is the
+	// one that set it.
 	shuttingDown atomic.Bool
+
+	// shutdownGaveUp records that a wait in shutdown has already run out. The
+	// window's close hook and the line after ShowAndRun() both call shutdown,
+	// and without it the second call waited the whole grace period again: 40 s
+	// instead of the 20 s documented.
+	shutdownGaveUp atomic.Bool
 
 	// shutdownGrace bounds the wait in shutdown. Zero means the default; tests
 	// set it short so a goroutine that never unwinds is proved, not waited for.
@@ -500,6 +510,9 @@ type appState struct {
 	cancelButton   *widget.Button
 	encoder        *widget.Select
 	locked         encodingControls
+	requiresFFmpeg encodingControls
+	inputLabel     *widget.Label
+	outputLabel    *widget.Label
 	status         *widget.Label
 	results        *widget.Label
 	hardwareStatus *widget.Label
@@ -528,6 +541,20 @@ type windowControls struct {
 // not in it: it cancels safely now, and a user must always be able to leave.
 func (c windowControls) locked() encodingControls {
 	return encodingControls{c.open, c.selectOutput, c.quality, c.squeeze, c.encoder, c.diagnostic}
+}
+
+// requiresFFmpeg is every control that has nothing to do without ffmpeg. It is
+// locked() minus Diagnostic, and the difference is the point: the two lists
+// were one, so a start without ffmpeg greyed out the very tool that reports
+// "ffmpeg not found" -- the one the README tells the user to press.
+func (c windowControls) requiresFFmpeg() encodingControls {
+	return encodingControls{c.open, c.selectOutput, c.quality, c.squeeze, c.encoder}
+}
+
+// applyFFmpegAvailability enables or disables what needs ffmpeg according to
+// whether the last probe found it: at startup, and after a successful retry.
+func (s *appState) applyFFmpegAvailability() {
+	s.requiresFFmpeg.setEnabled(s.ffmpegAvailable)
 }
 
 // isEncoding reports whether a conversion is currently running.
@@ -564,6 +591,65 @@ func (s *appState) setInput(video *common.VideoSpecs) {
 func (s *appState) setOutput(path string) {
 	s.outputPath = path
 	s.refreshStart()
+}
+
+// chosenFileArrivesTooLate reports, and logs, a picker result that lands while
+// a conversion runs.
+//
+// The pickers run off the UI thread and the window stays interactive while
+// zenity or PowerShell is open, so a user can press Start and then validate
+// the picker. Its result used to be applied anyway: state.video replaced under
+// the running encode, the status line overwritten, a GPU probe started beside
+// a hardware encode. It is dropped instead; the user can choose again after.
+func (s *appState) chosenFileArrivesTooLate(kind, path string) bool {
+	if !s.isEncoding() {
+		return false
+	}
+	common.GetLogger().Info("Ignoring a file chosen during a conversion",
+		slog.String("kind", kind), slog.String("path", path))
+	return true
+}
+
+// applyChosenInput validates the file the input picker returned and makes it
+// the input, unless a conversion has started since the picker opened.
+func (s *appState) applyChosenInput(path string) {
+	if s.chosenFileArrivesTooLate("input", path) {
+		return
+	}
+	video, err := common.CheckVideo(path)
+	if err != nil {
+		if s.status != nil {
+			s.status.SetText("Status: Invalid input")
+		}
+		if s.window != nil {
+			dialog.ShowError(err, s.window)
+		}
+		return
+	}
+	s.setInput(video)
+	s.verifyHardwareInBackground()
+	if s.inputLabel != nil {
+		s.inputLabel.SetText(filepath.Base(video.File))
+	}
+	if s.status != nil {
+		s.status.SetText("Status: Input loaded")
+	}
+}
+
+// applyChosenOutput makes the path the output picker returned the
+// destination, .mp4 enforced, unless a conversion has started since the picker
+// opened.
+func (s *appState) applyChosenOutput(path string) {
+	if s.chosenFileArrivesTooLate("output", path) {
+		return
+	}
+	s.setOutput(ensureMP4Extension(path))
+	if s.outputLabel != nil {
+		s.outputLabel.SetText(filepath.Base(s.outputPath))
+	}
+	if s.status != nil {
+		s.status.SetText("Status: Output selected")
+	}
 }
 
 // setFFmpeg records a successful ffmpeg probe.
@@ -696,17 +782,44 @@ func (s *appState) setEncoding(inProgress bool) {
 // channel -- a run that the Cancel button could no longer stop at all.
 //
 // The second channel goes the other way: the goroutine must close it when it
-// has nothing left to unwind, and the simplest way to be sure of that is
-// "defer close(done)" as its first statement. shutdown waits on the receive
-// side. The close must come from the goroutine itself and not from inside one
-// of its fyne.Do calls, because the goroutine that waits on it is the Fyne
-// main thread, which is exactly the one that would have to run that closure.
+// has nothing left to unwind, and runEncoding is what does. shutdown waits on
+// the receive side.
 func (s *appState) beginEncoding() (cancel <-chan struct{}, done chan<- struct{}) {
 	s.cancel = make(chan struct{})
 	finished := make(chan struct{})
 	s.done = finished
 	s.setEncoding(true)
 	return s.cancel, finished
+}
+
+// runEncoding is the body of the encoding goroutine: it runs encode, releases
+// done, and hands the outcome to completeEncoding on the UI thread.
+//
+// done is closed *before* the completion is posted, not by a defer at the end.
+// Two reasons, both about who would otherwise wait for whom:
+//
+//   - The close cannot happen inside the fyne.Do closure, because the one
+//     waiting on it is the Fyne main thread, which is exactly the one that
+//     would have to run that closure.
+//   - Once Fyne's loop has drained, fyne.Do runs inline on this goroutine. A
+//     system stop then takes completeEncoding to s.quit(), window.Close(), the
+//     close hook, and shutdown -- here, on this goroutine, waiting on a done
+//     that only this goroutine's deferred close would ever release: twenty
+//     seconds of a process waiting for itself. Closed first, there is nothing
+//     left to wait for, wherever shutdown is called from.
+//
+// Closing it early is honest: when encode returns, PerformEncoding has killed
+// and reaped ffmpeg, removed the partial file and the session directory, which
+// is everything done promises. The deferred release keeps the old guarantee
+// that a panic cannot leave an exit waiting.
+func (s *appState) runEncoding(done chan<- struct{}, output string, encode func() error) {
+	var once sync.Once
+	release := func() { once.Do(func() { close(done) }) }
+	defer release()
+
+	err := encode()
+	release()
+	fyne.Do(func() { s.completeEncoding(err, output) })
 }
 
 // finishEncoding returns the window to its idle shape once a conversion ends,
@@ -726,9 +839,9 @@ func (s *appState) finishEncoding() {
 // dismiss an Error dialog saying "encoding interrupted by user" -- the message
 // had been corrected to say that, the branch never was.
 func (s *appState) completeEncoding(err error, output string) {
-	// The window is on its way out: Fyne runs this inline on the encoding
-	// goroutine once its loop has stopped, against widgets with no canvas and
-	// a window with nothing to show a dialog in.
+	// The window is on its way out: a fyne.Do posted after Fyne's loop has
+	// drained runs this inline on the encoding goroutine, against widgets with
+	// no canvas and a window with nothing to show a dialog in.
 	if s.shuttingDown.Load() {
 		return
 	}
@@ -803,12 +916,26 @@ func (s *appState) setStatusAndResults(status, results string) {
 // It blocks the Fyne main thread, and that is safe: the goroutine never needs
 // that thread to finish. Its fyne.Do calls enqueue on an unbounded queue and
 // return at once, and the channel it closes is closed by the goroutine
-// itself, not by one of those closures.
+// itself, not by one of those closures -- and before the completion is
+// posted, so a shutdown reached from that completion finds it closed (see
+// runEncoding).
+//
+// The wait happens once. After it has run out, every later call returns false
+// at once: the close hook and the line after ShowAndRun() would otherwise each
+// spend the full grace period.
 func (s *appState) shutdown(reason string) bool {
 	s.shuttingDown.Store(true)
 	done := s.done
 	if done == nil {
 		return true
+	}
+	select {
+	case <-done:
+		return true
+	default:
+	}
+	if s.shutdownGaveUp.Load() {
+		return false
 	}
 
 	s.requestCancel()
@@ -828,6 +955,7 @@ func (s *appState) shutdown(reason string) bool {
 		logger.Info("Conversion unwound, quitting", slog.String("reason", reason))
 		return true
 	case <-timer.C:
+		s.shutdownGaveUp.Store(true)
 		logger.Error("Quitting without waiting any longer: the conversion did not unwind in time",
 			slog.String("reason", reason),
 			slog.Duration("waited", grace),
@@ -841,8 +969,12 @@ func (s *appState) shutdown(reason string) bool {
 // work, and after a successful ffmpeg retry takes the list from empty to
 // whatever the freshly installed binary exposes.
 //
-// The selection it ends on is the current one when still offered, else the
-// saved preference when there is no current one yet, else the first option.
+// The selection it ends on is the saved preference when offered, else the
+// current one when still offered, else the first option. The preference comes
+// first because it is the user's last choice by construction -- every click
+// saves it -- while the current selection may be a fallback the program made:
+// a start without ffmpeg leaves "Use same video codec...", and a retry that
+// then finds the saved hevc_nvenc used to keep the fallback.
 // Whatever it picks is set under restoringSelection, so the dropdown's
 // OnChanged does not persist a fallback as if the user had chosen it.
 func (s *appState) refreshEncoderOptions() {
@@ -852,9 +984,12 @@ func (s *appState) refreshEncoderOptions() {
 	options := encoderOptionsFor(s.ffmpeg["encoders"])
 	s.encoder.Options = options
 
-	wanted := s.encoder.Selected
-	if wanted == "" && s.prefs != nil {
+	wanted := ""
+	if s.prefs != nil {
 		wanted = s.prefs.String(prefEncoderSelection)
+	}
+	if !containsString(options, wanted) {
+		wanted = s.encoder.Selected
 	}
 	if !containsString(options, wanted) {
 		wanted = options[0]
@@ -1031,6 +1166,8 @@ func main() {
 	selectedOutput := widget.NewLabel("No file selected")
 	selectedOutput.Alignment = fyne.TextAlignLeading
 	selectedOutput.Wrapping = fyne.TextWrapWord
+	state.inputLabel = selectedFile
+	state.outputLabel = selectedOutput
 
 	state.qualityProfile = prefs.String(prefQualityProfile)
 	if !containsString([]string{"Fast", "Balanced"}, state.qualityProfile) {
@@ -1143,12 +1280,7 @@ func main() {
 			cancelChannel, done := state.beginEncoding()
 			ffmpeg := state.ffmpeg
 
-			go func() {
-				// Closed when there is nothing left to unwind, whatever the
-				// outcome -- it is what shutdown waits on. Deferred first so
-				// that even a panic below cannot leave an exit waiting.
-				defer close(done)
-
+			go state.runEncoding(done, uri, func() error {
 				handler := &GUIHandler{
 					window:      window,
 					bitrate:     profileBitrate,
@@ -1161,9 +1293,8 @@ func main() {
 					logger:      common.GetLogger(),
 				}
 
-				err := common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelChannel)
-				fyne.Do(func() { state.completeEncoding(err, uri) })
-			}()
+				return common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelChannel)
+			})
 		}
 
 		if _, statErr := os.Stat(state.outputPath); statErr == nil {
@@ -1202,6 +1333,8 @@ func main() {
 	// Windows one to two seconds of a dead button before the picker even
 	// appeared. The button is held down meanwhile so a second click cannot
 	// open a second picker, and comes back only if nothing has locked it since.
+	// The rest of the window stays live, so the result can arrive after Start:
+	// applyChosenInput and applyChosenOutput drop it then.
 	open = widget.NewButtonWithIcon("Choose input file", theme.FolderOpenIcon(), func() {
 		open.Disable()
 		go func() {
@@ -1228,17 +1361,7 @@ func main() {
 						if err != nil {
 							fyne.LogError("Failed to close stream", err)
 						}
-
-						video, err := common.CheckVideo(fallbackURI)
-						if err != nil {
-							status.SetText("Status: Invalid input")
-							dialog.ShowError(err, window)
-							return
-						}
-						state.setInput(video)
-						state.verifyHardwareInBackground()
-						selectedFile.SetText(filepath.Base(video.File))
-						status.SetText("Status: Input loaded")
+						state.applyChosenInput(fallbackURI)
 					}, window)
 					// MP4 only, in and out. The wider list this replaced advertised ten
 					// containers, five of which CheckVideo rejects outright because
@@ -1252,17 +1375,7 @@ func main() {
 					common.GetLogger().Debug("File opening cancelled by user")
 					return
 				}
-
-				video, err := common.CheckVideo(uri)
-				if err != nil {
-					status.SetText("Status: Invalid input")
-					dialog.ShowError(err, window)
-					return
-				}
-				state.setInput(video)
-				state.verifyHardwareInBackground()
-				selectedFile.SetText(filepath.Base(video.File))
-				status.SetText("Status: Input loaded")
+				state.applyChosenInput(uri)
 			})
 		}()
 	})
@@ -1291,9 +1404,7 @@ func main() {
 						if err != nil {
 							fyne.LogError("Failed to close stream", err)
 						}
-						state.setOutput(ensureMP4Extension(path))
-						selectedOutput.SetText(filepath.Base(state.outputPath))
-						status.SetText("Status: Output selected")
+						state.applyChosenOutput(path)
 					}, window)
 					return
 				}
@@ -1301,9 +1412,7 @@ func main() {
 					common.GetLogger().Debug("File saving cancelled by user")
 					return
 				}
-				state.setOutput(ensureMP4Extension(uri))
-				selectedOutput.SetText(filepath.Base(state.outputPath))
-				status.SetText("Status: Output selected")
+				state.applyChosenOutput(uri)
 			})
 		}()
 	})
@@ -1333,10 +1442,9 @@ func main() {
 
 			state.refreshEncoderOptions()
 			startEncoderProbe()
-			// The same list the encoding transition uses: a control that must
-			// come back after ffmpeg appears is exactly one that must come back
-			// after a conversion ends.
-			state.locked.setEnabled(true)
+			// The same list the startup path disabled, computed by the same
+			// function.
+			state.applyFFmpegAvailability()
 			status.SetText("Status: Ready")
 			state.refreshHardwareStatus()
 			state.refreshStart()
@@ -1366,7 +1474,9 @@ func main() {
 	// hardware encode can make a working encoder fail -- so the report a user
 	// was asked to attach could show a functional NVENC as refused.
 	diagnosticBtn := widget.NewButtonWithIcon("Diagnostic", theme.InfoIcon(), func() {
-		status.SetText("Status: Running diagnostic...")
+		const runningDiagnostic = "Status: Running diagnostic..."
+		statusBefore := status.Text
+		status.SetText(runningDiagnostic)
 		go func() {
 			health := common.CheckHealth(cfg)
 			// The build goes first: it is the one line that tells a maintainer
@@ -1384,16 +1494,21 @@ func main() {
 			// bug report without retyping what the dialog showed.
 			common.LogHealth(common.GetLogger(), health)
 
-			reportLabel := widget.NewLabel(report)
-			reportLabel.TextStyle = fyne.TextStyle{Monospace: true}
-			reportLabel.Wrapping = fyne.TextWrapWord
-
 			fyne.Do(func() {
-				// A conversion started while the checks ran owns the status
-				// line now; "Ready" over "Starting the encoder..." would say
-				// the window is idle while ffmpeg works.
-				if !state.isEncoding() {
-					status.SetText("Status: Ready")
+				// Built here, on the UI thread, like every widget. Under
+				// migrated_fynedo -- which fyne package sets now that
+				// FyneApp.toml enables fyneDo -- Fyne's internal locks are
+				// no-ops, and a widget touched off the UI thread is a race.
+				reportLabel := widget.NewLabel(report)
+				reportLabel.TextStyle = fyne.TextStyle{Monospace: true}
+				reportLabel.Wrapping = fyne.TextWrapWord
+
+				// The line goes back to what it said before, and only if
+				// nothing has written over "Running diagnostic..." since: a
+				// conversion started meanwhile owns it, and without ffmpeg a
+				// blanket "Ready" would contradict the report in the dialog.
+				if status.Text == runningDiagnostic {
+					status.SetText(statusBefore)
 				}
 				content := container.NewVScroll(reportLabel)
 				content.SetMinSize(fyne.NewSize(520, 300))
@@ -1402,21 +1517,24 @@ func main() {
 		}()
 	})
 
-	state.locked = windowControls{
+	controls := windowControls{
 		open:         open,
 		selectOutput: selectOutput,
 		diagnostic:   diagnosticBtn,
 		quality:      qualityProfileSelect,
 		encoder:      encoder,
 		squeeze:      squeezeCheck,
-	}.locked()
+	}
+	state.locked = controls.locked()
+	state.requiresFFmpeg = controls.requiresFFmpeg()
 
-	// Nothing is usable without ffmpeg. This runs here rather than up in the
-	// probe's error branch because the codec dropdown does not exist yet at
-	// that point -- which is why it used to be left enabled among four disabled
-	// controls, the same kind of hand-written sequence that produced P-01.
+	// Nothing but Diagnostic is usable without ffmpeg, and Diagnostic is what
+	// says so. This runs here rather than up in the probe's error branch
+	// because the codec dropdown does not exist yet at that point -- which is
+	// why it used to be left enabled among four disabled controls, the same
+	// kind of hand-written sequence that produced P-01.
 	if !state.ffmpegAvailable {
-		state.locked.setEnabled(false)
+		state.applyFFmpegAvailability()
 	}
 
 	// Ask the encoders whether they actually work, off the UI thread.
