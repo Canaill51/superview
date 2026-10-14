@@ -36,8 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # The Codecov upload authenticates with the run's OIDC token.
-      id-token: write
 
     steps:
     - name: Checkout code
@@ -93,28 +91,17 @@ jobs:
         if-no-files-found: error
         retention-days: 1
 
-    # OIDC rather than a repository secret: Codecov requires a token for a
-    # commit on a protected branch, and with none configured every upload from
-    # master failed on "Token required - not valid tokenless upload" while the
-    # step reported success -- fail_ci_if_error: false and continue-on-error
-    # hid it for months (E-18). A fork's pull request gets no id-token, so the
-    # upload is skipped there rather than failed.
-    - name: Upload coverage to Codecov
-      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-      with:
-        use_oidc: true
-        files: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: true
+    # No Codecov upload. It failed on every run since it was added -- first
+    # "Token required", then, once OIDC supplied a token, "Repository not
+    # found": the repository was never activated on codecov.io, so not one
+    # report ever arrived. The coverage gate below is the check that decides;
+    # re-add the upload only after activating the repository there (E-18).
 
   test-windows:
     name: Test Go 1.26.x on windows-latest
     runs-on: windows-latest
     permissions:
       contents: read
-      id-token: write
 
     env:
       # The same archive release.yml ships inside the Windows zip, pinned by
@@ -197,16 +184,6 @@ jobs:
 
     - name: Display coverage summary
       run: go tool cover -func=coverage.out | tail -5
-
-    - name: Upload coverage to Codecov
-      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-      with:
-        use_oidc: true
-        files: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: true
 
   coverage-report:
     name: Coverage Report & Gate

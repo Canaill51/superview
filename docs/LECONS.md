@@ -1201,9 +1201,14 @@ que personne n'avait vu : le job `fmt` sauvait un cache vide sous la clé commun
   URL, même SHA-256, `Get-FileHash`, `7z x`, `bin/` ajouté à `GITHUB_PATH`), et
   `ffmpeg -version` doit contenir `8.1.1` pour qu'un ffmpeg de l'image ne réponde pas à sa
   place.
-- **E-18** : `use_oidc: true`, `id-token: write` sur les deux jobs de test,
-  `fail_ci_if_error: true`, plus de `continue-on-error` ; l'envoi est sauté sur une PR de fork
-  (pas d'`id-token`). Aucun badge à retirer, il n'y en avait pas.
+- **E-18** : l'envoi Codecov est **retiré**. Premier essai par OIDC (`use_oidc`, `id-token:
+  write`, `fail_ci_if_error: true`) sur cette PR même : le jeton est bien émis (1 922
+  caractères), et Codecov répond `Repository not found`. Le dépôt n'a jamais été activé sur
+  codecov.io : aucun rapport n'est jamais arrivé, ni avant ni après. Le gate de couverture
+  interne décide seul, et le commentaire de PR affiche le chiffre. À réactiver seulement après
+  activation du dépôt sur codecov.io, geste de compte que le dépôt ne peut pas faire. Aucun
+  badge à retirer. Le même run a vérifié ce qui ne pouvait pas l'être en local : `-race` sous
+  Linux, et l'archive gyan.dev 8.1.1 sous Windows, SHA-256 compris.
 - **E-24** : étape `actions/cache` supprimée, `cache-dependency-path: go.sum` partout ;
   `contents: read` en tête de `release.yml`, `write` sur `create-release` seul ; commentaire de
   couverture conditionné au même dépôt et `continue-on-error` ; `coverage.out` publié en
