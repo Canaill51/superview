@@ -13,6 +13,12 @@ file is the short version — what bites first.
 
 ## Verifying a change
 
+`scripts/check.sh` runs the recipe below in one command (`--fast` stops before
+the tests). It is what the git pre-commit hook, the Claude hooks in `.claude/`
+and `make check` call. Enable the git hook once per clone:
+`git config core.hooksPath .githooks`. The gate-by-gate form below is what
+`/verify` reports.
+
 ```bash
 . /tmp/guienv.sh                        # Linux without sudo: see docs/ENVIRONNEMENT.md
 gofmt -l .                              # must print nothing

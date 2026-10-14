@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Refuse le commit si les vérifications échouent.
+# Activé par : git config core.hooksPath .githooks   (fait par bin/nouveau-projet)
+# Contournement exceptionnel (déconseillé) : git commit --no-verify
+set -euo pipefail
+racine="$(git rev-parse --show-toplevel)"
+
+# Garde-fou secrets : bloque les fichiers sensibles et les clés évidentes.
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$' | grep -v '\.env\.example$'; then
+  echo "❌ Fichier sensible dans le commit (voir ci-dessus). Retirez-le : git restore --staged <fichier>"
+  exit 1
+fi
+if git diff --cached -U0 | grep -E '^\+.*(sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY)'; then
+  echo "❌ Ce qui ressemble à une clé secrète est en train d'être committé."
+  exit 1
+fi
+
+
+exec bash "$racine/scripts/check.sh"
