@@ -3021,6 +3021,37 @@ absents, `SUPERVIEW_REQUIRE_FFMPEG` absent).
 tag`/`gh release create`/`git push --force`, crochet), `.claude/hooks/gofmt.sh` et
 `.claude/skills/verify/SKILL.md`, et reformule les deux phrases.
 
+### E-26 — Un test rouge n'a jamais bloqué une fusion
+
+🔴 Trouvé après la clôture des 25 constats, en lisant la CI des PR #85 à #87 : toutes trois
+ont fusionné avec un job Windows rouge. `Coverage Report & Gate`, le check requis qui porte le
+verdict des deux jobs de test, déclarait `needs: [test, test-windows]` sans condition ; quand
+l'un échoue, le gate est **sauté**, et GitHub compte un check requis sauté comme réussi. Avant
+la séparation Linux/Windows, la matrice avait le même trou : depuis M-03 et la fusion par
+label, aucun test rouge n'a jamais empêché une fusion.
+
+**Correctif** (PR #88) — `if: always()` sur le gate, et une première étape qui échoue si l'un
+des deux résultats n'est pas `success`. **Prouvé** sur la PR même : Windows rouge → gate
+rouge. Aucun autre check requis n'a de `needs:` (ruleset relu, sept contextes).
+
+### E-27 — Quatre défauts Windows masqués par E-26
+
+🟠 Révélés dès que le gate a pu rougir :
+
+1. **Production** — `cappedLogWriter` vidait un fichier ouvert en `O_APPEND`, ce que Windows
+   refuse (pas de `FILE_WRITE_DATA`) : le plafond du journal ne s'appliquait jamais sous
+   Windows. Le fichier est rouvert en `O_TRUNC`.
+2. **Tests** — l'isolation du cache ne posait que `XDG_CACHE_HOME`, que Windows ignore : les
+   tests du journal écrivaient dans le vrai cache du runner et lisaient les lignes les uns des
+   autres. `LocalAppData` est posé aussi.
+3. **Tests** — `TestOpenLogFile_TruncatesOversized` laissait sa quatrième ouverture sans
+   `Close` ; sous Windows le nettoyage de `t.TempDir` ne peut pas supprimer un fichier ouvert.
+4. **Tests** — le sous-test « copy refused, AAC accepted » ne lançait rien : `t.TempDir`
+   reprend le nom du test, et `cmd.exe` coupe le chemin du `.bat` factice à la virgule
+   (« `'…AACcopy_refused' is not recognized` »). Le vrai ffmpeg est un `.exe`, non concerné.
+   Sous-test renommé, et la fixture refuse désormais un répertoire contenant `,` `;` `=`
+   avec un message qui dit quoi faire.
+
 ### Plan d'actions
 
 Ordonné par ce que coûte l'absence de correction, groupé par PR pour que chaque PR tienne
@@ -3084,7 +3115,8 @@ GoPro `gpmd` est perdue par `-map "[v]" -map "0:a?"`).
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR ménage** (1 + ½ + DEC-33) | E-22 — `elapsedLocked()` partagé par `ElapsedTime`, `Summary` et `LogMetrics` (l'interblocage se reproduit 3 fois sur 3 sans lui) ; `findWindowsToolBinary` saute les variables vides ; `cappedLogWriter` recoupe le journal pendant l'écriture, `0o600`/`0o700` ; `availableMemoryBytes` prend le minimum avec `memory.max − memory.current`. E-23 partiel — `SessionError` rendu par `InitEncodingSession` et `getSessionPaths` (champ `Err`, `Unwrap`) ; restent le cache de sonde annulée (fait, PR sonde) et les closures/`fyneDo` (autre PR). DEC-33 — défaut `safe_performance` partout |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
-| ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 25 constats E-01 à E-25 sont clos par les lignes ✅ ci-dessus. Restent les questions Q-02 et Q-03, § 5, qui ne sont pas des constats |
+| ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
+| ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Restent les questions Q-02 et Q-03, § 5, qui ne sont pas des constats |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5 |
 | ❓ **Ouvertes** (2) | Q-02 (garde-fou mémoire chiffré à 4 fils), Q-03 (télémétrie GoPro perdue), § 5 |
 
@@ -3290,3 +3322,4 @@ produit, pas défaut** : l'outil existe pour la vidéo, et personne n'a demandé
 | 2026-10-14 | **M-06**, relevé par l'utilisateur : la branche de #76 restait après sa fusion. Le réglage *delete branch on merge* ne vaut pas pour une fusion faite avec le `GITHUB_TOKEN` de `merge-on-label.yml`, ce qui était vrai depuis M-03 et masqué par Dependabot, qui supprime ses propres branches. Le workflow attend la fusion et supprime la branche, sauf si une PR est empilée dessus. Leçon L-100. |
 | 2026-10-14 | **13ᵉ passe, à `f925ee5`**, à la demande de l'utilisateur : état des lieux complet, six revues parallèles confrontées aux documentations officielles (FFmpeg 8.0.1, Fyne 2.8.2, Go 1.26.9, GitHub Actions), baseline mesurée (un seul rouge, E-01). § 3duodecies, **25 constats E-01 à E-25**, tous ouverts, les plus lourds reproduits deux fois. Les quatre familles : correctifs appliqués à moitié (E-02, E-06, E-14), défauts introduits par un correctif (E-04, E-10), faits FFmpeg jamais mesurés (E-07 à E-09), tests verts à vide (E-19). Créé : [DECISIONS.md](DECISIONS.md) (34 décisions) et `.claude/`. Q-02 et Q-03 ajoutées. Plan d'actions en sept PR, quatre arbitrages attendus. Leçons L-101 à L-106. **Aucune modification de code.** |
 | 2026-10-14 | **PR 2 du plan — E-03, E-14, E-15, E-20 corrigés, E-23 en partie.** Une seule méthode de sortie, `appState.shutdown`, attend la goroutine d'encodage depuis les trois chemins ; en l'écrivant, l'hypothèse d'E-03 « `SetOnClosed`, que `app.Quit` et `catchTerm` traversent tous deux » s'est révélée fausse pour `catchTerm` (il appelle `driver.Quit`, aucune fenêtre fermée) — d'où un second crochet après `ShowAndRun()` et L-109. `completeEncoding` est la branche de fin unique, testée aux quatre issues sur un vrai canvas. § 4 mis à jour ; DEC-34 amendée (255 n'est pas une annulation). |
+| 2026-10-14 | **E-26 et E-27**, trouvés après la clôture de la 13ᵉ passe : #85 à #87 avaient fusionné avec Windows rouge, le gate requis étant *sauté* — donc compté réussi — dès qu'un job de test échouait. Gate corrigé et prouvé ; les quatre défauts Windows qu'il cachait corrigés dans la même PR (#88). Leçons L-111, L-112. |

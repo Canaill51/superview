@@ -75,7 +75,7 @@ func TestFindWindowsToolBinary_IgnoresRelativeCandidates(t *testing.T) {
 
 // TestCappedLogWriter_StaysUnderCap: the cap used to apply only at open.
 func TestCappedLogWriter_StaysUnderCap(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	isolateUserCacheDir(t)
 	const limit = 1024
 
 	w, path, err := OpenLogFile("superview-test", limit)
