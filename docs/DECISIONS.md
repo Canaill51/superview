@@ -71,6 +71,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-37](#dec-37) | Le garde-fou mémoire chiffre au nombre de fils réellement passé à ffmpeg : +4 % par fil au-delà de 4 | Acceptée |
 | [DEC-38](#dec-38) | La télémétrie GoPro (piste `gpmd`) n'est pas conservée | Acceptée |
 | [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Acceptée |
+| [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
 
 ---
 
@@ -374,3 +375,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Déplacements purs (`git mv`) : `common/` → `internal/common/` (le **nom de paquet `common` ne change pas**, donc `common.CleanUp`, etc. restent vrais partout), et les fichiers `gui_*.go`, `readme_link_test.go`, `FyneApp.toml`, `Icon.png` → `cmd/superview/`. `fyne package` lit `FyneApp.toml` et `Icon.png` dans son dossier de travail et y écrit l'archive (vérifié dans le source de `fyne.io/tools` v1.7.2, `package.go`) : `release.yml` l'exécute donc dans `cmd/superview` puis ramène l'archive à la racine, ce qui laisse les étapes suivantes intactes. Le dossier s'appelle `superview` et non `app` : l'exécutable intermédiaire de `fyne package` prend le nom du module.
 **Conséquences** — `.gitignore` ancre `/superview` (la règle nue aurait ignoré `cmd/superview/` entier) et ajoute `/cmd/superview/superview`. Les journaux `LECONS.md` et `ANALYSE.md` parlent de `common/` et de la racine : ils décrivent l'état d'avant et ne sont pas réécrits. Le test de chaque contrat reste là où il était, à côté du code. Écarts assumés par rapport au gabarit : pas de `CHANGELOG.md` (les notes de version viennent des PR fusionnées), pas de `ci-go.yml` (`test.yml` et `lint.yml` sont plus complets et épinglés par SHA), un seul `DECISIONS.md` au lieu de `docs/decisions/NNNN-*.md`.
 **À rouvrir si** — Une seconde interface (CLI) apparaît et doit importer `common` depuis un autre module : il faudrait alors sortir le paquet d'`internal/`.
+
+### DEC-40
+**Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis.**
+2026-10-14 · Acceptée · à la demande de l'utilisateur (alignement sur `claude-gabarit`)
+
+**Contexte** — Le gabarit attend `ARCHITECTURE.md`, `PIEGES.md` (+ `pieges/`), `SUITE.md`, `decisions/NNNN-*.md`, `CHANGELOG.md` et `tests/caracterisation/`. Superview a un registre `DECISIONS.md` (40 entrées), deux journaux de 3 300 lignes dont les identifiants (`L-xx`, `E-xx`, `DEC-xx`…) sont cités par le code, et des notes de version générées depuis les PR.
+**Décision** — Ajouter `ARCHITECTURE.md` (importée par `CLAUDE.md`), `PIEGES.md` (index d'une ligne par leçon de `LECONS.md` § 2), `pieges/_modele.md` et `SUITE.md` (lu au démarrage par le hook `debut-session`). Alléger les journaux **sans réécrire une ligne** : les passes 3 à 13 d'`ANALYSE.md` vont dans `archives/ANALYSE-passes-3-a-13.md`, le § 3 de `LECONS.md` dans `CORRECTIONS.md` (journal vivant, pas une archive : on y ajoute encore). Chaque section déplacée laisse un titre-renvoi, pour que les 87 renvois « § 3bis … § 3duodecies » restent vrais.
+**Conséquences** — Écarts assumés : pas de `CHANGELOG.md` (les notes de version viennent des PR, et un second journal serait saisi deux fois), pas de `ci-go.yml` (`test.yml` et `lint.yml` sont plus complets, épinglés par SHA, et couvrent Windows), un seul `DECISIONS.md` au lieu de `decisions/NNNN-*.md` (les numéros `DEC-xx` sont cités partout), des tests de caractérisation `*_test.go` à côté du code plutôt que dans `tests/caracterisation/` (Go ne teste pas l'interne depuis un autre dossier). `PIEGES.md` n'est **pas** importé par `CLAUDE.md` : 114 lignes à chaque session pour un index qu'on interroge par mot-clé. Un constat archivé se retrouve par `grep -rn "U-03" docs/`.
+**À rouvrir si** — Un outil lit `docs/decisions/` ou `CHANGELOG.md` en dehors de Claude Code, ou l'archive redevient la partie qu'on consulte le plus (alors la remonter).

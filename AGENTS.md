@@ -124,12 +124,17 @@ this: [`docs/MERGING.md`](docs/MERGING.md).
 
 Two journals, and they are how this repository keeps from repeating itself:
 
-- [`docs/LECONS.md`](docs/LECONS.md) — a numbered lesson per generalisable rule,
-  plus the fix log. **Read § 2 before correcting anything**: the correction may
-  have been tried and rejected.
+- [`docs/LECONS.md`](docs/LECONS.md) — a numbered lesson per generalisable rule.
+  **Read § 2 before correcting anything**: the correction may have been tried and
+  rejected. [`docs/PIEGES.md`](docs/PIEGES.md) indexes it by keyword; the fix log
+  is [`docs/CORRECTIONS.md`](docs/CORRECTIONS.md), where new entries go.
 - [`docs/ANALYSE.md`](docs/ANALYSE.md) — the numbered findings and their state.
   Its § 4 status table is the one that counts. When a finding turns out to be
-  wrong, mark it invalid and say why rather than deleting it.
+  wrong, mark it invalid and say why rather than deleting it. Passes 3 to 13
+  live in `docs/archives/` (sections left as pointers); find a finding with
+  `grep -rn "U-03" docs/`.
+- [`docs/SUITE.md`](docs/SUITE.md) — where things stand; the session-start hook
+  prints its first lines. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the map.
 
 And one register, [`docs/DECISIONS.md`](docs/DECISIONS.md): every choice that
 looks like a defect, with its reason and the condition that would reopen it.
