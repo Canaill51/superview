@@ -10,5 +10,6 @@
 - Prochaine étape : portage Rust + Slint, planifié mais pas commencé. Plan approuvé :
   `~/.claude/plans/distributed-kindling-alpaca.md` (phases 1 à 8, porte GO/NO-GO après l'essai de la phase 3).
   Il prend la suite de cette PR : les scripts `packaging/` sont réutilisés tels quels.
+- Publier une version : demander « publie la version x.y.z » ; l'agent passe par `/publier` (DEC-42), confirme le numéro, lance le workflow Release et vérifie les fichiers.
 - `fyne package` lancé en local réécrit `cmd/superview/FyneApp.toml` : `git checkout cmd/superview/FyneApp.toml`.
 - Mettre ce fichier à jour à la clôture d'une session (`/cloture`).

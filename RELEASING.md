@@ -6,6 +6,22 @@ publishes. There is nothing to prepare beforehand.
 
 This file explains the parts that are not obvious from the button.
 
+## Asking Claude to publish
+
+Instead of the button, you can ask Claude Code to publish ("publie la version
+0.2.9"). It runs the same workflow, through the `/publier` skill
+(`.claude/skills/publier/SKILL.md`): it checks that `master` is current and green,
+that no pull request you are waiting for is still open, and that the release
+workflow has been tried since it last changed (L-114); it proposes the version
+and shows the notes; **it dispatches the run only after your yes to that exact
+version**; then it watches the run and checks that the installer, the AppImage
+and `checksums.txt` are on the release.
+
+It never tags and never runs `gh release create`: both are denied in
+`.claude/settings.json`, because the workflow tags only after both platforms
+have built. What it is allowed to run is `gh workflow run release.yml`, which is
+what the button does. It does not publish unprompted.
+
 ## Every change goes through a pull request
 
 This is the one rule the release flow depends on, so it comes first.

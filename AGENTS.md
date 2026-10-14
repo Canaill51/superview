@@ -115,7 +115,11 @@ than it looks.
   `gh api -X POST "repos/$REPO/issues/<NN>/labels" -f "labels[]=merge"` —
   `gh pr edit` fails on this repository, silently with stderr redirected.
 - Releases are one button ([`RELEASING.md`](RELEASING.md)). Never tag by hand
-  unless the intent is explicitly to release.
+  unless the intent is explicitly to release. **An agent publishes only when the
+  user asks for a release in the conversation, and only through `/publier`**: it
+  checks the preconditions, proposes the version, waits for the user's yes to that
+  exact number, dispatches the Release workflow and verifies the published files.
+  A merged pull request or a green CI is not a request.
 
 Merging by hand, stacked pull requests, the repository settings behind all
 this: [`docs/MERGING.md`](docs/MERGING.md).
@@ -144,7 +148,7 @@ one is marked *Remplacée*, never deleted.
 After a correction, add the entry. A lesson whose remedy is a command ends by
 running the command, not by fixing the one occurrence that inspired it.
 
-`.claude/` holds the Claude Code side of this: the permission allowlist for the
+`.claude/` holds the Claude Code side of this (and `/publier`, see above): the permission allowlist for the
 verification recipe, a `gofmt` hook on every Go edit, and `/verify`, which runs
 the recipe above and reports each gate instead of summarising. Other agent tools
 ignore the directory; nothing in it is an instruction.
