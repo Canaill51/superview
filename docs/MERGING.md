@@ -69,6 +69,16 @@ another open pull request is based on it, because deleting a base branch through
 the API closes the pull request above instead of retargeting it. It comments on
 the pull request when it keeps a branch for that reason.
 
+Nor does the merge commit start `test.yml` or `lint.yml` on `master`: a push
+made with the workflow's token triggers no workflow, `workflow_dispatch` being
+the documented exception. So, once the merge has landed on the default branch,
+the workflow dispatches both on it, and `master` is tested as a push would have
+tested it. If a run is missing — the dispatch is best effort and only warns —
+`gh workflow run test.yml --ref master` and the same for `lint.yml` do by hand
+what it does. The ruleset stays non-strict on purpose (DEC-35): requiring
+branches to be up to date would make every stacked pull request unmergeable
+until rebased by hand.
+
 Releases are one button, documented in [`RELEASING.md`](../RELEASING.md). Nothing to
 prepare, no file to write, no version to bump. Never tag by hand unless the
 intent is explicitly to release.

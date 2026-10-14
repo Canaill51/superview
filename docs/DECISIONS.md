@@ -66,6 +66,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée |
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe` dans le code et `safe_performance` dans le YAML livré | À réexaminer |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
+| [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
 | [DEC-36](#dec-36) | `common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
 
 ---
@@ -102,7 +103,7 @@ origine du dépôt · Acceptée
 2026-09-06 · Acceptée · U-03, U-04, L-72, L-74, [RELEASING.md](../RELEASING.md)
 
 **Contexte** — gyan.dev 8.1.2 est compilé contre des `nv-codec-headers` exigeant un pilote 610 ; la branche pilote RTX Enterprise plafonne à 597.06. Un utilisateur a perdu NVENC en mettant FFmpeg à jour.
-**Décision** — Les archives livrent FFmpeg 8.1.1 (plancher 570.0). `resolveToolBinary` cherche dans l'ordre : `SUPERVIEW_FFMPEG_DIR`, la copie livrée, le `PATH`, puis winget/scoop. `.github/scripts/nvenc-driver-floor.sh` fait échouer la release si le plancher bouge.
+**Décision** — Les archives livrent un FFmpeg au plancher 570.0 : gyan.dev 8.1.1 sous Windows, BtbN n8.1.2 (autobuild 2026-08-31) sous Linux — la propriété épinglée est le plancher, pas le numéro de version, et `release.yml` lance la suite contre le binaire livré avant de l'empaqueter (E-11). `resolveToolBinary` cherche dans l'ordre : `SUPERVIEW_FFMPEG_DIR`, la copie livrée, le `PATH`, puis winget/scoop. `.github/scripts/nvenc-driver-floor.sh` fait échouer la release si le plancher bouge.
 **Conséquences** — « Mettre à jour vers le dernier FFmpeg » est une régression déguisée. Sous Linux les outils vont dans `../lib/superview/`, jamais à côté du binaire dans `$PREFIX/bin`.
 **À rouvrir si** — Un build à plancher ≤ 570 existe pour une version plus récente, **et** le script de plancher le confirme.
 
@@ -247,7 +248,7 @@ origine du dépôt · Acceptée
 **Toute modification passe par une PR fusionnée sur label `merge` ; le workflow choisit la méthode.**
 2026-09-11 / 2026-10-14 · Acceptée · M-03, M-06, L-97, L-100, [MERGING.md](MERGING.md)
 
-**Décision** — Ruleset sur `master`, squash par défaut, merge commit si une PR est empilée dessus, suppression de branche par le workflow (le réglage du dépôt ne vaut pas pour le `GITHUB_TOKEN`). Labelliser par `gh api`, pas `gh pr edit`.
+**Décision** — Ruleset sur `master`, squash par défaut, merge commit si une PR est empilée dessus, suppression de branche par le workflow (le réglage du dépôt ne vaut pas pour le `GITHUB_TOKEN`), et relance de la CI de `master` par le même workflow (DEC-35, pour la même raison). Labelliser par `gh api`, pas `gh pr edit`.
 
 ### DEC-25
 **La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné.**
@@ -311,6 +312,15 @@ origine · Acceptée · B-03 (invalidé)
 
 **Décision** — zenity puis kdialog sous Linux, PowerShell/WinForms sous Windows ; le dialogue Fyne si rien n'est disponible. Les codes de sortie 1 et 255 valent « annulé », pas « erreur ».
 **À rouvrir si** — Fyne livre un dialogue natif portable (suivi : `fyne.io/fyne/v2/dialog`).
+
+### DEC-35
+**La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict.**
+2026-10-14 · Acceptée · E-06, L-104, L-107, DEC-24, [MERGING.md](MERGING.md)
+
+**Contexte** — Depuis que `merge-on-label.yml` fusionne (M-03), la fusion est faite avec le `GITHUB_TOKEN`, et « events triggered by the `GITHUB_TOKEN`, with the exception of `workflow_dispatch` and `repository_dispatch`, will not create a new workflow run » (docs.github.com, *Triggering a workflow*). Cinq fusions (#73 à #77) sans un seul run sur `master`. Trois issues : rendre le ruleset strict (*Require branches to be up to date*), fusionner avec un jeton d'application ou personnel, ou utiliser l'exception.
+**Décision** — L'exception. `test.yml` et `lint.yml` acceptent `workflow_dispatch` ; après la fusion, le job de `merge-on-label.yml` (qui a `actions: write` pour cela) les dispatche sur la branche par défaut, en meilleur effort — un échec de dispatch est un avertissement, pas un rouge sur une PR déjà fusionnée. Le ruleset garde `strict_required_status_checks_policy: false` : strict refuserait toute PR qui n'est pas au sommet de `master` — chaque membre d'une pile, chaque bump Dependabot derrière un autre — tant qu'un humain ne l'a pas rebasée, c'est-à-dire exactement le geste manuel que le label supprime. Un jeton d'application déclencherait tout nativement, au prix d'un secret à longue durée de vie dans un job qui fusionne du code.
+**Conséquences** — Une PR est testée contre sa base au moment de son dernier push, pas contre le résultat fusionné ; une régression née de la combinaison de deux PR n'apparaît qu'après coup, sur le run dispatché de `master` — accepté, et c'est pour cela que ce run existe. Après une fusion, `gh run list --branch master --event workflow_dispatch --limit 2` doit montrer deux runs. **La première fusion après la PR qui introduit ce mécanisme ne dispatche rien** : `pull_request_target` exécute la version du workflow qui est sur `master`, donc l'ancienne ; relancer à la main cette fois-là (`gh workflow run test.yml --ref master`, idem `lint.yml`).
+**À rouvrir si** — GitHub cesse d'exempter `workflow_dispatch` ; ou le dépôt accepte un jeton d'application (la suppression de branche et le dispatch redeviendraient alors natifs, et DEC-24 à réviser) ; ou les piles de PR disparaissent de la pratique, auquel cas le ruleset strict ne coûte plus rien et teste mieux.
 
 ### DEC-36
 **`common/` est découpé par responsabilité ; aucun fichier fourre-tout.**

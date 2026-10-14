@@ -4,7 +4,7 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 106 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 108 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée. Les **décisions** — ce qui ressemble à un défaut
 > et n'en est pas un — sont dans [DECISIONS.md](DECISIONS.md).
@@ -1138,7 +1138,118 @@ valeur par défaut, pas un comportement.
 de la présence le jour où elle arrive, et le commentaire qui le demande ne le fera pas.**
 Lister les « never » : `grep -rn "never\|jamais\|not yet" --include='*_test.go' .`
 
+### L-107 — `workflow_dispatch` est l'exception à la règle du `GITHUB_TOKEN` — 2026-10-14
+Suite de L-104, qui disait quoi vérifier et pas quoi faire. La règle complète de GitHub est :
+« events triggered by the `GITHUB_TOKEN`, **with the exception of `workflow_dispatch` and
+`repository_dispatch`**, will not create a new workflow run ». Les deux autres issues — ruleset
+strict, jeton d'application — coûtent chacune quelque chose que ce dépôt a déjà refusé de
+payer (DEC-35) ; l'exception ne coûte qu'un `actions: write` et un `on: workflow_dispatch`.
+→ **Quand une automatisation remplace un geste humain, ce que ce geste déclenchait se relance
+par l'exception documentée, pas en élargissant le jeton.** Et lire la phrase de la doc
+jusqu'à sa subordonnée : la solution était dans la même ligne que le problème.
+
+### L-108 — Une clé de cache immuable appartient au premier job qui finit — 2026-10-14
+`setup-go` sauve module et build caches sous une clé par image, version de Go et `go.sum`,
+commune à tous les jobs Linux des deux workflows. Le job `fmt`, sept secondes, sans un
+module téléchargé, finissait toujours premier : il écrivait la clé avec 7,5 Ko dedans
+(journal de `801660d`), et chaque autre job la « touchait » puis recompilait le cgo de Fyne
+à froid — tous les runs, depuis des mois, sous un `Cache restored successfully`.
+→ **Un job qui ne construit rien ne doit pas sauver de cache (`cache: false`), et un cache
+« restauré » se juge à sa taille, pas à son message.** Vérifier :
+`gh api repos/$REPO/actions/caches --jq '.actions_caches[] | "\(.size_in_bytes) \(.key)"'`.
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] E-06, E-11, E-18, E-24 — La CI ne tournait plus sur `master`, jamais sous `-race`, jamais contre le FFmpeg livré, et deux fois pour rien
+
+| | |
+| --- | --- |
+| **Constat** | E-06, E-11, E-18, E-24 ([ANALYSE.md § 3duodecies](ANALYSE.md)) ; accélération des workflows demandée en cours de route |
+| **Fichiers** | `.github/workflows/test.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`, `AGENTS.md` (une ligne du tableau), `RELEASING.md` (§ *Manual pins*), `docs/MERGING.md`, `docs/DECISIONS.md` (DEC-35, DEC-04, DEC-24), `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **PR** | *à ouvrir* |
+| **Vérification** | workflows et documentation seuls, aucun `.go` touché · `python3 -c 'yaml.safe_load'` sur les quatre fichiers ✅ · `actionlint` v1.7.12 ✅ 0 alerte, contre-épreuve : un `steps.landedd` inventé le fait rougir ✅, un nom d'entrée `cache-dependency-pth` **ne le fait pas** (les actions sont épinglées par SHA, actionlint ne connaît pas leurs entrées) — entrées et sorties de `setup-go` lues dans son `action.yml` au SHA épinglé (`cache`, `cache-dependency-path`, sortie `go-version`), `use_oidc` dans le README de `codecov-action` v7 · chaque `uses:` : SHA résolu vers son tag par `gh api .../git/ref/tags/…` (tags annotés déréférencés), commentaires portés en `vX.Y.Z` · contre-épreuve du gate : `needs: [test, test-windowz]` fait rougir actionlint ✅ · noms des workflows `test.yml`/`lint.yml` confirmés par `gh api .../actions/workflows` · contextes requis du ruleset relus, aucun renommé · archive gyan.dev 8.1.1 téléchargée : SHA-256 identique au pin, un seul `bin/` avec `ffmpeg.exe` et `ffprobe.exe` ✅ · `gofmt` ✅ · `go build ./...` ✅ · `TestInstallURLFragmentPointsAtARealHeading` ✅ · **non vérifié ici** : l'étape PowerShell (pas de `pwsh`), le dispatch réel (ne joue qu'à la fusion suivante), l'OIDC côté Codecov |
+
+**Symptôme** — Cinq fusions (#73 à #77) et aucun run sur `master`. Quatre `go test ./...` sans
+`-race` alors que le `Makefile` et `AGENTS.md` l'exigent. La release testait contre le
+`ffmpeg` d'apt (6.1.1) et de choco (9.0.2), jamais contre les 8.1.1/n8.1.2 qu'elle livre, et
+`choco install ffmpeg` sans version ni relance avait déjà tué un run sur un 504. Codecov
+échouait à chaque run (`Token required - not valid tokenless upload`) sous un `success`.
+`contents: write` sur tous les jobs de la release, un double cache, une suite jouée deux fois
+pour le même profil, un commentaire de couverture qui aurait fait échouer le contrôle
+obligatoire sur une PR de fork, deux commentaires faux.
+
+**Cause racine** — E-06 : la moitié de L-100 jamais appliquée (L-104), et personne n'avait lu
+la subordonnée de la phrase de GitHub qui donne la solution (L-107). E-11 : la CI a été écrite
+avant que `-race` ne devienne la règle, et `SUPERVIEW_FFMPEG_DIR` a été ajouté pour les
+utilisateurs sans que la release s'en serve. E-18 : deux amortisseurs (`fail_ci_if_error:
+false`, `continue-on-error`) posés pour qu'un service tiers ne bloque pas, qui ont caché qu'il
+ne marchait jamais. E-24 : accrétion. Et en mesurant les durées pour l'accélération, un défaut
+que personne n'avait vu : le job `fmt` sauvait un cache vide sous la clé commune (L-108).
+
+**Correctif** —
+- **E-06** : `on: workflow_dispatch` sur `test.yml` et `lint.yml` ; dans `merge-on-label.yml`
+  l'attente de la fusion devient une étape à part (`id: landed`), dont dépendent la
+  suppression de branche (inchangée, toujours ni fork ni pile) et une nouvelle étape qui
+  dispatche les deux workflows sur la branche par défaut, en meilleur effort ; `actions: write`
+  sur le job. Ni ruleset strict ni jeton d'application : DEC-35 dit pourquoi.
+- **E-11** : `-race -count=1` sur toutes les invocations Linux (`-count=1` parce que le cache
+  de build, désormais réellement restauré, laisserait `go test` répondre `(cached)`). Windows
+  reste sans `-race` : le détecteur y doublerait le job le plus long du workflow (7m38 de
+  `go test`) pour des courses qui sont dans du Go portable. `release.yml`, job Linux : la suite
+  tourne contre le binaire téléchargé et vérifié, `SUPERVIEW_FFMPEG_DIR=$RUNNER_TEMP/ffbin`.
+  `test.yml`, Windows : `choco` remplacé par l'archive gyan.dev 8.1.1 de `release.yml` (même
+  URL, même SHA-256, `Get-FileHash`, `7z x`, `bin/` ajouté à `GITHUB_PATH`), et
+  `ffmpeg -version` doit contenir `8.1.1` pour qu'un ffmpeg de l'image ne réponde pas à sa
+  place.
+- **E-18** : l'envoi Codecov est **retiré**. Premier essai par OIDC (`use_oidc`, `id-token:
+  write`, `fail_ci_if_error: true`) sur cette PR même : le jeton est bien émis (1 922
+  caractères), et Codecov répond `Repository not found`. Le dépôt n'a jamais été activé sur
+  codecov.io : aucun rapport n'est jamais arrivé, ni avant ni après. Le gate de couverture
+  interne décide seul, et le commentaire de PR affiche le chiffre. À réactiver seulement après
+  activation du dépôt sur codecov.io, geste de compte que le dépôt ne peut pas faire. Aucun
+  badge à retirer. Le même run a vérifié ce qui ne pouvait pas l'être en local : `-race` sous
+  Linux, et l'archive gyan.dev 8.1.1 sous Windows, SHA-256 compris.
+- **E-24** : étape `actions/cache` supprimée, `cache-dependency-path: go.sum` partout ;
+  `contents: read` en tête de `release.yml`, `write` sur `create-release` seul ; commentaire de
+  couverture conditionné au même dépôt et `continue-on-error` ; `coverage.out` publié en
+  artefact et téléchargé par le gate ; une seule exécution dans le job `test` de la release ;
+  `notify` passe tout par `env:` ; les deux commentaires corrigés ; § *Manual pins* dans
+  `RELEASING.md`.
+- **Accélération**, sans retirer une vérification ni renommer un contrôle requis :
+  `concurrency` sur `test.yml` et `lint.yml` (annulation sur PR seulement) ; `test` scindé en
+  deux jobs aux noms inchangés, le gate `needs: [test, test-windows]` — aucun des deux n'est un
+  contrôle requis, c'est le gate qui porte leur verdict, et un premier jet qui ne lui faisait
+  attendre que Linux laissait un Windows rouge fusionner (vu à la relecture) ; `native-build-matrix`
+  sans `needs: test` (les deux sont des contrôles requis, et le gate bloque déjà sur un test
+  rouge) ; `coverage-report` sans en-têtes GUI, sans ffmpeg, sans cache ; `fmt` avec
+  `cache: false` (L-108) ; binaires `golangci-lint` et `govulncheck` en cache, clé = version de
+  l'outil + version de Go ; `--no-install-recommends` ; `go mod download` retiré (deux secondes
+  que `go test` refait de toute façon). `lint` et `govulncheck` restent deux jobs : ils
+  tournent en parallèle, un seul job ferait leur somme.
+
+Durées mesurées sur le dernier run vert de `master` (`801660d`, runs 37425624470 et
+37425624499, `gh run view --json jobs`) et gain attendu ; **à remesurer sur le premier run de
+cette PR**, `-race` ralentissant le job Linux d'un facteur que seul le run dira :
+
+| Job | Avant (801660d) | Après, attendu |
+| --- | --- | --- |
+| Test ubuntu | 3m49 (apt 32 s, `go test` 3m00 à cache vide) | `-race` alourdit, le cache de build restauré allège ; ordre de grandeur égal |
+| Test windows | 8m49 (choco 31 s, `go test` 7m38) | ≈ égal (le téléchargement gyan.dev vaut choco) ; reste le chemin critique |
+| Coverage Report & Gate | 2m52, démarré à +8m53, après Windows | ≈ 20 s, toujours après Windows : il ne rejoue plus la suite |
+| Native Build ubuntu / windows | 3m24 / 1m23, démarrés à +8m53 | inchangés, démarrés à +0 |
+| **test.yml bout en bout** | **12m17** | **≈ 9m10**, borné par le job Windows puis le gate |
+| golangci-lint | 3m35 (apt 32 s, `go install` + run 2m54) | la compilation du linter disparaît sur cache chaud |
+| Vulnerability Scan | 2m24 | idem |
+| Code Format Check / README parity | 7 s / 4 s | inchangés, et `fmt` ne sauve plus de cache vide |
+| **lint.yml bout en bout** | **3m37** | borné par golangci-lint, en baisse de la compilation de l'outil |
+
+**Ce qui est délibérément laissé** — Le job Windows de la release ne lance pas la suite
+contre son FFmpeg : `test.yml` le fait déjà avec la même archive. Le commentaire de couverture
+poste encore un commentaire par push. **La première fusion après celle-ci ne dispatchera
+rien** — `pull_request_target` exécute le `merge-on-label.yml` de `master`, l'ancien :
+`gh workflow run test.yml --ref master` et `lint.yml` à la main, une fois.
+
+**Leçon** — L-107, L-108.
 
 ### [2026-10-14] E-01, E-07, E-08, E-09, E-23 (cache) — La sonde pose la question de l'encodage ; presets par encodeur ; `hvc1`
 

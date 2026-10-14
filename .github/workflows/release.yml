@@ -43,8 +43,11 @@ on:
         type: boolean
         default: false
 
+# Read-only for every job but the one that tags and publishes. The build jobs
+# run third-party code -- fyne@v1.7.2, cgo -- with the token actions/checkout
+# persists in .git/config, and a writable one there could push (E-24).
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # Everything the rest of the run needs to know is decided once, here.
@@ -66,7 +69,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
 
@@ -152,7 +155,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
 
@@ -161,6 +164,7 @@ jobs:
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache-dependency-path: go.sum
 
     # ffmpeg matters here, and not only to run more tests. Without it every
     # integration test used to skip, and module coverage measured 51.4%
@@ -170,18 +174,17 @@ jobs:
     # turns that silence into a failure, so the coverage number no longer
     # carries the news on its own.
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ffmpeg
 
-    - name: Run tests
-      env:
-        SUPERVIEW_REQUIRE_FFMPEG: '1'
-      run: go test ./... -v
-
-    - name: Run coverage check
+    # One run, not two: the suite used to run once with -v and again for the
+    # profile (E-24). -race and -count=1 for the reasons given in test.yml.
+    - name: Run tests and the coverage gate
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: |
-        go test ./... -coverprofile=coverage.out
+        go test -race -count=1 ./... -v -coverprofile=coverage.out -covermode=atomic
         coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
         if (( $(echo "$coverage < 50" | bc -l) )); then
           echo "❌ Coverage ${coverage}% below 50% gate"
@@ -218,13 +221,14 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Setup Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache-dependency-path: go.sum
 
     # The packaging tool is pinned, like every action in this repository is
     # pinned by SHA. Fetching @latest at release time meant an upstream change
@@ -334,26 +338,32 @@ jobs:
       # Windows job: what is pinned is the NVENC driver floor, 570.0, and the
       # step below reads it back out of the binary.
       #
-      # BtbN rather than gyan.dev, who builds for Windows only. The tag is a
-      # month-end autobuild on purpose: BtbN prunes mid-month builds -- the pin
-      # in the fork this idea came from is already a 404 -- but keeps the last
-      # build of each month, and the October 2024 one still answers today.
+      # BtbN rather than gyan.dev, who builds for Windows only. The pin is the
+      # autobuild of 2026-08-31, FFmpeg n8.1.2 at git 1a748fe2cd, GPL, linux64
+      # -- a later version than Windows' 8.1.1, and still at the 570.0 floor
+      # because BtbN compiles against older nv-codec-headers than gyan.dev.
+      # A month-end autobuild on purpose: BtbN prunes mid-month builds -- the
+      # pin in the fork this idea came from is already a 404 -- but keeps the
+      # last build of each month, and those have held since October 2024.
       FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-n8.1.2-50-g1a748fe2cd-linux64-gpl-8.1.tar.xz
       FFMPEG_SHA256: c733b4b2951e5957e15505f788b2c65a7a41b6da4b289e295852cc38079b4d2b
       FFMPEG_DRIVER_FLOOR: '570.0'
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Setup Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache-dependency-path: go.sum
 
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
     # "fyne package" writes its archive in the working directory, not in a
     # build/ subdirectory. The previous version created build/, packaged, then
@@ -426,6 +436,19 @@ jobs:
         set -euo pipefail
         source .github/scripts/nvenc-driver-floor.sh
         assert_driver_floor "$FFMPEG_DRIVER_FLOOR" "${RUNNER_TEMP}/ffbin/ffmpeg" "${RUNNER_TEMP}/ffbin/ffprobe"
+
+    # The suite against the binary that ships, not the one apt installed in
+    # the test job (6.1.1 there, n8.1.2 here). SUPERVIEW_FFMPEG_DIR is the
+    # first place resolveToolBinary looks, and exists for exactly this (E-11).
+    # No profile and no -v: the test job already gated coverage; this run
+    # only has to be red or green against this FFmpeg. -race because the
+    # tools' output is read from goroutines, and that is where an FFmpeg that
+    # prints differently would bite.
+    - name: Run the tests against the bundled FFmpeg
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
+        SUPERVIEW_FFMPEG_DIR: ${{ runner.temp }}/ffbin
+      run: go test -race -count=1 ./...
 
     # The tools go under lib/superview, not next to the app.
     #
@@ -579,13 +602,16 @@ jobs:
     needs: [prepare, build-gui-windows, build-gui-linux]
     runs-on: ubuntu-latest
     if: needs.prepare.outputs.release == 'true'
+    # The only job that writes: it pushes the tag and publishes the release.
+    permissions:
+      contents: write
 
     steps:
     # This job never checked anything out -- it only downloaded artifacts. The
     # tag message is needed here now, and reading it needs the repository and
     # the tag object, hence fetch-depth 0.
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
 
@@ -709,30 +735,38 @@ jobs:
     # release had been created at all. Nobody noticed for over a month, and the
     # published version stayed three tags behind. A summary that cannot report
     # failure is worse than no summary.
+    #
+    # Through env, like the prepare job: a ${{ }} inside a run: block is
+    # executed by the shell, and the tag is user input (E-24).
     - name: Report what actually happened
+      env:
+        PLAN: ${{ needs.prepare.result }}
+        TESTS: ${{ needs.test.result }}
+        WINDOWS: ${{ needs.build-gui-windows.result }}
+        LINUX: ${{ needs.build-gui-linux.result }}
+        RELEASE: ${{ needs.create-release.result }}
+        DRAFT: ${{ needs.prepare.outputs.draft }}
+        TAG: ${{ needs.prepare.outputs.tag }}
       run: |
         set -uo pipefail
-        echo "Plan:           ${{ needs.prepare.result }}"
-        echo "Tests:          ${{ needs.test.result }}"
-        echo "Windows build:  ${{ needs.build-gui-windows.result }}"
-        echo "Linux build:    ${{ needs.build-gui-linux.result }}"
-        echo "Release:        ${{ needs.create-release.result }}"
+        echo "Plan:           ${PLAN}"
+        echo "Tests:          ${TESTS}"
+        echo "Windows build:  ${WINDOWS}"
+        echo "Linux build:    ${LINUX}"
+        echo "Release:        ${RELEASE}"
         echo ""
 
         failed=0
-        for result in "${{ needs.prepare.result }}" \
-                      "${{ needs.test.result }}" \
-                      "${{ needs.build-gui-windows.result }}" \
-                      "${{ needs.build-gui-linux.result }}"; do
+        for result in "$PLAN" "$TESTS" "$WINDOWS" "$LINUX"; do
           [ "$result" = "success" ] || failed=1
         done
 
-        case "${{ needs.create-release.result }}" in
+        case "$RELEASE" in
           success)
-            if [ "${{ needs.prepare.outputs.draft }}" = "true" ]; then
-              echo "Draft ${{ needs.prepare.outputs.tag }} created. Publishing it is still a manual step."
+            if [ "$DRAFT" = "true" ]; then
+              echo "Draft ${TAG} created. Publishing it is still a manual step."
             else
-              echo "Released ${{ needs.prepare.outputs.tag }}. The assets are public."
+              echo "Released ${TAG}. The assets are public."
             fi
             ;;
           skipped)

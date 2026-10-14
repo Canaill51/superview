@@ -24,15 +24,17 @@ on:
 # token, which is only safe because this job never checks out, builds or runs
 # a single line of the pull request's code. It talks to the API and nothing
 # else. Do not add a checkout step here.
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   merge:
     name: Arm the merge
     if: github.event.label.name == 'merge'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      # To dispatch the test and lint workflows on master once the merge has
+      # landed -- see the last step.
+      actions: write
 
     steps:
     - name: Pick the method and arm the merge
@@ -122,19 +124,55 @@ jobs:
           "🏷️ \`merge\` seen — $verdict, because $why. ([docs/MERGING.md]($RULE_URL))"
         echo "::notice::$verdict"
 
+    # An armed merge lands when the required checks pass, which on this
+    # repository takes about ten minutes; the step timeout bounds the wait.
+    # The two steps below both need the answer, so the wait is its own step:
+    # the branch deletion skips forks and stacks, the re-run must not.
+    - name: Wait for the merge
+      id: landed
+      timeout-minutes: 60
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+
+        while :; do
+          state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
+          case "$state" in
+            MERGED) break ;;
+            CLOSED)
+              echo "::notice::closed without merging"
+              echo "merged=false" >> "$GITHUB_OUTPUT"
+              exit 0 ;;
+          esac
+          # Unarmed by hand, or never armed: nothing will merge it.
+          if [ "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" != "true" ]; then
+            state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
+            if [ "$state" != "MERGED" ]; then
+              echo "::notice::auto-merge no longer armed"
+              echo "merged=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            break
+          fi
+          sleep 30
+        done
+        echo "merged=true" >> "$GITHUB_OUTPUT"
+        echo "::notice::merged"
+
     # The repository deletes head branches on merge, but not when the merge is
     # made with this job's GITHUB_TOKEN: GitHub runs none of its automations on
     # what that token does. #76 was the first pull request this job merged that
     # Dependabot -- which cleans up after itself -- did not own, and its branch
-    # stayed (M-06). So the job waits for the merge and deletes the branch
-    # itself.
+    # stayed (M-06). So the job deletes the branch itself.
     #
     # Not when something is stacked on it. The repository setting retargets the
     # pull request above onto the base; deleting the branch through the API
     # closes it instead. That case is left to a human, and said so.
     - name: Delete the branch once merged
-      if: steps.arm.outputs.above == '0' && github.event.pull_request.head.repo.full_name == github.repository
-      timeout-minutes: 60
+      if: steps.landed.outputs.merged == 'true' && steps.arm.outputs.above == '0' && github.event.pull_request.head.repo.full_name == github.repository
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO: ${{ github.repository }}
@@ -148,26 +186,6 @@ jobs:
           echo "::notice::head is the default branch, never deleted"
           exit 0
         fi
-
-        # An armed merge lands when the required checks pass, which on this
-        # repository takes about ten minutes; the job timeout bounds the wait.
-        while :; do
-          state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
-          case "$state" in
-            MERGED) break ;;
-            CLOSED) echo "::notice::closed without merging, branch kept"; exit 0 ;;
-          esac
-          # Unarmed by hand, or never armed: nothing will merge it.
-          if [ "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" != "true" ]; then
-            state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
-            if [ "$state" != "MERGED" ]; then
-              echo "::notice::auto-merge no longer armed, branch kept"
-              exit 0
-            fi
-            break
-          fi
-          sleep 30
-        done
 
         # Checked again after the merge: a pull request can be based on this
         # branch between the label and the merge.
@@ -188,3 +206,53 @@ jobs:
           cat "$RUNNER_TEMP/err.txt" >&2
           exit 1
         fi
+
+    # The other half of what the token does not trigger. "Events triggered by
+    # the GITHUB_TOKEN, with the exception of workflow_dispatch and
+    # repository_dispatch, will not create a new workflow run" (docs.github.com,
+    # "Triggering a workflow"): the merge commit this job puts on master starts
+    # neither test.yml nor lint.yml, and from #73 to #77 master was not tested
+    # once (E-06). L-100 had said so -- "neither branch deletion nor workflow"
+    # -- and only the first half was acted on.
+    #
+    # Hence the exception, used on purpose: both workflows accept
+    # workflow_dispatch, and this step dispatches them on the base branch, so
+    # the merged commit is tested as a push of it would have been.
+    #
+    # Not the two other ways out. A strict ruleset ("require branches to be up
+    # to date before merging") would test the merged result on the pull
+    # request instead, but it refuses every pull request that is not on top of
+    # master -- each member of a stack, each Dependabot bump queued behind
+    # another -- until someone rebases it by hand, which is the manual step the
+    # label exists to remove. A GitHub App or personal token in place of
+    # GITHUB_TOKEN would trigger everything natively, at the price of a
+    # long-lived credential in the repository's secrets for a job that merges
+    # code.
+    #
+    # Best effort: a dispatch that fails is logged, never fatal. The merge has
+    # happened, and failing here would only paint a landed pull request red.
+    - name: Run the checks on the base branch
+      if: steps.landed.outputs.merged == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        set -uo pipefail
+
+        # The push trigger of both workflows lists the default branch and its
+        # aliases only, so a merge into a feature branch would have started
+        # nothing either.
+        if [ "$BASE_REF" != "$DEFAULT_BRANCH" ]; then
+          echo "::notice::merged into $BASE_REF, not $DEFAULT_BRANCH; nothing to re-run"
+          exit 0
+        fi
+
+        for workflow in test.yml lint.yml; do
+          if gh workflow run "$workflow" --repo "$REPO" --ref "$BASE_REF"; then
+            echo "::notice::dispatched $workflow on $BASE_REF"
+          else
+            echo "::warning::could not dispatch $workflow on $BASE_REF; run 'gh workflow run $workflow --ref $BASE_REF' by hand"
+          fi
+        done

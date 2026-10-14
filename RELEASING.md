@@ -158,3 +158,26 @@ Pick a source whose URL will still resolve. gyan.dev publishes versioned GitHub
 releases, which are permanent. BtbN prunes its mid-month autobuilds — the pin in
 the fork this idea came from is already a 404 — but keeps the last build of each
 month, and those have held since October 2024.
+
+The two pins are not the same version: Windows ships gyan.dev 8.1.1, Linux ships
+BtbN's n8.1.2 autobuild of 2026-08-31. Both read back a 570.0 floor, which is
+the only property they are required to share. The Linux build job also runs the
+test suite against the binary it has just verified, with `SUPERVIEW_FFMPEG_DIR`
+pointing at it, and `test.yml` runs the Windows suite against the same gyan.dev
+archive — so moving either pin is exercised before it ships.
+
+## Manual pins
+
+Dependabot bumps the Go modules and the `uses:` SHAs of every action. It does
+not see these, which move only when someone edits the file:
+
+| Pin | Where |
+| --- | --- |
+| `fyne.io/tools/cmd/fyne@v1.7.2`, the packaging tool | both build jobs of `.github/workflows/release.yml` |
+| `GOLANGCI_LINT_VERSION` (v2.13.2) | `.github/workflows/lint.yml`, top-level `env:` |
+| `GOVULNCHECK_VERSION` (v1.7.0) | `.github/workflows/lint.yml`, top-level `env:` |
+| `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `test.yml`, `test-windows` — keep them identical |
+| `FFMPEG_URL` + `FFMPEG_SHA256`, Linux (BtbN n8.1.2) | `release.yml`, `build-gui-linux` |
+
+The release workflow's dry run (version left empty) is how a change to any of
+them is tried without spending a version number.
