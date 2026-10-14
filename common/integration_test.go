@@ -578,3 +578,63 @@ func TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame(t *testing.T
 		t.Errorf("the hardware encoder refused this frame and must not be used: %s", conversions[0])
 	}
 }
+
+// TestIntegration_RenameFailureKeepsTheFinishedFile pins E-04.
+//
+// P-04 moved the encode into a working file renamed into place at the end. A
+// rename that fails -- here because the destination became a directory while
+// ffmpeg ran, the same shape as a file held open on Windows -- used to let the
+// deferred cleanup delete the finished video. The working file must survive
+// and the error must say where it is.
+//
+// Counter-proof: leave keepPartial false on the rename failure and the glob
+// below finds nothing.
+func TestIntegration_RenameFailureKeepsTheFinishedFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	ffmpeg, err := CheckFfmpeg(nil)
+	if err != nil {
+		skipWithoutFFmpeg(t, "CheckFfmpeg failed: %v", err)
+	}
+
+	input := makeTestClip(t, 320, 240, 2)
+	dir := t.TempDir()
+	output := filepath.Join(dir, "finished.mp4")
+
+	// Turn the destination into a directory once the encode is provably running,
+	// so validation has already passed and only the rename can fail.
+	var once sync.Once
+	ui := &integrationUI{
+		bitrate: 1_000_000, encoder: "libx264",
+		onProgress: func(float64) {
+			once.Do(func() {
+				if mkErr := os.Mkdir(output, 0o755); mkErr != nil {
+					t.Errorf("could not turn the destination into a directory: %v", mkErr)
+				}
+			})
+		},
+	}
+
+	err = PerformEncoding(nil, input, output, ui, ffmpeg, make(chan struct{}))
+	if err == nil {
+		t.Fatal("renaming onto a directory must fail")
+	}
+	if ui.progressCall == 0 {
+		t.Fatal("the encode never reported progress, so the destination was replaced before validation")
+	}
+
+	kept, globErr := filepath.Glob(filepath.Join(dir, ".superview-partial-*.mp4"))
+	if globErr != nil {
+		t.Fatal(globErr)
+	}
+	if len(kept) != 1 {
+		t.Fatalf("expected the finished video to be kept under its working name, found %d working file(s)", len(kept))
+	}
+	if info, statErr := os.Stat(kept[0]); statErr != nil || info.Size() == 0 {
+		t.Fatalf("the kept working file is missing or empty: %v", statErr)
+	}
+	if !strings.Contains(err.Error(), kept[0]) {
+		t.Fatalf("the error must tell the user where the finished video is, got: %v", err)
+	}
+}

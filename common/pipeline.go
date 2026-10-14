@@ -4,6 +4,8 @@ package common
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -85,19 +87,38 @@ func sameOutputAsInput(inputFile, outputFile string) bool {
 //
 // It keeps the .mp4 extension, because ffmpeg picks its muxer from it, and it
 // sits in the destination directory so the final rename stays on one filesystem
-// and is therefore atomic. The name comes from os.CreateTemp: two conversions
-// targeting the same folder must not collide.
+// and is therefore atomic. The name is random and the open is exclusive: two
+// conversions targeting the same folder must not collide.
+//
+// Not os.CreateTemp, which creates with mode 0600. ffmpeg then truncates that
+// inode and the rename keeps its mode, so the finished video arrived unreadable
+// by anyone but its owner -- in a shared folder, a NAS export or a media
+// server's library, that is the one place the user wanted it readable. 0666
+// before umask is what ffmpeg itself would have created, and is what the user
+// got before the working file existed.
 func newPartialOutputPath(outputFile string) (string, error) {
-	file, err := os.CreateTemp(filepath.Dir(outputFile), ".superview-partial-*.mp4")
-	if err != nil {
-		return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, err)
+	dir := filepath.Dir(outputFile)
+	for attempt := 0; attempt < 100; attempt++ {
+		var suffix [6]byte
+		if _, err := rand.Read(suffix[:]); err != nil {
+			return "", fmt.Errorf("cannot name a working file next to %s: %w", outputFile, err)
+		}
+		name := filepath.Join(dir, ".superview-partial-"+hex.EncodeToString(suffix[:])+".mp4")
+
+		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, err)
+		}
+		if closeErr := file.Close(); closeErr != nil {
+			_ = os.Remove(name)
+			return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, closeErr)
+		}
+		return name, nil
 	}
-	name := file.Name()
-	if closeErr := file.Close(); closeErr != nil {
-		_ = os.Remove(name)
-		return "", fmt.Errorf("cannot create a working file next to %s: %w", outputFile, closeErr)
-	}
-	return name, nil
+	return "", fmt.Errorf("cannot create a working file next to %s: every name tried already exists", outputFile)
 }
 
 // PerformEncoding orchestrates the complete encoding workflow from input file to output file.
@@ -342,7 +363,18 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	// Same directory, so this is atomic: the destination is either the previous
 	// file or the finished one, never a half-written mixture.
 	if err := os.Rename(partialOutput, outputFile); err != nil {
-		err = fmt.Errorf("failed to move the finished file to %s: %w", outputFile, err)
+		// The encode is finished and correct; only its name is wrong. Deleting
+		// it here -- which the deferred cleanup would do -- would turn a rename
+		// error into the loss of the whole conversion, so the working file is
+		// kept and the error says where it is.
+		keepPartial = true
+		logger.Error("The finished video could not be moved into place; it is kept under its working name",
+			slog.String("partial", partialOutput),
+			slog.String("destination", outputFile),
+			slog.String("error", err.Error()),
+		)
+		err = fmt.Errorf("failed to move the finished file to %s: %w. The finished video is kept at %s; move or rename it yourself",
+			outputFile, err, partialOutput)
 		metrics.RecordError(exitCodeUnavailable, err.Error())
 		RecordEncodingError(err, map[string]interface{}{"stage": "finalize"})
 		return err

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -468,6 +469,10 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		}()
 		defer close(done)
 
+		// Set once ffmpeg has reported a frame leaving the filter graph. Read
+		// after readDone, which the reader closes before anything reads it.
+		var producedOutput atomic.Bool
+
 		readDone := make(chan struct{})
 		go func() {
 			defer close(readDone)
@@ -511,6 +516,9 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 						)
 						continue
 					}
+					if timeF > 0 {
+						producedOutput.Store(true)
+					}
 					callback(math.Min(timeF/(video.Streams[0].DurationFloat*10000), 100))
 				}
 			}
@@ -538,7 +546,11 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 				return reason
 			default:
 			}
-			return classifyFfmpegFailure(err, stderrBytes.String())
+			failure := classifyFfmpegFailure(err, stderrBytes.String())
+			if producedOutput.Load() {
+				return fmt.Errorf("%w: %w", errFailedAfterOutput, failure)
+			}
+			return failure
 		}
 
 		return nil
@@ -554,7 +566,7 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		if err == nil {
 			return nil
 		}
-		if errors.Is(err, ErrCancelled) {
+		if shouldNotRetry(err) {
 			return err
 		}
 
@@ -581,9 +593,11 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 				fmt.Sprintf("Hardware: used %s encode + %s decode", encoder, strings.ToUpper(hwaccel))))
 			return nil
 		}
-		// A cancellation is not a reason to try another path: the user asked for
-		// the work to stop, not for it to be attempted differently.
-		if errors.Is(err, ErrCancelled) {
+		// A stop request is not a reason to try another path: the user, or the
+		// system, asked for the work to stop, not for it to be attempted
+		// differently. Neither is a failure that came after frames were written:
+		// the next path would fail the same way, one full encode later.
+		if shouldNotRetry(err) {
 			return err
 		}
 		logger.Warn("Hardware decode path failed, falling back to CPU decode",
@@ -599,7 +613,7 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 		slog.String("video_preset", videoPreset),
 	)
 	err = runWithAudioFallback("")
-	if errors.Is(err, ErrCancelled) {
+	if shouldNotRetry(err) {
 		return err
 	}
 	if err == nil {

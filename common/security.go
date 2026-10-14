@@ -185,6 +185,12 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("output path targets a protected system directory: %s", filePath)
 	}
 
+	// A destination that is a directory cannot be overwritten, and the failure
+	// would otherwise surface only at the final rename, after the whole encode.
+	if info, statErr := os.Stat(cleanPath); statErr == nil && info.IsDir() {
+		return fmt.Errorf("output path is a directory: %s", filePath)
+	}
+
 	// Check that parent directory exists and is writable
 	dir := filepath.Dir(cleanPath)
 	dirStat, err := os.Stat(dir)
