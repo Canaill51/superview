@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(gofmt -l *)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(SUPERVIEW_REQUIRE_FFMPEG=1 go test *)",
+      "Bash(go tool cover *)",
+      "Bash(go env *)",
+      "Bash(go mod download)",
+      "Bash(go mod tidy)",
+      "Bash(golangci-lint run *)",
+      "Bash(govulncheck *)",
+      "Bash(ffmpeg -version)",
+      "Bash(ffmpeg -hide_banner *)",
+      "Bash(ffprobe *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh release list *)",
+      "Bash(gh api repos/Canaill51/superview/*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git tag *)",
+      "Bash(gh release create *)",
+      "Bash(gh api -X DELETE *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gofmt.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

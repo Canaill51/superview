@@ -26,9 +26,10 @@
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Attention : le fichier livre `performance_mode: safe_performance`, alors que le défaut interne, appliqué en son absence, est `safe`. |  |
 | 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U et leur état. | journal, voir son en-tête |
 | 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
+| 8bis | [`DECISIONS.md`](DECISIONS.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les 34 choix du dépôt, chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
 | 9 | `README.md` et `README_FR.md` | Comportement documenté côté utilisateur. Un seul document en deux langues : toute modification visible par l'utilisateur se fait dans les deux, dans la même PR. Le job `readme-parity` de `lint.yml` le vérifie. |  |
 | 10 | `Makefile` | Cibles de build et de qualité locales. Même portée que la CI (`./...`) et même garde-fou : `test` et `coverage` exportent `SUPERVIEW_REQUIRE_FFMPEG=1` et tournent sous `-race -count=1` (M-01). |  |
-| 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` ne fait que l'importer — Claude Code ne lit pas `AGENTS.md`. |  |
+| 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` ne fait que l'importer : Claude Code sait lire `AGENTS.md`, mais pas dans toutes ses sessions, et l'import le charge partout. `.claude/` porte les autorisations, le crochet `gofmt` et la compétence `/verify`. |  |
 
 > Les entrées `build.sh`, `tools/` et `coverage.out` ont disparu de cette table avec
 > les fichiers eux-mêmes. `.github/copilot-instructions.md` aussi : son contenu vit
