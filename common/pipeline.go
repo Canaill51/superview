@@ -122,8 +122,8 @@ func newPartialOutputPath(outputFile string) (string, error) {
 }
 
 // readFreeDiskGB is the free-space reading, behind a variable so a test can
-// hand checkOutputSpace a full disk -- the same reason readAvailableMemory is
-// one. Filling a real volume to prove the refusal is not a test anyone runs.
+// hand checkOutputSpace or checkTempSpaceForMaps a full disk -- the same
+// reason readAvailableMemory is one. Filling a real volume to prove the refusal is not a test anyone runs.
 var readFreeDiskGB = getFreeDiskGB
 
 // outputSpaceAllowance covers what the video bitrate does not: the audio track

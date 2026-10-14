@@ -16,6 +16,19 @@ type scriptedProgress struct{ *strings.Reader }
 
 func (s *scriptedProgress) Close() error { return nil }
 
+// requireRealFFmpegProcess skips the two tests below when no ffmpeg is on PATH.
+//
+// They script ffmpeg's stdout, not the process: EncodeVideo still calls
+// cmd.Start, which fails without a binary to start, so with no ffmpeg they
+// FAILED in 0.00 s instead of skipping like every other test that needs it
+// (E-19, contract of L-60).
+func requireRealFFmpegProcess(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		skipWithoutFFmpeg(t, "ffmpeg not installed")
+	}
+}
+
 // TestEncodeVideo_ProgressNotAvailableIsNotAWarning covers the noise a user's
 // log actually carried: 45 lines of
 //
@@ -26,6 +39,7 @@ func (s *scriptedProgress) Close() error { return nil }
 // state at the start -- and this is the log the README asks people to attach to
 // a bug report.
 func TestEncodeVideo_ProgressNotAvailableIsNotAWarning(t *testing.T) {
+	requireRealFFmpegProcess(t)
 	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}
@@ -99,6 +113,7 @@ func TestEncodeVideo_ProgressNotAvailableIsNotAWarning(t *testing.T) {
 // that is neither N/A nor a number means ffmpeg's progress format changed under
 // us, and that is worth saying out loud.
 func TestEncodeVideo_UnparsableProgressIsStillAWarning(t *testing.T) {
+	requireRealFFmpegProcess(t)
 	if err := InitEncodingSession(nil); err != nil {
 		t.Fatalf("failed to init session: %v", err)
 	}

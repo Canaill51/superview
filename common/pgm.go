@@ -86,7 +86,7 @@ func checkTempSpaceForMaps(video *VideoSpecs, squeeze bool) error {
 	}
 
 	tempDir := os.TempDir()
-	freeGB, err := getFreeDiskGB(tempDir)
+	freeGB, err := readFreeDiskGB(tempDir)
 	if err != nil {
 		logger.Warn("Could not check free space before encoding",
 			slog.String("path", tempDir),
