@@ -1,0 +1,129 @@
+name: Rust
+
+# Rust port in progress (DEC-43). These jobs are not required checks of the ruleset:
+# they become so at the switchover (phase 7), by a setting the user changes.
+# No path filter, like the other workflows: a required check that never starts
+# blocks the merge.
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  rust-linux:
+    name: Rust on ubuntu-latest
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    # The runner has rustup; rust/rust-toolchain.toml selects the pinned version.
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: rust
+
+    - name: Install FFmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends ffmpeg
+
+    # The same recipe as scripts/checks/rust.sh, one step at a time so that CI says
+    # which one fails.
+    - name: Format
+      working-directory: rust
+      run: cargo fmt --all --check
+
+    - name: Clippy
+      working-directory: rust
+      run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+    # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip
+    # silently: a green suite could have encoded nothing.
+    - name: Test
+      working-directory: rust
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
+      run: cargo test --workspace --locked
+
+  rust-windows:
+    name: Rust on windows-latest
+    runs-on: windows-latest
+
+    env:
+      # The same values as test.yml and release.yml: the pinned FFmpeg archive
+      # (NVENC floor 570.0, DEC-04). The three files must stay identical.
+      FFMPEG_URL: https://github.com/GyanD/codexffmpeg/releases/download/8.1.1/ffmpeg-8.1.1-essentials_build.7z
+      FFMPEG_SHA256: 23ad8969fbe701d44e6e7e2b97c5fae4a71224fc33a2560a9034e5110d029d15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: rust
+
+    - name: Fetch and verify the pinned FFmpeg
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-bundle.7z'
+        curl.exe -fsSL --retry 3 --retry-delay 5 -o $archive $env:FFMPEG_URL
+        if ($LASTEXITCODE -ne 0) { throw "download of $env:FFMPEG_URL failed" }
+        $hash = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
+        if ($hash -ne $env:FFMPEG_SHA256) {
+          throw "checksum mismatch: expected $env:FFMPEG_SHA256, got $hash"
+        }
+        $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg-bundle'
+        7z x -y "-o$dest" $archive | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "7z could not extract $archive" }
+        $bin = Get-ChildItem -Path $dest -Recurse -Directory -Filter bin | Select-Object -First 1
+        if (-not $bin) {
+          Get-ChildItem -Path $dest -Recurse -Depth 2
+          throw 'the pinned FFmpeg archive has no bin/ directory; its layout changed'
+        }
+        foreach ($tool in 'ffmpeg.exe', 'ffprobe.exe') {
+          if (-not (Test-Path (Join-Path $bin.FullName $tool))) { throw "$tool is missing from $($bin.FullName)" }
+        }
+        Add-Content -Path $env:GITHUB_PATH -Value $bin.FullName
+        Write-Host "FFmpeg on PATH from $($bin.FullName)"
+
+    # The version is asserted: an ffmpeg already on the runner image must not
+    # answer in place of the pinned one.
+    - name: The pinned FFmpeg must be the one on the PATH
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # Whole output first, then its first line: cutting the pipe early makes the
+        # tool exit non-zero (L-115).
+        $version = (ffmpeg -version)[0]
+        Write-Host $version
+        if ($version -notmatch '8\.1\.1') { throw "ffmpeg on PATH is not the pinned 8.1.1: $version" }
+        (ffprobe -version)[0]
+
+    - name: Format
+      working-directory: rust
+      run: cargo fmt --all --check
+
+    - name: Clippy
+      working-directory: rust
+      run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+    - name: Test
+      working-directory: rust
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
+      run: cargo test --workspace --locked

@@ -1,0 +1,6 @@
+# Version épinglée : la CI et les postes de développement compilent avec la même.
+# Pour la changer : une PR, et `scripts/check.sh` vert.
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

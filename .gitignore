@@ -53,3 +53,6 @@ CLAUDE.local.md
 
 # The same intermediate binary once the package has moved under cmd/superview.
 /cmd/superview/superview
+
+# Rust (port, DEC-43)
+/rust/target/

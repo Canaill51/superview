@@ -208,7 +208,7 @@ not see these, which move only when someone edits the file:
 | `fyne.io/tools/cmd/fyne@v1.7.2`, the packaging tool | both build jobs of `.github/workflows/release.yml` |
 | `GOLANGCI_LINT_VERSION` (v2.13.2) | `.github/workflows/lint.yml`, top-level `env:` |
 | `GOVULNCHECK_VERSION` (v1.7.0) | `.github/workflows/lint.yml`, top-level `env:` |
-| `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `test.yml`, `test-windows` — keep them identical |
+| `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `test.yml`, `test-windows`, and in `rust.yml`, `rust-windows` — keep all three identical |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Linux (BtbN n8.1.2) | `release.yml`, `build-gui-linux` |
 
 The release workflow's dry run (version left empty) is how a change to any of

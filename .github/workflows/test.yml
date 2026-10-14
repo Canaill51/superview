@@ -114,7 +114,7 @@ jobs:
 
     env:
       # The same archive release.yml ships inside the Windows zip, pinned by
-      # URL and checksum there -- keep the three values identical. The suite
+      # URL and checksum there -- keep the values identical, here and in rust.yml. The suite
       # used to run against whatever "choco install ffmpeg" fetched that day
       # (9.0.2, never the 8.1.1 that ships), with no version and no retry in
       # the critical path of a required check: run 38249403781 died on a
