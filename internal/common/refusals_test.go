@@ -189,7 +189,13 @@ func TestLoadConfig_EmptyEncoderCodecsFallBackToDefaults(t *testing.T) {
 // TestLoadConfig_ShippedFileStillLoads guards the strict decoder against the
 // one file every user starts from.
 func TestLoadConfig_ShippedFileStillLoads(t *testing.T) {
-	if _, err := LoadConfig(filepath.Join("..", "superview.yaml")); err != nil {
+	// LoadConfig treats a missing file as "use the defaults", so a wrong path
+	// here would pass without checking anything: prove the file is there.
+	shipped := filepath.Join("..", "..", "superview.yaml")
+	if _, err := os.Stat(shipped); err != nil {
+		t.Fatalf("the shipped superview.yaml is not where this test looks for it: %v", err)
+	}
+	if _, err := LoadConfig(shipped); err != nil {
 		t.Errorf("the superview.yaml shipped with the application no longer loads: %v", err)
 	}
 	// A file holding only comments is an empty document, not an error.

@@ -170,6 +170,10 @@ clean:
 	rm -f *.syso
 	rm -f superview-gui-*.tar.xz superview-gui-*.zip
 	rm -rf tmp-pkg/
+	@# Since DEC-39 fyne package works, and leaves its files, in cmd/superview.
+	rm -f cmd/superview/superview cmd/superview/superview.exe cmd/superview/fyne_metadata_init.go
+	rm -f cmd/superview/*.syso cmd/superview/superview-gui-*.tar.xz cmd/superview/superview-gui-*.zip
+	rm -rf cmd/superview/tmp-pkg/
 	go clean
 	rm -rf build/
 	@echo "✅ Cleanup complete"

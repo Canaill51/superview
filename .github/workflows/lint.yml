@@ -55,7 +55,7 @@ jobs:
         check-latest: true
         cache-dependency-path: go.sum
 
-    # Required to type-check the root package (Fyne GUI, cgo).
+    # Required to type-check the cmd/superview package (Fyne GUI, cgo).
     - name: Install GUI build dependencies
       run: |
         sudo apt-get update

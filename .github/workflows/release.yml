@@ -393,6 +393,8 @@ jobs:
           echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
           echo "Working directory contains:"
           ls -lah
+          echo "cmd/superview contains:"
+          ls -lah cmd/superview
           exit 1
         fi
 

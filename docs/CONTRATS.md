@@ -66,7 +66,7 @@
 ### Après avoir modifié
 
 ```bash
-. /tmp/guienv.sh                 # sinon le paquet racine ne compile pas (voir ENVIRONNEMENT.md)
+. /tmp/guienv.sh                 # sinon `cmd/superview` ne compile pas (voir ENVIRONNEMENT.md)
 
 gofmt -l .                       # doit ne rien afficher — la CI échoue sinon
 go build ./...
@@ -94,11 +94,11 @@ suite verte peut n'avoir encodé aucune image ; la CI la positionne pour cette r
 Une compilation verte ne prouve pas que la GUI démarre ni que la conversion fonctionne :
 
 ```bash
-go build -o /tmp/sv . && timeout 12 /tmp/sv   # code 124 = toujours vivant, donc OK
+go build -o /tmp/sv ./cmd/superview && timeout 12 /tmp/sv   # code 124 = toujours vivant, donc OK
 cat ~/.cache/superview/superview.log          # les diagnostics y atterrissent (O-02)
 
 SUPERVIEW_REQUIRE_FFMPEG=1 \
-  go test ./common -run TestIntegration -v    # conversion réelle 4:3 → 16:9
+  go test ./internal/common -run TestIntegration -v    # conversion réelle 4:3 → 16:9
 ```
 
 ### Validation fonctionnelle sans vidéo réelle

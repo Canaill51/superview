@@ -29,7 +29,7 @@ if [ -n "$UNFORMATTED" ]; then
   exit 1
 fi
 
-# Le paquet racine a besoin des en-têtes GUI pour compiler : sans eux, ce
+# Le paquet cmd/superview a besoin des en-têtes GUI pour compiler : sans eux, ce
 # n'est pas une vérification de la GUI (voir docs/ENVIRONNEMENT.md).
 echo "==> go build"
 go build ./...

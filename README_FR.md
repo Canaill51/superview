@@ -438,14 +438,14 @@ le FFmpeg présent dans le `PATH`.
 Interface Windows :
 
 ```powershell
-go build -ldflags="-H=windowsgui" -o superview-gui.exe .
+go build -ldflags="-H=windowsgui" -o superview-gui.exe ./cmd/superview
 .\superview-gui.exe
 ```
 
 Linux :
 
 ```bash
-go build -o superview-gui .
+go build -o superview-gui ./cmd/superview
 ./superview-gui
 ```
 
