@@ -1,0 +1,41 @@
+import { Palette, Button, LineEdit, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "Superview";
+    // Fixed size: minimum and maximum are the same, so the window cannot be resized.
+    min-width: 720px;
+    max-width: 720px;
+    min-height: 200px;
+    max-height: 200px;
+
+    // Dark theme, whatever the desktop uses.
+    init => { Palette.color-scheme = ColorScheme.dark; }
+
+    // The name of the file the user chose, shown in the read-only field.
+    in property <string> input-path;
+    in property <string> status: "Status: Ready";
+    // True while the picker is open: the button is held down so a second click
+    // cannot open a second picker.
+    in property <bool> picking: false;
+
+    callback choose-input();
+
+    VerticalBox {
+        alignment: start;
+        HorizontalBox {
+            Button {
+                text: "Choose input file";
+                enabled: !root.picking;
+                clicked => { root.choose-input(); }
+            }
+            LineEdit {
+                text: root.input-path;
+                read-only: true;
+                placeholder-text: "No file selected";
+            }
+        }
+        Text {
+            text: root.status;
+        }
+    }
+}
