@@ -335,7 +335,14 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
 ```
 superview/
 ├── common/                     # Logique d'encodage, partagée par toute interface
-│   ├── common.go               # Pipeline, cycle de vie de session, appels ffprobe/ffmpeg
+│   ├── pipeline.go             # PerformEncoding : validation, fichier de travail, métriques
+│   ├── encode.go               # Un passage ffmpeg : arguments, chaîne de filtres, cascade de repli
+│   ├── pgm.go                  # Géométrie de sortie, formule de distorsion, écriture PGM
+│   ├── session.go              # Répertoire temporaire d'une conversion
+│   ├── video.go                # Sortie ffprobe et sa validation
+│   ├── tools.go                # Recherche de ffmpeg/ffprobe, lecture de leurs capacités
+│   ├── memory.go               # Garde-fou mémoire, chiffré par pixel de sortie
+│   ├── errors.go               # Erreurs typées, sentinelles, journal du paquet
 │   ├── config.go               # Chargement de la configuration et valeurs par défaut
 │   ├── hardware.go             # Classement des encodeurs, mise en place des périphériques
 │   ├── probe.go                # Demande à chaque encodeur d'encoder une image ; les règles du verdict

@@ -37,10 +37,12 @@
 
 ### Fichiers à traiter avec la plus grande prudence
 
-- **`common/common.go`** — cœur du pipeline, et de loin le plus gros fichier du dépôt. Toute
-  modification touche l'encodage réel. Sous-sections sensibles : `GeneratePGM` (mathématiques
-  du remappage — ne pas « simplifier » sans vidéo de référence), `EncodeVideo` (cascade de
-  repli à trois niveaux + gestion de signaux + goroutines).
+- **`common/pgm.go`** — `GeneratePGM` et la géométrie de sortie : mathématiques du remappage,
+  ne pas « simplifier » sans vidéo de référence (DEC-13).
+- **`common/encode.go`** — `EncodeVideo` : cascade de repli à trois niveaux, gestion des
+  signaux, goroutines. Toute modification touche l'encodage réel.
+- **`common/pipeline.go`** — `PerformEncoding` : l'ordre des validations, le fichier de travail
+  et son renommage (DEC-15).
 - **`gui_main.go`** — la CI le compile et le teste désormais (`./...`), mais la couverture du
   paquet reste basse : `main()` construit des widgets, ce qu'aucun test ne traverse. Les
   *décisions* sont ailleurs, dans le type `appState`, et sont couvertes.
@@ -333,10 +335,10 @@ Trois tests le verrouillent, et ils ne sont pas interchangeables :
 
 | Sujet | URL | Utile pour |
 | --- | --- | --- |
-| Filtre `remap` | https://trac.ffmpeg.org/wiki/RemapFilter | Format PGM P2, sémantique des cartes X/Y — référence citée dans `common.go:462` |
+| Filtre `remap` | https://trac.ffmpeg.org/wiki/RemapFilter | Format PGM P2, sémantique des cartes X/Y — référence citée dans `pgm.go`, en tête de `GeneratePGM` |
 | Documentation des filtres | https://ffmpeg.org/ffmpeg-filters.html#remap | Contraintes exactes du filtre |
 | Options principales | https://ffmpeg.org/ffmpeg.html#Main-options | **Position des options** : avant `-i` = entrée, après = sortie (cf. B-04) |
-| `-progress` / `out_time_ms` | https://ffmpeg.org/ffmpeg.html#Advanced-options | ⚠️ `out_time_ms` est en **microsecondes** malgré son nom — c'est ce que suppose le calcul `duration*10000` de `common.go:788` |
+| `-progress` / `out_time_ms` | https://ffmpeg.org/ffmpeg.html#Advanced-options | ⚠️ `out_time_ms` est en **microsecondes** malgré son nom — c'est ce que suppose le calcul `duration*10000` du lecteur de progression d'`encode.go` |
 | Accélération matérielle | https://trac.ffmpeg.org/wiki/HWAccelIntro | Jetons `-hwaccel` valides par plateforme |
 | NVENC | https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-video-encoder-api-prog-guide/ | Presets `h264_nvenc` / `hevc_nvenc` |
 | AMD AMF | https://ffmpeg.org/ffmpeg-codecs.html#toc-AMD-AMF-video-encoders | Presets `speed`/`balanced`/`quality` — mappés dans `mapVideoPresetForEncoder` |
