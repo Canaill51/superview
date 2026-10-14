@@ -1065,7 +1065,7 @@ Les deux nombres doivent être égaux.
 
 ### [2026-10-14] M-05 — La CI prenait le Go en cache du runner, pas le dernier correctif
 
-**PR** — à venir
+**PR** — #76
 
 | | |
 | --- | --- |
