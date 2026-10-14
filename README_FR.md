@@ -342,7 +342,11 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
 
 ```
 superview/
-├── common/                     # Logique d'encodage, partagée par toute interface
+├── cmd/superview/              # L'interface : point d'entrée, boîtes de dialogue natives, métadonnées Fyne
+│   ├── gui_main.go                 # Point d'entrée de l'interface (Fyne)
+│   ├── gui_native_dialog_*.go      # Boîtes de dialogue natives (zenity/kdialog, PowerShell)
+│   └── FyneApp.toml                # Métadonnées d'empaquetage Fyne
+├── internal/common/            # Logique d'encodage, partagée par toute interface
 │   ├── pipeline.go             # PerformEncoding : validation, fichier de travail, métriques
 │   ├── encode.go               # Un passage ffmpeg : arguments, chaîne de filtres, cascade de repli
 │   ├── pgm.go                  # Géométrie de sortie, formule de distorsion, écriture PGM
@@ -363,10 +367,7 @@ superview/
 │   ├── *_test.go               # Tests unitaires, tests golden et tests d'intégration
 │   └── testdata/ffprobe/       # Sorties ffprobe enregistrées, contre lesquelles l'analyseur est testé
 ├── docs/                       # Contrats techniques, journal d'audit, prise en charge matérielle
-├── gui_main.go                 # Point d'entrée de l'interface (Fyne)
-├── gui_native_dialog_*.go      # Boîtes de dialogue natives (zenity/kdialog, PowerShell)
 ├── superview.yaml              # Configuration par défaut
-├── FyneApp.toml                # Métadonnées d'empaquetage Fyne
 ├── Makefile                    # Cibles locales de construction et de qualité
 ├── THIRD_PARTY_NOTICES.md      # Le FFmpeg livré dans les archives, et sa licence
 ├── .github/scripts/            # Contrôles au moment de la publication (le plancher de pilote NVENC)

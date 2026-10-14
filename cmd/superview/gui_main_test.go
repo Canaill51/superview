@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"superview/common"
+	"superview/internal/common"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"superview/common"
+	"superview/internal/common"
 )
 
 var errNoNativeDialogTool = errors.New("no native dialog tool available (zenity/kdialog)")

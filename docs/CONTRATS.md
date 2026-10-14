@@ -14,10 +14,10 @@
 
 | # | Source | Quand la consulter | Fiabilité |
 | --- | --- | --- | --- |
-| 1 | `common/*_test.go` | **Avant de modifier une fonction de `common/`** : le test décrit le contrat attendu. | fait foi |
-| 1bis | `common/pgm_golden_test.go` | **Avant de toucher à `GeneratePGM`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | fait foi |
-| 1ter | `common/integration_test.go` | Contrat bout-en-bout avec un vrai FFmpeg (ratio de sortie, progression, annulation). | fait foi |
-| 1quater | `common/testdata/ffprobe/` | Sorties ffprobe enregistrées : la forme exacte de la seule entrée que le programme ne produit pas lui-même. | fait foi |
+| 1 | `internal/common/*_test.go` | **Avant de modifier une fonction de `internal/common/`** : le test décrit le contrat attendu. | fait foi |
+| 1bis | `internal/common/pgm_golden_test.go` | **Avant de toucher à `GeneratePGM`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | fait foi |
+| 1ter | `internal/common/integration_test.go` | Contrat bout-en-bout avec un vrai FFmpeg (ratio de sortie, progression, annulation). | fait foi |
+| 1quater | `internal/common/testdata/ffprobe/` | Sorties ffprobe enregistrées : la forme exacte de la seule entrée que le programme ne produit pas lui-même. | fait foi |
 | 2 | `go.mod` | Version Go et dépendances exactes avant toute modification d'API. | fait foi |
 | 3 | `.golangci.yml` | Règles de lint appliquées. Schéma v2 ; staticcheck cadré sur `SA*`+`S1*`, `QF*` et `ST*` exclus à dessein (cf. [L-09, L-12](LECONS.md)). | fait foi |
 | 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `./...`, seuil de couverture 50 %, `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
@@ -37,16 +37,16 @@
 
 ### Fichiers à traiter avec la plus grande prudence
 
-- **`common/pgm.go`** — `GeneratePGM` et la géométrie de sortie : mathématiques du remappage,
+- **`internal/common/pgm.go`** — `GeneratePGM` et la géométrie de sortie : mathématiques du remappage,
   ne pas « simplifier » sans vidéo de référence (DEC-13).
-- **`common/encode.go`** — `EncodeVideo` : cascade de repli à trois niveaux, gestion des
+- **`internal/common/encode.go`** — `EncodeVideo` : cascade de repli à trois niveaux, gestion des
   signaux, goroutines. Toute modification touche l'encodage réel.
-- **`common/pipeline.go`** — `PerformEncoding` : l'ordre des validations, le fichier de travail
+- **`internal/common/pipeline.go`** — `PerformEncoding` : l'ordre des validations, le fichier de travail
   et son renommage (DEC-15).
-- **`gui_main.go`** — la CI le compile et le teste désormais (`./...`), mais la couverture du
+- **`cmd/superview/gui_main.go`** — la CI le compile et le teste désormais (`./...`), mais la couverture du
   paquet reste basse : `main()` construit des widgets, ce qu'aucun test ne traverse. Les
   *décisions* sont ailleurs, dans le type `appState`, et sont couvertes.
-- **`common/security.go`** — modifier une validation, c'est modifier une frontière de sécurité.
+- **`internal/common/security.go`** — modifier une validation, c'est modifier une frontière de sécurité.
   Justifier chaque assouplissement.
 
 ---
@@ -56,7 +56,7 @@
 ### Avant de modifier
 
 1. Lire [`LECONS.md`](LECONS.md) — la correction a peut-être déjà été tentée et rejetée.
-2. Lire le test correspondant dans `common/*_test.go`.
+2. Lire le test correspondant dans `internal/common/*_test.go`.
 3. Vérifier que le symbole n'est pas du code mort (constats C-01, C-02, C-03, C-06) :
    ```bash
    grep -rn "NomDuSymbole" --include='*.go' . | grep -v '_test.go'
@@ -113,7 +113,7 @@ ffprobe -v error -select_streams v:0 \
 
 Le second appel reproduit celui de `CheckVideo` : il permet de vérifier qu'un fichier passera
 la validation avant de lancer la GUI. Pour éprouver le *parsing* de cette sortie sans produire
-de vidéo, les cas sont enregistrés dans `common/testdata/ffprobe/` et couverts par
+de vidéo, les cas sont enregistrés dans `internal/common/testdata/ffprobe/` et couverts par
 `parseVideoSpecs` — y compris les rejets (durée `N/A`, `bit_rate` absent, JSON tronqué).
 
 ### Contrat de configuration (depuis la 2ᵉ passe)
@@ -197,7 +197,7 @@ l'encodage matériel à toutes les machines sous le nouveau plancher — voir [R
 binaire : ce avec quoi il a été compilé. Aucun des deux ne voit le pilote. Ne jamais rétablir une
 décision de capacité fondée sur eux seuls.
 
-La seule source de vérité est la sonde de `common/probe.go` : un encodage d'une trame par
+La seule source de vérité est la sonde de `internal/common/probe.go` : un encodage d'une trame par
 encodeur, dont le code de retour fait foi. `ApplyEncoderProbe` retire ensuite du profil ffmpeg
 les encodeurs qui ont refusé — **et uniquement ceux-là** : un encodeur non sondé n'est pas un
 encodeur refusé.
@@ -264,7 +264,7 @@ Invariants à ne pas casser, chacun tenu par un test :
 
 ### Contrat de l'état de la GUI (depuis P-10)
 
-Tout l'état de session vit dans `appState` (`gui_main.go`), et **rien ne doit revenir en
+Tout l'état de session vit dans `appState` (`cmd/superview/gui_main.go`), et **rien ne doit revenir en
 variable capturée par closure dans `main()`** : c'est ce qui rendait les décisions
 inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 
@@ -280,7 +280,7 @@ inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 | Les widgets sont nil-vérifiés dans les méthodes | Ils sont assignés au fil de la construction de la fenêtre ; une réorganisation doit dégrader en « pas de mise à jour », pas en panique |
 | Toute nouvelle transition d'état est une **méthode**, avec son test | Les onze méthodes actuelles sont à 100 % de couverture ; ne pas laisser ce filet se percer |
 
-> Pour tester une transition, `newTestAppState(t)` (dans `gui_main_test.go`) construit un
+> Pour tester une transition, `newTestAppState(t)` (dans `cmd/superview/gui_main_test.go`) construit un
 > `appState` complet avec de vrais widgets sous `test.NewApp()`. Un `appState` dont les widgets
 > sont nuls ne prouve rien : les assertions porteraient sur des sorties inexistantes.
 

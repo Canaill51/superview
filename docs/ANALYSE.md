@@ -1,5 +1,8 @@
 # Superview — Analyse complète du projet
 
+> **Chemins.** Ce journal date d'avant le 2026-10-14 (DEC-39) : `common/` y désigne
+> aujourd'hui `internal/common/`, et les fichiers `gui_*.go` de la racine sont dans `cmd/superview/`.
+>
 > **Journal d'audit, pas documentation de référence.** Ce fichier consigne treize
 > passes d'analyse et les 132 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans

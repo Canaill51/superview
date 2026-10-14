@@ -43,7 +43,7 @@ build: build-gui
 
 build-gui:
 	@echo "Building GUI..."
-	go build -o superview-gui .
+	go build -o superview-gui ./cmd/superview
 	@echo "✅ GUI binary created: superview-gui"
 
 # Windows-native only. Fyne draws through cgo, and setting GOOS alone gives no
@@ -52,13 +52,13 @@ build-gui:
 build-gui-windows: export GOOS=windows
 build-gui-windows:
 	@echo "Building Windows GUI without console window (run this on Windows)..."
-	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe .
+	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe ./cmd/superview
 	@echo "✅ Windows GUI binary created: superview-gui-windows-$(ARCH).exe"
 
 build-gui-linux: export GOOS=linux
 build-gui-linux:
 	@echo "Building Linux GUI..."
-	go build -o superview-gui-linux-$(ARCH) .
+	go build -o superview-gui-linux-$(ARCH) ./cmd/superview
 	@echo "✅ Linux GUI binary created: superview-gui-linux-$(ARCH)"
 
 # Test targets

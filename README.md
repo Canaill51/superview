@@ -311,7 +311,11 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
 
 ```
 superview/
-├── common/                     # Encoding logic, shared by any front end
+├── cmd/superview/              # The GUI: entry point, native dialogs, Fyne metadata
+│   ├── gui_main.go                 # GUI entry point (Fyne)
+│   ├── gui_native_dialog_*.go      # Native file dialogs (zenity/kdialog, PowerShell)
+│   └── FyneApp.toml                # Fyne packaging metadata
+├── internal/common/            # Encoding logic, shared by any front end
 │   ├── pipeline.go             # PerformEncoding: validation, working file, metrics
 │   ├── encode.go               # One ffmpeg run: arguments, filter chain, fallback cascade
 │   ├── pgm.go                  # Output geometry, distortion formula, PGM writer
@@ -332,10 +336,7 @@ superview/
 │   ├── *_test.go               # Unit, golden and integration tests
 │   └── testdata/ffprobe/       # Recorded ffprobe output the parser is tested against
 ├── docs/                       # Technical contracts, audit journal, hardware support
-├── gui_main.go                 # GUI entry point (Fyne)
-├── gui_native_dialog_*.go      # Native file dialogs (zenity/kdialog, PowerShell)
 ├── superview.yaml              # Default configuration
-├── FyneApp.toml                # Fyne packaging metadata
 ├── Makefile                    # Local build and quality targets
 ├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped in the archives, and its licence
 ├── .github/scripts/            # Release-time checks (the NVENC driver floor guard)

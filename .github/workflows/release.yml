@@ -247,8 +247,10 @@ jobs:
         set -euo pipefail
         mkdir -p build
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}"
-        mv "superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
+        # fyne package reads FyneApp.toml and Icon.png from, and writes its
+        # output to, the directory it runs in: the main package's directory.
+        (cd cmd/superview && go run fyne.io/tools/cmd/fyne@v1.7.2 package -os windows -icon Icon.png -name "superview-gui-windows-${ARCH}" --app-version "${VERSION}")
+        mv "cmd/superview/superview-gui-windows-${ARCH}.exe" "build/superview-gui-windows-${ARCH}.exe"
 
     # Same check as the Linux job, and for the same reason -- see the comment
     # there. The binary is loose here, so there is nothing to unpack first.
@@ -380,7 +382,13 @@ jobs:
       run: |
         set -euo pipefail
         ARCH="$(go env GOARCH)"
-        go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" --app-version "${VERSION}" .
+        # Run from the main package's directory, where FyneApp.toml and
+        # Icon.png live and where the archive is written; then bring the
+        # archive back to the root, where every later step looks for it.
+        (cd cmd/superview && go run fyne.io/tools/cmd/fyne@v1.7.2 package -os linux -icon Icon.png -name "superview-gui-linux-${ARCH}" --app-version "${VERSION}" .)
+        if [ -f "cmd/superview/superview-gui-linux-${ARCH}.tar.xz" ]; then
+          mv "cmd/superview/superview-gui-linux-${ARCH}.tar.xz" .
+        fi
         if [ ! -f "superview-gui-linux-${ARCH}.tar.xz" ]; then
           echo "::error::fyne package did not produce superview-gui-linux-${ARCH}.tar.xz"
           echo "Working directory contains:"

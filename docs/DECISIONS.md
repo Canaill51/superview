@@ -67,9 +67,10 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README | Acceptée |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
-| [DEC-36](#dec-36) | `common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
+| [DEC-36](#dec-36) | `internal/common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
 | [DEC-37](#dec-37) | Le garde-fou mémoire chiffre au nombre de fils réellement passé à ffmpeg : +4 % par fil au-delà de 4 | Acceptée |
 | [DEC-38](#dec-38) | La télémétrie GoPro (piste `gpmd`) n'est pas conservée | Acceptée |
+| [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Acceptée |
 
 ---
 
@@ -269,7 +270,7 @@ origine du dépôt · Acceptée
 **La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier.**
 2026-09-04 / 2026-09-11 · Acceptée · T-02, M-01, L-50, L-60, L-96
 
-**Décision** — Sans la variable, quinze tests sautent en silence, dont tout ce qui encode. `make test` et la CI la posent. Le seuil mesure `./...`, pas `./common`.
+**Décision** — Sans la variable, quinze tests sautent en silence, dont tout ce qui encode. `make test` et la CI la posent. Le seuil mesure `./...`, pas `./internal/common`.
 
 ### DEC-28
 **Tout test est prouvé par contre-épreuve.**
@@ -327,7 +328,7 @@ origine · Acceptée · B-03 (invalidé)
 **À rouvrir si** — GitHub cesse d'exempter `workflow_dispatch` ; ou le dépôt accepte un jeton d'application (la suppression de branche et le dispatch redeviendraient alors natifs, et DEC-24 à réviser) ; ou les piles de PR disparaissent de la pratique, auquel cas le ruleset strict ne coûte plus rien et teste mieux.
 
 ### DEC-36
-**`common/` est découpé par responsabilité ; aucun fichier fourre-tout.**
+**`internal/common/` est découpé par responsabilité ; aucun fichier fourre-tout.**
 2026-10-14 · Acceptée · 13ᵉ passe, à la demande de l'utilisateur (« optimise la structure »)
 
 **Contexte** — `common.go` avait 2 023 lignes et portait huit responsabilités : erreurs, outils,
@@ -343,7 +344,7 @@ doré passent inchangés sous `-race`. `hardware.go`, `probe.go`, `config.go`, `
 **Conséquences** — Un nouveau symbole va dans le fichier dont l'en-tête décrit son travail ;
 s'il n'en existe aucun, on crée le fichier, on n'allonge pas le voisin. Les références de
 prose en `common.go:NNN` sont remplacées par le nom du fichier et du symbole, qui vieillissent
-moins vite (L-98). `main()` de `gui_main.go` n'est **pas** concerné (DEC-23).
+moins vite (L-98). `main()` de `cmd/superview/gui_main.go` n'est **pas** concerné (DEC-23).
 **À rouvrir si** — Jamais vers un retour à un fichier unique. Un fichier qui dépasse ~700
 lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
@@ -364,3 +365,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Ne pas la conserver. L'outil existe pour la vidéo ; l'utilisateur n'a pas besoin de la télémétrie.
 **Conséquences** — La perte est voulue : ne pas la rouvrir comme défaut. Une conversion ne porte ni piste de données, ni métadonnées de télémétrie.
 **À rouvrir si** — Une demande d'utilisateur réelle de télémétrie dans la sortie ; à mesurer alors sur un vrai fichier HERO (`-copy_unknown`, lecteurs qui s'en plaignent).
+
+### DEC-39
+**Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/`.**
+2026-10-14 · Acceptée · à la demande de l'utilisateur (alignement sur `claude-gabarit`)
+
+**Contexte** — Le gabarit range le point d'entrée dans `cmd/<binaire>/` et la logique dans `internal/`. Superview avait `main` à la racine et `common/` exporté, donc importable par n'importe quel module alors qu'aucune autre interface n'existe.
+**Décision** — Déplacements purs (`git mv`) : `common/` → `internal/common/` (le **nom de paquet `common` ne change pas**, donc `common.CleanUp`, etc. restent vrais partout), et les fichiers `gui_*.go`, `readme_link_test.go`, `FyneApp.toml`, `Icon.png` → `cmd/superview/`. `fyne package` lit `FyneApp.toml` et `Icon.png` dans son dossier de travail et y écrit l'archive (vérifié dans le source de `fyne.io/tools` v1.7.2, `package.go`) : `release.yml` l'exécute donc dans `cmd/superview` puis ramène l'archive à la racine, ce qui laisse les étapes suivantes intactes. Le dossier s'appelle `superview` et non `app` : l'exécutable intermédiaire de `fyne package` prend le nom du module.
+**Conséquences** — `.gitignore` ancre `/superview` (la règle nue aurait ignoré `cmd/superview/` entier) et ajoute `/cmd/superview/superview`. Les journaux `LECONS.md` et `ANALYSE.md` parlent de `common/` et de la racine : ils décrivent l'état d'avant et ne sont pas réécrits. Le test de chaque contrat reste là où il était, à côté du code. Écarts assumés par rapport au gabarit : pas de `CHANGELOG.md` (les notes de version viennent des PR fusionnées), pas de `ci-go.yml` (`test.yml` et `lint.yml` sont plus complets et épinglés par SHA), un seul `DECISIONS.md` au lieu de `docs/decisions/NNNN-*.md`.
+**À rouvrir si** — Une seconde interface (CLI) apparaît et doit importer `common` depuis un autre module : il faudrait alors sortir le paquet d'`internal/`.

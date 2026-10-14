@@ -12,16 +12,16 @@ Run the gates below **in order**, from the repository root, with
 at the first gate that cannot run and say so: a gate that did not run is not a
 gate that passed.
 
-1. **GUI headers.** `go build . 2>&1 | head -3`. If it fails on a GL, X11 or
-   Wayland header, the root package cannot be verified on this machine
-   (`docs/ENVIRONNEMENT.md`). Report that and continue with `./common` only,
+1. **GUI headers.** `go build ./cmd/superview 2>&1 | head -3`. If it fails on a GL, X11 or
+   Wayland header, the `cmd/superview` package cannot be verified on this machine
+   (`docs/ENVIRONNEMENT.md`). Report that and continue with `./internal/common` only,
    saying explicitly that the GUI package was **not** verified.
 2. **Formatting.** `gofmt -l .` must print nothing.
 3. **Build and vet.** `go build ./... && go vet ./...`.
 4. **Tests, with ffmpeg required.**
    `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1 2>&1 | tee /tmp/sv-test.log | tail -40`.
    Then `grep -c -- '--- SKIP' /tmp/sv-test.log` and list every skipped test by
-   name: a skip in `common/integration_test.go` or in
+   name: a skip in `internal/common/integration_test.go` or in
    `TestGeneratePGM_RemapOutputIsStable` means no real conversion was checked.
    One known red on machines with an Intel iGPU:
    `TestIntegration_DeviceFrameEncoderRunsTheWholePipeline` (E-01, VAAPI/CQP).

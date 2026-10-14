@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
-	"superview/common"
+	"superview/internal/common"
 	"sync"
 	"sync/atomic"
 	"time"

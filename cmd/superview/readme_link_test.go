@@ -76,7 +76,7 @@ func TestInstallURLFragmentPointsAtARealHeading(t *testing.T) {
 		t.Fatal("installURL has no fragment; it must land on the install section, not the top of the README")
 	}
 
-	slugs := readmeHeadingSlugs(t, "README.md")
+	slugs := readmeHeadingSlugs(t, "../../README.md")
 	if !slugs[fragment] {
 		have := make([]string, 0, len(slugs))
 		for s := range slugs {
