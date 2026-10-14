@@ -82,6 +82,26 @@ export CGO_CFLAGS="-I$SYSROOT/usr/include"
 export CGO_LDFLAGS="-L$SYSROOT/usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu"
 ```
 
+## Fenêtre Slint du port Rust (phase 3b)
+
+`superview-app` dépend de `slint` (features `std`, `backend-winit`, `renderer-software`, `compat-1-18`,
+sans les défauts : ni OpenGL/femtovg, ni Qt, ni accessibilité) et de `rfd` (feature `xdg-portal` seule : le
+sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 sur ce poste, sans `sudo` :
+
+- `cargo build --locked` réussit avec les seuls paquets déjà présents (`libfontconfig1-dev`,
+  `libxkbcommon-dev`, `libwayland-dev`, `libx11-dev`) : rien à installer, pas de sysroot. La seule
+  bibliothèque dynamique graphique liée par le binaire est `libfontconfig.so.1` ; X11, Wayland et xkbcommon
+  sont chargés à l'exécution.
+- Build complet à froid (dépendances comprises) : environ 35 s en debug, 67 s en release (machine multicœur) ;
+  binaire release : 24,8 Mo (non strippé).
+- Lancement : `timeout 5 cargo run -p superview-app --locked` sort avec le code 124 (fenêtre restée ouverte),
+  sous Wayland comme sous X11 (`env -u WAYLAND_DISPLAY`). Sans session graphique, la CI utilise
+  `xvfb-run -a timeout 10`.
+- `rfd` 0.17.2 charge `libdbus-1.so.3` par `dlopen` (rien n'est lié à la compilation) et se rabat sur
+  `zenity` si le portail échoue ; sans les deux, `pick_file` renvoie `None`, comme une annulation. Le Go a
+  un sélecteur Fyne de secours : à porter en phase 6, étape 4.
+- Les tests de la fenêtre utilisent `i-slint-backend-testing` : aucun écran requis.
+
 ## Outils d'analyse
 
 Mêmes versions que la CI — `.github/workflows/lint.yml` et le `Makefile` les

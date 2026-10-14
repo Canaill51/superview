@@ -34,10 +34,12 @@ jobs:
       with:
         workspaces: rust
 
-    - name: Install FFmpeg
+    # libfontconfig1-dev: Slint's text layout (yeslogic-fontconfig-sys) is built against it
+    # and the runner image does not have it. The window's other libraries are loaded at run time.
+    - name: Install FFmpeg and the window's build libraries
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends ffmpeg
+        sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
 
     # The same recipe as scripts/checks/rust.sh, one step at a time so that CI says
     # which one fails.
@@ -56,6 +58,60 @@ jobs:
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo test --workspace --locked
+
+    # The window trial (phase 3b): the release binary starts and stays open, bare and
+    # then packed in an AppImage with the script of the Go release. Slint's software
+    # renderer needs no GL; xvfb is the display. timeout ends the window after 10 s with
+    # code 124, so it was still open; any other code means it exited by itself.
+    - name: Install the window trial tooling
+      run: |
+        set -euo pipefail
+        # libxkbcommon-x11-0: winit loads it at run time on X11; the runner image has not got it.
+        sudo apt-get install -y --no-install-recommends xvfb libxkbcommon-x11-0
+        curl -fsSL -o "${RUNNER_TEMP}/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+        echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  ${RUNNER_TEMP}/appimagetool" | sha256sum -c -
+        chmod +x "${RUNNER_TEMP}/appimagetool"
+
+    - name: Build the release binary
+      working-directory: rust
+      run: cargo build --release --locked -p superview-app
+
+    - name: The window must stay open
+      run: |
+        set -euo pipefail
+        set +e
+        xvfb-run -a timeout 10 rust/target/release/superview-app
+        code=$?
+        set -e
+        echo "exit code: ${code}"
+        if [ "$code" -ne 124 ]; then
+          echo "::error::the window did not stay open (exit code ${code}, expected 124)"
+          exit 1
+        fi
+
+    # build_appimage.sh takes what `fyne package` writes: a tarball with the binary under
+    # usr/local/bin. The Rust binary is packed the same way, so the script is reused as is.
+    # The runner's own ffmpeg stands in for the bundled tools: only the packaging is on trial.
+    - name: Pack and launch an AppImage
+      run: |
+        set -euo pipefail
+        work="${RUNNER_TEMP}/trial"
+        mkdir -p "${work}/pkg/usr/local/bin" "${work}/tools"
+        install -m 0755 rust/target/release/superview-app "${work}/pkg/usr/local/bin/superview"
+        tar -cJf "${work}/superview.tar.xz" -C "${work}/pkg" usr
+        cp "$(command -v ffmpeg)" "$(command -v ffprobe)" "${work}/tools/"
+        APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
+          "${work}/superview.tar.xz" "${work}/tools" "${work}/trial.AppImage"
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        set +e
+        xvfb-run -a timeout 10 "${work}/trial.AppImage"
+        code=$?
+        set -e
+        echo "exit code: ${code}"
+        if [ "$code" -ne 124 ]; then
+          echo "::error::the AppImage did not stay open (exit code ${code}, expected 124)"
+          exit 1
+        fi
 
   rust-windows:
     name: Rust on windows-latest
@@ -127,3 +183,19 @@ jobs:
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo test --workspace --locked
+
+    # The window trial (phase 3b) on Windows: the release binary starts and is still
+    # running after 10 s. There is no installer in this trial.
+    - name: Build the release binary
+      working-directory: rust
+      run: cargo build --release --locked -p superview-app
+
+    - name: The window must stay open
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $proc = Start-Process -FilePath rust\target\release\superview-app.exe -PassThru
+        Start-Sleep -Seconds 10
+        if ($proc.HasExited) { throw "the window exited by itself with code $($proc.ExitCode)" }
+        Write-Host "still running after 10 s (pid $($proc.Id))"
+        Stop-Process -Id $proc.Id -Force
