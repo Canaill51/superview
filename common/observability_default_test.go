@@ -278,8 +278,14 @@ func TestOpenLogFile_TruncatesOversized(t *testing.T) {
 	if err := f3.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if _, _, err := OpenLogFile("superview-test", 0); err != nil {
+	// Closed before the read: on Windows an open handle also keeps
+	// t.TempDir's cleanup from deleting the file, and the test fails there.
+	f4, _, err := OpenLogFile("superview-test", 0)
+	if err != nil {
 		t.Fatalf("fourth open: %v", err)
+	}
+	if err := f4.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	got, err := os.ReadFile(path)
 	if err != nil {

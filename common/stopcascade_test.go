@@ -221,6 +221,14 @@ func fakeAudioCopyRefusingFFmpeg(t *testing.T, dir, ledger string, afterOutput b
 		"echo progress=end\n" +
 		"exit 0\n"
 	if runtime.GOOS == "windows" {
+		// cmd.exe splits the batch file's own path at a comma, a semicolon or
+		// an equals sign, and t.TempDir names the directory after the test:
+		// a subtest called "copy refused, AAC accepted" ran nothing at all,
+		// only "'...AACcopy_refused' is not recognized". Real ffmpeg is an
+		// .exe and is not affected; this stand-in is.
+		if strings.ContainsAny(dir, ",;=") {
+			t.Fatalf("the .bat stand-in cannot run from %q: cmd.exe splits its path at , ; = -- rename the test", dir)
+		}
 		name, mode = "ffmpeg.bat", os.FileMode(0o644)
 		copyRun = "echo Could not find tag for codec pcm_s16le in stream #1 1>&2\r\n" +
 			"exit /b 1\r\n"
@@ -272,7 +280,7 @@ func TestEncodeVideo_SafePerformanceRetriesAudioAsAAC(t *testing.T) {
 	cfg := &Config{PerformanceMode: "safe_performance"}
 	cpuOnly := map[string]string{"accels": "", "encoders": "libx264"}
 
-	t.Run("copy refused, AAC accepted", func(t *testing.T) {
+	t.Run("copy refused then AAC accepted", func(t *testing.T) {
 		tempDir := t.TempDir()
 		ledger := filepath.Join(tempDir, "calls.txt")
 		fakeAudioCopyRefusingFFmpeg(t, tempDir, ledger, false)
