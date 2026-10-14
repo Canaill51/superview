@@ -479,7 +479,11 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 
 	run := func(hwaccel string, audioCodec string) error {
 		baseArgs := buildEncodeBaseArgs(video, xPath, yPath, encoder, bitrate, audioCodec, encoderThreads, filterThreads, videoPreset)
-		args := make([]string, 0, len(baseArgs)+4)
+		// No capacity arithmetic: CodeQL flags len(baseArgs)+4 as a possible
+		// allocation-size overflow (go/allocation-size-overflow, alert #20).
+		// It cannot overflow in practice, but the preallocation saved nothing
+		// worth an alert on every scan.
+		var args []string
 		if hwaccel != "" {
 			args = append(args, "-hwaccel", hwaccel)
 		}
