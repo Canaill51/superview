@@ -1228,6 +1228,24 @@ sur trois passaient encore la valeur du banc (contre-épreuve 3a/3b). Contrôle 
 `grep -n "runtime.NumCPU" common/*.go | grep -v _test` — chaque occurrence doit passer par
 `requestedEncoderThreads`, sauf `health.go` et `hardware.go`, qui ne décident rien.
 
+### L-114 — Une étape ajoutée à `release.yml` n'est pas vérifiée tant qu'un essai à blanc ne l'a pas fait tourner — 2026-10-14
+L'étape « Run the tests against the bundled FFmpeg » (#82) a été fusionnée sans essai à blanc.
+Le premier qui l'a exécutée, après le déplacement vers `cmd/` (DEC-39), a échoué : le runner de
+cette tâche n'a pas de `ffmpeg` dans le `PATH`, et les tests qui sondent par `exec.LookPath`
+échouent sous `SUPERVIEW_REQUIRE_FFMPEG=1` au lieu de se sauter. Mettre le FFmpeg embarqué
+dans le `PATH` a révélé le second défaut : `SUPERVIEW_FFMPEG_DIR`, positionné pour tout le
+processus, court-circuite les faux `ffmpeg` que les tests écrivent eux-mêmes et les tests
+d'ordre de résolution (11 échecs, reproduits en local). Rien de tout cela n'avait de lien avec
+le déplacement, mais la première vraie release aurait échoué, et `test.yml` ne peut pas le
+voir : elle installe ffmpeg par apt. Le dernier essai réussi datait
+du 8 septembre, avant l'étape.
+→ **Toute modification de `release.yml` se vérifie par un essai à blanc (`gh workflow run
+release.yml --ref <branche>`, sans version) avant d'être fusionnée, pas après.** Les PR qui
+touchent ce fichier ou ses chemins le disent dans leur description. Contrôle :
+`gh run list --workflow=release.yml --limit 1 --json conclusion,headSha` — le dernier essai
+réussi doit être postérieur au dernier commit qui a touché `release.yml`
+(`git log -1 --format=%H -- .github/workflows/release.yml`).
+
 ## 3. Corrections appliquées
 
 ### [2026-10-14] Q-02, Q-03 — Le garde-fou mémoire suit les fils ; pas de télémétrie GoPro
@@ -3338,3 +3356,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-10-14 | **E-03, E-14, E-15, E-20 corrigés, E-23 en partie** (PR 2 du plan) : `appState.shutdown` attend la goroutine d'encodage depuis les trois sorties ; `completeEncoding` distingue l'annulation ; *Diagnostic* verrouillé ; encodeur capturé sur le fil UI et préférence préservée ; zenity 255 = erreur ; sélecteurs natifs hors du fil UI ; closures de `main()` repliées ; `fyneDo = true`. Leçon L-109, L-102 corrigée (le chemin signal de Fyne ne passe pas par `SetOnClosed`). |
 | 2026-10-14 | **E-26, E-27 corrigés** (#88) : le gate requis, sauté dès qu'un test échouait, comptait comme réussi ; quatre défauts Windows qu'il cachait. Leçons L-111, L-112. |
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée** (#90) : garde-fou mémoire à +4 % par fil au-delà de 4 (DEC-37) ; pas de télémétrie GoPro (DEC-38). Leçon L-113. |
+| 2026-10-14 | **Essai à blanc de la release** après le déplacement vers `cmd/` (#92) : Windows vert ; Linux rouge à l'étape ajoutée par #82 (pas de ffmpeg dans le `PATH`), sans lien avec le déplacement. Leçon L-114. |

@@ -448,8 +448,15 @@ jobs:
         assert_driver_floor "$FFMPEG_DRIVER_FLOOR" "${RUNNER_TEMP}/ffbin/ffmpeg" "${RUNNER_TEMP}/ffbin/ffprobe"
 
     # The suite against the binary that ships, not the one apt installed in
-    # the test job (6.1.1 there, n8.1.2 here). SUPERVIEW_FFMPEG_DIR is the
-    # first place resolveToolBinary looks, and exists for exactly this (E-11).
+    # the test job (6.1.1 there, n8.1.2 here). The bundled copy goes first on
+    # PATH, as the Windows test job does with its pinned archive.
+    #
+    # Not through SUPERVIEW_FFMPEG_DIR, although it is the first place
+    # resolveToolBinary looks: it is process-wide, so it also overrides the
+    # stand-in ffmpegs the tests write for themselves and the resolution-order
+    # tests, and eleven of them fail (L-114). PATH leaves those their own
+    # directories and still makes every real run use this FFmpeg.
+    #
     # No profile and no -v: the test job already gated coverage; this run
     # only has to be red or green against this FFmpeg. -race because the
     # tools' output is read from goroutines, and that is where an FFmpeg that
@@ -457,8 +464,13 @@ jobs:
     - name: Run the tests against the bundled FFmpeg
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
-        SUPERVIEW_FFMPEG_DIR: ${{ runner.temp }}/ffbin
-      run: go test -race -count=1 ./...
+      run: |
+        export PATH="${RUNNER_TEMP}/ffbin:${PATH}"
+        if [ "$(command -v ffmpeg)" != "${RUNNER_TEMP}/ffbin/ffmpeg" ]; then
+          echo "::error::ffmpeg on PATH is $(command -v ffmpeg), not the bundled copy"
+          exit 1
+        fi
+        go test -race -count=1 ./...
 
     # The tools go under lib/superview, not next to the app.
     #
