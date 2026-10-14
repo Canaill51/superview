@@ -73,6 +73,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Acceptée |
 | [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
 | [DEC-41](#dec-41) | La release livre un installateur Windows et une AppImage Linux, pas des archives | Acceptée |
+| [DEC-42](#dec-42) | Un agent peut déclencher la release, sur demande explicite, par `/publier` | Acceptée |
 
 ---
 
@@ -394,3 +395,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Windows : `superview-<version>-windows-x86_64-setup.exe`, un installateur Inno Setup 6 (`packaging/windows/superview.iss`), par utilisateur sans droits d'administrateur, qui dépose `superview.exe`, `ffmpeg.exe` et `ffprobe.exe` dans le même dossier. Linux : `superview-<version>-linux-x86_64.AppImage` (`packaging/linux/build_appimage.sh`), avec `appimagetool` 1.9.1 épinglé par SHA-256, les outils dans `usr/lib/superview/`. Les anciens formats sont retirés, pas gardés en double. `fyne package` reste l'outil qui compile et tamponne la version ; seul le binaire en est repris. Chaque paquet est essayé en CI : installation, outils exécutés et désinstallation sous Windows ; extraction, outils exécutés et lancement sous `xvfb` (code 124 de `timeout` = resté ouvert) sous Linux.
 **Conséquences** — Le patch du `Makefile` de fyne et son `make install` jetable disparaissent (DEC-25). L'`AppId` de l'installateur ne doit jamais changer : c'est lui qui permet la mise à jour par-dessus. L'AppImage exige FUSE 2 sur le poste de l'utilisateur (`libfuse2t64` sous Ubuntu 24.04) ou `--appimage-extract-and-run`, noté dans les deux README. Pas de signature de code : SmartScreen avertit toujours (le README l'explique). `fyne package` réécrit `cmd/superview/FyneApp.toml` quand on le lance en local (`Build` incrémenté, commentaires perdus) : `git checkout cmd/superview/FyneApp.toml` après.
 **À rouvrir si** — Un paquet `.deb`/Flatpak est demandé, si la signature de code devient possible, ou si les AppImage cessent de fonctionner sur Ubuntu LTS (FUSE).
+
+### DEC-42
+**Un agent peut déclencher la release, sur demande explicite de l'utilisateur, par `/publier` et nulle part ailleurs.**
+2026-10-14 · Acceptée · à la demande de l'utilisateur (comme pour OpenTuneBox)
+
+**Contexte** — La release est le bouton *Run workflow* avec une version (DEC-25). `.claude/settings.json` n'autorisait pas `gh workflow run`, et refuse `git tag` et `gh release create`. Publier est public et dépense un numéro de version pour toujours.
+**Décision** — `settings.json` autorise `gh workflow run release.yml *`, `gh run watch *` et `gh release view *` ; `git tag` et `gh release create` restent refusés (c'est le workflow qui crée le tag, une fois les deux plateformes construites). Le skill `.claude/skills/publier/SKILL.md` encadre la procédure : demande explicite dans la conversation, `master` à jour et vert, aucune PR attendue encore ouverte, essai à blanc postérieur au dernier changement de la release (L-114), version proposée puis **confirmée par l'utilisateur**, lancement, suivi, vérification des trois fichiers publiés.
+**Conséquences** — L'autorisation de `settings.json` ne distingue pas un essai à blanc d'une vraie release (seul `-f version=` les sépare) : le garde-fou est la règle d'`AGENTS.md` et le skill, pas le moteur de permissions. Une version publiée ne se reprend pas ; un échec avant la fin ne dépense pas le numéro.
+**À rouvrir si** — Un agent publie sans demande, ou si les droits d'un jeton permettaient de contourner le workflow.
