@@ -58,7 +58,7 @@ func OpenLogFile(appName string, maxLogBytes int64) (io.WriteCloser, string, err
 	if info, statErr := file.Stat(); statErr == nil {
 		size = info.Size()
 	}
-	return &cappedLogWriter{file: file, max: maxLogBytes, size: size}, path, nil
+	return &cappedLogWriter{file: file, path: path, max: maxLogBytes, size: size}, path, nil
 }
 
 // cappedLogWriter keeps a log file under a size cap while it is being written.
@@ -72,6 +72,7 @@ func OpenLogFile(appName string, maxLogBytes int64) (io.WriteCloser, string, err
 type cappedLogWriter struct {
 	mu   sync.Mutex
 	file *os.File
+	path string
 	max  int64 // 0 or less: no cap
 	size int64 // bytes in the file as far as this writer knows
 }
@@ -81,7 +82,13 @@ func (w *cappedLogWriter) Write(p []byte) (int, error) {
 	defer w.mu.Unlock()
 
 	if w.max > 0 && w.size+int64(len(p)) > w.max {
-		if err := w.file.Truncate(0); err == nil {
+		// Reopen with O_TRUNC rather than Truncate the open handle. On Windows
+		// an O_APPEND handle is opened with FILE_APPEND_DATA and without
+		// FILE_WRITE_DATA, and SetEndOfFile refuses it: the truncation failed
+		// silently and the cap was never applied there.
+		if fresh, err := os.OpenFile(w.path, os.O_WRONLY|os.O_TRUNC|os.O_APPEND, 0o600); err == nil {
+			_ = w.file.Close()
+			w.file = fresh
 			w.size = 0
 		}
 	}

@@ -200,11 +200,28 @@ jobs:
     # Both, not only the job whose profile it reads: this gate is the required
     # check that carries the two test jobs' verdicts (see above).
     needs: [test, test-windows]
+    # always(), and the first step below, are what make that true. Without
+    # them a failed test job makes this job *skipped*, and GitHub counts a
+    # skipped required check as passing: #85, #86 and #87 merged with a red
+    # Windows run, and before the split the matrix had the same hole, so a
+    # red test had never blocked a merge since the merge workflow took over.
+    if: always()
     permissions:
       contents: read
       pull-requests: write
 
     steps:
+    - name: Both test jobs passed
+      env:
+        LINUX: ${{ needs.test.result }}
+        WINDOWS: ${{ needs.test-windows.result }}
+      run: |
+        echo "Linux tests: $LINUX -- Windows tests: $WINDOWS"
+        if [ "$LINUX" != success ] || [ "$WINDOWS" != success ]; then
+          echo "::error::A test job did not succeed (Linux: $LINUX, Windows: $WINDOWS); this gate is what blocks the merge."
+          exit 1
+        fi
+
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

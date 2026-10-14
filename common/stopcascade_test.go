@@ -286,7 +286,11 @@ func TestEncodeVideo_SafePerformanceRetriesAudioAsAAC(t *testing.T) {
 		err := EncodeVideo(cfg, cascadeVideo(tempDir), "libx264", 2_000_000,
 			filepath.Join(tempDir, "output.mp4"), cpuOnly, func(float64) {}, make(chan struct{}))
 		if err != nil {
-			t.Fatalf("the AAC retry should have rescued the conversion, got: %v", err)
+			// The stand-in's own record of what it was called with, so a
+			// failure on a platform this cannot be run on locally (the .bat
+			// variant on the Windows runner) says which call went wrong.
+			recorded, _ := os.ReadFile(ledger)
+			t.Fatalf("the AAC retry should have rescued the conversion, got: %v\nstand-in calls:\n%s", err, recorded)
 		}
 		if got := launches.Load(); got != 2 {
 			t.Fatalf("ffmpeg was launched %d time(s), want 2: the copy, then the AAC retry", got)
