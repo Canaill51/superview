@@ -35,11 +35,16 @@ func seedSizeProbe(t *testing.T, encoder, size string, usable bool, reason strin
 
 	sizeProbeMu.Lock()
 	defer sizeProbeMu.Unlock()
-	sizeProbeCache[encoder+"@"+size] = EncoderProbe{Encoder: encoder, Usable: usable, Reason: reason}
+	// The verdict is about the frame size; seed it for every depth the fixtures
+	// in this file use, since the real key carries the source depth too (E-01).
+	for _, pixFmt := range []string{"", "yuv420p", "yuv420p10le"} {
+		spec := probeSpec{Encoder: encoder, Size: size, PixFmt: pixFmt, Bitrate: probeBitrate}
+		sizeProbeCache[spec.cacheKey()] = EncoderProbe{Encoder: encoder, Usable: usable, Reason: reason}
+	}
 }
 
 func TestProbeArgs_UsesTheSizeItIsGiven(t *testing.T) {
-	joined := strings.Join(probeArgs("h264_vaapi", "5120x2880"), " ")
+	joined := strings.Join(probeArgs(probeSpec{Encoder: "h264_vaapi", Size: "5120x2880", Bitrate: probeBitrate}), " ")
 
 	if !strings.Contains(joined, "nullsrc=s=5120x2880") {
 		t.Fatalf("the probe must encode the size it was given, got: %s", joined)
@@ -72,7 +77,7 @@ func TestOutputFrameSize(t *testing.T) {
 func TestVerifyEncoderForOutput_LeavesSoftwareEncodersAlone(t *testing.T) {
 	freshSizeProbeCache(t)
 
-	encoder, reason := verifyEncoderForOutput(context.Background(), "libx265", hevcSource("yuv420p10le"), false, vaapiMachine)
+	encoder, reason := verifyEncoderForOutput(context.Background(), "libx265", hevcSource("yuv420p10le"), false, vaapiMachine, "")
 
 	if encoder != "libx265" || reason != "" {
 		t.Fatalf("expected libx265 untouched, got %q / %q", encoder, reason)
@@ -89,7 +94,7 @@ func TestVerifyEncoderForOutput_KeepsAHardwareEncoderThatAcceptsTheFrame(t *test
 	freshSizeProbeCache(t)
 	seedSizeProbe(t, "h264_vaapi", "5120x2880", true, "")
 
-	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, vaapiMachine)
+	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, vaapiMachine, "")
 
 	if encoder != "h264_vaapi" {
 		t.Fatalf("the hardware encoder accepted the frame and must be kept, got %q", encoder)
@@ -108,7 +113,7 @@ func TestVerifyEncoderForOutput_StepsBackToTheSourceFamilyWhenRefused(t *testing
 	freshSizeProbeCache(t)
 	seedSizeProbe(t, "h264_vaapi", "5120x2880", false, hd620Refusal)
 
-	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, vaapiMachine)
+	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, vaapiMachine, "")
 
 	if encoder != "libx265" {
 		t.Fatalf("expected the source family's CPU encoder, got %q", encoder)
@@ -129,7 +134,7 @@ func TestVerifyEncoderForOutput_KeepsTheEncoderWithNothingToStepBackTo(t *testin
 	seedSizeProbe(t, "h264_vaapi", "5120x2880", false, hd620Refusal)
 
 	bare := map[string]string{"encoders": "h264_vaapi", "accels": "vaapi"}
-	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, bare)
+	encoder, reason := verifyEncoderForOutput(context.Background(), "h264_vaapi", hevcSource("yuv420p10le"), false, bare, "")
 
 	if encoder != "h264_vaapi" {
 		t.Fatalf("with no CPU encoder to fall back to the choice stands, got %q", encoder)
@@ -149,10 +154,10 @@ func TestVerifyEncoderForOutput_FollowsTheSqueezeGeometry(t *testing.T) {
 
 	video := hevcSource("yuv420p10le")
 
-	if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, true, vaapiMachine); encoder != "h264_vaapi" {
+	if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, true, vaapiMachine, ""); encoder != "h264_vaapi" {
 		t.Fatalf("3840x2880 is accepted, so the hardware encoder stands, got %q", encoder)
 	}
-	if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, false, vaapiMachine); encoder != "libx265" {
+	if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, false, vaapiMachine, ""); encoder != "libx265" {
 		t.Fatalf("5120x2880 is refused, so the CPU encoder takes over, got %q", encoder)
 	}
 }
@@ -229,7 +234,7 @@ func TestSizeProbeCache_AsksTheDriverOnce(t *testing.T) {
 
 	video := hevcSource("yuv420p10le")
 	for i := 0; i < 3; i++ {
-		if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, false, vaapiMachine); encoder != "libx265" {
+		if encoder, _ := verifyEncoderForOutput(context.Background(), "h264_vaapi", video, false, vaapiMachine, ""); encoder != "libx265" {
 			t.Fatalf("call %d: expected the step-back, got %q", i, encoder)
 		}
 	}

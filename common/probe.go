@@ -117,34 +117,57 @@ func (r *EncoderProbeReport) Unusable() []EncoderProbe {
 	return refused
 }
 
+// probeBitrate is the rate-control target a probe asks for. The value does
+// not matter -- one frame at any rate -- but asking for one does: a driver
+// that cannot honour a bitrate at all (Intel iHD without HuC firmware knows
+// only CQP) must say so here, not at conversion time.
+const probeBitrate = 2_000_000
+
+// probeSpec is the question a probe asks: this encoder, for this frame, from
+// this source depth, with this rate control and preset. Every field that the
+// conversion passes to the encoder is here, so the two cannot drift (E-01).
+type probeSpec struct {
+	Encoder string
+	Size    string // "WxH"
+	PixFmt  string // ffprobe's name for the source depth; "" is 8-bit
+	Bitrate int
+	Preset  string // x264-style, mapped per encoder exactly as the conversion does
+}
+
+func (s probeSpec) cacheKey() string {
+	return fmt.Sprintf("%s@%s/%s/%d/%s", s.Encoder, s.Size, s.PixFmt, s.Bitrate, s.Preset)
+}
+
+// sweepSpec is the question the startup sweep asks of an encoder: a small
+// 8-bit frame, the nominal bitrate, no preset.
+func sweepSpec(encoder string) probeSpec {
+	return probeSpec{Encoder: encoder, Size: probeFrameSize, Bitrate: probeBitrate}
+}
+
 // probeArgs builds the argv for one probe.
 //
-// The device setup comes from the same two functions the conversion uses, and
-// that is the point rather than a convenience. VAAPI, Vulkan and D3D12 only
-// accept frames that already live on the device: an argv without the upload
-// fails in the filter graph, before the driver is ever consulted, and would
-// condemn a working encoder on the strength of a malformed question. An argv
-// with an upload the conversion does not perform would do the opposite -- pass
-// the probe, then fail at encoding time. Sharing the code is what keeps the two
-// from drifting into either mistake.
-func probeArgs(encoder, size string) []string {
+// Everything after the input comes from the functions the conversion uses --
+// hwDeviceArgs, pixelFormatChain, encoderFacingArgs -- and that is the point
+// rather than a convenience. VAAPI, Vulkan and D3D12 only accept frames that
+// already live on the device: an argv without the upload fails in the filter
+// graph, before the driver is ever consulted, and would condemn a working
+// encoder on the strength of a malformed question. An argv without the rate
+// control did the opposite: it passed a driver that then refused every real
+// conversion. TestProbeAndConversionAskTheSameQuestion holds the two argv
+// against each other and allows only the differences it lists.
+func probeArgs(spec probeSpec) []string {
 	args := []string{"-hide_banner", "-loglevel", "error"}
-	args = append(args, hwDeviceArgs(encoder)...)
-	args = append(args, "-f", "lavfi", "-i", "nullsrc=s="+size+":r=25:d=0.04")
-
-	// The probe's own chain has no remap in it, so the upload steps arrive with
-	// a leading comma to strip.
-	if upload := hwUploadFilters(encoder, "yuv420p"); upload != "" {
-		args = append(args, "-vf", strings.TrimPrefix(upload, ","))
-	}
-
-	return append(args, "-c:v", encoder, "-f", "null", "-")
+	args = append(args, hwDeviceArgs(spec.Encoder)...)
+	args = append(args, "-f", "lavfi", "-i", "nullsrc=s="+spec.Size+":r=25:d=0.04")
+	args = append(args, "-vf", pixelFormatChain(spec.PixFmt, spec.Encoder))
+	args = append(args, encoderFacingArgs(spec.Encoder, spec.Bitrate, spec.Preset)...)
+	return append(args, "-f", "null", "-")
 }
 
 // ProbeEncoder encodes one frame with the given encoder and reports what
 // happened. It never returns an error: a refusal is the answer, not a failure.
 func ProbeEncoder(ctx context.Context, encoder string) EncoderProbe {
-	return probeEncoderAtSize(ctx, encoder, probeFrameSize)
+	return probeEncoderAtSize(ctx, sweepSpec(encoder))
 }
 
 // probeEncoderAtSize is ProbeEncoder with the frame size spelled out, for the
@@ -155,18 +178,18 @@ func ProbeEncoder(ctx context.Context, encoder string) EncoderProbe {
 // size does not move it -- 0.29 s at 256x256, 0.30 s at 5120x2880, 0.33 s at
 // 7082x3984 on h264_nvenc. What is being paid for is the process start and the
 // device handshake, not the pixels. A refusal comes back in 0.02 s.
-func probeEncoderAtSize(ctx context.Context, encoder, size string) EncoderProbe {
+func probeEncoderAtSize(ctx context.Context, spec probeSpec) EncoderProbe {
 	started := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 
-	cmd := newFFmpegCommandContext(ctx, probeArgs(encoder, size)...)
+	cmd := newFFmpegCommandContext(ctx, probeArgs(spec)...)
 	prepareBackgroundCommand(cmd)
 	output, err := cmd.CombinedOutput()
 
 	probe := EncoderProbe{
-		Encoder: encoder,
+		Encoder: spec.Encoder,
 		Usable:  err == nil,
 		Took:    time.Since(started),
 	}

@@ -192,16 +192,23 @@ func encodesInTenBits(pixFmt, encoder string) bool {
 // failed encode on the H.264 path. Sources deeper than 10 bits are brought to
 // 10, not to their native depth: nothing in this pipeline targets Main12.
 func remapFilterChain(pixFmt, encoder string) string {
+	return "[0:v:0][1:v:0][2:v:0]remap," + pixelFormatChain(pixFmt, encoder) + "[v]"
+}
+
+// pixelFormatChain is everything after remap: the working and output pixel
+// formats, then the upload for the encoders that need their frames on the
+// device. The probe runs exactly this chain on a synthetic source, so a frame
+// the conversion would hand the encoder is a frame the probe has already
+// handed it -- depth included (E-01).
+func pixelFormatChain(pixFmt, encoder string) string {
 	intermediate, output := "yuv444p", "yuv420p"
 	if encodesInTenBits(pixFmt, encoder) {
 		intermediate, output = "yuv444p10le", "yuv420p10le"
 	}
 	// remap is a CPU filter, so the frames are in system memory at this point
 	// whatever the encoder. The ones that cannot take them from there get the
-	// upload appended -- the same steps hwUploadFilters gives the probe, so the
-	// probe and the conversion ask the machine the same question.
-	return fmt.Sprintf("[0:v:0][1:v:0][2:v:0]remap,format=%s,format=%s%s[v]",
-		intermediate, output, hwUploadFilters(encoder, output))
+	// upload appended.
+	return fmt.Sprintf("format=%s,format=%s%s", intermediate, output, hwUploadFilters(encoder, output))
 }
 
 // x265MaxFrameThreads is the largest -threads value libx265 accepts.
@@ -272,17 +279,11 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 		// metadata, so it kept none and the recording date was dropped. Point
 		// it at the source explicitly.
 		"-map_metadata", "0",
-		"-c:v", encoder, "-b:v", strconv.Itoa(bitrate),
-		// -b:v on its own is an *average* target with no ceiling, so a demanding
-		// scene overshoots freely: measured at +83% on incompressible content
-		// (8 Mbps requested, 14.7 Mbps produced). Constraining the VBV brings that
-		// to +24% for the same request. maxrate equal to the target with a buffer
-		// of twice it measured better than the usual 1.5x headroom (+24% against
-		// +29%) and keeps the resulting file size predictable, which is the point:
-		// the quality profile already builds its own headroom into the request.
-		"-maxrate", strconv.Itoa(bitrate),
-		"-bufsize", strconv.Itoa(bitrate*2),
 	)
+
+	// Everything the encoder itself is asked for comes from one function the
+	// probe shares, so the two cannot drift apart again (E-01).
+	baseArgs = append(baseArgs, encoderFacingArgs(encoder, bitrate, videoPreset)...)
 
 	// After -c:v so it applies to the encoder. Placed before -i it would have
 	// configured the input decoder instead, which is not the intent.
@@ -294,10 +295,6 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 		baseArgs = append(baseArgs, "-filter_threads", strconv.Itoa(filterThreads))
 	}
 
-	if mappedPreset := mapVideoPresetForEncoder(encoder, videoPreset); mappedPreset != "" {
-		baseArgs = append(baseArgs, "-preset", mappedPreset)
-	}
-
 	if encoder == "libx265" {
 		baseArgs = append(baseArgs, "-x265-params", "log-level=error")
 	}
@@ -305,9 +302,86 @@ func buildEncodeBaseArgs(video *VideoSpecs, xPath, yPath, encoder string, bitrat
 	return baseArgs
 }
 
+// encoderFacingArgs is what the encoder itself is asked for: which codec, what
+// rate control, which preset, which tag. One function, used by the conversion
+// and by the probe, so the probe cannot pass an encoder that the conversion
+// then fails on. It used to: the probe passed none of this, and an Intel driver
+// that only knows the CQP rate-control mode accepted the probe and refused
+// every conversion, silently, onto the CPU (E-01).
+func encoderFacingArgs(encoder string, bitrate int, videoPreset string) []string {
+	args := []string{"-c:v", encoder}
+	args = append(args, encoderRateArgs(bitrate)...)
+	if mappedPreset := mapVideoPresetForEncoder(encoder, videoPreset); mappedPreset != "" {
+		args = append(args, "-preset", mappedPreset)
+	}
+	if isHEVCEncoder(encoder) {
+		// MP4 can tag HEVC as "hev1" or "hvc1"; ffmpeg's default is hev1, which
+		// QuickTime, iOS Photos and Final Cut refuse to open. hvc1 is what every
+		// camera writes. Measured: without this the output reads
+		// codec_tag_string=hev1 (E-09).
+		args = append(args, "-tag:v", "hvc1")
+	}
+	return args
+}
+
+// encoderRateArgs is the rate control every encode and every probe asks for.
+//
+// -b:v on its own is an *average* target with no ceiling, so a demanding scene
+// overshoots freely: measured at +83% on incompressible content (8 Mbps
+// requested, 14.7 Mbps produced). Constraining the VBV brings that to +24% for
+// the same request. maxrate equal to the target with a buffer of twice it
+// measured better than the usual 1.5x headroom (+24% against +29%) and keeps
+// the resulting file size predictable, which is the point: the quality profile
+// already builds its own headroom into the request.
+func encoderRateArgs(bitrate int) []string {
+	return []string{
+		"-b:v", strconv.Itoa(bitrate),
+		"-maxrate", strconv.Itoa(bitrate),
+		"-bufsize", strconv.Itoa(bitrate * 2),
+	}
+}
+
+// mapVideoPresetForEncoder translates an x264-style preset name into what the
+// target encoder accepts, or "" when the encoder takes none.
+//
+// The names in the configuration are x264's, and only libx264 and libx265 take
+// them verbatim. NVENC's option parser rejects most of them outright -- measured
+// on ffmpeg 8.0.1: "ultrafast", "superfast", "veryfast", "faster", "slower",
+// "veryslow" and "placebo" all fail with "Undefined constant or missing '(' in
+// 'veryslow'", exit 234, before the driver is consulted -- and the cascade then
+// landed on libx264 with nothing saying why (E-08). NVENC's own scale is p1
+// (fastest) to p7 (slowest); its legacy "fast" is an alias of p1, the coarsest
+// of all, which is not what "Fast" promises. The encoders that take frames on
+// the device have no preset to speak of: an unknown -preset is only a warning
+// there, but a warning on every run is noise.
 func mapVideoPresetForEncoder(encoder string, videoPreset string) string {
 	preset := strings.TrimSpace(strings.ToLower(videoPreset))
 	if preset == "" {
+		return ""
+	}
+
+	if strings.Contains(encoder, "_nvenc") {
+		switch preset {
+		case "ultrafast", "superfast", "veryfast":
+			return "p1"
+		case "faster":
+			return "p2"
+		case "fast":
+			return "p3"
+		case "medium":
+			return "p4"
+		case "slow":
+			return "p5"
+		case "slower":
+			return "p6"
+		case "veryslow", "placebo":
+			return "p7"
+		default:
+			return ""
+		}
+	}
+
+	if needsDeviceFrames(encoder) || strings.Contains(encoder, "_v4l2m2m") {
 		return ""
 	}
 

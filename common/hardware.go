@@ -147,9 +147,10 @@ func accelForEncoder(encoder string) string {
 		return "vulkan"
 	case strings.Contains(encoder, "_d3d12va"):
 		return "d3d12va"
-	case strings.Contains(encoder, "_v4l2m2m"):
-		return "drm"
 	default:
+		// v4l2m2m included: "drm" is a device type, not a -hwaccel token, and
+		// "-hwaccel drm" fails at device creation on every machine (E-07). The
+		// encoder takes frames from system memory; decoding stays on the CPU.
 		return ""
 	}
 }
@@ -161,7 +162,13 @@ func decodeAccelCandidatesForEncoder(encoder string) []string {
 	case strings.Contains(encoder, "_amf"):
 		return []string{"d3d11va", "dxva2"}
 	case strings.Contains(encoder, "_qsv"):
-		return []string{"qsv", "d3d11va", "dxva2"}
+		// Not "qsv". ffmpeg.html: "Unlike most other values, this option does
+		// not enable accelerated decoding ... but accelerated transcoding,
+		// without copying the frames into the system memory." The decoded
+		// frames stay on the device, and remap is a CPU filter: the graph then
+		// fails on every QSV machine, one wasted ffmpeg per conversion (E-07).
+		// d3d11va and dxva2 are real hwaccels that hand frames back to RAM.
+		return []string{"d3d11va", "dxva2"}
 	case strings.Contains(encoder, "_d3d12va"):
 		return []string{"d3d12va", "d3d11va", "dxva2"}
 	default:
@@ -497,8 +504,8 @@ func resetSizeProbeCache() {
 }
 
 // probeEncoderForSizeCached is probeEncoderAtSize behind the cache.
-func probeEncoderForSizeCached(ctx context.Context, encoder, size string) EncoderProbe {
-	key := encoder + "@" + size
+func probeEncoderForSizeCached(ctx context.Context, spec probeSpec) EncoderProbe {
+	key := spec.cacheKey()
 
 	sizeProbeMu.Lock()
 	cached, ok := sizeProbeCache[key]
@@ -507,7 +514,14 @@ func probeEncoderForSizeCached(ctx context.Context, encoder, size string) Encode
 		return cached
 	}
 
-	probe := probeEncoderAtSize(ctx, encoder, size)
+	probe := probeEncoderAtSize(ctx, spec)
+
+	// A probe cut short by its caller answered nothing about the driver, and
+	// remembering it would demote a working encoder for the whole session
+	// (E-23). Only the probe's own deadline is a verdict.
+	if ctx.Err() != nil {
+		return probe
+	}
 
 	sizeProbeMu.Lock()
 	sizeProbeCache[key] = probe
@@ -536,7 +550,11 @@ func probeEncoderForSizeCached(ctx context.Context, encoder, size string) Encode
 //
 // Software encoders are returned untouched: they have no device to consult, and
 // a probe would only cost the conversion a process start.
-func verifyEncoderForOutput(ctx context.Context, encoder string, video *VideoSpecs, squeeze bool, ffmpeg map[string]string) (string, string) {
+//
+// videoPreset is the preset the conversion will pass, so the probe passes it
+// too; "" asks without one, which is what the window's plan line does before
+// a profile is chosen.
+func verifyEncoderForOutput(ctx context.Context, encoder string, video *VideoSpecs, squeeze bool, ffmpeg map[string]string, videoPreset string) (string, string) {
 	if encoder == "" || !isHardwareEncoder(encoder) {
 		return encoder, ""
 	}
@@ -546,7 +564,13 @@ func verifyEncoderForOutput(ctx context.Context, encoder string, video *VideoSpe
 		return encoder, ""
 	}
 
-	probe := probeEncoderForSizeCached(ctx, encoder, size)
+	probe := probeEncoderForSizeCached(ctx, probeSpec{
+		Encoder: encoder,
+		Size:    size,
+		PixFmt:  sourcePixelFormat(video),
+		Bitrate: probeBitrate,
+		Preset:  videoPreset,
+	})
 	if probe.Usable {
 		return encoder, ""
 	}
@@ -591,7 +615,7 @@ func DescribeVerifiedHardwarePlan(ctx context.Context, ffmpeg map[string]string,
 		return fmt.Sprintf("Hardware: %s", err.Error())
 	}
 
-	verified, refusal := verifyEncoderForOutput(ctx, plan.Encoder, video, squeeze, ffmpeg)
+	verified, refusal := verifyEncoderForOutput(ctx, plan.Encoder, video, squeeze, ffmpeg, "")
 	if refusal == "" {
 		return describePlannedHardwarePath(plan)
 	}

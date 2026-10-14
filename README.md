@@ -265,7 +265,7 @@ temp_dir_prefix: "superview-*"
 encoder_codecs: ["264", "265", "hevc"]
 log_level: info
 performance_mode: safe_performance    # safe = re-encode audio to AAC | safe_performance = copy audio
-video_preset: ""         # optional: ultrafast..veryslow (empty = ffmpeg default)
+video_preset: ""         # optional: ultrafast..veryslow, translated per encoder (NVENC p1-p7, AMF, QSV)
 filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
 ```

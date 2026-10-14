@@ -1140,6 +1140,43 @@ Lister les « never » : `grep -rn "never\|jamais\|not yet" --include='*_test.go
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-01, E-07, E-08, E-09, E-23 (cache) — La sonde pose la question de l'encodage ; presets par encodeur ; `hvc1`
+
+| | |
+| --- | --- |
+| **Constat** | E-01 (arbitrage **a**), E-07, E-08, E-09, E-23 partie cache ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `common/encode.go`, `common/probe.go`, `common/hardware.go`, `common/pipeline.go` ; tests `common/probequestion_test.go`, `common/probe_test.go`, `common/sizeprobe_test.go` ; `README.md`, `README_FR.md`, `docs/hardware-support.md` |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ **plus aucun rouge** : le test VAAPI saute avec la raison du pilote · 6 contre-épreuves ✅ |
+
+**Symptôme** — `h264_vaapi` passait la sonde et refusait chaque conversion (CQP seul) ; un
+`video_preset` x264 tuait NVENC (code 234) et basculait sur le CPU ; « Fast » valait `p1`
+sur NVENC ; `-hwaccel qsv` livrait des trames GPU à `remap` et `-hwaccel drm` échouait,
+un ffmpeg gaspillé par conversion ; les sorties HEVC étaient taguées `hev1`.
+
+**Cause racine** — La sonde et la conversion construisaient leurs options chacune de leur
+côté, et le test « même question » ne comparait que deux d'entre elles (L-103) ; la table
+de presets ne connaissait qu'AMF et QSV ; deux jetons de décodage n'étaient pas des
+`-hwaccel` ; le tag HEVC par défaut de ffmpeg est celui qu'Apple refuse.
+
+**Correctif** — `encoderFacingArgs` (codec, débit, preset, tag) et `pixelFormatChain`
+partagés par `buildEncodeBaseArgs` et `probeArgs` ; `probeSpec` porte encodeur, taille,
+profondeur source, débit et preset, et sert de clé de cache ; `verifyEncoderForOutput`
+reçoit le preset de la configuration ; table NVENC `p1`–`p7` (`fast → p3`), `""` pour les
+familles à trames sur périphérique ; `qsv` retiré des candidats de décodage, `drm` retiré ;
+`-tag:v hvc1` pour tout encodeur HEVC ; une sonde annulée par son appelant n'est plus mise
+en cache. `TestProbeAndConversionAskTheSameQuestion` compare désormais **l'argv entier** et
+liste les différences permises. **Délibérément laissé** : la ligne *Hardware* de la fenêtre
+sonde sans preset (le preset n'est connu qu'au lancement) ; l'option (b) « s'adapter au
+CQP » n'est pas écrite.
+
+**Contre-épreuves** — sonde sans options d'encodeur → `AskForRateControl` et
+`AskTheSameQuestion` rouges ; sonde en 8 bits → `AskAtTheSourceDepth` rouge ; table NVENC
+retirée → rouge ; tag retiré → test unitaire **et** intégration (ffprobe lit `hev1`) rouges ;
+`qsv` remis → rouge ; cache sans garde → rouge.
+
+**Leçon** — L-103, écrite par la 13ᵉ passe, appliquée ici.
+
 ### [2026-10-14] E-02, E-13, E-04, E-10 — L'arrêt est honoré, l'échec tardif n'est plus rejoué, le fichier terminé n'est plus effacé
 
 | | |
