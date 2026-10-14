@@ -66,6 +66,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée |
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe` dans le code et `safe_performance` dans le YAML livré | À réexaminer |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
+| [DEC-36](#dec-36) | `common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
 
 ---
 
@@ -310,3 +311,24 @@ origine · Acceptée · B-03 (invalidé)
 
 **Décision** — zenity puis kdialog sous Linux, PowerShell/WinForms sous Windows ; le dialogue Fyne si rien n'est disponible. Les codes de sortie 1 et 255 valent « annulé », pas « erreur ».
 **À rouvrir si** — Fyne livre un dialogue natif portable (suivi : `fyne.io/fyne/v2/dialog`).
+
+### DEC-36
+**`common/` est découpé par responsabilité ; aucun fichier fourre-tout.**
+2026-10-14 · Acceptée · 13ᵉ passe, à la demande de l'utilisateur (« optimise la structure »)
+
+**Contexte** — `common.go` avait 2 023 lignes et portait huit responsabilités : erreurs, outils,
+session, lecture ffprobe, cartes PGM, garde-fou mémoire, un passage ffmpeg, orchestration.
+`AGENTS.md` le notait « connu, pas urgent ». Deux commentaires de doc y avaient déjà dérivé
+loin de leur déclaration (`CheckVideo`, `remapFilterChain`) — le symptôme d'un fichier où on
+insère sans lire.
+**Décision** — Huit fichiers, un en-tête d'une ligne chacun qui nomme sa responsabilité :
+`errors.go`, `tools.go`, `session.go`, `video.go`, `pgm.go`, `memory.go`, `encode.go`,
+`pipeline.go`. Déplacements purs : aucune déclaration modifiée, la suite entière et le test
+doré passent inchangés sous `-race`. `hardware.go`, `probe.go`, `config.go`, `security.go`,
+`health.go`, `metrics.go`, `observability.go` ne bougent pas.
+**Conséquences** — Un nouveau symbole va dans le fichier dont l'en-tête décrit son travail ;
+s'il n'en existe aucun, on crée le fichier, on n'allonge pas le voisin. Les références de
+prose en `common.go:NNN` sont remplacées par le nom du fichier et du symbole, qui vieillissent
+moins vite (L-98). `main()` de `gui_main.go` n'est **pas** concerné (DEC-23).
+**À rouvrir si** — Jamais vers un retour à un fichier unique. Un fichier qui dépasse ~700
+lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.

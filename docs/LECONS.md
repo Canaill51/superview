@@ -1140,6 +1140,29 @@ Lister les « never » : `grep -rn "never\|jamais\|not yet" --include='*_test.go
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] DEC-36 — `common.go` découpé en huit fichiers, un par responsabilité
+
+| | |
+| --- | --- |
+| **Constat** | aucun — décision de structure, [DEC-36](DECISIONS.md), demandée par l'utilisateur |
+| **Fichiers** | `common/common.go` → `errors.go`, `tools.go`, `session.go`, `video.go`, `pgm.go`, `memory.go`, `encode.go`, `pipeline.go` ; `README.md`, `README_FR.md`, `AGENTS.md`, `docs/CONTRATS.md`, `readme_link_test.go` (références) |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ (seul rouge : E-01, inchangé) · test doré PGM ✅ |
+
+**Symptôme** — Un fichier de 2 023 lignes et huit responsabilités ; deux commentaires de doc
+détachés de leur déclaration, preuve qu'on y insérait sans relire.
+
+**Cause racine** — Le fichier d'origine du projet a reçu chaque ajout faute d'un endroit
+nommé pour le recevoir.
+
+**Correctif** — Découpage par déplacements purs, à partir d'une carte des déclarations et de
+leurs blocs de commentaires (script jetable, chaque ligne non vide de l'original placée
+exactement une fois, vérifié). `goimports` a élagué les imports. Les deux commentaires
+détachés sont rattachés. Les références `common.go:NNN` de la prose remplacées par
+fichier + symbole. **Délibérément laissé** : `hardware.go` (607 lignes) et `main()`.
+
+**Leçon** — aucune nouvelle ; L-98 (une référence de ligne dans un document périme) s'applique.
+
 ### [2026-10-14] 13ᵉ passe — état des lieux complet, aucune correction de code
 
 | | |
