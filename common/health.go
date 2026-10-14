@@ -140,7 +140,9 @@ func checkFFprobeHealth(timestamp int64) HealthCheckResult {
 const minimumTempFreeGB = 1
 
 // checkDiskSpaceHealth verifies sufficient disk space for encoding operations.
-// Checks both temp directory and output directory.
+// It checks the temp directory only, where the remap maps are written: no output
+// has been chosen when the diagnostic runs. The destination volume is checked
+// per conversion, by checkOutputSpace, against the size of the file to come.
 func checkDiskSpaceHealth(timestamp int64) HealthCheckResult {
 	result := HealthCheckResult{
 		Name:      "disk_space",

@@ -654,6 +654,28 @@ func (s *appState) requestCancel() bool {
 	return true
 }
 
+// loadStartupConfig loads the configuration and never returns nil.
+//
+// A file LoadConfig refuses -- an unknown key, min_bitrate above max_bitrate --
+// is logged with LoadConfig's own words and the environment alone is tried; when
+// the environment is what is inconsistent, even that fails, and the built-in
+// defaults apply. The second LoadConfig used to have its error discarded, which
+// was harmless only while LoadConfig("") could not fail.
+func loadStartupConfig(configPath string, log *slog.Logger) *common.Config {
+	cfg, err := common.LoadConfig(configPath)
+	if err == nil {
+		return cfg
+	}
+	log.Error("Failed to load configuration, ignoring the file",
+		slog.String("path", configPath), slog.String("error", err.Error()))
+	if cfg, err = common.LoadConfig(""); err == nil {
+		return cfg
+	}
+	log.Error("Environment configuration rejected, using the built-in defaults",
+		slog.String("error", err.Error()))
+	return common.DefaultConfig()
+}
+
 func main() {
 	// Every piece of session state lives here, so the transitions that read and
 	// write it are methods a test can call rather than closures over locals.
@@ -686,12 +708,7 @@ func main() {
 	// config directory, not just the working directory, which is arbitrary when
 	// the app is started from a desktop launcher.
 	configPath := common.ResolveConfigPath()
-	cfg, err := common.LoadConfig(configPath)
-	if err != nil {
-		gui_logger.Error("Failed to load configuration", slog.String("error", err.Error()))
-		// Continue with current/default configuration to avoid nil dereference.
-		cfg, _ = common.LoadConfig("")
-	}
+	cfg := loadStartupConfig(configPath, gui_logger)
 
 	// Re-create the logger now that the configured level is known.
 	gui_logger = slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{

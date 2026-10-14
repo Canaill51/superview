@@ -121,6 +121,49 @@ func newPartialOutputPath(outputFile string) (string, error) {
 	return "", fmt.Errorf("cannot create a working file next to %s: every name tried already exists", outputFile)
 }
 
+// readFreeDiskGB is the free-space reading, behind a variable so a test can
+// hand checkOutputSpace a full disk -- the same reason readAvailableMemory is
+// one. Filling a real volume to prove the refusal is not a test anyone runs.
+var readFreeDiskGB = getFreeDiskGB
+
+// outputSpaceAllowance covers what the video bitrate does not: the audio track
+// and the container. Fifteen percent is generous for AAC beside any video
+// bitrate this pipeline accepts, and copied audio rarely exceeds it either.
+const outputSpaceAllowance = 1.15
+
+// checkOutputSpace refuses to start when the destination volume cannot hold the
+// file the encode is about to write.
+//
+// The output runs to bitrate x duration / 8 -- 100 Mb/s for thirty minutes is
+// 22 GB -- and nothing compared that with the target volume: the encode filled
+// the disk twenty minutes in and failed with an opaque write error.
+//
+// A failed reading is not a refusal, the rule checkTempSpaceForMaps follows:
+// the encode goes ahead and, at worst, fails later exactly as it used to.
+func checkOutputSpace(outputFile string, bitrate int, durationSeconds float64) error {
+	if bitrate <= 0 || durationSeconds <= 0 {
+		return nil
+	}
+	dir := filepath.Dir(outputFile)
+	needed := int64(float64(bitrate) * durationSeconds / 8 * outputSpaceAllowance)
+
+	freeGB, err := readFreeDiskGB(dir)
+	if err != nil {
+		logger.Warn("Could not check free space at the destination",
+			slog.String("path", dir),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	free := int64(freeGB * 1024 * 1024 * 1024)
+	if free >= needed {
+		return nil
+	}
+	return fmt.Errorf(
+		"not enough space in %s: the output needs about %d MB but only %d MB is free. Choose another destination or lower the bitrate",
+		dir, needed/(1024*1024), free/(1024*1024))
+}
+
 // PerformEncoding orchestrates the complete encoding workflow from input file to output file.
 // It coordinates all steps: validation, metadata extraction, option gathering, encoding, and cleanup.
 // The ui parameter handles user interaction (showing errors, progress, getting options).
@@ -235,6 +278,12 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 		return err
 	}
 
+	if err := checkOutputSpace(outputFile, bitrate, video.Streams[0].DurationFloat); err != nil {
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "output_space_check"})
+		return err
+	}
+
 	// Get encoder with full validation (uses sanitized input)
 	encoder, err := FindEncoder(encoderSanitized, ffmpeg, video)
 	if err != nil {
@@ -247,6 +296,12 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	// check and the map generation further down must all agree on which geometry
 	// is being produced.
 	squeeze := ui.GetSqueeze()
+
+	if err := checkGeometry(video, squeeze); err != nil {
+		metrics.RecordError(exitCodeUnavailable, err.Error())
+		RecordEncodingError(err, map[string]interface{}{"stage": "geometry_check"})
+		return err
+	}
 
 	// Ask a hardware encoder whether it will take the frame it is about to be
 	// given, and step back to the CPU here if it will not.

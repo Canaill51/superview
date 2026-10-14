@@ -2,7 +2,9 @@ package common
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -67,6 +69,68 @@ var defaultConfig = &Config{
 	VideoPreset:     "",
 	FilterThreads:   0,
 	EncoderThreads:  0,
+}
+
+// DefaultConfig returns a copy of the built-in defaults, ignoring both the
+// configuration file and the environment.
+//
+// It is the last resort when LoadConfig refuses: an inconsistent environment
+// (SUPERVIEW_MIN_BITRATE above SUPERVIEW_MAX_BITRATE) makes even LoadConfig("")
+// fail, and the application still has to start.
+func DefaultConfig() *Config {
+	cfg := *defaultConfig
+	cfg.EncoderCodecs = append([]string(nil), defaultConfig.EncoderCodecs...)
+	return &cfg
+}
+
+// retiredConfigKeys are keys earlier releases shipped in superview.yaml and that
+// no longer mean anything (C-03 removed them in the first pass; v0.1.6 still
+// carried them). A user who copied that file and tuned it must not lose every
+// other setting to the strict decoder because of a key Superview itself once
+// wrote there: these are dropped with a warning, while any other unknown key
+// stays an error that names it.
+var retiredConfigKeys = map[string]bool{
+	"quality_preset":   true,
+	"min_video_width":  true,
+	"min_video_height": true,
+}
+
+// withoutRetiredKeys returns the document with the retired top-level keys
+// removed, or the input unchanged when it cannot be read as a mapping -- the
+// strict decode that follows then reports the real problem.
+func withoutRetiredKeys(data []byte, path string) []byte {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) == 0 {
+		return data
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return data
+	}
+
+	kept := make([]*yaml.Node, 0, len(root.Content))
+	dropped := false
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i]
+		if retiredConfigKeys[key.Value] {
+			logger.Warn("Ignoring a configuration key that no longer has any effect; it can be deleted",
+				slog.String("path", path),
+				slog.String("key", key.Value),
+			)
+			dropped = true
+			continue
+		}
+		kept = append(kept, key, root.Content[i+1])
+	}
+	if !dropped {
+		return data
+	}
+	root.Content = kept
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return data
+	}
+	return out
 }
 
 // configOrDefault returns cfg, or the built-in defaults when cfg is nil.
@@ -143,7 +207,8 @@ func ResolveConfigPath() string {
 // LoadConfig loads configuration from a YAML file and applies environment variable overrides.
 // If filepath is empty, returns default configuration.
 // Environment variables (SUPERVIEW_*) override values from the YAML file.
-// Returns an error only if the file cannot be read (not if file doesn't exist).
+// Returns an error if the file cannot be read (not if it does not exist), if it
+// holds a key Config does not know, or if min_bitrate ends up above max_bitrate.
 func LoadConfig(filepath string) (*Config, error) {
 	config := &Config{}
 
@@ -162,9 +227,17 @@ func LoadConfig(filepath string) (*Config, error) {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
 			}
 		} else {
-			if err := yaml.Unmarshal(data, config); err != nil {
+			// KnownFields: an unknown key is an error that names it. yaml.Unmarshal
+			// ignored it, so a misspelt "video-preset:" was dropped without a word
+			// -- the way a user's preset was already lost once (C-05).
+			dec := yaml.NewDecoder(bytes.NewReader(withoutRetiredKeys(data, filepath)))
+			dec.KnownFields(true)
+			// io.EOF is an empty document: a file holding only comments is valid
+			// and changes nothing, as it did with yaml.Unmarshal.
+			if err := dec.Decode(config); err != nil && !errors.Is(err, io.EOF) {
 				return nil, fmt.Errorf("failed to parse config file: %w", err)
 			}
+			config.EncoderCodecs = normalizeEncoderCodecs(config.EncoderCodecs, "encoder_codecs")
 			logger.Info("Configuration loaded from file",
 				slog.String("path", filepath),
 			)
@@ -203,7 +276,7 @@ func LoadConfig(filepath string) (*Config, error) {
 	}
 
 	if encoders := os.Getenv("SUPERVIEW_ENCODER_CODECS"); encoders != "" {
-		config.EncoderCodecs = strings.Split(encoders, ",")
+		config.EncoderCodecs = normalizeEncoderCodecs(strings.Split(encoders, ","), "SUPERVIEW_ENCODER_CODECS")
 	}
 
 	if mode := os.Getenv("SUPERVIEW_PERFORMANCE_MODE"); mode != "" {
@@ -236,12 +309,43 @@ func LoadConfig(filepath string) (*Config, error) {
 		}
 	}
 
+	// After the environment, which can set either bound: the GUI clamps its
+	// bitrate into [min, max], and with min above max every value it can
+	// produce is one ValidateBitrate then refuses, run after run.
+	if config.MinBitrate > 0 && config.MaxBitrate > 0 && config.MinBitrate > config.MaxBitrate {
+		return nil, fmt.Errorf("invalid configuration: min_bitrate (%d) is above max_bitrate (%d)",
+			config.MinBitrate, config.MaxBitrate)
+	}
+
 	config.PerformanceMode = normalizePerformanceMode(config.PerformanceMode)
 	config.VideoPreset = normalizeVideoPreset(config.VideoPreset)
 	config.FilterThreads = normalizeThreadCount(config.FilterThreads, "filter_threads")
 	config.EncoderThreads = normalizeThreadCount(config.EncoderThreads, "encoder_threads")
 
 	return config, nil
+}
+
+// normalizeEncoderCodecs trims every codec identifier and drops the empty ones.
+//
+// "264, 265" used to yield " 265", which matches no encoder name, and every
+// HEVC encoder vanished from the list. An empty result -- "encoder_codecs: []",
+// or a variable holding only commas -- would empty the encoder list the same
+// way, so it falls back to the defaults with a warning instead.
+func normalizeEncoderCodecs(codecs []string, source string) []string {
+	cleaned := make([]string, 0, len(codecs))
+	for _, codec := range codecs {
+		if trimmed := strings.TrimSpace(codec); trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	if len(cleaned) == 0 {
+		logger.Warn("No encoder codec configured, using the defaults",
+			slog.String("source", source),
+			slog.String("defaults", strings.Join(defaultConfig.EncoderCodecs, ",")),
+		)
+		return append([]string(nil), defaultConfig.EncoderCodecs...)
+	}
+	return cleaned
 }
 
 func normalizePerformanceMode(mode string) string {

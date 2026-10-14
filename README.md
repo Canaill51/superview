@@ -151,6 +151,9 @@ Notes:
 - The app asks for confirmation before overwriting an existing output file.
 - The GUI shows the planned hardware path before launch, for example
   `h264_nvenc + D3D11VA`, and the path actually used once the run finishes.
+- A video taller than 9:8 — a portrait phone clip, for instance — is refused:
+  widening it to 16:9 would fold the picture back on itself at both edges. The
+  un-squeeze mode keeps the frame's width and is not affected.
 
 ### If something goes wrong
 
@@ -275,6 +278,10 @@ encoder_threads: 0        # 0 = auto/default
 > whereas the built-in default, used when no config file is found at all, is
 > `safe` (re-encode audio to AAC). Deleting your `superview.yaml` therefore
 > changes how audio is handled.
+
+A key Superview does not know, or a `min_bitrate` above `max_bitrate`, makes the
+whole file ignored rather than half-applied: the log names the key or the two
+values, and the environment variables below still apply.
 
 Override with environment variables:
 

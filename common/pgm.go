@@ -26,6 +26,34 @@ func remapOutputSize(video *VideoSpecs, squeeze bool) (outX, outY int) {
 	return outX, video.Streams[0].Height
 }
 
+// checkGeometry refuses a frame the widening map cannot handle.
+//
+// In widening (non-squeeze) mode the X map is x - d/2 -/+ tx^2*d/2, where d is
+// the number of columns being added. Its slope at the edges is 1 - 2d/outX, so
+// the map stays monotonic only while d <= outX/2 -- that is, while the source is
+// at least half as wide as the 16:9 output, H/W <= 9/8. Past that the curve
+// turns back on itself near both edges: a 1080x1920 portrait clip produced
+// samples up to 1164 for a 1080-pixel row, which remap renders as black bands
+// and a mirrored ribbon, without an error anywhere.
+//
+// The test is written on the output width remapOutputSize actually computes,
+// not on the ratio, so it cannot disagree with the map by a rounding.
+//
+// Squeeze mode keeps the source width and is never refused here.
+func checkGeometry(video *VideoSpecs, squeeze bool) error {
+	if squeeze || video == nil || len(video.Streams) == 0 {
+		return nil
+	}
+	width, height := video.Streams[0].Width, video.Streams[0].Height
+	outX, _ := remapOutputSize(video, squeeze)
+	if outX <= 2*width {
+		return nil
+	}
+	return &InvalidVideoError{Reason: fmt.Sprintf(
+		"the frame is %dx%d, taller than 9:8; widening it to 16:9 (%dx%d) would fold the image back on itself at both edges. Superview converts 4:3 footage; a portrait clip cannot be widened",
+		width, height, outX, height)}
+}
+
 // remapMapBytes returns the number of bytes the two remap maps will take.
 //
 // Two files, one 16-bit sample per pixel, plus a short ASCII header each. Exact
@@ -85,10 +113,13 @@ func checkTempSpaceForMaps(video *VideoSpecs, squeeze bool) error {
 // silently wrong rather than rejected, so the order is not an implementation
 // detail.
 //
-// The clamp is a guard, not a behaviour: for every input size the distortion
-// math lands in [0, inputWidth-1], well inside the range. It exists so a future
-// change to the offset formula degrades into a fill pixel instead of a wrapped
-// coordinate pointing somewhere arbitrary in the frame.
+// The clamp is a guard, not a behaviour: for every geometry checkGeometry
+// accepts -- any frame in squeeze mode, a frame no taller than 9:8 when
+// widening -- the distortion math lands in [0, inputWidth-1], well inside the
+// range. A taller frame does not, which is why it is refused before a map is
+// written. The clamp exists so a future change to the offset formula degrades
+// into a fill pixel instead of a wrapped coordinate pointing somewhere
+// arbitrary in the frame.
 func putMapSample(dst []byte, value int) {
 	if value < 0 {
 		value = 0
@@ -106,6 +137,11 @@ func putMapSample(dst []byte, value int) {
 func GeneratePGM(video *VideoSpecs, squeeze bool) (err error) {
 	// Validate video before processing
 	if err := video.Validate(); err != nil {
+		return err
+	}
+	// PerformEncoding refuses this first; repeated here so no caller can write
+	// a folded map.
+	if err := checkGeometry(video, squeeze); err != nil {
 		return err
 	}
 
