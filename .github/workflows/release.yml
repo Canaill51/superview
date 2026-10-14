@@ -458,7 +458,14 @@ jobs:
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
         SUPERVIEW_FFMPEG_DIR: ${{ runner.temp }}/ffbin
-      run: go test -race -count=1 ./...
+      run: |
+        # Tests that probe with exec.LookPath("ffmpeg") look at PATH, not at
+        # SUPERVIEW_FFMPEG_DIR, and this runner has no ffmpeg of its own: with
+        # REQUIRE_FFMPEG=1 they fail instead of skipping. Putting the bundled
+        # copy first makes PATH agree with the directory the suite is meant to
+        # exercise. (This step never ran in a dry run before it was merged.)
+        export PATH="${RUNNER_TEMP}/ffbin:${PATH}"
+        go test -race -count=1 ./...
 
     # The tools go under lib/superview, not next to the app.
     #
