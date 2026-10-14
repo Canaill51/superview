@@ -7,18 +7,23 @@ import (
 )
 
 // NormalizeNativeDialogResult normalizes the output of a native OS file dialog command.
-// A non-zero exit code of 1 or 255 indicates cancellation by the user (not an error).
 // Returns the trimmed path, empty string on cancellation, or an error on unexpected failure.
+//
+// Only exit code 1 is a cancellation. zenity(1), EXIT CODES: 0 returned
+// normally, 1 the user pressed Cancel or closed the dialog, -1 an unexpected
+// error occurred (255 once the shell has made it unsigned), 5 the dialog timed
+// out. 255 used to be read as a cancellation too, so a broken zenity gave a
+// click with no effect and a line at debug level -- and the Fyne dialog that
+// exists as the fallback for exactly that case never opened. Returning the
+// error is what opens it.
 func NormalizeNativeDialogResult(path string, err error) (string, error) {
 	if err == nil {
 		return strings.TrimSpace(path), nil
 	}
 
 	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if exitErr.ExitCode() == 1 || exitErr.ExitCode() == 255 {
-			return "", nil
-		}
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return "", nil
 	}
 
 	return "", err

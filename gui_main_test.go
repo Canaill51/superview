@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -489,13 +491,15 @@ func TestEnsureMP4ExtensionMatchesTheInputFilter(t *testing.T) {
 func TestEncodingControls_RoundTripReEnablesEverything(t *testing.T) {
 	test.NewApp()
 
-	open := widget.NewButton("Choose input file", func() {})
-	selectOutput := widget.NewButton("Choose output file", func() {})
-	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
-	squeeze := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {})
-	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
-
-	controls := encodingControls{open, selectOutput, quality, squeeze, encoder}
+	// The list main() locks, built by the function main() builds it with.
+	controls := windowControls{
+		open:         widget.NewButton("Choose input file", func() {}),
+		selectOutput: widget.NewButton("Choose output file", func() {}),
+		diagnostic:   widget.NewButton("Diagnostic", func() {}),
+		quality:      widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {}),
+		encoder:      widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {}),
+		squeeze:      widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {}),
+	}.locked()
 
 	controls.setEnabled(false)
 	for i, w := range controls {
@@ -509,6 +513,36 @@ func TestEncodingControls_RoundTripReEnablesEverything(t *testing.T) {
 		if w.Disabled() {
 			t.Errorf("control %d was never re-enabled after the encoding finished", i)
 		}
+	}
+}
+
+// TestWindowControls_LockDiagnosticDuringAConversion pins E-14. CheckHealth
+// runs ProbeHardwareSupport, ten GPU probes, and two probes on one GPU beside a
+// running hardware encode can make a working encoder fail -- so the report a
+// user was asked to attach could show a functional NVENC as refused. The
+// button was on the toolbar and not in the locked list. Quit, on the other
+// hand, must stay usable: it cancels safely now.
+func TestWindowControls_LockDiagnosticDuringAConversion(t *testing.T) {
+	test.NewApp()
+
+	diagnostic := widget.NewButton("Diagnostic", func() {})
+	controls := windowControls{
+		open:         widget.NewButton("Choose input file", func() {}),
+		selectOutput: widget.NewButton("Choose output file", func() {}),
+		diagnostic:   diagnostic,
+		quality:      widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {}),
+		encoder:      widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {}),
+		squeeze:      widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {}),
+	}
+
+	found := false
+	for _, w := range controls.locked() {
+		if w == fyne.Disableable(diagnostic) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the Diagnostic button is not among the controls locked during a conversion: its GPU probes would run beside the hardware encode")
 	}
 }
 
@@ -551,6 +585,19 @@ func TestFormatEncodingStatus(t *testing.T) {
 		{
 			name: "seconds", percent: 42.4, remaining: 25 * time.Second,
 			want: "Status: Transforming... 42% - about 25s left",
+		},
+		{
+			// Under half a second rounds to zero, and "about 0s left" is the
+			// very line the estimate must never show. The test is on the
+			// rounded value, not the raw one.
+			name: "an estimate that rounds to zero is none", percent: 99.9,
+			remaining: 499 * time.Millisecond,
+			want:      "Status: Transforming... 100%",
+		},
+		{
+			name: "half a second rounds up and is shown", percent: 99.9,
+			remaining: 500 * time.Millisecond,
+			want:      "Status: Transforming... 100% - about 1s left",
 		},
 		{
 			name: "minutes are rounded to the second", percent: 71.6,
@@ -668,27 +715,42 @@ func TestAppState_ProbeRefusalRemovesTheEncoderFromThePlan(t *testing.T) {
 // asserting on a state machine whose outputs are nil proves nothing.
 func newTestAppState(t *testing.T) *appState {
 	t.Helper()
-	test.NewApp()
-
-	open := widget.NewButton("Choose input file", func() {})
-	selectOutput := widget.NewButton("Choose output file", func() {})
-	quality := widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {})
-	squeeze := widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {})
-	encoder := widget.NewSelect([]string{"Use same video codec as input file"}, func(string) {})
+	app := test.NewApp()
 
 	state := &appState{
 		ffmpegAvailable: true,
+		prefs:           app.Preferences(),
 		start:           widget.NewButton("Start transformation", func() {}),
 		cancelButton:    widget.NewButton("Cancel", func() {}),
-		encoder:         encoder,
-		locked:          encodingControls{open, selectOutput, quality, squeeze, encoder},
 		status:          widget.NewLabel("Status: Ready"),
+		results:         widget.NewLabel("Results: no completed run yet"),
 		hardwareStatus:  widget.NewLabel("Hardware: waiting for input video"),
 		progress:        widget.NewProgressBar(),
 	}
+	// The dropdown is wired the way main() wires it, so that what its
+	// OnChanged persists is the real rule and not a copy of it.
+	state.encoder = widget.NewSelect([]string{"Use same video codec as input file"}, state.encoderChanged)
+	state.inputLabel = widget.NewLabel("No file selected")
+	state.outputLabel = widget.NewLabel("No file selected")
+	controls := testWindowControls(state.encoder)
+	state.locked = controls.locked()
+	state.requiresFFmpeg = controls.requiresFFmpeg()
 	state.start.Disable()
 	state.cancelButton.Disable()
 	return state
+}
+
+// testWindowControls builds the toolbar and option widgets the way main()
+// does, around the given codec dropdown.
+func testWindowControls(encoder *widget.Select) windowControls {
+	return windowControls{
+		open:         widget.NewButton("Choose input file", func() {}),
+		selectOutput: widget.NewButton("Choose output file", func() {}),
+		diagnostic:   widget.NewButton("Diagnostic", func() {}),
+		quality:      widget.NewSelect([]string{"Fast", "Balanced"}, func(string) {}),
+		encoder:      encoder,
+		squeeze:      widget.NewCheck("Source already stretched to 16:9 (un-squeeze)", func(bool) {}),
+	}
 }
 
 func testVideo() *common.VideoSpecs {
@@ -811,7 +873,7 @@ func TestAppState_EncodingRoundTripRestoresEveryControl(t *testing.T) {
 // window handed the pipeline a nil channel: a conversion nothing could stop.
 func TestAppState_BeginEncodingReturnsTheChannel(t *testing.T) {
 	state := newTestAppState(t)
-	held := state.beginEncoding()
+	held, _ := state.beginEncoding()
 
 	if held == nil {
 		t.Fatal("beginEncoding() returned a nil channel")
@@ -840,7 +902,7 @@ func TestAppState_RequestCancel(t *testing.T) {
 
 	t.Run("cancels a running conversion", func(t *testing.T) {
 		state := newTestAppState(t)
-		held := state.beginEncoding()
+		held, _ := state.beginEncoding()
 
 		if !state.requestCancel() {
 			t.Fatal("requestCancel() reported no cancellation while a conversion was running")
@@ -1043,5 +1105,499 @@ func TestAppState_RefreshInvalidatesAVerificationInFlight(t *testing.T) {
 
 	if got := state.hardwareStatus.Text; got != settled {
 		t.Errorf("a verification started before the refresh was allowed to land: %q", got)
+	}
+}
+
+// TestGUIHandler_GetEncoderReturnsTheCapturedName pins E-15. The handler used
+// to hold the codec dropdown and read Selected from the encoding goroutine,
+// while the startup probe could be rewriting it on the UI thread: a data race,
+// and an encoder that could differ from the one on screen at Start. The name
+// is now a string captured before the goroutine exists, and that is all the
+// goroutine ever sees.
+func TestGUIHandler_GetEncoderReturnsTheCapturedName(t *testing.T) {
+	h := &GUIHandler{video: testVideo(), encoderName: "libx265"}
+	if got := h.GetEncoder(); got != "libx265" {
+		t.Errorf("GetEncoder() = %q, want the captured name", got)
+	}
+
+	// Still nothing without a loaded video: the pipeline reads that as "no
+	// explicit choice", and a name for a file that does not exist is noise.
+	h.video = nil
+	if got := h.GetEncoder(); got != "" {
+		t.Errorf("GetEncoder() = %q with no video, want empty", got)
+	}
+}
+
+// TestAppState_Shutdown pins E-03: every exit asks a running conversion to stop
+// and waits for its goroutine to have unwound, within a bound.
+//
+// Quit used to call app.Quit() outright, so the window vanished while ffmpeg
+// kept writing the working file to the end; the close intercept slept one
+// second and hoped. The goroutine here stands in for the real one: it stops
+// on the cancel channel, takes a moment to "clean up", and only then closes
+// done -- which is the order PerformEncoding's defers impose.
+func TestAppState_Shutdown(t *testing.T) {
+	t.Run("cancels and waits for the goroutine to unwind", func(t *testing.T) {
+		state := newTestAppState(t)
+		cancel, done := state.beginEncoding()
+
+		var unwound atomic.Bool
+		go func() {
+			<-cancel
+			time.Sleep(50 * time.Millisecond) // the defers: kill, reap, remove, clean up
+			unwound.Store(true)
+			close(done)
+		}()
+
+		if !state.shutdown("test") {
+			t.Fatal("shutdown() reported a timeout although the goroutine unwound")
+		}
+		if !unwound.Load() {
+			t.Fatal("shutdown() returned before the goroutine had unwound: ffmpeg would outlive the window")
+		}
+		select {
+		case <-cancel:
+		default:
+			t.Error("shutdown() did not close the cancel channel")
+		}
+		if !state.shuttingDown.Load() {
+			t.Error("shutdown() did not mark the state as shutting down")
+		}
+	})
+
+	t.Run("gives up after the grace period", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.shutdownGrace = 50 * time.Millisecond
+		state.beginEncoding() // and nobody will ever close done
+
+		started := time.Now()
+		if state.shutdown("test") {
+			t.Fatal("shutdown() claimed the goroutine unwound; nothing closed done")
+		}
+		if waited := time.Since(started); waited > 5*time.Second {
+			t.Fatalf("shutdown() waited %v: the bound is not applied", waited)
+		}
+	})
+
+	t.Run("returns at once when nothing is running", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.shutdownGrace = time.Hour
+
+		started := time.Now()
+		if !state.shutdown("test") {
+			t.Fatal("shutdown() with no conversion reported a timeout")
+		}
+		if waited := time.Since(started); waited > time.Second {
+			t.Fatalf("shutdown() waited %v with nothing to wait for", waited)
+		}
+	})
+
+	t.Run("is idempotent", func(t *testing.T) {
+		// The window close hook and the line after Run() both call it.
+		state := newTestAppState(t)
+		_, done := state.beginEncoding()
+		close(done)
+
+		if !state.shutdown("first") || !state.shutdown("second") {
+			t.Fatal("a second shutdown() after the goroutine unwound must return true at once")
+		}
+	})
+}
+
+// TestAppState_CompleteEncoding pins the four outcomes of E-14 on the one
+// completion path. The branch that matters is the cancellation: it used to
+// land in the failure branch, so a user who pressed Cancel read "Status:
+// Failed" and had to dismiss an Error dialog saying "encoding interrupted by
+// user". The dialogs are observed on a real canvas, as overlays, because the
+// absence of one is the point.
+func TestAppState_CompleteEncoding(t *testing.T) {
+	withWindow := func(t *testing.T) *appState {
+		t.Helper()
+		state := newTestAppState(t)
+		state.window = test.NewTempWindow(t, widget.NewLabel(""))
+		state.video = testVideo()
+		state.outputPath = "/tmp/out.mp4"
+		state.beginEncoding()
+		return state
+	}
+	dialogShown := func(s *appState) bool {
+		return s.window.Canvas().Overlays().Top() != nil
+	}
+
+	t.Run("a cancellation is not a failure", func(t *testing.T) {
+		state := withWindow(t)
+		state.requestCancel()
+
+		state.completeEncoding(common.ErrCancelled, "/tmp/out.mp4")
+
+		if got := state.status.Text; got != "Status: Cancelled" {
+			t.Errorf("status = %q, want \"Status: Cancelled\"", got)
+		}
+		if got := state.results.Text; got != "Results: last run cancelled" {
+			t.Errorf("results = %q, want \"Results: last run cancelled\"", got)
+		}
+		if dialogShown(state) {
+			t.Error("a cancellation the user asked for opened a dialog")
+		}
+		if state.isEncoding() {
+			t.Error("the window was not returned to idle after a cancellation")
+		}
+	})
+
+	t.Run("a wrapped cancellation is still one", func(t *testing.T) {
+		state := withWindow(t)
+
+		state.completeEncoding(errors.New("encoding failed: "+common.ErrCancelled.Error()), "/tmp/out.mp4")
+		// A string match would pass here; errors.Is must not.
+		if got := state.status.Text; got == "Status: Cancelled" {
+			t.Errorf("a plain string carrying the cancellation text was taken for ErrCancelled")
+		}
+
+		state = withWindow(t)
+		state.completeEncoding(fmt.Errorf("encoding failed: %w", common.ErrCancelled), "/tmp/out.mp4")
+		if got := state.status.Text; got != "Status: Cancelled" {
+			t.Errorf("status = %q for a wrapped ErrCancelled, want \"Status: Cancelled\"", got)
+		}
+	})
+
+	t.Run("a failure reports and shows the error", func(t *testing.T) {
+		state := withWindow(t)
+
+		state.completeEncoding(errors.New("ffmpeg exited with code 1"), "/tmp/out.mp4")
+
+		if got := state.status.Text; got != "Status: Failed" {
+			t.Errorf("status = %q, want \"Status: Failed\"", got)
+		}
+		if got := state.results.Text; got != "Results: last run failed" {
+			t.Errorf("results = %q, want \"Results: last run failed\"", got)
+		}
+		if !dialogShown(state) {
+			t.Error("a failure must be shown to the user, and no dialog opened")
+		}
+		if state.isEncoding() {
+			t.Error("the window was not returned to idle after a failure")
+		}
+	})
+
+	t.Run("a success reports and says where the file is", func(t *testing.T) {
+		state := withWindow(t)
+
+		state.completeEncoding(nil, "/tmp/out.mp4")
+
+		if got := state.status.Text; got != "Status: Completed" {
+			t.Errorf("status = %q, want \"Status: Completed\"", got)
+		}
+		if !strings.HasPrefix(state.results.Text, "Results: ") {
+			t.Errorf("results = %q, want a results line", state.results.Text)
+		}
+		if !dialogShown(state) {
+			t.Error("the completion message with the output path was not shown")
+		}
+		if state.progress.Value != 1 {
+			t.Errorf("progress = %v at completion, want 1", state.progress.Value)
+		}
+	})
+
+	t.Run("a system stop quits instead of reporting", func(t *testing.T) {
+		state := withWindow(t)
+		quitCalled := false
+		state.quit = func() { quitCalled = true }
+
+		state.completeEncoding(fmt.Errorf("%w (signal: terminated)", common.ErrStoppedBySignal), "/tmp/out.mp4")
+
+		if !quitCalled {
+			t.Fatal("a stop ordered by the system must quit the application")
+		}
+		if dialogShown(state) {
+			t.Error("a system stop opened a dialog, which only delays the SIGKILL that follows")
+		}
+	})
+
+	t.Run("does nothing once the application is shutting down", func(t *testing.T) {
+		// Fyne runs a queued fyne.Do inline once its loop has stopped, on the
+		// encoding goroutine, against a window that is gone.
+		state := withWindow(t)
+		state.shuttingDown.Store(true)
+		before := state.status.Text
+
+		state.completeEncoding(errors.New("ffmpeg exited with code 1"), "/tmp/out.mp4")
+
+		if got := state.status.Text; got != before {
+			t.Errorf("status changed to %q during shutdown", got)
+		}
+		if dialogShown(state) {
+			t.Error("a dialog was opened on a window that is closing")
+		}
+	})
+}
+
+// TestAppState_RefreshEncoderOptionsKeepsTheSavedPreference pins the second
+// half of E-15. The dropdown's OnChanged persists the selection, and
+// SetSelected fires it like a click: a start without ffmpeg, or with a driver
+// that refuses hevc_nvenc, replaced the saved "hevc_nvenc encoder" with "Use
+// same video codec as input file" for good. A choice the program made is not
+// one the user made, and must not be saved as if it were.
+func TestAppState_RefreshEncoderOptionsKeepsTheSavedPreference(t *testing.T) {
+	const saved = "hevc_nvenc encoder"
+
+	t.Run("a fallback is not persisted", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.prefs.SetString(prefEncoderSelection, saved)
+		state.ffmpeg = map[string]string{"encoders": "libx264"}
+
+		state.refreshEncoderOptions()
+
+		if got := state.encoder.Selected; got != "Use same video codec as input file" {
+			t.Errorf("selected %q, want the first option when the saved one is absent", got)
+		}
+		if got := state.prefs.String(prefEncoderSelection); got != saved {
+			t.Errorf("the saved preference became %q: the fallback was persisted over %q", got, saved)
+		}
+		if state.restoringSelection {
+			t.Error("restoringSelection was left set: the next user choice would not be saved")
+		}
+	})
+
+	t.Run("the saved selection is restored when offered", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.prefs.SetString(prefEncoderSelection, saved)
+		state.ffmpeg = map[string]string{"encoders": "hevc_nvenc,libx264"}
+		state.encoder.Selected = "" // as at startup
+
+		state.refreshEncoderOptions()
+
+		if got := state.encoder.Selected; got != saved {
+			t.Errorf("selected %q, want the saved %q", got, saved)
+		}
+	})
+
+	t.Run("a user choice is still persisted", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.ffmpeg = map[string]string{"encoders": "hevc_nvenc,libx264"}
+		state.refreshEncoderOptions()
+
+		state.encoder.SetSelected("libx264 encoder") // what a click does
+
+		if got := state.prefs.String(prefEncoderSelection); got != "libx264 encoder" {
+			t.Errorf("the user's choice was not saved: preference is %q", got)
+		}
+	})
+}
+
+// TestAppState_RefreshEncoderOptionsPrefersTheSavedChoice pins the sixth review
+// finding. A start without ffmpeg leaves the dropdown on "Use same video
+// codec...". When the retry then finds an ffmpeg that offers the saved
+// encoder, that fallback is what the program chose, not the user: the saved
+// preference must win over it.
+func TestAppState_RefreshEncoderOptionsPrefersTheSavedChoice(t *testing.T) {
+	const saved = "hevc_nvenc encoder"
+	state := newTestAppState(t)
+	state.prefs.SetString(prefEncoderSelection, saved)
+
+	// Startup without ffmpeg.
+	state.ffmpeg = nil
+	state.refreshEncoderOptions()
+	if got := state.encoder.Selected; got != "Use same video codec as input file" {
+		t.Fatalf("selected %q without ffmpeg, want the only option", got)
+	}
+
+	// The retry finds ffmpeg.
+	state.ffmpeg = map[string]string{"encoders": "hevc_nvenc,libx264"}
+	state.refreshEncoderOptions()
+	if got := state.encoder.Selected; got != saved {
+		t.Errorf("selected %q after the retry, want the saved %q", got, saved)
+	}
+
+	// A saved choice that is not offered gives way to the current selection.
+	state.encoder.SetSelected("libx264 encoder") // a click: persisted
+	state.prefs.SetString(prefEncoderSelection, "av1_nvenc encoder")
+	state.refreshEncoderOptions()
+	if got := state.encoder.Selected; got != "libx264 encoder" {
+		t.Errorf("selected %q, want the current selection kept when the saved one is not offered", got)
+	}
+}
+
+// TestAppState_DiagnosticStaysUsableWithoutFFmpeg pins the first review
+// finding on E-14. Diagnostic belongs in the list locked during a conversion,
+// and the startup path without ffmpeg used to lock that same list -- so the
+// one tool that reports "ffmpeg not found", the one the README tells the user
+// to press, was greyed out exactly when it was needed.
+func TestAppState_DiagnosticStaysUsableWithoutFFmpeg(t *testing.T) {
+	state := newTestAppState(t)
+	controls := testWindowControls(state.encoder)
+	state.locked = controls.locked()
+	state.requiresFFmpeg = controls.requiresFFmpeg()
+
+	state.ffmpegAvailable = false
+	state.applyFFmpegAvailability()
+
+	if controls.diagnostic.Disabled() {
+		t.Error("Diagnostic is disabled without ffmpeg: the tool that reports the missing ffmpeg cannot be reached")
+	}
+	for name, w := range map[string]fyne.Disableable{
+		"Choose input file":  controls.open,
+		"Choose output file": controls.selectOutput,
+		"Quality":            controls.quality,
+		"Video codec":        controls.encoder,
+		"Squeeze":            controls.squeeze,
+	} {
+		if !w.Disabled() {
+			t.Errorf("%s is usable without ffmpeg", name)
+		}
+	}
+
+	// The retry finds ffmpeg, then a conversion runs.
+	state.setFFmpeg(map[string]string{"encoders": "libx264"})
+	state.applyFFmpegAvailability()
+	if controls.open.Disabled() {
+		t.Error("Choose input file stayed disabled after ffmpeg was found")
+	}
+	state.beginEncoding()
+	if !controls.diagnostic.Disabled() {
+		t.Error("Diagnostic is usable during a conversion: its GPU probes would run beside the hardware encode")
+	}
+}
+
+// TestAppState_AChosenFileIsIgnoredDuringAConversion pins the second review
+// finding. The native pickers run off the UI thread and the window stays
+// interactive meanwhile: a user can start a conversion and then validate the
+// picker, whose result used to replace state.video, overwrite the status line
+// and start a GPU probe in the middle of the encode.
+func TestAppState_AChosenFileIsIgnoredDuringAConversion(t *testing.T) {
+	t.Run("input", func(t *testing.T) {
+		state := newTestAppState(t)
+		video := testVideo()
+		state.video = video
+		state.outputPath = "/tmp/out.mp4"
+		state.beginEncoding()
+		state.status.SetText(startingEncoderStatus)
+
+		// A path CheckVideo refuses: without the guard the status turns to
+		// "Status: Invalid input" over the running conversion.
+		state.applyChosenInput("/nonexistent/superview-review.mp4")
+
+		if state.video != video {
+			t.Error("the input video was replaced during a conversion")
+		}
+		if got := state.status.Text; got != startingEncoderStatus {
+			t.Errorf("status = %q during a conversion, want it left to the encode", got)
+		}
+	})
+
+	t.Run("output", func(t *testing.T) {
+		state := newTestAppState(t)
+		state.video = testVideo()
+		state.outputPath = "/tmp/out.mp4"
+		state.beginEncoding()
+		state.status.SetText(startingEncoderStatus)
+
+		state.applyChosenOutput("/tmp/other")
+
+		if got := state.outputPath; got != "/tmp/out.mp4" {
+			t.Errorf("output path = %q, changed during a conversion", got)
+		}
+		if got := state.outputLabel.Text; got != "No file selected" {
+			t.Errorf("output label = %q, changed during a conversion", got)
+		}
+		if got := state.status.Text; got != startingEncoderStatus {
+			t.Errorf("status = %q during a conversion, want it left to the encode", got)
+		}
+	})
+
+	t.Run("output when idle", func(t *testing.T) {
+		state := newTestAppState(t)
+
+		state.applyChosenOutput("/tmp/other")
+
+		if got := state.outputPath; got != "/tmp/other.mp4" {
+			t.Errorf("output path = %q, want the .mp4 extension enforced", got)
+		}
+		if got := state.outputLabel.Text; got != "other.mp4" {
+			t.Errorf("output label = %q, want the file name", got)
+		}
+		if got := state.status.Text; got != "Status: Output selected" {
+			t.Errorf("status = %q, want \"Status: Output selected\"", got)
+		}
+	})
+
+	t.Run("an invalid input when idle is reported", func(t *testing.T) {
+		state := newTestAppState(t)
+
+		state.applyChosenInput("/nonexistent/superview-review.mp4")
+
+		if state.video != nil {
+			t.Error("an input CheckVideo refused was recorded")
+		}
+		if got := state.status.Text; got != "Status: Invalid input" {
+			t.Errorf("status = %q, want \"Status: Invalid input\"", got)
+		}
+	})
+}
+
+// TestAppState_ShutdownFromTheCompletionPathDoesNotWaitForItself pins the
+// third review finding. Once Fyne's loop has drained, fyne.Do runs inline on
+// the calling goroutine -- the test driver always does, which is what makes
+// this reproducible. A system stop then reaches completeEncoding on the
+// encoding goroutine, which quits, which closes the window, whose hook is
+// shutdown, which waits on done: a channel only that same goroutine closes.
+// The goroutine waited for itself for the whole grace period.
+func TestAppState_ShutdownFromTheCompletionPathDoesNotWaitForItself(t *testing.T) {
+	state := newTestAppState(t)
+	state.shutdownGrace = 3 * time.Second
+	_, done := state.beginEncoding()
+
+	var unwound atomic.Bool
+	state.quit = func() { unwound.Store(state.shutdown("window closing")) }
+
+	started := time.Now()
+	state.runEncoding(done, "/tmp/out.mp4", func() error {
+		return fmt.Errorf("%w (signal: terminated)", common.ErrStoppedBySignal)
+	})
+	if waited := time.Since(started); waited > time.Second {
+		t.Fatalf("the completion path waited %v for its own goroutine to close done", waited)
+	}
+	if !unwound.Load() {
+		t.Error("shutdown reported a timeout although the conversion had unwound")
+	}
+}
+
+// TestAppState_RunEncodingReleasesDoneOnPanic keeps the guarantee the deferred
+// close used to give: whatever happens in the pipeline, an exit is never left
+// waiting on it.
+func TestAppState_RunEncodingReleasesDoneOnPanic(t *testing.T) {
+	state := newTestAppState(t)
+	_, done := state.beginEncoding()
+	waitOn := state.done
+
+	func() {
+		defer func() { _ = recover() }()
+		state.runEncoding(done, "/tmp/out.mp4", func() error { panic("pipeline") })
+	}()
+
+	select {
+	case <-waitOn:
+	default:
+		t.Fatal("a panicking conversion left done open: every exit would wait out the grace period")
+	}
+}
+
+// TestAppState_ShutdownWaitsOnlyOnce pins the fourth review finding. When the
+// wait in the window's close hook expired, the call after ShowAndRun() waited
+// the whole grace period again: 40 s, not the 20 s documented.
+func TestAppState_ShutdownWaitsOnlyOnce(t *testing.T) {
+	state := newTestAppState(t)
+	state.shutdownGrace = 300 * time.Millisecond
+	state.beginEncoding() // and nobody will ever close done
+
+	if state.shutdown("window closing") {
+		t.Fatal("the first shutdown claimed the goroutine unwound; nothing closed done")
+	}
+
+	started := time.Now()
+	if state.shutdown("event loop stopped") {
+		t.Fatal("the second shutdown claimed the goroutine unwound; nothing closed done")
+	}
+	if waited := time.Since(started); waited >= 150*time.Millisecond {
+		t.Fatalf("the second shutdown waited %v after the first had already given up", waited)
 	}
 }
