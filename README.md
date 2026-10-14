@@ -273,11 +273,10 @@ filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
 ```
 
-> One value differs between this file and the built-in defaults: the shipped file
-> sets `performance_mode: safe_performance` (copy the audio stream untouched),
-> whereas the built-in default, used when no config file is found at all, is
-> `safe` (re-encode audio to AAC). Deleting your `superview.yaml` therefore
-> changes how audio is handled.
+> The shipped file and the built-in defaults agree: `performance_mode` defaults
+> to `safe_performance` (copy the audio stream untouched, falling back to AAC if
+> the copy is refused), with or without a `superview.yaml`. Set `safe` to always
+> re-encode the audio to AAC.
 
 A key Superview does not know, or a `min_bitrate` above `max_bitrate`, makes the
 whole file ignored rather than half-applied: the log names the key or the two

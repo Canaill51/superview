@@ -550,7 +550,7 @@ func TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame(t *testing.T
 	capabilities := map[string]string{"encoders": "h264_vaapi,libx264,libx265", "accels": "vaapi"}
 	ui := &integrationUI{bitrate: 2_000_000} // no explicit encoder: the automatic path
 
-	if err := PerformEncoding(nil, input, filepath.Join(t.TempDir(), "out.mp4"), ui, capabilities, make(chan struct{})); err == nil {
+	if err := PerformEncoding(reAudioConfig(), input, filepath.Join(t.TempDir(), "out.mp4"), ui, capabilities, make(chan struct{})); err == nil {
 		t.Fatal("the stand-in ffmpeg refuses everything, so an error was expected")
 	}
 

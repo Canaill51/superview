@@ -1189,6 +1189,41 @@ après le travail : `grep -n "close(done)\|<-done" *.go common/*.go`.
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-22, E-23 (SessionError), DEC-33 — Ménage : un interblocage latent, un chemin relatif, le journal, le cgroup, le mode audio
+
+| | |
+| --- | --- |
+| **Constat** | E-22, E-23 partie `SessionError`, DEC-33 ([ANALYSE.md § 3duodecies](ANALYSE.md), [DECISIONS.md](DECISIONS.md)) |
+| **Fichiers** | `common/metrics.go`, `common/tools.go`, `common/observability.go`, `common/health.go`, `common/errors.go`, `common/session.go`, `common/config.go` ; tests `common/housekeeping_test.go`, `common/housekeeping_unix_test.go`, `common/config_test.go`, `common/observability_default_test.go` ; `README.md`, `README_FR.md`, `docs/CONTRATS.md`, `docs/DECISIONS.md` |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `GOOS=windows go vet ./common` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · 7 contre-épreuves ✅ |
+
+**Symptôme** — Aucun observé : `Summary` et `LogMetrics` reprenaient `RLock` via `ElapsedTime` ;
+une variable Windows vide donnait un candidat relatif résolu contre le répertoire courant ; le
+plafond du journal ne jouait qu'à l'ouverture et le fichier était lisible de tous ; sous cgroup,
+`MemAvailable` décrivait l'hôte ; `SessionError` n'était jamais rendu par la session ; un
+utilisateur sans YAML (archives) réencodait l'audio.
+
+**Correctif** — `elapsedLocked()` ; candidats Windows construits seulement depuis des variables
+non vides ; `cappedLogWriter` (recoupe avant l'écriture qui dépasserait le plafond, `OpenLogFile`
+rend désormais un `io.WriteCloser`, l'appelant de `gui_main.go` n'a pas changé) ; `memory.max`
+et `memory.current` en variables de paquet ; `SessionError.Err` + `Unwrap` ; défaut
+`safe_performance` dans le code, le tag et `normalizePerformanceMode("")`, les README, DEC-33
+acceptée. Une valeur invalide retombe toujours sur `safe` (inchangé).
+
+**Au passage** : trois tests (`fallbackmemory_test.go` ×2, `integration_test.go`) comptaient les
+lancements d'un ffmpeg qui refuse tout et dépendaient en silence du défaut `safe` ; en
+`safe_performance` un refus est rejoué une fois avec l'audio AAC, ce qui double les lancements.
+Ils épinglent désormais `safe` (`reAudioConfig`), le sujet étant l'échelle de repli vidéo.
+
+**Contre-épreuves** — `ElapsedTime()` rappelé sous `RLock` → `NoRecursiveRLock` rouge par
+expiration de 5 s, 3 fois sur 3 ; `tools.go` d'origine → `Microsoft/WinGet/Links/ffmpeg.exe`
+résolu, rouge ; plafond neutralisé → rouge à la douzième écriture ; modes 0644/0755 → rouge ;
+cgroup ignoré → 8 GiB au lieu de 424 MiB, rouge ; `session.go` d'origine → rouge ; `""` → `safe`
+→ rouge. Le test des valeurs par défaut de `LoadConfig` a été retourné avec le défaut.
+
+**Leçon** — Aucune nouvelle : L-05 et DEC-28 s'appliquent.
+
 ### [2026-10-14] E-03, E-14, E-15, E-20, E-23 (partiel) — Quit, la croix et SIGTERM attendent tous que l'encodage se défasse
 
 **PR** — *à ouvrir*

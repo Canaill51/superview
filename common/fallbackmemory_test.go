@@ -77,7 +77,7 @@ func TestEncodeVideo_RefusesAFallbackThatCannotFitInMemory(t *testing.T) {
 
 	withAvailableMemory(t, 1*gib, true)
 
-	err := EncodeVideo(nil, video, "h264_vaapi", 2_000_000,
+	err := EncodeVideo(reAudioConfig(), video, "h264_vaapi", 2_000_000,
 		filepath.Join(t.TempDir(), "out.mp4"), vaapiMachine, func(float64) {}, make(chan struct{}))
 
 	if err == nil {
@@ -116,7 +116,7 @@ func TestEncodeVideo_FallbackProceedsWhenMemoryAllows(t *testing.T) {
 
 	withAvailableMemory(t, 64*gib, true)
 
-	err := EncodeVideo(nil, video, "h264_vaapi", 2_000_000,
+	err := EncodeVideo(reAudioConfig(), video, "h264_vaapi", 2_000_000,
 		filepath.Join(t.TempDir(), "out.mp4"), vaapiMachine, func(float64) {}, make(chan struct{}))
 
 	if err == nil {

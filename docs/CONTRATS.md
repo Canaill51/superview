@@ -23,7 +23,7 @@
 | 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `./...`, seuil de couverture 50 %, `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
 | 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
 | 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
-| 6 | `superview.yaml` | Options de configuration effectivement livrées. Attention : le fichier livre `performance_mode: safe_performance`, alors que le défaut interne, appliqué en son absence, est `safe`. |  |
+| 6 | `superview.yaml` | Options de configuration effectivement livrées. Le fichier livré et le défaut interne concordent (`performance_mode: safe_performance`, DEC-33) ; garder les deux alignés. |  |
 | 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U et leur état. | journal, voir son en-tête |
 | 8 | [`LECONS.md`](LECONS.md) | Corrections appliquées et leçons permanentes. | journal, voir son en-tête |
 | 8bis | [`DECISIONS.md`](DECISIONS.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les 34 choix du dépôt, chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |

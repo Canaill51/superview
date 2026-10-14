@@ -64,7 +64,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-30](#dec-30) | `-threads` = `NumCPU()` plafonné à 16 pour `libx265`, jamais émis pour un encodeur matériel | Acceptée |
 | [DEC-31](#dec-31) | Pas de `-re` : l'encodage n'est pas bridé au temps réel | Acceptée |
 | [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée |
-| [DEC-33](#dec-33) | Le mode audio par défaut est `safe` dans le code et `safe_performance` dans le YAML livré | À réexaminer |
+| [DEC-33](#dec-33) | Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README | Acceptée |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
 | [DEC-36](#dec-36) | `common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
@@ -299,12 +299,12 @@ origine du dépôt · Acceptée
 **Décision** — `SetFixedSize(true)`, taille = max(constantes, `MinSize` du contenu) ; `forcedDarkTheme` plutôt que `theme.DarkTheme()` déprécié. Ajouter un widget est un changement de mise en page : `TestToolbarFitsWindow` mesure le rendu.
 
 ### DEC-33
-**Le mode audio par défaut est `safe` dans le code et `safe_performance` dans le YAML livré.**
-état constaté · **À réexaminer** · CONTRATS.md § 1 ligne 6
+**Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README.**
+2026-10-14 · **Acceptée** · CONTRATS.md § 1 ligne 6
 
 **Contexte** — `defaultConfig.PerformanceMode = "safe"` ; `superview.yaml` livre `safe_performance`. Un utilisateur sans fichier de configuration (cas des archives : le YAML n'est pas installé dans `../lib/superview/`) réencode donc l'audio en AAC, l'autre le copie.
-**Décision (implicite, jamais tranchée)** — Les deux valeurs coexistent.
-**À rouvrir** — Choisir une valeur et l'écrire aux deux endroits ; c'est l'item 9 du plan de la 13ᵉ passe.
+**Décision** — Le défaut est `safe_performance` partout : code, YAML livré, README. Copier la piste audio est sans perte et plus rapide, et le repli sur l'AAC existe déjà si la copie est refusée ; `safe` reste accepté comme choix explicite, et la chaîne vide vaut `safe_performance`.
+**À rouvrir si** — un conteneur courant refuse la copie audio au point que le repli devienne la règle.
 
 ### DEC-34
 **Les dialogues de fichiers sont natifs d'abord, Fyne en repli.**

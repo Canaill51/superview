@@ -160,23 +160,40 @@ func usableToolFile(path string) string {
 func findWindowsToolBinary(tool string) string {
 	exe := tool + ".exe"
 	// Common install paths used by winget/scoop/manual installs.
-	candidates := []string{
-		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", exe),
-		filepath.Join(os.Getenv("ProgramFiles"), "ffmpeg", "bin", exe),
-		filepath.Join(os.Getenv("ProgramFiles"), "FFmpeg", "bin", exe),
-		filepath.Join(os.Getenv("USERPROFILE"), "scoop", "apps", "ffmpeg", "current", "bin", exe),
+	// A candidate is built only from variables that are set: filepath.Join of
+	// an empty variable yields a RELATIVE path, which os.Stat resolves against
+	// the working directory -- the lookup Go's own exec.LookPath has refused
+	// since 1.19, and a way to run a planted ffmpeg.exe.
+	localAppData := os.Getenv("LOCALAPPDATA")
+	programFiles := os.Getenv("ProgramFiles")
+	userProfile := os.Getenv("USERPROFILE")
+
+	var candidates []string
+	if localAppData != "" {
+		candidates = append(candidates, filepath.Join(localAppData, "Microsoft", "WinGet", "Links", exe))
+	}
+	if programFiles != "" {
+		candidates = append(candidates,
+			filepath.Join(programFiles, "ffmpeg", "bin", exe),
+			filepath.Join(programFiles, "FFmpeg", "bin", exe),
+		)
+	}
+	if userProfile != "" {
+		candidates = append(candidates, filepath.Join(userProfile, "scoop", "apps", "ffmpeg", "current", "bin", exe))
 	}
 
 	for _, path := range candidates {
-		if path != "" {
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				return path
-			}
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
 		}
 	}
 
+	if localAppData == "" {
+		return ""
+	}
+
 	// Winget often extracts under LOCALAPPDATA/Microsoft/WinGet/Packages.
-	packageRoot := filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Packages")
+	packageRoot := filepath.Join(localAppData, "Microsoft", "WinGet", "Packages")
 	dirs, err := os.ReadDir(packageRoot)
 	if err != nil {
 		return ""

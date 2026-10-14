@@ -38,13 +38,14 @@ type Config struct {
 
 	// PerformanceMode controls the audio handling tradeoff.
 	// Supported values:
+	// - "safe_performance" (the default, here and in the shipped YAML): try to
+	//   copy the audio stream untouched, falling back to AAC when the copy is
+	//   rejected. Faster and lossless for audio.
 	// - "safe": always re-encode audio to AAC (maximum container compatibility).
-	// - "safe_performance": try to copy the audio stream untouched, falling back
-	//   to AAC when the copy is rejected. Faster and lossless for audio.
 	//
 	// Neither mode throttles the encode any more: the "-re" realtime input flag
 	// was removed because it only applies to streaming, not file output.
-	PerformanceMode string `yaml:"performance_mode" default:"safe"`
+	PerformanceMode string `yaml:"performance_mode" default:"safe_performance"`
 
 	// VideoPreset controls ffmpeg encoder preset (optional).
 	// Empty value keeps ffmpeg defaults for maximum compatibility.
@@ -65,7 +66,7 @@ var defaultConfig = &Config{
 	TempDirPrefix:   "superview-*",
 	EncoderCodecs:   []string{"264", "265", "hevc"},
 	LogLevel:        "info",
-	PerformanceMode: "safe",
+	PerformanceMode: "safe_performance",
 	VideoPreset:     "",
 	FilterThreads:   0,
 	EncoderThreads:  0,
@@ -350,9 +351,9 @@ func normalizeEncoderCodecs(codecs []string, source string) []string {
 
 func normalizePerformanceMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "", "safe":
+	case "safe":
 		return "safe"
-	case "safe_performance", "performance":
+	case "", "safe_performance", "performance":
 		return "safe_performance"
 	default:
 		logger.Warn("Invalid performance_mode, falling back to safe",
