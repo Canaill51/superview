@@ -4,13 +4,14 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 100 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 106 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
-> une correction a déjà été tentée.
+> une correction a déjà été tentée. Les **décisions** — ce qui ressemble à un défaut
+> et n'en est pas un — sont dans [DECISIONS.md](DECISIONS.md).
 >
-> La file d'attente qui figurait ici a disparu avec son dernier item : les 107
-> constats sont clos. L'état d'avancement vit désormais dans
-> [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
+> La file d'attente qui figurait ici a disparu avec son dernier item le 2026-10-14 ;
+> la 13ᵉ passe en a rouvert une de 25 constats (E-01 à E-25). L'état d'avancement vit
+> dans [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
 > périment à chaque leçon et à chaque passe** — ils étaient restés à 80 et 67
 > jusqu'au 2026-09-11 (M-04).
 
@@ -23,8 +24,10 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 [§ 3bis](ANALYSE.md) (3ᵉ passe, empirique), `P-xx` à [§ 3ter](ANALYSE.md)
 (4ᵉ passe), `R-xx` à [§ 3quater](ANALYSE.md) (5ᵉ passe), `D-xx` et `V-xx` à
 [§ 3quinquies](ANALYSE.md) (6ᵉ passe), `U-xx` aux [§ 3sexies à § 3nonies](ANALYSE.md)
-(7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur) et `M-xx` aux
-[§ 3decies et § 3undecies](ANALYSE.md) (11ᵉ et 12ᵉ passes, entretien).
+(7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur), `M-xx` aux
+[§ 3decies et § 3undecies](ANALYSE.md) (11ᵉ et 12ᵉ passes, entretien) et `E-xx` au
+[§ 3duodecies](ANALYSE.md) (13ᵉ passe, état des lieux). `DEC-xx` renvoie au registre
+[DECISIONS.md](DECISIONS.md).
 
 ---
 
@@ -1077,7 +1080,90 @@ git fetch --prune && for b in $(git branch -r --format='%(refname:lstrip=3)' | g
 done
 ```
 
+### L-101 — Une sentinelle créée pour distinguer deux causes doit être relue partout où la première est testée — 2026-10-14
+U-09 a scindé `ErrCancelled` en deux : l'annulation de l'utilisateur et l'arrêt demandé par
+le système. Le nouveau sentinel a reçu son test, son message, son `app.Quit()` dans la GUI —
+et aucune des trois portes de la cascade de repli, qui ne testent que `errors.Is(err,
+ErrCancelled)`. Résultat mesuré : six ffmpeg pour un seul SIGTERM, et un signal perdu quand
+la relance aboutit (E-02). Le test de U-09 était vert à vide : il exerçait la seule
+configuration sans relance (L-37).
+→ **Quand on dédouble une erreur, la commande à lancer est `grep -rn "errors.Is(err,
+AncienSentinel)"` et chaque occurrence se décide** : l'une, l'autre, ou les deux. Un
+prédicat nommé (`isStopRequest`) vaut mieux que la liste, parce que la troisième cause
+n'aura pas non plus à la retrouver.
+
+### L-102 — Un bouton qui fait la même chose qu'un geste du système doit passer par le même chemin — 2026-10-14
+L'interception de fermeture demandait confirmation pendant un encodage et annulait proprement.
+Le bouton *Quit*, trois lignes plus bas, appelait `app.Quit()` directement : la même intention,
+sans la confirmation ni l'annulation, et un ffmpeg orphelin (E-03). Fyne lui-même a un
+troisième chemin, son `catchTerm` sur SIGTERM, qui ne passe par aucun des deux.
+→ **Pour toute sortie de l'application, lister les chemins qui y mènent — bouton, croix de
+la fenêtre, signal, menu — et les faire converger sur une seule fonction.** `SetOnClosed`
+est ce point de convergence chez Fyne ; un `time.Sleep` avant `Quit` n'est pas une attente.
+
+### L-103 — Un test « les deux posent la même question » doit comparer la question entière — 2026-10-14
+`TestProbeAndConversionAskTheSameQuestion` comparait les options de périphérique et la
+présence de `hwupload`, et c'est tout ce qu'il garantissait. L'encodage a gagné un contrôle
+de débit, un preset et une chaîne 10 bits que la sonde n'a jamais reçus, et le test est
+resté vert pendant qu'un pilote CQP-only passait la sonde et refusait l'encodage (E-01).
+→ **Construire les deux argv à partir des mêmes fonctions et comparer tout ce qui n'est pas
+l'entrée** ; un test qui ne compare que ce qu'on a pensé à comparer protège exactement
+contre ce qu'on a déjà vu.
+
+### L-104 — Automatiser un geste, c'est aussi perdre ce que ce geste déclenchait — 2026-10-14
+Suite de L-100, dont une moitié seulement a été appliquée. La fusion par `GITHUB_TOKEN` ne
+supprime plus la branche (corrigé, M-06) **et ne déclenche plus aucun workflow sur `master`**
+(E-06) : cinq fusions sans un seul run, et un ruleset non strict qui laisse fusionner une PR
+testée contre une base périmée. L-100 l'avait écrit, « ni suppression de branche, ni
+workflow », et personne n'a relu la seconde moitié de sa propre phrase.
+→ **Après une automatisation, vérifier chaque effet secondaire listé, pas seulement celui
+qui a fait ouvrir le ticket** : `gh run list --branch master --event push --limit 3` dit en
+une ligne si la CI vit encore.
+
+### L-105 — Déplacer un échec de l'ouverture vers la fin le rend destructeur — 2026-10-14
+Avant P-04, ffmpeg échouait à ouvrir la destination dans la première seconde. Avec le fichier
+de travail, la même cause (destination devenue répertoire, verrouillée, interdite) frappe au
+renommage final, et le `defer` de nettoyage efface alors l'encodage terminé (E-04). Même
+famille : E-13, où la cascade de repli rejoue cinq encodages complets après un échec à 95 %.
+→ **Quand on reporte une opération, relire ce que font les chemins d'erreur à son nouvel
+emplacement** : un nettoyage juste pour un échec précoce est une perte de données pour un
+échec tardif. Distinguer « a échoué avant de produire » de « a échoué après ».
+
+### L-106 — Une assertion « jamais » dans un test périme sans bruit — 2026-10-14
+`TestGUIHandler_GetSqueezeAndBitrate` affirmait « the GUI never enables squeeze today ;
+update this test if that changes ». C-04 a exposé la case squeeze le jour même ; le test est
+resté, vert, faux, pendant douze passes (E-19). Il ne pouvait pas rougir : il testait une
+valeur par défaut, pas un comportement.
+→ **Un test qui code une absence (« jamais », « pas encore ») doit être remplacé par un test
+de la présence le jour où elle arrive, et le commentaire qui le demande ne le fera pas.**
+Lister les « never » : `grep -rn "never\|jamais\|not yet" --include='*_test.go' .`
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] 13ᵉ passe — état des lieux complet, aucune correction de code
+
+| | |
+| --- | --- |
+| **Constat** | E-01 à E-25 ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `docs/ANALYSE.md`, `docs/DECISIONS.md` (nouveau), `docs/LECONS.md`, `docs/CONTRATS.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/` (nouveau) |
+| **PR** | *à ouvrir* |
+| **Vérification** | `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race` ❌ **1 rouge attendu** (E-01, VAAPI/CQP, dépend du GPU) · couverture 71,1 % |
+
+**Symptôme** — Douze passes, 107 constats clos, et un seul test rouge connu. La demande était
+un état des lieux complet confronté aux documentations officielles, avec un registre des
+décisions et un plan d'actions.
+
+**Cause racine** — Sans objet : passe d'analyse. Ce qu'elle a trouvé relève de quatre
+familles : des correctifs appliqués à moitié (E-02 pour U-09, E-06 pour L-100, E-14 pour
+U-09), des défauts introduits par un correctif (E-04 et E-10 par P-04), des faits FFmpeg
+jamais mesurés (E-07, E-08, E-09), et des tests verts à vide (E-19).
+
+**Correctif** — Aucun dans le code. `DECISIONS.md` créé (34 décisions, dont une à
+réexaminer), `.claude/` créé (autorisations, crochet `gofmt`, compétence `/verify`), six
+leçons. Le plan d'actions, en sept PR, est en fin de § 3duodecies. Trois contre-épreuves
+jetables ont été écrites puis retirées (E-02, E-17, et la géométrie de E-05).
+
+**Leçon** — L-101 à L-106.
 
 ### [2026-10-14] M-06 — Les branches fusionnées par le workflow n'étaient pas supprimées
 

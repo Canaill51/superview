@@ -1,20 +1,22 @@
 # Superview — Analyse complète du projet
 
-> **Journal d'audit, pas documentation de référence.** Ce fichier consigne douze
-> passes d'analyse et les 107 constats qu'elles ont produits, avec ce qui a été
+> **Journal d'audit, pas documentation de référence.** Ce fichier consigne treize
+> passes d'analyse et les 132 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
-> [LECONS.md](LECONS.md).
+> [LECONS.md](LECONS.md) ; ce qu'il ne faut pas « corriger » est dans
+> [DECISIONS.md](DECISIONS.md).
 >
-> Dernière passe : 12ᵉ (M-05, M-06), close le 2026-10-14 — passe d'entretien, comme la
-> 11ᵉ, sans signalement, à la différence des 7ᵉ à 10ᵉ qui en sont toutes parties.
-> Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`.
+> Dernière passe : 13ᵉ (E-01 à E-25), ouverte le 2026-10-14 — état des lieux complet
+> demandé par l'utilisateur, **25 constats ouverts** et un plan d'actions en sept PR.
+> Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`, le § 3duodecies
+> sur `f925ee5`.
 >
 > **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
 > N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → § 3quinquies
 > (6ᵉ passe, D-xx/V-xx) → § 3sexies (7ᵉ), § 3septies (8ᵉ), § 3octies (9ᵉ) et
-> § 3nonies (10ᵉ), U-xx → § 3decies (11ᵉ) et § 3undecies (12ᵉ), M-xx → **§ 4 (état d'avancement, le
-> seul tableau qui fasse foi)**.
+> § 3nonies (10ᵉ), U-xx → § 3decies (11ᵉ) et § 3undecies (12ᵉ), M-xx → § 3duodecies
+> (13ᵉ), E-xx → **§ 4 (état d'avancement, le seul tableau qui fasse foi)**.
 >
 > **Ce compte et cette liste périment dès qu'une passe s'ajoute**, et ils l'ont
 > fait : le total est resté à « cinq passes, 67 constats » de la 5ᵉ à la 10ᵉ
@@ -2523,6 +2525,537 @@ déjà supprimée pour un succès.
 
 ---
 
+## 3duodecies. Treizième passe (2026-10-14) — état des lieux complet, à `f925ee5`
+
+Aucun signalement. Demande de l'utilisateur : une analyse complète du projet, de sa
+structure et de ses tests, confrontée aux documentations officielles, avec un plan
+d'actions — et un registre des décisions, qui manquait ([DECISIONS.md](DECISIONS.md)).
+
+**Méthode.** Baseline d'abord : `gofmt`, `go build ./...`, `go vet`, `golangci-lint`
+(0 alerte), `govulncheck` (0 vulnérabilité appelée), puis
+`SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` — **un seul test rouge**,
+`TestIntegration_DeviceFrameEncoderRunsTheWholePipeline`, sur le défaut VAAPI/CQP déjà
+consigné en M-05 ; couverture 71,1 % module entier, 86,0 % sur `common`. Puis six revues
+indépendantes en parallèle (pipeline, GUI/Fyne, encodeurs/FFmpeg, utilitaires Go, CI/release
+et outillage agent, suite de tests), chacune tenue de citer la documentation officielle et de
+vérifier par exécution ce qui pouvait l'être, sur FFmpeg 8.0.1, Fyne 2.8.2 (code lu dans le
+cache de modules) et Go 1.26.9. Chaque constat ci-dessous a été **relu contre les journaux**
+avant d'être retenu, et les plus lourds ont été **reproduits une seconde fois** par
+l'auteur de la passe (E-02 par un test jetable, E-06 par l'API GitHub, E-07 à E-09 par
+`ffmpeg` en direct, E-17 par un test jetable).
+
+Convention : **E** (état des lieux). Les constats sont **ouverts** ; le § 4 les reprend. Le
+plan d'actions est en fin de section.
+
+### Ce qui s'est révélé sain
+
+Les revues ont testé, et écarté, une bonne part des hypothèses de départ. Pour qu'on ne les
+refasse pas : l'ordre lecture du pipe / `Wait` et le drain de stderr (os/exec), le tueur de
+processus sur les deux plateformes, le parseur `-progress` (`out_time_ms` est bien en
+microsecondes sur 8.0.1, vérifié : `out_time_us` et `out_time_ms` impriment la même valeur),
+le renommage sur un même système de fichiers, l'arithmétique de `GeneratePGM` pour 4:3,
+16:9, 1:1 et 21:9, l'en-tête PGM, l'idempotence de `CleanUp`, les positions de
+`-init_hw_device`, `-hwaccel`, `-threads` et `-filter_threads`, le repli doux des `-hwaccel`
+vaapi et cuda sur une source non décodable, l'étape `format=yuv444p` (sortie identique au
+bit près avec ou sans, gardée parce qu'elle interdit un choix `gbrp` qui, lui, change les
+pixels), le plafond x265, le cache de résolution des outils, `exec.LookPath` et `ErrDot`,
+la recherche du YAML, les huit `uses:` épinglés par SHA (tous vérifiés contre leur tag),
+`merge-on-label.yml` (pas de checkout, données d'événement par `env:`, label réservé aux
+collaborateurs), les archives FFmpeg épinglées par URL **et** SHA-256, `fyne.Do` jamais
+appelé depuis le fil principal, les sentinelles `ErrCancelled` transportées par `%w`, les
+variables injectées des tests toutes restaurées, et les scripts ffmpeg factices qui ont bien
+leurs variantes `.bat`.
+
+### E-01 — La sonde pose une question plus étroite que l'encodage, et le test qui doit les comparer ne compare que deux options
+
+🔴 `common/probe.go:130-142`, `common/common.go:1291-1350`, `common/probe_test.go:65-91`.
+C'est le défaut VAAPI/CQP trouvé en M-05, qui reçoit ici son identifiant, et il est plus
+large que VAAPI. La sonde émet les options de périphérique, `format=nv12,hwupload` et
+`-c:v` ; l'encodage émet **en plus** `-b:v`/`-maxrate`/`-bufsize`, `-preset`, `-threads`
+et, pour une source 10 bits vers HEVC, la chaîne `yuv420p10le`/`p010`.
+`TestProbeAndConversionAskTheSameQuestion` ne compare que `hwDeviceArgs` et la présence
+de `hwupload`. Trois conséquences établies : (a) un pilote VAAPI qui ne sait que CQP passe
+la sonde et refuse l'encodage (`Driver does not support any RC mode compatible with
+selected options (supported modes: CQP)`), l'interface annonce `h264_vaapi` et tout tourne
+sur le CPU — mesuré sur la machine de vérification, et `h264_vulkan` a le même `rc_mode
+auto` ; (b) un `video_preset` que NVENC ne connaît pas (E-08) n'est pas vu par la sonde ;
+(c) un GPU qui sait l'HEVC 8 bits mais pas le Main10 (Skylake, Maxwell, VCE 3.x) passe la
+sonde 8 bits, échoue l'encodage 10 bits et retombe sur `libx265` — le scénario OOM exact
+d'U-13.
+
+Doc : ffmpeg-codecs.html § *VAAPI encoders* — « `rc_mode` … A given driver may only
+support a subset of modes » ; l'ordre de `auto` dans `vaapi_encode.c` est : avec un débit,
+CBR puis AVBR, VBR, CBR ; **sans** débit, ICQ puis CQP. Avec un débit, `auto` ne retombe
+jamais sur CQP. Vérifié : `-rc_mode CQP -b:v …` est accepté mais le débit est ignoré
+(« Buffering settings are ignored in CQP RC mode ») — **une consigne de débit ne peut pas
+être honorée quand seul CQP existe** ; `-qp` est le seul réglage.
+
+**Arbitrage attendu de l'utilisateur** (déjà posé le 2026-10-14) : **(a)** la sonde pose la
+vraie question — extraire `encoderRateArgs(bitrate)`, `encoderPresetArgs` et le choix de
+format d'un seul endroit, utilisé par `probeArgs` et `buildEncodeBaseArgs`, et faire passer
+le `pix_fmt` source à la sonde de taille ; les pilotes CQP-only sont alors refusés au
+démarrage avec les mots de ffmpeg dans *Diagnostic*, et la machine passe à l'autre famille
+ou au CPU ; **(b)** l'encodage s'adapte — relancer en `-rc_mode CQP -qp N` quand ffmpeg dit
+`supported modes: CQP`, au prix d'un débit demandé qui devient fictif et d'un `N` sans
+correspondance principielle. **Recommandation : (a)**, qui est L-93 appliquée ; (b) plus
+tard, seulement comme option « qualité constante » explicite. Note pour le README : un
+iHD qui n'annonce que CQP est presque toujours un HuC non chargé (`i915.enable_guc=2`).
+
+### E-02 — Un signal du système ne court-circuite pas la cascade : six ffmpeg pour un seul SIGTERM, et le signal se perd
+
+🔴 `common/common.go:1602`, `:1631`, `:1647`. Les trois portes de repli testent
+`errors.Is(err, ErrCancelled)` et rien d'autre. Le chemin signal rend `fmt.Errorf("%w
+(signal: …)", ErrStoppedBySignal)`, qu'aucune porte ne reconnaît : `runWithAudioFallback`
+relance en AAC, le bloc `-hwaccel` « retombe sur le décodage CPU », le bloc matériel
+recourt à l'encodeur CPU — chaque fois un ffmpeg neuf avec un `signal.Notify` neuf. Si une
+relance aboutit, `EncodeVideo` rend **nil** : le signal est perdu, le `app.Quit()` de
+`gui_main.go:894` ne tire jamais, et la fenêtre affiche *Transform complete*.
+
+**Reproduit deux fois.** Par un test jetable (ffmpeg factice qui pend, `safe_performance`,
+`h264_nvenc` + `cuda`, un seul `os.Interrupt` injecté par le `signalNotify` de test, puis un
+par ffmpeg relancé) : **6 lancements** pour une conversion signalée une fois. Par un
+programme autonome avec un vrai `syscall.Kill(SIGTERM)` depuis le rappel de progression :
+
+| mode | encodeur | lancements | erreur rendue |
+| --- | --- | --- | --- |
+| `safe` | `libx264` | 1 | `ErrStoppedBySignal` — **le seul cas que le test existant épingle** |
+| `safe` | `h264_nvenc` | 2 | nil |
+| `safe_performance` (le YAML livré) | `libx264` | 2 | nil |
+| `safe_performance` | `h264_nvenc` | 2 | nil |
+
+Scénario : c'est l'incident d'U-09 lui-même — systemd arrête l'unité après un OOM, envoie
+SIGTERM, l'application relance ffmpeg, SIGKILL après `TimeoutStopSec`, fichier de travail et
+répertoire de session laissés derrière : le point 4 d'U-09, que le correctif donnait pour
+clos. `TestEncodeVideo_SystemSignalIsNotReportedAsUserCancellation` utilise `nil` comme
+config, `libx264` et aucun accélérateur : l'unique configuration sans relance. Il est vert
+à vide pour la configuration livrée (L-37). Même famille que P-03.
+
+**Correctif** — un prédicat `isStopRequest(err)` = `ErrCancelled` ∨ `ErrStoppedBySignal`,
+employé aux trois portes ; un test de comptage de lancements sur le modèle de
+`TestEncodeVideo_CancellationStopsTheFallbackCascade` avec `h264_nvenc`/`cuda` et
+`safe_performance` (contre-épreuve : retirer le prédicat → 6).
+
+### E-03 — Le bouton *Quit* contourne l'interception de fermeture, et Fyne quitte sur SIGTERM avant que le pipeline ait nettoyé
+
+🔴 `gui_main.go:1186-1188`, `:725-748`, `:736-739` ;
+`fyne.io/fyne/v2@v2.8.2/internal/driver/glfw/driver_desktop.go:278-284`. `quitBtn` appelle
+`app.Quit()` directement ; la confirmation « Cancel and quit » ne vit que dans
+`SetCloseIntercept`, que Fyne n'invoque que pour la demande de fermeture du système
+(`window.go:284-291`) ; `fyneApp.Quit` passe par `window.Close()` → `driver.Quit()` sans
+jamais la traverser. `Run()` rend, `main()` rend, le processus sort. Rien ne lie ffmpeg à
+son parent (`command-other.go:8` est vide, pas de `Pdeathsig` ; Windows ne pose que
+`HideWindow`), et les `defer` de `PerformEncoding` (`os.Remove(partialOutput)`, `CleanUp()`)
+ne tournent pas. Scénario : lancer un 4K, cliquer *Quit* — la fenêtre disparaît, ffmpeg
+continue jusqu'au bout dans `.superview-partial-*.mp4`, le répertoire de session reste.
+Viole le contrat « l'annulation ne laisse rien derrière ». `quitBtn` n'est pas non plus dans
+`state.locked`.
+
+Deuxième moitié, vérifiée dans le code de Fyne : `catchTerm` enregistre son propre
+`signal.Notify(SIGINT, SIGTERM)` et appelle `fyne.Do(d.Quit)` aussitôt. Go livre le signal à
+**tous** les canaux enregistrés, donc quand systemd envoie SIGTERM, Fyne démonte la boucle
+pendant qu'`EncodeVideo` tue encore ffmpeg et que `PerformEncoding` retire encore le fichier
+partiel. U-09 ne raisonnait que sur son propre gestionnaire. Et le `time.Sleep(1 s)` de
+l'interception avant `app.Quit()` est une estimation, pas une attente : la sonde de
+`verifyEncoderForOutput` qui précède l'encodage a un délai de 15 s.
+
+**Correctif** — `beginEncoding` rend aussi un canal `done` fermé par la goroutine ;
+`window.SetOnClosed` (exécuté de façon synchrone dans `window.Close()`, que `app.Quit` et
+`catchTerm` traversent tous deux) appelle `requestCancel()` et attend `done` avec une borne.
+Un seul crochet règle le bouton, le `Sleep` et le chemin signal de Fyne. Accessoirement,
+`quitBtn` dans `state.locked` ou passant par la même fonction de confirmation.
+
+### E-04 — Un renommage final qui échoue **supprime** l'encodage terminé
+
+🔴 `common/common.go:1997-2003`, `:1971-1981`. `os.Rename` échoue → `keepPartial` reste
+faux → le `defer` efface `partialOutput`, c'est-à-dire des minutes ou des heures de travail ;
+l'erreur dit seulement « failed to move the finished file ». Avant P-04, ffmpeg échouait à
+ouvrir la destination dans la première seconde ; le correctif a déplacé l'échec à la fin et
+l'a rendu destructeur (L-105). Cas où `Rename` échoue dans le même répertoire : la
+destination est un répertoire (doc `os.Rename` : « If newpath already exists and is a
+directory, Rename returns an error » ; reproduit : `EISDIR` — `isValidOutputPath` ne vérifie
+que le parent) ; sous Windows la destination est ouverte par un lecteur, l'aperçu de
+l'Explorateur ou un antivirus sans `FILE_SHARE_DELETE`, ou en lecture seule ; répertoire à
+sticky bit avec une destination d'un autre propriétaire (`EPERM`).
+
+**Correctif** — à l'échec du renommage, `keepPartial = true` et nommer le fichier partiel
+dans l'erreur ; rejeter dès `isValidOutputPath` une destination qui est un répertoire.
+
+### E-05 — Une source plus haute que large sort pliée, sans erreur
+
+🔴 `common/common.go:905-913`, `:1032-1038`. Le commentaire de `putMapSample` affirme que
+« pour toute taille d'entrée la distorsion atterrit dans [0, inputWidth−1] ». La carte X
+non-squeeze vaut `f(x) = x − d/2 ∓ tx²·d/2` et n'est monotone que si `d ≤ outX/2`, soit
+`H/W ≤ 9/8`. Rien ne rejette les autres géométries (`Validate` ne vérifie que `> 0`).
+Mesuré avec le vrai `GeneratePGM` sur 1080×1920 : carte 3412×1920, échantillon X maximal
+**1164** pour une largeur de 1080, **915 colonnes ≥ largeur, 919 colonnes écrêtées à 0**.
+Doc du filtre `remap` : « If mapping values are out of range, zero value for pixel will be
+used » — bandes noires et un ruban miroir à chaque bord, sans erreur ni avertissement.
+`TestGeneratePGM_SqueezeMapStaysWellFormed` ne borne que la carte squeeze.
+
+**Correctif** — refuser (`InvalidVideoError`) une source `H/W > 9/8` en mode non-squeeze,
+avec un message qui dit pourquoi ; ajouter le test de propriété jumeau pour la carte
+non-squeeze (bornes, monotonie, centre). *Décision produit à confirmer* : refuser, ou
+pivoter ? Refuser est le choix sûr.
+
+### E-06 — Plus aucun workflow ne tourne sur `master` depuis que le workflow fusionne
+
+🔴 `.github/workflows/test.yml:4-5`, `lint.yml:4-5`, `merge-on-label.yml`. Doc : « events
+triggered by the `GITHUB_TOKEN` will not create a new workflow run »
+(docs.github.com, *Triggering a workflow*). Vérifié par l'API : le dernier run `push` sur
+`master` est `801660d` (#72, 2026-10-06, fusionné à la main) ; les cinq fusions suivantes
+(#73 à #77) n'ont produit **aucun** run. Le ruleset a
+`strict_required_status_checks_policy: false` : une PR testée contre une base périmée
+fusionne, et le commit de `master` qui en résulte n'est jamais testé. L-100 énonçait le
+mécanisme (« ni suppression de branche, ni workflow ») et seule la première conséquence a
+été corrigée (M-06).
+
+**Correctif** — activer « Require branches to be up to date before merging » sur le ruleset
+(la vérification de PR porte alors sur le résultat fusionné), ou fusionner avec un jeton
+d'application GitHub plutôt que `GITHUB_TOKEN` dans `merge-on-label.yml` (le contournement
+documenté). Le premier est une case à cocher ; le second rétablit aussi la suppression de
+branche native et les runs sur `master`.
+
+### E-07 — Deux jetons de décodage matériel ne sont pas des `-hwaccel` : `qsv` livre des trames GPU à `remap`, `drm` échoue toujours
+
+🟠 `common/hardware.go:150-151`, `:163-164`, `:168-172`. Doc ffmpeg.html, `-hwaccel` :
+« qsv — Unlike most other values, this option does not enable accelerated decoding (that is
+used automatically whenever a qsv decoder is selected), but accelerated transcoding, without
+copying the frames into the system memory. » Vérifié : `-hwaccel qsv -i clip` imprime
+`Selecting decoder 'h264_qsv' because of requested hwaccel method qsv` et `defaulting
+hwaccel_output_format to qsv` — les trames décodées sont des trames `qsv`, et une trame
+matérielle entrant dans le graphe CPU de `remap` échoue durement (vérifié avec l'équivalent
+cuda : `Impossible to convert between the formats …`, code 218). Sur une machine Intel où
+QSV fonctionne, le niveau 1 de la cascade échoue donc **à chaque conversion** dans le graphe
+de filtres, le niveau 2 réussit, et le journal porte un WARN « Hardware decode path failed ».
+CONTRATS (« les trames redescendent en RAM ») est vrai pour vaapi/cuda/d3d11va, faux pour
+qsv. Et `drm` n'est pas un `-hwaccel` mais un type de périphérique : `-hwaccel drm` →
+`Device creation failed: -14`, code 242 ; sur un Raspberry Pi (seul endroit où v4l2m2m passe
+la sonde) chaque conversion gaspille un lancement.
+
+**Correctif** — retirer `qsv` des candidats de décodage QSV (garder d3d11va/dxva2) ;
+`accelForEncoder` rend `""` pour `_v4l2m2m`, et `canUseEncoderWithProfile` n'exige alors
+plus d'accélérateur pour lui ; un test qui interdit `qsv` et `drm` comme jetons de décodage.
+
+### E-08 — Un `video_preset` hors `fast`/`medium`/`slow` tue NVENC et bascule en silence sur le CPU ; et « Fast » sur NVENC est le preset le plus grossier
+
+🟠 `common/common.go:1384`, `common/config.go:263`, `gui_main.go:122-129`, `README.md:268`.
+`mapVideoPresetForEncoder` passe les noms x264 tels quels à nvenc/vaapi/vulkan/v4l2m2m/
+d3d12va. Mesuré sur `h264_nvenc` : `default slow medium fast hq ll p4` → 0 ;
+`ultrafast superfast veryfast faster slower veryslow placebo` → `[Eval] Undefined constant
+or missing '(' in 'veryslow'`, **code 234**, avant tout appel au pilote. La cascade tourne
+alors niveau 1, niveau 2, et atterrit sur `libx264` avec le résumé « h264_nvenc failed; used
+CPU encode ». La GUI n'émet que `fast`/`medium`, le fichier de configuration émet les dix
+noms que le README annonce. Pour VAAPI/Vulkan/v4l2m2m, un `-preset` inconnu n'est qu'un
+avertissement (code 0).
+
+Second point, mesuré par empreinte de flux : sur NVENC `fast` = `p1` (« fastest, lowest
+quality ») et `medium` = `p4`. Le profil « Fast » est donc **plus grossier** sur NVIDIA,
+contrairement à ce que dit le README (« quicker, not coarser », DEC-10).
+
+**Correctif** — une table propre à `_nvenc` (`ultrafast/superfast/veryfast → p1`,
+`faster → p2`, `fast → p3`, `medium → p4`, `slow → p5`, `slower → p6`,
+`veryslow/placebo → p7`) et `""` pour les familles à trames sur périphérique ; la sonde de
+E-01 (a) attrape ensuite tout nouveau cas. *Décision produit* : `fast → p3` rend la promesse
+du README vraie sur NVENC.
+
+### E-09 — Les sorties HEVC sont taguées `hev1`, que les lecteurs Apple refusent
+
+🟠 `common/common.go:1291-1350` — aucun `-tag:v hvc1`. Vérifié : `… -c:v libx265 out.mp4`
+→ `codec_tag_string=hev1`. QuickTime, Photos iOS et Final Cut ne lisent que `hvc1`. Le cas
+le plus dur est la bascule de famille (DEC-06) : un clip H.264 devenu HEVC pour atteindre le
+GPU donne un fichier que le téléphone de l'utilisateur n'ouvre pas — il a été prévenu de la
+bascule, pas du tag.
+
+**Correctif** — `-tag:v hvc1` dès que `isHEVCEncoder(encoder)` ; un test d'intégration
+qui lit `codec_tag_string` sur une sortie HEVC.
+
+### E-10 — Le fichier de sortie est créé en mode 0600 au lieu de 0644
+
+🟠 `common/common.go:1744`. `os.CreateTemp` : « The file is created with mode 0o600 (before
+umask) » (pkg.go.dev/os). ffmpeg `-y` tronque l'inode existant, `rename` conserve le mode.
+Reproduit : création 0600, après ffmpeg 0600, après renommage 0600 ; ffmpeg créant lui-même
+le fichier → 0644. Régression de P-04 : une sortie dans un dossier partagé, un export NAS
+ou une bibliothèque de serveur multimédia est illisible pour tout autre utilisateur.
+Windows non concerné (ACL héritées).
+
+**Correctif** — `os.Chmod(name, 0o666 &^ umask)` après `CreateTemp`, ou
+`os.OpenFile(…, O_CREATE|O_EXCL, 0o666)` sur un nom aléatoire ; un test Unix qui lit le mode.
+
+### E-11 — La CI ne lance jamais le détecteur de courses, ne teste jamais le FFmpeg livré, et dépend d'un `choco install` sans relance
+
+🟠 `test.yml:70,108`, `release.yml:178,184` : quatre `go test ./...` **sans `-race`**,
+alors que le `Makefile` (`TEST_FLAGS := -race -count=1`, « the suite is only meaningful under
+the detector ») et `AGENTS.md` l'exigent ; une course de la classe P-02 passe la CI.
+`release.yml:173,405-422` : la suite tourne contre le `ffmpeg 6.1.1` d'apt (journal) et le
+`9.0.2` de choco, jamais contre les 8.1.1/n8.1.2 téléchargés deux étapes plus loin —
+`SUPERVIEW_FFMPEG_DIR` existe exactement pour cela. `test.yml:57` : `choco install ffmpeg`
+sans version ni relance, dans le chemin critique du contrôle obligatoire ; le run
+38249403781 (2026-10-12) a échoué sur un 504 (déjà noté en M-05, sans remède).
+
+**Correctif** — `-race` sur les invocations Linux (Windows exige une chaîne C) ; dans
+`build-gui-linux`, après « Fetch and verify », `SUPERVIEW_REQUIRE_FFMPEG=1
+SUPERVIEW_FFMPEG_DIR="$RUNNER_TEMP/ffbin" go test ./...` ; sous Windows, télécharger
+l'archive gyan.dev 8.1.1 déjà épinglée par SHA plutôt que choco.
+
+### E-12 — Le sélecteur natif Windows casse sur tout chemin non ASCII
+
+🟠 `gui_native_dialog_windows.go:40,56`. Le chemin sort par `[Console]::Out.Write`, que
+Windows PowerShell 5.1 encode avec `Console.OutputEncoding`, « determined by the system
+locale » (learn.microsoft.com, `Console.OutputEncoding`) — page de code OEM (850 sur un
+Windows français), pas UTF-8. Go lit les octets en UTF-8, `é` devient U+FFFD, `CheckVideo`
+ne trouve pas le fichier → *Status: Invalid input* sur un fichier que l'utilisateur vient de
+cliquer. `C:\Users\Cédric\…` le déclenche. Plausible (mécanisme documenté, non exécutable
+ici) ; le fichier est « non testé, assumé » depuis la 1ʳᵉ passe.
+
+**Correctif** — écrire par un flux UTF-8 explicite :
+`$w = New-Object IO.StreamWriter([Console]::OpenStandardOutput(), (New-Object
+Text.UTF8Encoding $false)); $w.Write($dialog.FileName); $w.Flush()`.
+
+### E-13 — Un échec tardif relance jusqu'à cinq encodages complets
+
+🟠 `common/common.go:1592-1699`. La cascade ne distingue pas « a échoué à l'ouverture » de
+« a échoué à 95 % ». Un disque de destination plein, un fichier d'entrée corrompu à la fin,
+une coupure réseau sur un NAS : chaque cause fait rejouer la relance audio, le repli de
+décodage et le repli d'encodeur, **chacun un encodage complet** qui échouera de la même
+façon. Pour un 4K de vingt minutes, c'est une heure et demie perdue avant le message.
+Cousin de E-02 : la cascade n'est juste que pour les échecs d'ouverture.
+
+**Correctif** — relancer seulement si l'échec est survenu avant la première progression
+(le rappel sait quand ffmpeg a produit une trame) ; sinon rendre l'erreur telle quelle.
+Un test avec un ffmpeg factice qui progresse puis échoue : 1 lancement, pas 6.
+
+### E-14 — Une annulation est rapportée comme un échec, et *Diagnostic* reste cliquable pendant un encodage
+
+🟠 `gui_main.go:901-907` : toute erreur, `ErrCancelled` compris, écrit *Status: Failed*,
+*Results: last run failed* et ouvre un dialogue **Error** (« encoding interrupted by
+user »). U-09 a corrigé le message, pas la branche. `gui_main.go:1154-1184` :
+`diagnosticBtn` n'est pas dans `state.locked`, écrit *Running diagnostic…* puis *Ready* —
+pendant la phase « Starting the encoder… » (jusqu'à une minute) la fenêtre dit *Ready* alors
+que ffmpeg travaille, et il écrase *Cancelling…* ; et `CheckHealth` lance
+`ProbeHardwareSupport`, dix sondes GPU **en parallèle de l'encodage matériel**, ce que
+CONTRATS interdit (« deux sondes en parallèle sur le même GPU peuvent faire échouer un
+encodeur qui fonctionne ») : le rapport que le README demande d'attacher peut montrer un
+NVENC fonctionnel comme refusé.
+
+**Correctif** — `errors.Is(err, common.ErrCancelled)` → *Status: Cancelled*, pas de
+dialogue ; `diagnosticBtn` dans `state.locked` ; restaurer le statut seulement si
+`!state.isEncoding()`.
+
+### E-15 — La sélection d'encodeur est lue dans le widget depuis la goroutine, et une sélection programmée écrase la préférence sauvegardée
+
+🟠 `gui_main.go:375`, `:1088-1111`. `GUIHandler.GetEncoder` lit `h.encoder.Selected` depuis
+la goroutine de `PerformEncoding` (`common.go:1843`) pendant que le fil principal peut
+l'écrire par `refreshEncoderOptions` → `SetSelected` quand la sonde de démarrage ou de
+relance atterrit (`widget/select.go:333-341`). Doc Fyne, *goroutines* : « Any time your app
+invokes Fyne APIs from a goroutine your code created, you should use the fyne.Do function. »
+Course (fenêtre étroite, après `CheckVideo`), et l'encodeur utilisé peut différer de celui
+affiché au moment de *Start* — le débit et la case squeeze, eux, sont capturés sur le fil UI.
+Second point : `refreshEncoderOptions` appelle `SetSelected(options[0])` quand le choix
+sauvegardé est absent, et `OnChanged` le persiste. Un démarrage sans ffmpeg, ou avec un
+pilote qui refuse `hevc_nvenc`, remplace définitivement « hevc_nvenc encoder » par « Use
+same video codec… ».
+
+**Correctif** — capturer `common.ParseEncoderSelection(encoder.Selected)` avant le
+`go func()` ; ne persister que sur interaction utilisateur (drapeau autour des
+`SetSelected` programmés).
+
+### E-16 — Aucune vérification d'espace sur le disque de destination, et une estimation de temps restant absurde en début d'encodage
+
+🟠 `common/health.go:142-143` dit « Checks both temp directory and output directory » ; seul
+`os.TempDir()` est vérifié (`getFreeDiskGB` a deux appelants, tous deux sur le temporaire).
+La destination reçoit `débit × durée / 8` — 100 Mb/s × 30 min = 22 Go — et rien ne le
+compare au volume cible : ENOSPC après vingt minutes, fichier partiel retiré, erreur opaque.
+Et `metrics.go:74-79` pose `StartTime` **avant** validation, génération des cartes et
+l'attente documentée de la première trame (jusqu'à 81 s) ; `RecordProgress` calcule
+`elapsed/percent×100` : première progression d'un clip de 600 s à 0,5 s (0,083 %) après 25 s
+de préparation → « about 8h20m left » ; reproduit numériquement : 81 s à 0,000926 % →
+2 429 h. Même gonflement après un repli matériel → CPU, qui repart de 0 % avec un `elapsed`
+déjà grand.
+
+**Correctif** — après `ValidateBitrate`, `getFreeDiskGB(filepath.Dir(outputFile))` contre
+`bitrate × DurationFloat / 8` (+ marge audio), avertir ou refuser comme
+`checkTempSpaceForMaps`, et corriger le commentaire ; dater la première progression non
+nulle et calculer l'estimation depuis cette origine, ne rien afficher sous ~2 %.
+
+### E-17 — Un parent symlinké contourne le contrôle des répertoires système ; Windows lit le total libre, pas l'espace disponible à l'utilisateur
+
+🟠 `common/security.go:184-192` : `isSensitiveSystemPath(cleanPath)` s'applique au chemin
+lexical, puis `os.Stat(dir)` suit le lien. **Reproduit** : `<tmp>/out → /usr`,
+`isValidOutputPath(<tmp>/out/clip.mp4)` passe le contrôle système et n'est arrêté que par le
+test d'écriture (« permission denied ») — donc **pas arrêté sous root**, le cas que le
+commentaire des lignes 11-13 dit couvrir. Doc : `EvalSymlinks` « returns the path name after
+the evaluation of any symbolic links », et échoue sur le fichier pas encore créé (vérifié),
+d'où la nécessité de résoudre le **parent**. `common/health_disk_windows.go:16-20` rend
+`freeBytes` (4ᵉ argument, total libre) au lieu de `freeBytesAvailable` (1ᵉʳ, « available to
+the user who is associated with the calling thread … If per-user quotas are being used, this
+value may be less ») ; le côté Unix emploie correctement `Bavail`.
+
+**Correctif** — `resolvedDir, _ := filepath.EvalSymlinks(dir)` puis relancer
+`isSensitiveSystemPath(filepath.Join(resolvedDir, base))` ; rendre `freeBytesAvailable`.
+Et un test qui exerce enfin le contrôle système (E-19).
+
+### E-18 — L'envoi Codecov échoue à chaque run et rien ne le montre
+
+🟠 `test.yml:75-82`. Journal du job 112144479507 (master, 2026-10-06) : `Token length: 0`
+… `Upload queued for processing failed: {"message":"Token required - not valid tokenless
+upload"}`, étape conclue `success`. Doc Codecov : un jeton est requis « if the upload is
+for a commit on a protected branch ». `fail_ci_if_error: false` + `continue-on-error: true`
+le cachent ; pas de secret `CODECOV_TOKEN`, pas d'`id-token: write` pour l'OIDC.
+
+**Correctif** — secret `CODECOV_TOKEN` (ou `use_oidc: true` + `id-token: write`),
+`fail_ci_if_error: true`, retirer `continue-on-error` — ou supprimer l'étape et le badge.
+
+### E-19 — Six trous de la suite qui laisseraient passer une régression
+
+🟠 Vérifiés sur le profil de couverture de la baseline (`go tool cover -func`).
+
+| Trou | Preuve | Régression qui passerait |
+| --- | --- | --- |
+| Aucun test ne rejette un répertoire système en sortie | `isSensitiveSystemPath` 63,6 % : la boucle tourne, ne rend jamais vrai ; `sensitiveSystemDirectories` 20 %, `containsPath` 0 % ; le cas `/etc/output.mp4` de `TestIsValidOutputPath` est attrapé par le contrôle `..` d'abord | supprimer l'appel ; une faute dans la branche Windows (`EqualFold`), jamais exécutée sur aucun runner |
+| Le chemin audio de la configuration **livrée** n'est pas testé | `runWithAudioFallback` branches `copy` et relance AAC à 0 % : tous les tests passent `nil` (→ `safe` → `aac`) ; l'assertion `launches == 3` de `fallbackmemory_test.go:126` n'est vraie que pour la config que personne ne livre | relance supprimée ; relance tirée sur annulation ; E-02 |
+| Deux tests `appState` passent sur la ligne d'attente | `newTestAppState` laisse `encoderProbe` nil → `refreshHardwareStatus` écrit « checking which encoders… », qui satisfait `HasPrefix("Hardware: ")` ; `DescribeHardwareAccelerationPlan` jamais atteint, `gui_main.go:521-523` à 0 % | passer le libellé brut de la liste au plan (« not in approved list ») |
+| `TestGUIHandler_GetSqueezeAndBitrate` affirme « the GUI never enables squeeze today » | faux depuis C-04 (`gui_main.go:805-814`) ; et squeeze ne traverse jamais `PerformEncoding` (`integrationUI.GetSqueeze` → false) | `PerformEncoding` ignorant `GetSqueeze()` pour les cartes tout en l'utilisant pour la sonde (L-43) |
+| `lognoise_test.go:28,101` exigent ffmpeg sans garde | confirmé : avec un `PATH` sans ffmpeg, FAIL en 0,00 s au lieu de SKIP (report de la 11ᵉ passe) | aucun, mais le contrat L-60 est rompu |
+| Chemins jamais exercés | `findWindowsToolBinary` 0 % sur **les deux** runners (choco n'installe dans aucun candidat ; les deux tests de résolution sautent sous Windows) ; `PerformEncoding` 69,6 % — toutes les sorties précoces sauf mémoire/même fichier, **et l'échec du `Rename` final** ; `CheckFfmpeg` branches d'erreur ; refus de `checkTempSpaceForMaps` ; `GUIHandler.Show*` 0 %, `showPrerequisiteDialog` 0 %, `verifyHardwareInBackground` 0 % ; surcharges d'environnement de `config.go` à moitié ; pas de test Windows du contrat « aucun ffmpeg orphelin » | `return nil` après une erreur enregistrée ; fichier partiel laissé à l'échec du renommage (E-04) ; `ShowProgress` divisant par le mauvais facteur |
+
+Les dix tests à ajouter, avec leur contre-épreuve, sont dans le plan (item 5).
+
+### E-20 — zenity « unexpected error » est pris pour une annulation, et les sélecteurs natifs bloquent la boucle Fyne
+
+🟡 `common/gui_helpers.go:19` : code 255 → `("", nil)`. zenity(1), *EXIT CODES* : 0 OK,
+1 annulé/fermé, **−1 erreur inattendue** (255 non signé), 5 délai. Un zenity cassé donne un
+clic sans effet avec un journal en `debug`, et le repli Fyne, qui existe pour ce cas, ne
+s'ouvre jamais. `gui_native_dialog_linux.go:19`, `_windows.go:17` : `cmd.Output()` tourne
+dans le rappel du bouton, sur la goroutine UI ; pendant que zenity/PowerShell est ouvert la
+fenêtre ne repeint pas et ne répond pas aux pings du compositeur ; PowerShell ajoute 1 à 2 s
+de gel au clic.
+
+**Correctif** — seul le code 1 vaut annulation ; lancer le sélecteur dans une goroutine et
+livrer le chemin par `fyne.Do`.
+
+### E-21 — Clés YAML inconnues ignorées en silence, `min > max` accepté, `SUPERVIEW_ENCODER_CODECS` non épuré
+
+🟡 `common/config.go:165` : `yaml.Unmarshal` sans `KnownFields(true)` (doc yaml.v3 :
+« KnownFields ensures that the keys in decoded mappings to exist as fields in the struct »).
+Vérifié : `max_bitrat: 5` → nil, champ intact. Ce projet a déjà perdu un `video_preset`
+utilisateur (C-05) ; `video-preset:` le refait sans bruit. `min_bitrate > max_bitrate` est
+accepté au chargement ; l'écrêtage de `gui_main.go:853-858` produit alors un débit que
+`ValidateBitrate` refuse à chaque run (« below minimum »). `config.go:206` :
+`strings.Split(encoders, ",")` sans `TrimSpace` — `"264, 265"` donne `" 265"`, qui ne
+correspond à aucun nom, et tous les encodeurs HEVC disparaissent de la liste ;
+`encoder_codecs: []` est accepté et vide la liste.
+
+**Correctif** — `yaml.NewDecoder` + `KnownFields(true)` ; rejeter `min > max` ; épurer et
+ignorer les vides ; tests pour chaque cas (E-19).
+
+### E-22 — Quatre latences : verrou récursif, chemin relatif Windows, plafond du journal, mémoire du cgroup
+
+🟡 `metrics.go:187-191`, `239-243` : `RLock` puis `ElapsedTime()` qui reprend `RLock` —
+doc `sync.RWMutex` : « It should not be used for recursive read locking; a blocked Lock call
+excludes new readers ». Inatteignable aujourd'hui (le lecteur de progression ferme `readDone`
+avant `Wait`), interblocage garanti au premier bouton « résumé en direct ». `common.go:183-186` :
+`filepath.Join(os.Getenv("LOCALAPPDATA"), …)` avec une variable vide donne un chemin
+**relatif**, que `os.Stat` résout contre le répertoire courant — ce que Go refuse dans
+`exec.LookPath` depuis 1.19. `observability.go:38-46` : le plafond de 5 Mio n'est appliqué
+qu'à l'ouverture ; en `debug`, deux lignes par tick de progression (~1,8 Mo/h) ; et
+`0o644`/`0o755` rend lisible à tous un journal qui porte les chemins du dossier personnel.
+`health.go:199-205` : `MemAvailable` de `/proc/meminfo` décrit l'hôte, pas un cgroup limité
+(`MemoryMax=`), où l'OOM d'U-11 reviendrait.
+
+**Correctif** — `elapsedLocked()` partagé ; sauter un candidat dont la variable est vide ou
+exiger `IsAbs` ; un `io.Writer` qui recoupe périodiquement, `0o600`/`0o700` ; lire
+`/sys/fs/cgroup/memory.max` quand il existe.
+
+### E-23 — Quatre écarts aux contrats écrits
+
+🟡 `SessionError` est documenté pour « problems with temporary directory management » mais
+`InitEncodingSession` et `getSessionPaths` rendent des `errors.New`/`fmt.Errorf` ; seul
+`checkTempSpaceForMaps` le construit. `hardware.go:500-517` met en cache ce que rend
+`probeEncoderAtSize`, et `summarizeProbeFailure` traite `context.Canceled` comme un refus :
+tous les appelants passent `context.Background()` aujourd'hui, mais le premier contexte
+annulable démoterait un encodeur qui fonctionne pour toute la session. `gui_main.go:766,787,
+843` et `:804-806,877` : `selectedQualityProfile` et `squeezeSource` sont des variables
+capturées par closure dans `main()`, que CONTRATS interdit (`squeezeSource` double
+`state.squeeze`). `FyneApp.toml` n'a pas `[Migrations] fyneDo = true` : Fyne garde alors son
+chemin de déduplication hérité qui masque un usage comme E-15.
+
+**Correctif** — envelopper en `&SessionError{}` ; ne pas mettre en cache si `ctx.Err() != nil` ;
+replier les deux variables dans `appState` ; ajouter les deux lignes de migration.
+
+### E-24 — Hygiène de la CI et de la release, sept points
+
+🟡 `test.yml:31-39` double le cache que `setup-go` fait déjà (les deux sont restaurés dans le
+journal ; la clé manuelle embarque le littéral `1.26.x`). `release.yml:46-47` accorde
+`contents: write` à tous les jobs, y compris ceux qui exécutent du code tiers (`fyne@v1.7.2`,
+cgo) avec le jeton persisté dans `.git/config` par `actions/checkout`. `test.yml:125-140` :
+le commentaire de couverture avec `pull-requests: write` ferait échouer le contrôle
+obligatoire sur une PR de fork (jeton en lecture seule), et poste un commentaire par push.
+`release.yml:178` puis `:184`, et `test.yml` `test` puis `coverage-report` : la suite tourne
+deux fois pour un même profil. `release.yml:733,735` interpole le tag dans `run:` (le job
+`prepare` fait déjà bien par `env:`). `release.yml:340` dit « the October 2024 one still
+answers today » pour un pin `autobuild-2026-08-31` ; `AGENTS.md` dit « pinned to 8.1.1 »,
+vrai pour Windows seulement (Linux : BtbN n8.1.2). Dependabot ne couvre ni `fyne@v1.7.2`,
+ni `GOLANGCI_LINT_VERSION`, ni `GOVULNCHECK_VERSION`, ni les URL FFmpeg.
+
+**Correctif** — supprimer l'étape de cache et poser `cache-dependency-path: go.sum` ;
+`contents: read` en tête, `write` sur `create-release` seul ; condition `head.repo.full_name
+== github.repository` + `continue-on-error` sur le commentaire ; publier `coverage.out` en
+artefact et en faire le gate ; passer le tag par `env:` ; corriger les deux commentaires et
+lister les pins manuels dans `RELEASING.md`.
+
+### E-25 — L'outillage agent : une justification fausse, et aucun `.claude/`
+
+🟡 `CLAUDE.md:4` et `CONTRATS.md` § 1 ligne 11 disent que « Claude Code ne lit pas
+`AGENTS.md` ». Doc (code.claude.com/docs/en/memory) : Claude Code **peut** lire `AGENTS.md`
+comme instructions de projet ; l'import reste le bon choix parce que « in some sessions
+Claude can't read `AGENTS.md` », mais la raison écrite est fausse. L'import `@AGENTS.md` est
+correct (chemins relatifs au fichier, quatre sauts maximum) et 129 lignes tiennent sous les
+200 recommandées. Aucun `.claude/` : pas de liste d'autorisations pour les commandes de
+vérification (chaque session redemande `go test`, `golangci-lint`…), pas de crochet
+`gofmt` après édition (alors que `gofmt -l` est un gate CI), pas de compétence `/verify` qui
+rende explicites les deux échecs silencieux qu'`AGENTS.md` décrit en prose (en-têtes GUI
+absents, `SUPERVIEW_REQUIRE_FFMPEG` absent).
+
+**Correctif** — cette passe ajoute `.claude/settings.json` (autorisations, refus de `git
+tag`/`gh release create`/`git push --force`, crochet), `.claude/hooks/gofmt.sh` et
+`.claude/skills/verify/SKILL.md`, et reformule les deux phrases.
+
+### Plan d'actions
+
+Ordonné par ce que coûte l'absence de correction, groupé par PR pour que chaque PR tienne
+en une phrase de titre. Les items marqués **(décision)** attendent un arbitrage de
+l'utilisateur avant d'être codés ; les autres sont des corrections sans alternative.
+
+| # | PR (titre proposé) | Constats | Décision ? |
+| --- | --- | --- | --- |
+| 0 | *Record the thirteenth review pass, the decision register and the agent tooling* | E-25, DECISIONS.md, L-101 à L-106 | — (cette PR) |
+| 1 | *Stop the encode when the system says so, and never delete a finished file* | E-02, E-13, E-04, E-10 | non |
+| 2 | *Make Quit, the window close and SIGTERM all wait for the encode to unwind* | E-03, E-14, E-15, E-23 (closures, fyneDo) | non |
+| 3 | *Ask the probe the same question as the encode, and map presets per encoder* | E-01 (a), E-08, E-07, E-09 | **E-01 a/b · E-08 `fast→p3`** |
+| 4 | *Run CI on master again, under the race detector, against the shipped FFmpeg* | E-06, E-11, E-18, E-24 | **E-06 ruleset strict ou jeton d'application** |
+| 5 | *Close the test gaps a regression would walk through* | E-19 (dix tests, chacun avec sa contre-épreuve) | non |
+| 6 | *Refuse what the pipeline cannot do, and say how long it will take* | E-05, E-16, E-17, E-21, E-12 | **E-05 refuser ou pivoter** |
+| 7 | *Housekeeping* | E-20, E-22, E-23 (reste), DEC-33 | **DEC-33 `safe` ou `safe_performance`** |
+
+Les dix tests de la PR 5, chacun ~25-70 lignes : rejet des répertoires système (table sur
+`sensitiveSystemDirectories()` + un voisin `/etcetera/x.mp4` qui doit passer) ; relance
+audio en `safe_performance` (2 lancements, le second en `aac`, et 1 sur annulation) ;
+`refreshHardwareStatus` avec rapport de sonde et liste déroulante ; squeeze à travers
+`PerformEncoding` (largeur de sortie = largeur source) ; échec du `Rename` final sans
+fichier partiel laissé (destination devenue répertoire pendant l'encodage) ; sorties
+précoces de `PerformEncoding` enregistrées avec leur `stage` ; `ShowProgress`/
+`ShowProgressDetail` sur de vrais widgets ; `findWindowsToolBinary` sur une arborescence
+winget factice (tourne aussi sous Linux) ; surcharges d'environnement invalides ignorées et
+YAML malformé en erreur ; propriétés de la carte non-squeeze (bornes, monotonie, centre) et
+identité de la carte Y. Chaque test se prouve par la contre-épreuve indiquée dans le rapport
+de la revue (retirer l'appel, inverser le signe, changer `/100` en `/1000`…).
+
+**Deux questions ouvertes** consignées au § 5 : Q-02 (le garde-fou mémoire est chiffré à
+`-threads 4` alors que l'encodage tourne à `NumCPU()` jusqu'à 16) et Q-03 (la télémétrie
+GoPro `gpmd` est perdue par `-map "[v]" -map "0:a?"`).
+
+---
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -2542,8 +3075,9 @@ déjà supprimée pour un succès.
 | ✅ **Corrigé et vérifié — 10ᵉ passe** (6) | U-09 — un arrêt décidé par le système était rapporté comme une annulation de l'utilisateur, et un ffmpeg tué par le noyau ne nommait jamais la mémoire. U-10 — le repli CPU ignorait un encodeur matériel disponible dans l'autre famille de codec ; bascule et annonce, arbitrage utilisateur. U-11 — garde-fou mémoire avant encodage, chiffré au banc. U-12 — bruit du journal : `N/A` en `WARN`, seuil disque insatisfiable, événements en double, commentaire orphelin. U-13 — sonde à la géométrie réellement encodée, confirmée sur le matériel du signalement. U-14 — le garde-fou mémoire suit l'encodeur qui prend le relais |
 | ✅ **Corrigé et vérifié — 11ᵉ passe** (4) | M-01 — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1` : quinze tests se sautaient en silence, dont tous ceux qui vérifient une conversion réelle. M-02 — `make clean` supprimait un `dist/` que rien ne produit et laissait les six résidus d'empaquetage que `.gitignore` a dû apprendre un par un. M-03 — la règle de fusion d'`AGENTS.md` était fausse pour la PR du bas d'une pile ; corrigée, puis appliquée par un workflow sur label, et `master` doté du ruleset qu'il n'avait pas. M-04 — l'en-tête de ce document et sa numérotation de sections avaient dérivé |
 | ✅ **Corrigé et vérifié — 12ᵉ passe** (2) | M-05 — `go-version: '1.26.x'` sans `check-latest` désignait le Go en cache du runner (1.26.8), pas le dernier correctif : `govulncheck` rouge sur toutes les PR, et une release aurait embarqué neuf vulnérabilités de la bibliothèque standard. M-06 — les branches fusionnées par le workflow restaient, le réglage du dépôt ne s'appliquant pas à ce que fait `GITHUB_TOKEN` |
-| ⏸️ **Ouvert** | *aucun.* |
+| ⏸️ **Ouvert — 13ᵉ passe** (25) | **E-01 à E-25**, § 3duodecies. 🔴 E-01 (sonde ≠ encodage, VAAPI/CQP), E-02 (signal système non honoré par la cascade), E-03 (*Quit* orphelin, SIGTERM de Fyne), E-04 (renommage échoué = encodage effacé), E-05 (source portrait pliée), E-06 (plus de CI sur `master`) · 🟠 E-07 à E-19 · 🟡 E-20 à E-25. Plan en sept PR en fin de section ; quatre arbitrages attendus (E-01 a/b, E-05, E-06, E-08, DEC-33) |
 | ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5 |
+| ❓ **Ouvertes** (2) | Q-02 (garde-fou mémoire chiffré à 4 fils), Q-03 (télémétrie GoPro perdue), § 5 |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
 `go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
@@ -2692,6 +3226,31 @@ contre-épreuve (les quatre cas rougissent sur 1,6), README corrigé.
 **Portée.** Un seul clip, un seul type de contenu, deux encodeurs HEVC ; H.264 non testé. La marge
 réelle est probablement plus large que mesurée, le contenu choisi étant défavorable.
 
+### Q-02 — Le garde-fou mémoire est-il juste au nombre de fils réellement utilisé ?
+
+[`common/common.go:771-790`](../common/common.go#L771-L790), [`:1443`](../common/common.go#L1443)
+
+Les 290 et 455 octets par pixel (U-11) ont été mesurés avec `libx265 -threads 4`
+(`pools=4`). L'encodage réel passe `-threads runtime.NumCPU()`, plafonné à 16 (P-11). Or
+x265 alloue par *frame thread* : chaque fil tient une trame en vol avec ses buffers de
+prédiction. Sur une machine à 16 cœurs et une sortie 5120×2880 10 bits, le pic réel est
+probablement bien au-dessus de l'estimation, et le garde-fou dirait « ça passe » à une
+conversion qui finira tuée par le noyau — l'incident exact qu'il a été écrit pour
+empêcher. **Non mesuré.** À mesurer avant de toucher la constante : même protocole qu'U-11,
+`-threads 8` et `-threads 16`, et si la pente est nette, chiffrer par fil plutôt que par
+pixel.
+
+### Q-03 — Faut-il conserver la télémétrie GoPro ?
+
+[`common/common.go:1314`](../common/common.go#L1314)
+
+`-map "[v]" -map "0:a?"` ne garde aucun flux de données : la piste `gpmd` (GPS, IMU,
+température) d'un fichier HERO est perdue, de la même famille que N-04/N-05. `-map 0:d?
+-c:d copy` fonctionne pour `gpmd` dans le muxeur mov ; un codec de données inconnu exige
+`-copy_unknown`, et un lecteur qui ne connaît pas la piste peut s'en plaindre. **Question
+produit, pas défaut** : l'outil existe pour la vidéo, et personne n'a demandé la télémétrie.
+À mesurer sur un vrai fichier HERO avant d'adopter.
+
 ## 6. Journal des révisions de ce document
 
 | Date | Modification |
@@ -2720,3 +3279,4 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 | 2026-09-11 | **M-04**, trouvé en corrigeant les chiffres périmés d'`AGENTS.md` : l'en-tête de ce document annonçait encore « cinq passes et 67 constats » et « dernière passe : 9ᵉ », l'ordre de lecture s'arrêtait à § 3octies, `## 5bis` était placé **avant** `## 5`, et le § 4 portait deux lignes « 11ᵉ passe ». Compte refait (105), sections renumérotées (Questions ouvertes → § 5, Journal des révisions → § 6) et renvois suivis, lignes fusionnées. L'en-tête porte maintenant la phrase qui dit qu'il périme. Côté `AGENTS.md` : `common.go` « ~1600 » → ~2000 lignes (2023 réelles), `main()` « ~540 » → ~600 (585), couverture 81 % → 83 %, arrondis à la centaine pour vieillir moins vite. Leçon L-98. |
 | 2026-10-14 | **12ᵉ passe, M-05**, partie des trois PR Dependabot bloquées (#73, #74, #75) : `Vulnerability Scan` rouge sur toutes, à cause de Go 1.26.8 pris dans le cache du runner alors que 1.26.9 corrigeait neuf vulnérabilités de la bibliothèque standard. `check-latest: true` sur les neuf étapes `setup-go`. Mesuré en local : Go 1.26.9 suffit, `golang.org/x/net` n'a pas à bouger. L'échec Windows de #74 était un 504 de Chocolatey, sans rapport. Trouvé en chemin : le défaut VAAPI/CQP, consigné au § 3undecies, à traiter à part. Leçon L-99. |
 | 2026-10-14 | **M-06**, relevé par l'utilisateur : la branche de #76 restait après sa fusion. Le réglage *delete branch on merge* ne vaut pas pour une fusion faite avec le `GITHUB_TOKEN` de `merge-on-label.yml`, ce qui était vrai depuis M-03 et masqué par Dependabot, qui supprime ses propres branches. Le workflow attend la fusion et supprime la branche, sauf si une PR est empilée dessus. Leçon L-100. |
+| 2026-10-14 | **13ᵉ passe, à `f925ee5`**, à la demande de l'utilisateur : état des lieux complet, six revues parallèles confrontées aux documentations officielles (FFmpeg 8.0.1, Fyne 2.8.2, Go 1.26.9, GitHub Actions), baseline mesurée (un seul rouge, E-01). § 3duodecies, **25 constats E-01 à E-25**, tous ouverts, les plus lourds reproduits deux fois. Les quatre familles : correctifs appliqués à moitié (E-02, E-06, E-14), défauts introduits par un correctif (E-04, E-10), faits FFmpeg jamais mesurés (E-07 à E-09), tests verts à vide (E-19). Créé : [DECISIONS.md](DECISIONS.md) (34 décisions) et `.claude/`. Q-02 et Q-03 ajoutées. Plan d'actions en sept PR, quatre arbitrages attendus. Leçons L-101 à L-106. **Aucune modification de code.** |

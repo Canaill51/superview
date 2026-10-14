@@ -125,5 +125,15 @@ Two journals, and they are how this repository keeps from repeating itself:
   Its § 4 status table is the one that counts. When a finding turns out to be
   wrong, mark it invalid and say why rather than deleting it.
 
+And one register, [`docs/DECISIONS.md`](docs/DECISIONS.md): every choice that
+looks like a defect, with its reason and the condition that would reopen it.
+The table above is its short version. A new decision gets an entry; a reversed
+one is marked *Remplacée*, never deleted.
+
 After a correction, add the entry. A lesson whose remedy is a command ends by
 running the command, not by fixing the one occurrence that inspired it.
+
+`.claude/` holds the Claude Code side of this: the permission allowlist for the
+verification recipe, a `gofmt` hook on every Go edit, and `/verify`, which runs
+the recipe above and reports each gate instead of summarising. Other agent tools
+ignore the directory; nothing in it is an instruction.
