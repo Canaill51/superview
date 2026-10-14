@@ -36,6 +36,7 @@ jobs:
 
     steps:
     - name: Pick the method and arm the merge
+      id: arm
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO: ${{ github.repository }}
@@ -64,6 +65,7 @@ jobs:
         if [ "$HEAD_REPO" = "$REPO" ]; then
           above="$(gh pr list --repo "$REPO" --base "$HEAD_REF" --state open --json number --jq 'length')"
         fi
+        echo "above=$above" >> "$GITHUB_OUTPUT"
 
         if [ "$above" -eq 0 ]; then
           method=--squash
@@ -119,3 +121,70 @@ jobs:
         gh pr comment "$PR" --repo "$REPO" --body \
           "🏷️ \`merge\` seen — $verdict, because $why. ([docs/MERGING.md]($RULE_URL))"
         echo "::notice::$verdict"
+
+    # The repository deletes head branches on merge, but not when the merge is
+    # made with this job's GITHUB_TOKEN: GitHub runs none of its automations on
+    # what that token does. #76 was the first pull request this job merged that
+    # Dependabot -- which cleans up after itself -- did not own, and its branch
+    # stayed (M-06). So the job waits for the merge and deletes the branch
+    # itself.
+    #
+    # Not when something is stacked on it. The repository setting retargets the
+    # pull request above onto the base; deleting the branch through the API
+    # closes it instead. That case is left to a human, and said so.
+    - name: Delete the branch once merged
+      if: steps.arm.outputs.above == '0' && github.event.pull_request.head.repo.full_name == github.repository
+      timeout-minutes: 60
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        set -euo pipefail
+
+        if [ "$HEAD_REF" = "$DEFAULT_BRANCH" ]; then
+          echo "::notice::head is the default branch, never deleted"
+          exit 0
+        fi
+
+        # An armed merge lands when the required checks pass, which on this
+        # repository takes about ten minutes; the job timeout bounds the wait.
+        while :; do
+          state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
+          case "$state" in
+            MERGED) break ;;
+            CLOSED) echo "::notice::closed without merging, branch kept"; exit 0 ;;
+          esac
+          # Unarmed by hand, or never armed: nothing will merge it.
+          if [ "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" != "true" ]; then
+            state="$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)"
+            if [ "$state" != "MERGED" ]; then
+              echo "::notice::auto-merge no longer armed, branch kept"
+              exit 0
+            fi
+            break
+          fi
+          sleep 30
+        done
+
+        # Checked again after the merge: a pull request can be based on this
+        # branch between the label and the merge.
+        above="$(gh pr list --repo "$REPO" --base "$HEAD_REF" --state open --json number --jq 'length')"
+        if [ "$above" -ne 0 ]; then
+          gh pr comment "$PR" --repo "$REPO" --body \
+            "🧹 Branch \`$HEAD_REF\` kept: $above open pull request(s) are now based on it, and deleting it would close them. Retarget them onto \`$DEFAULT_BRANCH\`, then delete it."
+          exit 0
+        fi
+
+        # Already gone is success: Dependabot deletes its own branches, and the
+        # repository setting may yet do its job.
+        if gh api -X DELETE "repos/$REPO/git/refs/heads/$HEAD_REF" 2>"$RUNNER_TEMP/err.txt"; then
+          echo "::notice::deleted $HEAD_REF"
+        elif grep -q "Reference does not exist" "$RUNNER_TEMP/err.txt"; then
+          echo "::notice::$HEAD_REF was already deleted"
+        else
+          cat "$RUNNER_TEMP/err.txt" >&2
+          exit 1
+        fi
