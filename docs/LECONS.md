@@ -1232,9 +1232,12 @@ sur trois passaient encore la valeur du banc (contre-épreuve 3a/3b). Contrôle 
 L'étape « Run the tests against the bundled FFmpeg » (#82) a été fusionnée sans essai à blanc.
 Le premier qui l'a exécutée, après le déplacement vers `cmd/` (DEC-39), a échoué : le runner de
 cette tâche n'a pas de `ffmpeg` dans le `PATH`, et les tests qui sondent par `exec.LookPath`
-échouent sous `SUPERVIEW_REQUIRE_FFMPEG=1` au lieu de se sauter. Le défaut n'avait rien à voir
-avec le déplacement, mais il aurait fait échouer la première vraie release, et la suite
-`test.yml` ne peut pas le voir : elle installe ffmpeg par apt. Le dernier essai réussi datait
+échouent sous `SUPERVIEW_REQUIRE_FFMPEG=1` au lieu de se sauter. Mettre le FFmpeg embarqué
+dans le `PATH` a révélé le second défaut : `SUPERVIEW_FFMPEG_DIR`, positionné pour tout le
+processus, court-circuite les faux `ffmpeg` que les tests écrivent eux-mêmes et les tests
+d'ordre de résolution (11 échecs, reproduits en local). Rien de tout cela n'avait de lien avec
+le déplacement, mais la première vraie release aurait échoué, et `test.yml` ne peut pas le
+voir : elle installe ffmpeg par apt. Le dernier essai réussi datait
 du 8 septembre, avant l'étape.
 → **Toute modification de `release.yml` se vérifie par un essai à blanc (`gh workflow run
 release.yml --ref <branche>`, sans version) avant d'être fusionnée, pas après.** Les PR qui
