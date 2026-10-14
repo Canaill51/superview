@@ -34,6 +34,7 @@ sortie : contrainte produit, pas un oubli.
 | `internal/common/` | la logique ; `testdata/ffprobe/` = sorties ffprobe enregistrées |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/go.sh` |
 | `.github/` | CI, release, `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
+| `rust/` | **port en cours (DEC-43)** : workspace Cargo `superview-core` (logique), `superview-harness` (banc d'essai jamais livré, DEC-44), `superview-app` (Slint). Go reste la référence |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` (AppImage) : DEC-41 |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
 
@@ -52,6 +53,7 @@ processus ffmpeg, ni sortie partielle, ni dossier temporaire.
 | Fyne v2 (2.8) | interface graphique (cgo : en-têtes GL/X11/Wayland requis) | `docs/ENVIRONNEMENT.md` |
 | FFmpeg / ffprobe | l'encodage ; livré dans l'installateur et l'AppImage, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
 | `fyne.io/tools` | `fyne package` à la release (version tirée du tag) ; seul son binaire est repris | `RELEASING.md` |
+| Rust (rustup, `rust/rust-toolchain.toml`), Slint | le port en cours ; Slint arrive avec la fenêtre d'essai (phase 3b) | `docs/ENVIRONNEMENT.md`, DEC-43 |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)

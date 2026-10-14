@@ -44,6 +44,26 @@ Three things about that:
 confirm the test reddens. Tests here have passed vacuously before. And check the
 counter-proof itself is valid — an environment can make it mute.
 
+### Rust (port in progress, DEC-43)
+
+`rust/` is a Cargo workspace (`superview-core`, `superview-harness`, `superview-app`) that
+grows beside the Go code; Go stays the reference and the shipped product until parity.
+`scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`. Install with rustup into
+`~/.cargo` (no sudo, `docs/ENVIRONNEMENT.md`). The gate-by-gate form, from `rust/`:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
+```
+
+- **No test modifies the process environment.** Tests run in parallel in one process and
+  `std::env::set_var` is `unsafe` in edition 2024; tool lookup takes the environment as a
+  parameter (L-114).
+- **`powi(2)`, never `powf(2.0)`**, where `pgm.go` has `math.Pow(x, 2)`: the latter depends
+  on the platform's libm and would break the golden fingerprints.
+- `superview-harness` is a test bench, not a CLI, and is never shipped (DEC-44).
+
 ## Decisions that look like defects
 
 Do not "fix" these. Each was measured or argued, and reverting one costs more

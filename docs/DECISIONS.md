@@ -74,6 +74,8 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
 | [DEC-41](#dec-41) | La release livre un installateur Windows et une AppImage Linux, pas des archives | Acceptée |
 | [DEC-42](#dec-42) | Un agent peut déclencher la release, sur demande explicite, par `/publier` | Acceptée |
+| [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée (porte GO/NO-GO après la phase 3) |
+| [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
 
 ---
 
@@ -404,3 +406,21 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `settings.json` autorise `gh workflow run release.yml *`, `gh run watch *` et `gh release view *` ; `git tag` et `gh release create` restent refusés (c'est le workflow qui crée le tag, une fois les deux plateformes construites). Le skill `.claude/skills/publier/SKILL.md` encadre la procédure : demande explicite dans la conversation, `master` à jour et vert, aucune PR attendue encore ouverte, essai à blanc postérieur au dernier changement de la release (L-114), version proposée puis **confirmée par l'utilisateur**, lancement, suivi, vérification des trois fichiers publiés.
 **Conséquences** — L'autorisation de `settings.json` ne distingue pas un essai à blanc d'une vraie release (seul `-f version=` les sépare) : le garde-fou est la règle d'`AGENTS.md` et le skill, pas le moteur de permissions. Une version publiée ne se reprend pas ; un échec avant la fin ne dépense pas le numéro.
 **À rouvrir si** — Un agent publie sans demande, ou si les droits d'un jeton permettaient de contourner le workflow.
+
+### DEC-43
+**Superview est porté vers Rust + Slint ; la version Go reste la référence et continue d'être livrée jusqu'à la parité ; `rust/` cohabite avec le code Go.**
+2026-10-14 · Acceptée · à la demande de l'utilisateur · porte GO/NO-GO après la phase 3
+
+**Contexte** — Le code Go pèse 7 200 lignes de code et 11 100 de tests, et l'utilisateur le trouve difficile à maintenir. Les paquets de release (DEC-41) sont en place. FFmpeg et ffprobe ne changent pas : mêmes binaires embarqués, mêmes pins, mêmes arguments (DEC-04, plancher NVENC).
+**Décision** — Un workspace Cargo sous `rust/` (edition 2024) : `superview-core` (logique, sans GUI), `superview-harness` (banc d'essai, DEC-44) et `superview-app` (Slint, licence GPLv3 compatible avec celle de Superview). Une PR par étape, `scripts/check.sh` vert sur Go **et** Rust tant qu'ils cohabitent, `scripts/checks/rust.sh` en est la moitié Rust. Un oracle de parité (`testdata/parity/*.json`, écrit côté Go) fixe ce que Rust doit reproduire. La phase 3 est un essai (cartes PGM aux empreintes dorées sur les deux OS, fenêtre Slint, AppImage d'essai) suivi d'une porte GO/NO-GO.
+**Conséquences** — Pendant le portage, le dépôt a deux chaînes d'outils : le pre-commit exige Rust installé (`docs/ENVIRONNEMENT.md`). Les `math.Pow(x, 2)` de `pgm.go` se portent en `powi(2)`, jamais `powf(2.0)` (dépend de la libm). Aucun test Rust ne modifie l'environnement du processus (`std::env::set_var` est `unsafe` en edition 2024 et les tests tournent en parallèle) : la résolution des outils reçoit l'environnement en paramètre (L-114). Un NO-GO coûte une PR de suppression de `rust/`, rien de plus. À la bascule, les DEC liées à Go/Fyne (21, 23, 36, 39, partie « Go + Fyne » de DEC-02) seront *Remplacées* et d'autres amendées.
+**À rouvrir si** — La phase 3 donne un NO-GO (empreintes différentes selon l'OS, PGM plus de 1,5 fois plus lent que Go, fenêtre ou dialogue défaillants, PR jugées illisibles).
+
+### DEC-44
+**`superview-harness` est un banc d'essai, jamais livré ; ce n'est pas une CLI et DEC-02 tient.**
+2026-10-14 · Acceptée · conséquence de DEC-43
+
+**Contexte** — Les tests croisés Go↔Rust et les tests FFmpeg réels ont besoin d'un exécutable sans fenêtre (`convert`, `probe`, sortie JSON). DEC-02 interdit un mode ligne de commande pour l'utilisateur.
+**Décision** — Le binaire `superview-harness` (`publish = false`) n'est ni empaqueté ni mentionné dans les README, ni installé par l'installateur ou l'AppImage. Il sert aux tests et à la comparaison avec Go, rien d'autre.
+**Conséquences** — Le produit reste une application graphique seule. Aucun argument de `superview-harness` n'est un contrat public.
+**À rouvrir si** — Le harnais est référencé dans un README ou un paquet : c'est alors une CLI, et DEC-02 doit être rouverte explicitement.
