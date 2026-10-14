@@ -9,6 +9,18 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] DEC-41 — La release livre un installateur Windows et une AppImage Linux
+
+| | |
+| --- | --- |
+| **Constat** | demande de l'utilisateur (modèle : OpenTuneBox) ; L-115 trouvée en route |
+| **Fichiers** | `packaging/windows/superview.iss`, `packaging/windows/superview.ico`, `packaging/linux/build_appimage.sh`, `.github/workflows/release.yml`, `.github/workflows/test.yml` (L-115) ; README.md, README_FR.md, RELEASING.md, AGENTS.md, docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/CONTRATS.md ; test : `cmd/superview/workflow_pipes_test.go` |
+| **PR** | feat/binary-releases |
+| **Vérification** | `scripts/check.sh` ✅ · AppImage construite et lancée en local (code 124) · essai à blanc de la release ✅ sur les deux jobs (installation, outils exécutés, désinstallation ; extraction, outils exécutés, lancement sous `xvfb`, code 124) · contre-épreuve de L-115 ✅ |
+
+Le premier essai à blanc a échoué sur Windows (L-115) ; le second est vert. L'AppImage pèse plus que
+l'ancien `.tar.xz` (squashfs gzip), l'installateur moins que l'ancien `.zip`.
+
 ### [2026-10-14] Q-02, Q-03 — Le garde-fou mémoire suit les fils ; pas de télémétrie GoPro
 
 | | |

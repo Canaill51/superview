@@ -1,8 +1,14 @@
 # Où on en est
-- État : treizième passe d'analyse close, tout fusionné (#78 à #93). Aucune question ouverte.
+- État : treizième passe d'analyse close, tout fusionné (#78 à #94). Branche `feat/binary-releases` en cours :
+  la release livre un installateur Windows et une AppImage Linux (DEC-41) au lieu du .zip et du .tar.xz.
+  Reste avant la fusion : essai à blanc vert sur les deux jobs (L-114), puis PR + label `merge`.
 - Le dépôt suit le gabarit `claude-gabarit` : `scripts/check.sh` (point d'entrée unique), hooks git
   et Claude, code sous `cmd/superview/` + `internal/common/` (DEC-39), docs sous `docs/` (DEC-40).
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), puis `scripts/check.sh`.
 - Toute modification de `.github/workflows/release.yml` : essai à blanc AVANT fusion (L-114,
   `gh workflow run release.yml --ref <branche>`, sans version).
-- Prochaine étape : aucune planifiée. Mettre ce fichier à jour à la clôture d'une session (`/cloture`).
+- Prochaine étape : portage Rust + Slint, planifié mais pas commencé. Plan approuvé :
+  `~/.claude/plans/distributed-kindling-alpaca.md` (phases 1 à 8, porte GO/NO-GO après l'essai de la phase 3).
+  Il prend la suite de cette PR : les scripts `packaging/` sont réutilisés tels quels.
+- `fyne package` lancé en local réécrit `cmd/superview/FyneApp.toml` : `git checkout cmd/superview/FyneApp.toml`.
+- Mettre ce fichier à jour à la clôture d'une session (`/cloture`).

@@ -126,3 +126,4 @@
 | 2026-10-14 | L-112 | Le nom d'un test finit dans un chemin, et `cmd.exe` coupe un chemin à la virgule |
 | 2026-10-14 | L-113 | Une constante mesurée appartient à la configuration où elle a été mesurée |
 | 2026-10-14 | L-114 | Une étape ajoutée à `release.yml` n'est pas vérifiée tant qu'un essai à blanc ne l'a pas fait tourner |
+| 2026-10-14 | L-115 | Couper la sortie d'un outil dans un tube (`\| head`, `\| Select-Object -First 1`) le fait échouer |
