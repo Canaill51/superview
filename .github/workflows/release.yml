@@ -294,9 +294,24 @@ jobs:
         source .github/scripts/nvenc-driver-floor.sh
         assert_driver_floor "$FFMPEG_DRIVER_FLOOR" build/ffmpeg.exe build/ffprobe.exe
 
-    - name: Create archives
+    # One file to download, instead of a zip to extract: an Inno Setup installer.
+    #
+    # ffmpeg.exe and ffprobe.exe are installed beside superview.exe, which is the
+    # first place resolveToolBinary looks. The application is installed under the
+    # name superview.exe; the build output carries the arch in its name.
+    - name: Stage the installer's files
+      shell: pwsh
+      run: |
+        $arch = go env GOARCH
+        Copy-Item "build/superview-gui-windows-$arch.exe" "build/superview.exe"
+        Copy-Item "THIRD_PARTY_NOTICES.md" "build/"
+
+    # Inno Setup 6 is preinstalled on the runner. SourceDir is absolute because
+    # Inno resolves relative paths against the script, not the working directory.
+    - name: Build the installer
       shell: pwsh
       env:
+        VERSION: ${{ needs.prepare.outputs.version }}
         LABEL: ${{ needs.prepare.outputs.label }}
       run: |
         $arch = go env GOARCH
@@ -306,26 +321,38 @@ jobs:
           "arm64" { $archLabel = "aarch64" }
           default { $archLabel = $arch }
         }
-        # Everything goes in one folder inside the zip rather than loose at its
-        # root: the archive now carries four files, and extracting those into
-        # whatever directory the user happened to open would scatter an
-        # ffmpeg.exe across their Downloads.
-        #
-        # ffmpeg.exe and ffprobe.exe sit beside the application, which is the
-        # first place resolveToolBinary looks.
-        $stage = "build/superview-$env:LABEL-windows-$archLabel"
-        New-Item -ItemType Directory -Force -Path $stage | Out-Null
-        Copy-Item "build/superview-gui-windows-$arch.exe" $stage
-        Copy-Item "build/ffmpeg.exe" $stage
-        Copy-Item "build/ffprobe.exe" $stage
-        Copy-Item "THIRD_PARTY_NOTICES.md" $stage
-        Compress-Archive -Path $stage -DestinationPath "superview-gui-$env:LABEL-windows-$archLabel.zip" -Force
+        $source = Join-Path $PWD "build"
+        & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$env:VERSION" "/DSourceDir=$source" packaging\windows\superview.iss
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        Move-Item "build\superview-setup.exe" "superview-$env:LABEL-windows-$archLabel-setup.exe"
+
+    # Installs for the current user without a prompt, checks what landed where the
+    # application will look for it, runs the bundled tools, then uninstalls and
+    # checks nothing is left. Starting the GUI is not tried here: the runner has no
+    # display, and the Linux job covers that with xvfb.
+    - name: The installer must install, run and uninstall cleanly
+      shell: pwsh
+      run: |
+        $setup = Get-ChildItem "superview-*-setup.exe" | Select-Object -First 1
+        Start-Process -Wait -FilePath $setup.FullName -ArgumentList '/VERYSILENT', '/CURRENTUSER'
+        $dir = "$env:LOCALAPPDATA\Programs\Superview"
+        foreach ($f in 'superview.exe', 'ffmpeg.exe', 'ffprobe.exe', 'THIRD_PARTY_NOTICES.md') {
+          if (-not (Test-Path "$dir\$f")) { Write-Error "$f missing from $dir"; exit 1 }
+        }
+        & "$dir\ffmpeg.exe" -version | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0) { Write-Error "the installed ffmpeg.exe does not run"; exit 1 }
+        & "$dir\ffprobe.exe" -version | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0) { Write-Error "the installed ffprobe.exe does not run"; exit 1 }
+        Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT'
+        Start-Sleep -Seconds 5
+        if (Test-Path "$dir\superview.exe") { Write-Error "the uninstaller left superview.exe behind"; exit 1 }
+        Write-Host "install, bundled tools and uninstall: ok"
 
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: gui-windows-artifacts
-        path: superview-gui-${{ needs.prepare.outputs.label }}-windows-*.zip
+        path: superview-${{ needs.prepare.outputs.label }}-windows-*-setup.exe
         # Uploading nothing is not success: without this the release job would
         # publish an empty draft.
         if-no-files-found: error
@@ -472,129 +499,26 @@ jobs:
         fi
         go test -race -count=1 ./...
 
-    # The tools go under lib/superview, not next to the app.
+    # The package is one AppImage rather than fyne's tarball and its Makefile. The
+    # tarball is still built -- it is what carries the version stamped by
+    # --app-version and the vcs.* build info the step above inspects -- but only
+    # the binary is taken from it (packaging/linux/build_appimage.sh).
     #
-    # The app installs into $PREFIX/bin, so an "ffmpeg" beside it would land in
-    # /usr/local/bin and shadow the system's for every program on the machine.
-    # A sibling lib/superview directory is private to us, and the app finds it
-    # both installed ($PREFIX/lib/superview) and straight out of the unpacked
-    # tarball, because the path it looks up is relative to its own binary.
+    # The tools go under usr/lib/superview inside the image, beside usr/bin: the
+    # application looks in ../lib/superview relative to its own binary, and
+    # nothing here can shadow the system's ffmpeg for other programs.
     #
-    # fyne's Makefile installs three named files, so the two new ones have to be
-    # added to it. Keying the insertion on the line that installs the app means
-    # a change to that Makefile's shape fails here rather than silently
-    # producing a package that installs no FFmpeg.
-    - name: Bundle FFmpeg into the Linux package
+    # xvfb and mesa are for the launch test below only. appimagetool is pinned by
+    # SHA-256 like every other download here: it runs inside the release job.
+    - name: Install the AppImage tooling
       run: |
         set -euo pipefail
-        arch="$(go env GOARCH)"
-        tarball="superview-gui-linux-${arch}.tar.xz"
+        sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri
+        curl -fsSL -o "${RUNNER_TEMP}/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+        echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  ${RUNNER_TEMP}/appimagetool" | sha256sum -c -
+        chmod +x "${RUNNER_TEMP}/appimagetool"
 
-        work="${RUNNER_TEMP}/package"
-        rm -rf "$work" && mkdir -p "$work"
-        tar -xJf "$tarball" -C "$work"
-
-        root="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-        if [ ! -f "$root/Makefile" ]; then
-          echo "::error::the fyne package has no Makefile at its root; its layout changed"
-          find "$work" -maxdepth 3
-          exit 1
-        fi
-
-        install -Dm0755 "${RUNNER_TEMP}/ffbin/ffmpeg"  "$root/usr/local/lib/superview/ffmpeg"
-        install -Dm0755 "${RUNNER_TEMP}/ffbin/ffprobe" "$root/usr/local/lib/superview/ffprobe"
-
-        # Repair fyne 1.7.2's icon line while we are here. It sets
-        # Icon := "com.canaill51.superview" but ships the file as
-        # com.canaill51.superview.png, so "make install" fails on its last line
-        # with "install: No such file or directory" -- after having installed
-        # the binary, which is why nobody noticed. Every Linux archive this
-        # project has published has been broken that way.
-        #
-        # Taking the name from the file that is actually there rather than
-        # appending ".png": if fyne fixes this, the rewrite becomes a no-op
-        # instead of producing "…png.png".
-        icon_file="$(find "$root/usr/local/share/pixmaps" -maxdepth 1 -type f -printf '%f\n' | head -n 1)"
-        if [ -z "$icon_file" ]; then
-          echo "::error::the fyne package ships no icon under usr/local/share/pixmaps"
-          find "$root/usr/local/share" -maxdepth 3
-          exit 1
-        fi
-        sed -i "s|^Icon := .*|Icon := \"${icon_file}\"|" "$root/Makefile"
-
-        awk '
-          { print }
-          /install -Dm00755 usr\/local\/bin\/\$\(Exec\) \$\(DESTDIR\)\$\(PREFIX\)\/bin\/\$\(Exec\)/ {
-              print "\tinstall -Dm00755 usr/local/lib/superview/ffmpeg $(DESTDIR)$(PREFIX)/lib/superview/ffmpeg"
-              print "\tinstall -Dm00755 usr/local/lib/superview/ffprobe $(DESTDIR)$(PREFIX)/lib/superview/ffprobe"
-              seen_install = 1
-          }
-          /install -Dm00755 usr\/local\/bin\/\$\(Exec\) \$\(DESTDIR\)\$\(HOME\)\/\.local\/bin\/\$\(Exec\)/ {
-              print "\tinstall -Dm00755 usr/local/lib/superview/ffmpeg $(DESTDIR)$(HOME)/.local/lib/superview/ffmpeg"
-              print "\tinstall -Dm00755 usr/local/lib/superview/ffprobe $(DESTDIR)$(HOME)/.local/lib/superview/ffprobe"
-              seen_user_install = 1
-          }
-          /-rm \$\(DESTDIR\)\$\(PREFIX\)\/bin\/\$\(Exec\)/ {
-              print "\t-rm -r $(DESTDIR)$(PREFIX)/lib/superview"
-              seen_uninstall = 1
-          }
-          /-rm \$\(DESTDIR\)\$\(HOME\)\/\.local\/bin\/\$\(Exec\)/ {
-              print "\t-rm -r $(DESTDIR)$(HOME)/.local/lib/superview"
-              seen_user_uninstall = 1
-          }
-          END {
-              if (!seen_install || !seen_user_install || !seen_uninstall || !seen_user_uninstall) {
-                  print "::error::fyne'"'"'s Makefile no longer has the lines this patch keys on (install=" seen_install \
-                        " user-install=" seen_user_install " uninstall=" seen_uninstall \
-                        " user-uninstall=" seen_user_uninstall "); the package would install no FFmpeg" > "/dev/stderr"
-                  exit 1
-              }
-          }
-        ' "$root/Makefile" > "${RUNNER_TEMP}/Makefile.patched"
-        mv "${RUNNER_TEMP}/Makefile.patched" "$root/Makefile"
-
-        cp THIRD_PARTY_NOTICES.md "$root/"
-        rm -f "$tarball"
-        tar -cJf "$tarball" -C "$work" "$(basename "$root")"
-
-    # Asserting the outcome rather than the patch: install into a throwaway
-    # DESTDIR and check the files land where the app will look for them.
-    - name: The package must actually install its FFmpeg
-      run: |
-        set -euo pipefail
-        arch="$(go env GOARCH)"
-        dest="${RUNNER_TEMP}/verify-install"
-        work="${RUNNER_TEMP}/verify-package"
-        rm -rf "$dest" "$work" && mkdir -p "$dest" "$work"
-
-        tar -xJf "superview-gui-linux-${arch}.tar.xz" -C "$work"
-        root="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-        make -C "$root" install DESTDIR="$dest" PREFIX=/usr
-
-        for tool in ffmpeg ffprobe; do
-          if [ ! -x "$dest/usr/lib/superview/$tool" ]; then
-            echo "::error::make install did not put $tool where the app looks for it"
-            find "$dest" -type f
-            exit 1
-          fi
-        done
-        # And the app itself must still be installed beside it, one level up.
-        if [ ! -x "$dest/usr/bin/superview" ]; then
-          echo "::error::make install no longer installs the application binary"
-          find "$dest" -type f
-          exit 1
-        fi
-        # The icon too: "make install" used to fail on it, and the whole point
-        # of running the install here is that such a failure is now visible.
-        if ! find "$dest/usr/share/pixmaps" -type f | grep -q .; then
-          echo "::error::make install did not install the application icon"
-          find "$dest" -type f
-          exit 1
-        fi
-        echo "installed layout:"
-        find "$dest" -type f | sort
-
-    - name: Name the archive for the release
+    - name: Build the AppImage
       env:
         LABEL: ${{ needs.prepare.outputs.label }}
       run: |
@@ -606,17 +530,50 @@ jobs:
           arm64) archLabel="aarch64" ;;
           *) archLabel="$arch" ;;
         esac
-        # Keep the .tar.xz fyne produces rather than repacking it as .tar.gz:
-        # it already carries the binary, the .desktop entry and the icon, which
-        # is what makes the archive installable rather than just a loose binary.
-        mv "superview-gui-linux-${arch}.tar.xz" "superview-gui-${LABEL}-linux-${archLabel}.tar.xz"
-        ls -lah "superview-gui-${LABEL}-linux-${archLabel}.tar.xz"
+        APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
+          "superview-gui-linux-${arch}.tar.xz" "${RUNNER_TEMP}/ffbin" \
+          "superview-${LABEL}-linux-${archLabel}.AppImage"
+        ls -lah superview-*.AppImage
+
+    # Asserting the outcome, as the Windows job does: the files are where the
+    # application will look for them, the bundled tools run, and the GUI stays open.
+    #
+    # APPIMAGE_EXTRACT_AND_RUN: GitHub's runners do not allow FUSE. timeout stops
+    # the application after 20 s with code 124, so it was still open; any other
+    # code means it exited by itself.
+    - name: The AppImage must carry its tools and start
+      run: |
+        set -euo pipefail
+        image="$(find . -maxdepth 1 -name 'superview-*.AppImage' | head -n 1)"
+        export APPIMAGE_EXTRACT_AND_RUN=1
+
+        rm -rf squashfs-root && "${image}" --appimage-extract > /dev/null
+        for f in usr/bin/superview usr/lib/superview/ffmpeg usr/lib/superview/ffprobe; do
+          if [ ! -x "squashfs-root/$f" ]; then
+            echo "::error::the AppImage has no executable $f"
+            find squashfs-root -type f
+            exit 1
+          fi
+        done
+        squashfs-root/usr/lib/superview/ffmpeg -version | head -n 1
+        squashfs-root/usr/lib/superview/ffprobe -version | head -n 1
+        rm -rf squashfs-root
+
+        set +e
+        xvfb-run -a timeout 20 "${image}"
+        code=$?
+        set -e
+        echo "exit code: ${code}"
+        if [ "$code" -ne 124 ]; then
+          echo "::error::the AppImage did not stay open (exit code ${code}; 124 was expected)"
+          exit 1
+        fi
 
     - name: Upload GUI artifacts
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: gui-linux-artifacts
-        path: superview-gui-${{ needs.prepare.outputs.label }}-linux-*.tar.xz
+        path: superview-${{ needs.prepare.outputs.label }}-linux-*.AppImage
         if-no-files-found: error
 
   create-release:
@@ -657,7 +614,7 @@ jobs:
     - name: Calculate checksums
       run: |
         set -euo pipefail
-        find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.tar.xz" \) -print0 |
+        find artifacts -type f \( -name "*-setup.exe" -o -name "*.AppImage" \) -print0 |
           while IFS= read -r -d '' file; do
             ( cd "$(dirname "$file")" && sha256sum "$(basename "$file")" )
           done > artifacts/checksums.txt
@@ -720,8 +677,8 @@ jobs:
             printf '\n'
           fi
           printf '### Downloads\n\n'
-          printf -- '- Windows: `superview-gui-%s-windows-x86_64.zip`\n' "$TAG"
-          printf -- '- Linux (Ubuntu 24.04+): `superview-gui-%s-linux-x86_64.tar.xz`\n' "$TAG"
+          printf -- '- Windows: `superview-%s-windows-x86_64-setup.exe`\n' "$TAG"
+          printf -- '- Linux (Ubuntu 24.04+): `superview-%s-linux-x86_64.AppImage`\n' "$TAG"
           printf '\n### Verify integrity\n\n'
           printf '```bash\nsha256sum -c checksums.txt\n```\n'
         } > /tmp/release.md
@@ -739,9 +696,8 @@ jobs:
         body_path: /tmp/release.md
         generate_release_notes: true
         files: |
-          artifacts/**/*.zip
-          artifacts/**/*.tar.gz
-          artifacts/**/*.tar.xz
+          artifacts/**/*-setup.exe
+          artifacts/**/*.AppImage
           artifacts/checksums.txt
 
   notify:
