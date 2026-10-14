@@ -1081,7 +1081,7 @@ done
 
 ### [2026-10-14] M-06 — Les branches fusionnées par le workflow n'étaient pas supprimées
 
-**PR** — à venir
+**PR** — #77
 
 | | |
 | --- | --- |
