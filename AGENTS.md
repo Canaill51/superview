@@ -29,15 +29,15 @@ golangci-lint run ./... --timeout=5m
 
 Three things about that:
 
-- **The root package needs GUI headers to compile at all.** On a machine without
+- **The `cmd/superview` package needs GUI headers to compile at all.** On a machine without
   `sudo`, `docs/ENVIRONNEMENT.md` builds a sysroot in `/tmp` that does not
-  survive a reboot. Without it `./common` compiles and `main` does not — do not
+  survive a reboot. Without it `./internal/common` compiles and `cmd/superview` does not — do not
   report a GUI change as verified in that state.
 - **`SUPERVIEW_REQUIRE_FFMPEG=1` is not optional.** Without it, every test that
   needs ffmpeg skips silently: the four integration tests and the remap
   equivalence test, which together are the whole of what checks a real
   conversion. A green suite can mean nothing was encoded. CI sets it.
-- **`./common` alone is not the suite.** It skips the root package's GUI tests
+- **`./internal/common` alone is not the suite.** It skips the `cmd/superview` GUI tests
   and is not what the 50% coverage gate measures.
 
 **Every test is proved by counter-proof**: reintroduce the defect it guards and
@@ -55,7 +55,7 @@ than it looks.
 | `FyneApp.toml` has no `Version` | The version comes from the tag, via `fyne package --app-version`, so a published binary cannot claim a number a committed file drifted away from. A plain `go build` reports `dev`. **Do not add one back.** |
 | `main()` is ~600 lines | Deliberate. The defect was that its *state* was unreachable, fixed by the `appState` type and its methods. Widget construction has nothing to gain from being split. |
 | `.github/release.yml` has a `"*"` catch-all | Load-bearing. GitHub drops any pull request matching no category, and this repository labels none of its own — removing it empties every release. |
-| `common/` is eight files where there used to be one `common.go` | Split by responsibility on 2026-10-14, as pure moves: `pipeline.go`, `encode.go`, `pgm.go`, `session.go`, `video.go`, `tools.go`, `memory.go`, `errors.go`. `pgm_golden_test.go` pinned the geometry byte for byte across the move. Put new code in the file whose header names its job; do not grow a new catch-all. |
+| `internal/common/` is eight files where there used to be one `common.go` | Split by responsibility on 2026-10-14, as pure moves: `pipeline.go`, `encode.go`, `pgm.go`, `session.go`, `video.go`, `tools.go`, `memory.go`, `errors.go`. `pgm_golden_test.go` pinned the geometry byte for byte across the move. Put new code in the file whose header names its job; do not grow a new catch-all. |
 | The bundled FFmpeg is **8.1.1 on Windows** (gyan.dev) and **n8.1.2 on Linux** (BtbN autobuild 2026-08-31), neither the newest | What is pinned is the NVENC driver floor, 570.0 on both, not a version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping a pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching either. |
 | The release workflow patches fyne's generated `Makefile` | It installs three named files, so the bundled `ffmpeg`/`ffprobe` have to be added to it, and its icon line is broken upstream (`$(Icon)` without the `.png`, so `make install` fails on its last line). The patch is keyed on the exact lines, and the job then runs `make install` into a throwaway directory: if fyne changes shape, the release fails there instead of shipping a package that installs nothing. |
 | The French README is `README_FR.md`, but the English one is not `README_EN.md` | GitHub renders a repository's landing page from `README.md` and no other name. Renaming the English half to `README_EN.md` for symmetry leaves the repository front page with no README at all — a visitor sees the file tree and nothing else. The asymmetry is the cost of the landing page. |
@@ -82,8 +82,8 @@ than it looks.
 
 ## Changing the code
 
-- **Build the package, never a file**: `go build .`. The native dialog files are
-  build-tagged and `go build gui_main.go` fails.
+- **Build the package, never a file**: `go build ./cmd/superview`. The native dialog files are
+  build-tagged and `go build cmd/superview/gui_main.go` fails.
 - Keep user-facing strings stable unless the task is about them.
 - **`README.md` and `README_FR.md` are one document in two languages.** Any
   user-visible change goes into both, in the same pull request. CI enforces it

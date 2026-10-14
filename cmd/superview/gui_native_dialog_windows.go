@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"superview/common"
+	"superview/internal/common"
 )
 
 func runCommandAndGetPath(name string, args ...string) (string, error) {

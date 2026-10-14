@@ -43,7 +43,7 @@ build: build-gui
 
 build-gui:
 	@echo "Building GUI..."
-	go build -o superview-gui .
+	go build -o superview-gui ./cmd/superview
 	@echo "✅ GUI binary created: superview-gui"
 
 # Windows-native only. Fyne draws through cgo, and setting GOOS alone gives no
@@ -52,13 +52,13 @@ build-gui:
 build-gui-windows: export GOOS=windows
 build-gui-windows:
 	@echo "Building Windows GUI without console window (run this on Windows)..."
-	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe .
+	go build -ldflags="-H=windowsgui" -o superview-gui-windows-$(ARCH).exe ./cmd/superview
 	@echo "✅ Windows GUI binary created: superview-gui-windows-$(ARCH).exe"
 
 build-gui-linux: export GOOS=linux
 build-gui-linux:
 	@echo "Building Linux GUI..."
-	go build -o superview-gui-linux-$(ARCH) .
+	go build -o superview-gui-linux-$(ARCH) ./cmd/superview
 	@echo "✅ Linux GUI binary created: superview-gui-linux-$(ARCH)"
 
 # Test targets
@@ -170,6 +170,10 @@ clean:
 	rm -f *.syso
 	rm -f superview-gui-*.tar.xz superview-gui-*.zip
 	rm -rf tmp-pkg/
+	@# Since DEC-39 fyne package works, and leaves its files, in cmd/superview.
+	rm -f cmd/superview/superview cmd/superview/superview.exe cmd/superview/fyne_metadata_init.go
+	rm -f cmd/superview/*.syso cmd/superview/superview-gui-*.tar.xz cmd/superview/superview-gui-*.zip
+	rm -rf cmd/superview/tmp-pkg/
 	go clean
 	rm -rf build/
 	@echo "✅ Cleanup complete"

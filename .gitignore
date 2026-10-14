@@ -33,7 +33,7 @@ superview.exe
 # Only "superview.exe" was ignored, so the Linux side had the asymmetry that
 # R-06 was about. The guard on the packaged binary in release.yml would have
 # caught it at the next release; ignoring these means it does not have to.
-superview
+/superview
 tmp-pkg/
 
 # "fyne package" leaves its archive in the working directory.
@@ -50,3 +50,6 @@ superview-gui-*.zip
 # Claude Code: personal settings
 .claude/settings.local.json
 CLAUDE.local.md
+
+# The same intermediate binary once the package has moved under cmd/superview.
+/cmd/superview/superview

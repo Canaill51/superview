@@ -60,7 +60,7 @@ func githubSlug(title string) string {
 }
 
 // The application hands this URL to a user who has no ffmpeg -- in a hyperlink
-// widget (gui_main.go) and in the error text (common/tools.go). A fragment
+// widget (cmd/superview/gui_main.go) and in the error text (internal/common/tools.go). A fragment
 // that matches no heading does not fail: it silently drops the reader at the
 // top of the README, which is the one reader who cannot afford to go hunting.
 // Renaming a README section is exactly how that happens, and nothing else
@@ -76,7 +76,7 @@ func TestInstallURLFragmentPointsAtARealHeading(t *testing.T) {
 		t.Fatal("installURL has no fragment; it must land on the install section, not the top of the README")
 	}
 
-	slugs := readmeHeadingSlugs(t, "README.md")
+	slugs := readmeHeadingSlugs(t, "../../README.md")
 	if !slugs[fragment] {
 		have := make([]string, 0, len(slugs))
 		for s := range slugs {

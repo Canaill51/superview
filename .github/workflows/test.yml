@@ -85,7 +85,7 @@ jobs:
     # real data race there -- and invisible in the run above, which builds
     # without the tag. Only the GUI package changes under it.
     - name: Run the GUI tests as the release builds them
-      run: go test -race -count=1 -tags migrated_fynedo .
+      run: go test -race -count=1 -tags migrated_fynedo ./cmd/superview
 
     - name: Display coverage summary
       run: go tool cover -func=coverage.out | tail -5
@@ -324,7 +324,7 @@ jobs:
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path build | Out-Null
-        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" .
+        go build -ldflags="-H=windowsgui" -o "build/superview-gui-${{ matrix.label }}.exe" ./cmd/superview
 
     - name: Verify build outputs (Windows)
       if: matrix.expected_goos == 'windows'
@@ -353,7 +353,7 @@ jobs:
       if: matrix.expected_goos == 'linux'
       run: |
         mkdir -p build
-        go build -o "build/superview-gui-${{ matrix.label }}" .
+        go build -o "build/superview-gui-${{ matrix.label }}" ./cmd/superview
 
     - name: Verify build outputs (Linux)
       if: matrix.expected_goos == 'linux'

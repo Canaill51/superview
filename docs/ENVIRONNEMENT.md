@@ -25,7 +25,7 @@
 > recevront.** Pour éprouver le binaire empaqueté, pointer `SUPERVIEW_FFMPEG_DIR`
 > dessus.
 
-Conséquence en début de session : `./common` se compile, se teste sous `-race` et
+Conséquence en début de session : `./internal/common` se compile, se teste sous `-race` et
 se lint immédiatement ; le paquet `main` échoue sur
 `wayland-client-core.h: No such file or directory` tant que le sysroot n'est pas
 refait.
@@ -66,7 +66,7 @@ for f in *.so; do t=$(readlink "$f"); [ -n "$t" ] && [ ! -e "$t" ] && \
 
 ## Le fichier à sourcer avant tout travail
 
-`/tmp/guienv.sh` — **sans lui, le paquet racine ne compile pas** :
+`/tmp/guienv.sh` — **sans lui, `cmd/superview` ne compile pas** :
 
 ```bash
 export PATH=$HOME/.local/go/bin:$PATH
