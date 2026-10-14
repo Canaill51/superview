@@ -1,7 +1,7 @@
 # Où on en est
-- État : treizième passe d'analyse close, tout fusionné (#78 à #94). Branche `feat/binary-releases` en cours :
-  la release livre un installateur Windows et une AppImage Linux (DEC-41) au lieu du .zip et du .tar.xz.
-  Reste avant la fusion : essai à blanc vert sur les deux jobs (L-114), puis PR + label `merge`.
+- État : treizième passe d'analyse close, tout fusionné (#78 à #96). Dernière version publiée : **v0.2.9**
+  (2026-10-14), la première avec l'installateur Windows et l'AppImage Linux (DEC-41). Aucune PR ouverte.
+  Non vérifié sur de vraies machines : l'installateur sous Windows, les encodeurs GPU.
 - Le dépôt suit le gabarit `claude-gabarit` : `scripts/check.sh` (point d'entrée unique), hooks git
   et Claude, code sous `cmd/superview/` + `internal/common/` (DEC-39), docs sous `docs/` (DEC-40).
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), puis `scripts/check.sh`.
