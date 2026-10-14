@@ -27,14 +27,27 @@
       "Bash(gh run list *)",
       "Bash(gh run view *)",
       "Bash(gh release list *)",
-      "Bash(gh api repos/Canaill51/superview/*)"
+      "Bash(gh api repos/Canaill51/superview/*)",
+      "Bash(scripts/check.sh*)",
+      "Bash(bash scripts/check.sh*)",
+      "Bash(bash scripts/checks/*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Read(~/docs-officielles/**)",
+      "Read(~/.claude/pieges/**)"
     ],
     "deny": [
       "Bash(git push --force*)",
       "Bash(git push -f *)",
       "Bash(git tag *)",
       "Bash(gh release create *)",
-      "Bash(gh api -X DELETE *)"
+      "Bash(gh api -X DELETE *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Bash(git commit --no-verify*)",
+      "Bash(git commit * --no-verify*)"
     ]
   },
   "hooks": {
@@ -45,6 +58,48 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gofmt.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/apres-modif.sh",
+            "timeout": 120,
+            "statusMessage": "Vérification rapide…"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/garde-fou.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/avant-fin.sh",
+            "timeout": 600,
+            "statusMessage": "Tests complets…"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/debut-session.sh",
+            "timeout": 5
           }
         ]
       }

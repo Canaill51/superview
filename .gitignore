@@ -39,3 +39,14 @@ tmp-pkg/
 # "fyne package" leaves its archive in the working directory.
 superview-gui-*.tar.xz
 superview-gui-*.zip
+
+# Secrets -- never commit (template: claude-gabarit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Claude Code: personal settings
+.claude/settings.local.json
+CLAUDE.local.md

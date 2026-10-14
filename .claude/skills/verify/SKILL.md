@@ -3,6 +3,10 @@ name: verify
 description: Run the AGENTS.md verification recipe for Superview, gate by gate, and report each result instead of a summary. Use before claiming any change is verified.
 ---
 
+`scripts/check.sh` runs gates 1-5 in one command (it is also what the git
+pre-commit hook and the Claude hooks run), but stops at the first failure and
+says nothing about skips: this skill stays the gate-by-gate report.
+
 Run the gates below **in order**, from the repository root, with
 `export PATH=$HOME/.local/go/bin:$HOME/go/bin:$PATH` if `go` is not found. Stop
 at the first gate that cannot run and say so: a gate that did not run is not a

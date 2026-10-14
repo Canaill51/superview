@@ -1,4 +1,4 @@
-.PHONY: help build build-gui build-gui-windows build-gui-linux test lint vet coverage coverage-html fmt fmt-fix vuln check install-tools clean version
+.PHONY: help check-static build build-gui build-gui-windows build-gui-linux test lint vet coverage coverage-html fmt fmt-fix vuln check install-tools clean version
 
 ARCH := $(shell go env GOARCH)
 
@@ -128,10 +128,16 @@ vuln:
 	$$(go env GOPATH)/bin/govulncheck ./...
 	@echo "✅ No vulnerabilities detected in code"
 
-# Comprehensive quality check
-check: fmt vet lint coverage vuln
+# Comprehensive quality check. The static gates (gofmt, build, vet, golangci-lint)
+# are scripts/check.sh --fast, the same code the git pre-commit hook and the
+# Claude hooks run; "coverage" is the full test run, so the script is not
+# asked to run the tests a second time.
+check: check-static coverage vuln
 	@echo ""
 	@echo "✅ All quality checks passed!"
+
+check-static:
+	bash scripts/check.sh --fast
 
 # Utility targets
 install-tools:
