@@ -202,6 +202,17 @@ func isValidOutputPath(filePath string) error {
 		return fmt.Errorf("output parent is not a directory: %s", dir)
 	}
 
+	// The system-directory check above read the path as written, and os.Stat
+	// followed any link in it: <somewhere>/out -> /usr passed it, and only the
+	// write probe below stood in the way -- which root walks straight through.
+	// Resolve the parent (the file itself does not exist yet, and EvalSymlinks
+	// fails on a missing path) and check where the file will really land.
+	if resolvedDir, evalErr := filepath.EvalSymlinks(dir); evalErr == nil {
+		if isSensitiveSystemPath(filepath.Join(resolvedDir, filepath.Base(cleanPath))) {
+			return fmt.Errorf("output path targets a protected system directory: %s (resolves to %s)", filePath, resolvedDir)
+		}
+	}
+
 	// Probe writability by creating a uniquely named file rather than a fixed
 	// one: two concurrent runs cannot clobber each other, and a crash between
 	// creation and removal cannot leave a predictable leftover behind.

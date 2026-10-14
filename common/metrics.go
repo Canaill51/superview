@@ -51,6 +51,13 @@ type EncodingMetrics struct {
 	EncodeDuration     time.Duration // Time spent in ffmpeg encoding
 	CleanupDuration    time.Duration // Time spent cleaning temporary session data
 
+	// Origin of the remaining-time estimate: the first non-zero progress and
+	// when it arrived. StartTime is taken before validation, map generation and
+	// the wait for the first frame, so estimating from it inflated the figure
+	// to hours at the first percent.
+	firstProgressTime    time.Time
+	firstProgressPercent float64
+
 	// Error tracking
 	FfmpegExitCode int    // ffmpeg process exit code (0 = success)
 	ErrorMessage   string // Error message if encoding failed
@@ -116,18 +123,41 @@ func (m *EncodingMetrics) RecordProgress(percent float64) {
 	defer m.mu.Unlock()
 
 	now := time.Now().UTC()
+	previous := m.LastProgress
 	m.LastProgress = math.Min(math.Max(percent, 0), 100)
 	m.ProgressUpdates++
 	m.ProgressTime = now
 
-	// Estimate remaining time based on progress
-	if percent > 0 && percent < 100 {
-		elapsedSeconds := now.Sub(m.StartTime).Seconds()
-		estimatedTotal := (elapsedSeconds / percent) * 100
-		remaining := estimatedTotal - elapsedSeconds
-		m.EstimatedRemaining = time.Duration(remaining) * time.Second
+	// Estimate the remaining time from the first progress report, not from
+	// StartTime: what precedes that report (validation, the maps, an encoder
+	// that takes a minute to produce its first frame) says nothing about how
+	// fast frames come once they do. A report lower than the previous one means
+	// the encode restarted -- a fallback to another encoder begins again at
+	// 0% -- so the origin is dropped and taken again.
+	current := m.LastProgress
+	if current < previous {
+		m.firstProgressTime = time.Time{}
+		m.EstimatedRemaining = 0
+	}
+	if current > 0 && m.firstProgressTime.IsZero() {
+		m.firstProgressTime = now
+		m.firstProgressPercent = current
+	}
+
+	// Nothing is shown until two percent have gone by since the origin: a rate
+	// read over a fraction of a percent is noise, and the first figures were
+	// the absurd ones.
+	advanced := current - m.firstProgressPercent
+	if !m.firstProgressTime.IsZero() && advanced >= minimumProgressForEstimate && current < 100 {
+		elapsed := now.Sub(m.firstProgressTime).Seconds()
+		remaining := elapsed / advanced * (100 - current)
+		m.EstimatedRemaining = time.Duration(remaining * float64(time.Second))
 	}
 }
+
+// minimumProgressForEstimate is how many percent must elapse after the first
+// progress report before a remaining time is estimated.
+const minimumProgressForEstimate = 2
 
 // RecordCompletion marks encoding as successfully completed.
 // outputFileSize should be the final output file size in bytes.

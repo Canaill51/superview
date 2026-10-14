@@ -286,6 +286,7 @@ inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 | --- | --- |
 | Le décalage **squeeze** vaut **zéro au centre par construction** : ses deux termes se réduisent tous deux à `7/32 × outX × inv` | Toute couture au milieu de l'image est un défaut d'implémentation, pas une intention. Vérifiable en arithmétique exacte, sans mesure. |
 | Le décalage **non-squeeze** vaut `tx² × diff/2`, donc 0 en `tx=0` | Le miroir de la moitié gauche y est continu ; ce mode n'a jamais eu de couture. |
+| La carte X **non-squeeze** a pour pente `1 − 2·diff/outX` aux bords : elle n'est monotone que si `diff ≤ outX/2`, soit **H/W ≤ 9/8** | Au-delà l'image se replie aux deux bords et sort du cadre source (1080×1920 : échantillon 1164 pour 1080 colonnes), sans erreur de `remap`. `checkGeometry` refuse ces sources en mode non-squeeze (E-05) ; le mode squeeze garde la largeur et n'est pas concerné. |
 | Les divisions doivent être **flottantes** | `outX/16` et `outX/7` en entiers tronquent et cassent l'annulation des deux termes (P-12). Une largeur multiple de 112 masque le défaut. |
 | Le code est **identique caractère pour caractère** à `Niek/superview` | Fidèle ne veut pas dire correct : la couture y était aussi. Vérifier la conformité à la référence ne dispense pas de vérifier la référence (L-48). |
 | L'algorithme **n'est pas** celui de GoPro | Le README amont le dit explicitement, et documente l'option squeeze pour des caméras comme la Caddx Tarsier. Ne pas promettre une compatibilité GoPro dans l'interface (P-13). |
@@ -294,8 +295,9 @@ inatteignables par les tests, et c'est là que P-01 et P-02 s'étaient logés.
 > **Le test doré ne suffit pas.** `TestGeneratePGM_Golden` fige des octets : il certifie la
 > non-régression, jamais la correction — il a figé la couture de P-12 pendant trois passes.
 > Toute modification de la formule doit passer *aussi* par
-> `TestGeneratePGM_SqueezeMapIsContinuous` et `TestGeneratePGM_SqueezeMapStaysWellFormed`, qui
-> testent des propriétés : continuité, monotonie, bornes, centre préservé.
+> `TestGeneratePGM_SqueezeMapIsContinuous`, `TestGeneratePGM_SqueezeMapStaysWellFormed` et son
+> jumeau non-squeeze `TestGeneratePGM_WidenMapStaysWellFormed`, qui testent des propriétés :
+> continuité, monotonie, bornes, centre préservé.
 
 ### Contrat des cartes de remappage (depuis la 4ᵉ passe)
 

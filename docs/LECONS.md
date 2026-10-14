@@ -1160,6 +1160,57 @@ module téléchargé, finissait toujours premier : il écrivait la clé avec 7,5
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-05, E-16, E-17, E-21, E-12 — Refuser ce que le pipeline ne sait pas faire, et dire combien de temps il reste
+
+| | |
+| --- | --- |
+| **Constat** | E-05 (arbitrage : **refuser**, pas pivoter), E-16, E-17, E-21, E-12 ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `common/pgm.go`, `common/pipeline.go`, `common/metrics.go`, `common/health.go`, `common/security.go`, `common/health_disk_windows.go`, `common/config.go`, `gui_main.go`, `gui_native_dialog_windows.go` ; tests `common/geometry_test.go`, `common/refusals_test.go`, `common/security_unix_test.go`, `gui_config_test.go`, `gui_native_dialog_windows_test.go` ; `README.md`, `README_FR.md`, `docs/CONTRATS.md` |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `GOOS=windows go vet ./common` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · 22 contre-épreuves ✅. Le fichier Windows de la GUI : `GOOS=windows go vet` sur un module jetable ne contenant que lui et `common` ✅, test exécuté sous Linux sur une copie sans étiquette de build ; **jamais exécuté sous Windows** |
+
+**Symptôme** — Une source portrait sortait pliée sans erreur ; un disque de destination plein
+était découvert vingt minutes après le début ; l'estimation affichait des heures au premier
+pourcent ; `<tmp>/out → /usr` n'était arrêté que par le test d'écriture (pas sous root) ;
+Windows lisait le total libre et non l'espace de l'utilisateur ; une clé YAML mal orthographiée
+était ignorée, `min > max` accepté, `"264, 265"` perdait HEVC ; le sélecteur Windows rendait
+`C:\Users\Cédric` en U+FFFD.
+
+**Cause racine** — Aucune de ces limites n'était vérifiée là où elle se décide : la carte X
+non-squeeze n'est monotone que pour H/W ≤ 9/8 et le commentaire de `putMapSample` affirmait le
+contraire ; l'origine de l'estimation était posée avant validation, cartes et première trame ;
+le contrôle système lisait le chemin lexical ; `yaml.Unmarshal` ignore les clés inconnues ;
+`[Console]::Out` suit la page de code OEM.
+
+**Correctif** — `checkGeometry` (sur le `outX` réellement calculé, `outX ≤ 2W`), appelé dans
+`PerformEncoding` (étape `geometry_check`) et en tête de `GeneratePGM` ; `checkOutputSpace`
+(débit × durée / 8 × 1,15 contre `readFreeDiskGB`, lecture en échec = pas de refus), étape
+`output_space_check` ; estimation datée de la première progression non nulle, rien sous 2 %,
+origine reprise quand la progression recule (repli d'encodeur) ; parent résolu par
+`EvalSymlinks` puis contrôle système relancé ; `freeBytesAvailable` ; `KnownFields(true)`
+(document vide toléré), `min > max` refusé après l'environnement, codecs épurés avec repli sur
+les défauts ; écriture UTF-8 explicite dans les deux scripts PowerShell. **Au passage** : la
+GUI rechargeait `LoadConfig("")` en jetant l'erreur — devenue possible (`min > max` par
+l'environnement), elle aurait rendu `nil` ; `loadStartupConfig` retombe sur
+`common.DefaultConfig()`. **Délibérément laissé** : une configuration refusée n'est signalée
+que dans le journal, pas par un dialogue ; `checkTempSpaceForMaps` lit toujours
+`getFreeDiskGB` directement.
+
+**Contre-épreuves** — `checkGeometry` neutralisé → `CheckGeometry` rouge ; appel de
+`GeneratePGM` retiré → rouge (session ouverte, la carte s'écrit) ; appel de `PerformEncoding`
+retiré → `PortraitSourceIsRefusedUpFront` rouge (le contrôle mémoire tourne) ; 1080×1920
+laissé passer → `WidenMapStaysWellFormed` rouge (x=2497 échantillonne 1080) ; signe du décalage
+inversé → rouge ; carte Y décalée d'un → `YMapIsIdentity` rouge ; `checkOutputSpace` sans refus,
+refus sur lecture en échec, appel retiré → trois rouges ; estimation depuis `StartTime` → 24 h
+au lieu de < 1 min ; plancher de 2 % retiré → rouge ; origine non reprise → rouge ; parent non
+résolu → rouge sur « permission denied » ; préfixe sans séparateur → `/etcetera` rouge ; contrôle
+jamais vrai → rouge ; `KnownFields(false)`, `min > max` accepté, codecs non épurés, liste vide
+gardée, document vide refusé → cinq rouges ; repli `DefaultConfig` retiré → `nil` ; script
+PowerShell d'origine → test Windows rouge (exécuté sous Linux sur copie).
+
+**Leçon** — Aucune nouvelle : L-05/L-09 (le commentaire de `putMapSample` était une affirmation
+jamais testée) et DEC-28 s'appliquent.
+
 ### [2026-10-14] E-06, E-11, E-18, E-24 — La CI ne tournait plus sur `master`, jamais sous `-race`, jamais contre le FFmpeg livré, et deux fois pour rien
 
 | | |

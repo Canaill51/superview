@@ -169,6 +169,10 @@ Remarques :
 - L'interface affiche le chemin matériel prévu avant le lancement, par exemple
   `h264_nvenc + D3D11VA`, puis le chemin réellement utilisé une fois la
   conversion terminée.
+- Une vidéo plus haute que 9:8 — une vidéo de téléphone en portrait, par
+  exemple — est refusée : l'élargir en 16:9 replierait l'image sur elle-même aux
+  deux bords. Le mode un-squeeze garde la largeur de l'image et n'est pas
+  concerné.
 
 ### En cas de problème
 
@@ -303,6 +307,11 @@ encoder_threads: 0        # 0 = auto/default
 > telle quelle), alors que la valeur par défaut interne, utilisée quand aucun
 > fichier de configuration n'est trouvé, est `safe` (réencoder l'audio en AAC).
 > Supprimer votre `superview.yaml` change donc le traitement de l'audio.
+
+Une clé que Superview ne connaît pas, ou un `min_bitrate` supérieur à
+`max_bitrate`, fait ignorer le fichier entier plutôt que de l'appliquer à moitié :
+le journal nomme la clé ou les deux valeurs, et les variables d'environnement
+ci-dessous s'appliquent toujours.
 
 Surcharge par variables d'environnement :
 
