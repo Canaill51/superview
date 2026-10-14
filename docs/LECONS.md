@@ -1140,6 +1140,39 @@ Lister les « never » : `grep -rn "never\|jamais\|not yet" --include='*_test.go
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-02, E-13, E-04, E-10 — L'arrêt est honoré, l'échec tardif n'est plus rejoué, le fichier terminé n'est plus effacé
+
+| | |
+| --- | --- |
+| **Constat** | E-02, E-13, E-04, E-10 ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `common/errors.go`, `common/encode.go`, `common/pipeline.go`, `common/security.go` ; tests `common/stopcascade_test.go`, `common/partialoutput_unix_test.go`, `common/integration_test.go` |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ (seul rouge : E-01, inchangé) · 5 contre-épreuves ✅ |
+
+**Symptôme** — Un SIGTERM lançait six ffmpeg et pouvait finir en « Transform complete » ;
+un échec après des minutes d'encodage rejouait jusqu'à cinq encodages complets ; un
+renommage final en échec effaçait la vidéo terminée ; le fichier produit était en 0600.
+
+**Cause racine** — Les trois portes de la cascade testaient `ErrCancelled` seul (la
+sentinelle d'U-09 n'y avait pas été reportée, L-101) ; la cascade ne distinguait pas un
+échec à l'ouverture d'un échec après production (L-105) ; le `defer` de nettoyage ne savait
+pas que l'encodage avait réussi ; `os.CreateTemp` crée en 0600.
+
+**Correctif** — `isStopRequest` et `shouldNotRetry` (`errors.go`), employés aux trois portes ;
+`errFailedAfterOutput` posé par `run()` dès qu'une progression strictement positive a été
+vue, enveloppé avec `%w` ; à l'échec du renommage, `keepPartial = true`, journal en `Error`
+et message qui nomme le fichier de travail ; `isValidOutputPath` refuse une destination
+qui est un répertoire ; `newPartialOutputPath` crée en `O_EXCL` 0666 sous umask avec un nom
+aléatoire. **Délibérément laissé** : la cascade reste intacte pour les échecs d'ouverture
+(`TestEncodeVideo_FallbackProceedsWhenMemoryAllows` compte toujours 3).
+
+**Contre-épreuves** — porte réduite à `ErrCancelled` → `SystemSignalStopsTheFallbackCascade`
+rouge (6 lancements) ; marqueur retiré → `FailureAfterOutputIsNotRetried` rouge ;
+`keepPartial` laissé faux → `RenameFailureKeepsTheFinishedFile` rouge ; mode 0600 →
+`HonoursUmask` rouge ; contrôle de répertoire retiré → `RejectsADirectory` rouge.
+
+**Leçon** — L-101 et L-105, écrites par la 13ᵉ passe, appliquées ici.
+
 ### [2026-10-14] DEC-36 — `common.go` découpé en huit fichiers, un par responsabilité
 
 | | |
