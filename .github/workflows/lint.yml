@@ -38,6 +38,7 @@ jobs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     # Required to type-check the root package (Fyne GUI, cgo).
     - name: Install GUI build dependencies
@@ -56,10 +57,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+    # check-latest, here and on every setup-go step: without it '1.26.x' means
+    # whatever patch release the runner image has cached, not the newest one.
+    # Go 1.26.9 fixed nine standard-library vulnerabilities while the images
+    # still carried 1.26.8, and this job went red on every pull request (M-05).
     - name: Setup Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     - name: Install GUI build dependencies
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
@@ -81,6 +87,7 @@ jobs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     - name: Check gofmt
       run: |

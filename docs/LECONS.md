@@ -4,11 +4,11 @@
 > Procédure : (1) ajouter une entrée en § 3 avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
-> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 98 règles tirées
+> Le § 2 est la partie à lire avant de corriger quoi que ce soit : 99 règles tirées
 > de défauts réels de ce dépôt. Le § 3 est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée.
 >
-> La file d'attente qui figurait ici a disparu avec son dernier item : les 105
+> La file d'attente qui figurait ici a disparu avec son dernier item : les 106
 > constats sont clos. L'état d'avancement vit désormais dans
 > [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
 > périment à chaque leçon et à chaque passe** — ils étaient restés à 80 et 67
@@ -23,8 +23,8 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 [§ 3bis](ANALYSE.md) (3ᵉ passe, empirique), `P-xx` à [§ 3ter](ANALYSE.md)
 (4ᵉ passe), `R-xx` à [§ 3quater](ANALYSE.md) (5ᵉ passe), `D-xx` et `V-xx` à
 [§ 3quinquies](ANALYSE.md) (6ᵉ passe), `U-xx` aux [§ 3sexies à § 3nonies](ANALYSE.md)
-(7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur) et `M-xx` à
-[§ 3decies](ANALYSE.md) (11ᵉ passe, entretien).
+(7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur) et `M-xx` aux
+[§ 3decies et § 3undecies](ANALYSE.md) (11ᵉ et 12ᵉ passes, entretien).
 
 ---
 
@@ -1042,7 +1042,61 @@ désormais qu'ajouter une passe oblige à le rouvrir. Corollaire de balayage : e
 passe ou une section, relire l'en-tête et le sommaire du même fichier, jamais seulement le
 corps.
 
+### L-99 — Un motif de version n'est pas une version : `1.26.x` veut dire « ce qui est déjà là » — 2026-10-14
+`go-version: '1.26.x'` se lisait comme « le dernier correctif de Go 1.26 ». `actions/setup-go`
+le lit autrement : la première version **en cache sur l'image du runner** qui satisfait le
+motif, sans consulter le manifeste. Go 1.26.9 corrigeait neuf vulnérabilités de la
+bibliothèque standard ; les images portaient 1.26.8 ; `govulncheck` a rougi sur trois PR
+Dependabot qui n'y étaient pour rien, et la release aurait compilé avec la version
+vulnérable sans que rien ne le dise.
+→ **Un motif de version dans un workflow s'accompagne de ce qui le force à se résoudre au
+plus récent** — `check-latest: true` pour `setup-go`. Épingler `1.26.9` n'est pas le remède :
+ce serait le même défaut au correctif suivant. Corollaire de diagnostic : quand une
+vérification rougit sur une PR qui ne touche pas ce qu'elle vérifie, lire dans le journal du
+job **quelle version a réellement tourné** avant de lire le diff.
+
+```bash
+grep -n -A3 "uses: actions/setup-go" .github/workflows/*.yml | grep -c "check-latest: true"
+grep -c "uses: actions/setup-go" .github/workflows/*.yml | awk -F: '{n+=$2} END {print n}'
+```
+Les deux nombres doivent être égaux.
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] M-05 — La CI prenait le Go en cache du runner, pas le dernier correctif
+
+**PR** — à venir
+
+| | |
+| --- | --- |
+| **Constat** | M-05 ([ANALYSE.md § 3undecies](ANALYSE.md)) |
+| **Fichiers** | `.github/workflows/lint.yml`, `.github/workflows/test.yml`, `.github/workflows/release.yml` (`check-latest: true` sur les neuf étapes `setup-go`), `docs/ENVIRONNEMENT.md` (Go 1.26.9), `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **Vérification** | workflows et documentation seuls, aucun fichier Go modifié · Go 1.26.9 local · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · `govulncheck ./...` 0 vulnérabilité ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ sauf le test VAAPI, rouge pour une raison matérielle consignée à part · contre-épreuve : le job `Vulnerability Scan` de cette PR doit installer 1.26.9 et passer, celui des PR Dependabot non rebasées reste rouge |
+
+**Symptôme** — #73, #74 et #75, trois montées de version Dependabot, bloquées sur la
+vérification obligatoire `Vulnerability Scan` : neuf vulnérabilités de la bibliothèque
+standard, GO-2026-6603 à GO-2026-6617, toutes `Fixed in: …@go1.26.9`. `master` était vert au
+dernier passage, le 2026-10-06.
+
+**Cause racine** — Le journal du job : `Setup go version spec 1.26.x` → `Found in cache @
+…/go/1.26.8`. Le motif `1.26.x` est satisfait par la version en cache, et `setup-go` ne
+cherche pas plus loin sans `check-latest`. Les vulnérabilités ont été publiées entre le
+dernier vert de `master` et l'ouverture des PR.
+
+**Correctif** — `check-latest: true` sur les neuf étapes `setup-go`, y compris celles de
+`release.yml`, qui aurait sinon compilé les binaires publiés avec 1.26.8. Mesuré avant de
+choisir l'ampleur du correctif : avec Go 1.26.9, `govulncheck ./...` rend 0 vulnérabilité
+**sans** toucher `golang.org/x/net` v0.55.0, que cinq des identifiants citent aussi — la
+montée de x/net envisagée d'abord n'est pas nécessaire et n'est pas faite.
+
+**Découvert en chemin** — L'échec `Test Go 1.26.x on windows-latest` de #74 est un 504 de
+`community.chocolatey.org` pendant `choco install ffmpeg`, sans rapport avec la PR. Et sur la
+machine de vérification, le pilote VAAPI n'accepte que le mode de débit CQP : la sonde passe,
+la conversion retombe sur le CPU (ANALYSE.md § 3undecies, à traiter dans sa propre PR).
+
+**Leçon** — L-99.
+
+---
 
 ### [2026-09-11] M-04 — Les chiffres et la numérotation qui servaient à naviguer avaient dérivé
 
@@ -2532,3 +2586,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-09-08 | **U-11 corrigé** : garde-fou mémoire avant encodage, chiffré au banc (290 o/px en 8 bits, 455 en 10 bits), refus sous le besoin et avertissement jusqu'à un quart au-dessus. Abstention sur le matériel, non mesuré, et quand `/proc/meminfo` n'existe pas. Leçons L-88, L-89. |
 | 2026-09-08 | **U-12 corrigé**, et la 10ᵉ passe close côté corrections : `N/A` n'est plus un avertissement, le seuil disque descend de 10 Go à 1 Go, la journalisation en double disparaît avec la sémantique d'ajout qui la causait, et le commentaire de `EncodeVideo` retrouve sa fonction. Reste **U-13** ouvert : sonder à la taille réellement encodée. Leçons L-90 à L-92. |
 | 2026-09-09 | **U-13 et U-14 corrigés**, sur retour d'essai de l'utilisateur : le pilote du HD 620 refuse `5120x2880` et donne ses bornes, ce que la sonde de 256×256 ne pouvait pas voir. Sonde à la géométrie réelle (mesurée gratuite : ~0,30 s quelle que soit la taille), recul propre vers l'encodeur logiciel de la famille source, fenêtre qui cesse de promettre, et garde-fou mémoire qui suit l'encodeur jusqu'au repli. Leçons L-93 à L-95. **Plus aucun constat ouvert.** |
+| 2026-10-14 | **M-05 corrigé** : la CI résolvait `1.26.x` sur le Go en cache des runners (1.26.8) au lieu du correctif 1.26.9, et `Vulnerability Scan` bloquait les trois PR Dependabot ouvertes. `check-latest: true` sur les neuf étapes `setup-go`. Leçon L-99. |

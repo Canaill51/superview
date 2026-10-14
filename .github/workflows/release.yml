@@ -160,6 +160,7 @@ jobs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     # ffmpeg matters here, and not only to run more tests. Without it every
     # integration test used to skip, and module coverage measured 51.4%
@@ -223,6 +224,7 @@ jobs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     # The packaging tool is pinned, like every action in this repository is
     # pinned by SHA. Fetching @latest at release time meant an upstream change
@@ -348,6 +350,7 @@ jobs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
+        check-latest: true
 
     - name: Install GUI build dependencies
       run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
