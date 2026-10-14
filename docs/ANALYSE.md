@@ -3116,9 +3116,9 @@ GoPro `gpmd` est perdue par `-map "[v]" -map "0:a?"`).
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
-| ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Restent les questions Q-02 et Q-03, § 5, qui ne sont pas des constats |
-| ✅ **Tranchée** (1) | Q-01 — mesurée : 1,6 → 4/3, § 5 |
-| ❓ **Ouvertes** (2) | Q-02 (garde-fou mémoire chiffré à 4 fils), Q-03 (télémétrie GoPro perdue), § 5 |
+| ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
+| ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
+| ❓ **Ouvertes** (0) | *aucune* |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
 `go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
@@ -3267,7 +3267,7 @@ contre-épreuve (les quatre cas rougissent sur 1,6), README corrigé.
 **Portée.** Un seul clip, un seul type de contenu, deux encodeurs HEVC ; H.264 non testé. La marge
 réelle est probablement plus large que mesurée, le contenu choisi étant défavorable.
 
-### Q-02 — Le garde-fou mémoire est-il juste au nombre de fils réellement utilisé ?
+### Q-02 — Le garde-fou mémoire est-il juste au nombre de fils réellement utilisé ? — **TRANCHÉE**
 
 [`common/common.go:771-790`](../common/common.go#L771-L790), [`:1443`](../common/common.go#L1443)
 
@@ -3281,7 +3281,7 @@ empêcher. **Non mesuré.** À mesurer avant de toucher la constante : même pro
 `-threads 8` et `-threads 16`, et si la pente est nette, chiffrer par fil plutôt que par
 pixel.
 
-### Q-03 — Faut-il conserver la télémétrie GoPro ?
+### Q-03 — Faut-il conserver la télémétrie GoPro ? — **TRANCHÉE**
 
 [`common/common.go:1314`](../common/common.go#L1314)
 
@@ -3291,6 +3291,34 @@ température) d'un fichier HERO est perdue, de la même famille que N-04/N-05. `
 `-copy_unknown`, et un lecteur qui ne connaît pas la piste peut s'en plaindre. **Question
 produit, pas défaut** : l'outil existe pour la vidéo, et personne n'a demandé la télémétrie.
 À mesurer sur un vrai fichier HERO avant d'adopter.
+
+### Q-02 — Réponse, mesurée le 2026-10-14 — **TRANCHÉE**
+
+**Dispositif.** `ffmpeg -f lavfi -i testsrc2=size=WxH:rate=30 -frames:v N -pix_fmt P -c:v libx265
+-preset medium -threads T -x265-params log-level=error -f null -`, sous
+`systemd-run --user --scope -p MemoryMax=… -p MemorySwapMax=0` et `/usr/bin/time -f %M` pour le
+pic de mémoire résidente. Le plafond cgroup protège la session : un dépassement tue le
+processus mesuré, pas la machine (16 cœurs, 15 Gio). Limite dite plutôt que contournée : la mire
+n'a ni décodage de la source ni filtre `remap`, donc son niveau à 4 fils est 11 à 15 % sous les
+290 et 455 d'U-11 ; **la pente, pas le niveau**, est ce que ce banc apporte.
+
+| Image | Profondeur | 4 fils | 8 fils | 16 fils |
+| --- | --- | --- | --- | --- |
+| 5120×2880 | 8 bits | 3,54 Gio (257 o/px) | 4,15 (302) | 5,19 (378) |
+| 5120×2880 | 10 bits | 5,30 Gio (385) | 6,14 (446) | tué à 7 Gio (> 509) |
+| 2560×1440 | 8 bits | 1,11 Gio (322) | 1,28 (373) | 1,64 (476) |
+| 2560×1440 | 10 bits | 1,60 Gio (465) | 1,84 (535) | 2,34 (681) |
+
+**Réponse : non, l'estimation était fausse au-delà de 4 fils.** Droite nette, ×1,16 à 8 fils et
+×1,47 à 16, sur les deux profondeurs et les deux tailles. À 16 cœurs, 5120×2880 en 8 bits
+demandait ~5,2 Gio pour ~4,0 annoncés ; en 10 bits, plus de 7 pour 6,25 annoncés. **Correctif** :
+DEC-37, `besoin × (100 + 4 × (fils − 4)) / 100`, branché sur les fils réellement passés à
+ffmpeg aux deux appelants (PR #90). Cinq contre-épreuves (une par défaut réintroduit).
+
+### Q-03 — Réponse, décision de l'utilisateur le 2026-10-14 — **TRANCHÉE**
+
+Pas de télémétrie GoPro dans la sortie. Aucune mesure nécessaire : la question était de produit,
+et la réponse est non. DEC-38.
 
 ## 6. Journal des révisions de ce document
 
@@ -3323,3 +3351,4 @@ produit, pas défaut** : l'outil existe pour la vidéo, et personne n'a demandé
 | 2026-10-14 | **13ᵉ passe, à `f925ee5`**, à la demande de l'utilisateur : état des lieux complet, six revues parallèles confrontées aux documentations officielles (FFmpeg 8.0.1, Fyne 2.8.2, Go 1.26.9, GitHub Actions), baseline mesurée (un seul rouge, E-01). § 3duodecies, **25 constats E-01 à E-25**, tous ouverts, les plus lourds reproduits deux fois. Les quatre familles : correctifs appliqués à moitié (E-02, E-06, E-14), défauts introduits par un correctif (E-04, E-10), faits FFmpeg jamais mesurés (E-07 à E-09), tests verts à vide (E-19). Créé : [DECISIONS.md](DECISIONS.md) (34 décisions) et `.claude/`. Q-02 et Q-03 ajoutées. Plan d'actions en sept PR, quatre arbitrages attendus. Leçons L-101 à L-106. **Aucune modification de code.** |
 | 2026-10-14 | **PR 2 du plan — E-03, E-14, E-15, E-20 corrigés, E-23 en partie.** Une seule méthode de sortie, `appState.shutdown`, attend la goroutine d'encodage depuis les trois chemins ; en l'écrivant, l'hypothèse d'E-03 « `SetOnClosed`, que `app.Quit` et `catchTerm` traversent tous deux » s'est révélée fausse pour `catchTerm` (il appelle `driver.Quit`, aucune fenêtre fermée) — d'où un second crochet après `ShowAndRun()` et L-109. `completeEncoding` est la branche de fin unique, testée aux quatre issues sur un vrai canvas. § 4 mis à jour ; DEC-34 amendée (255 n'est pas une annulation). |
 | 2026-10-14 | **E-26 et E-27**, trouvés après la clôture de la 13ᵉ passe : #85 à #87 avaient fusionné avec Windows rouge, le gate requis étant *sauté* — donc compté réussi — dès qu'un job de test échouait. Gate corrigé et prouvé ; les quatre défauts Windows qu'il cachait corrigés dans la même PR (#88). Leçons L-111, L-112. |
+| 2026-10-14 | **Q-02 mesurée, Q-03 tranchée.** Q-02 : le garde-fou mémoire, chiffré à 4 fils, sous-estimait de ×1,47 à 16 fils ; pente de +4 % par fil mesurée sur 5120×2880 et 2560×1440, 8 et 10 bits, branchée sur les fils réels (DEC-37, DEC-17 remplacée). Q-03 : pas de télémétrie GoPro, sur décision de l'utilisateur (DEC-38). Leçon L-113. |

@@ -1210,7 +1210,47 @@ nom du test.** Contrôle : `grep -nE 't\.Run\("[^"]*[,;=]' *_test.go common/*_te
 les fichiers qui écrivent un `.bat` (`grep -l '\.bat"' *_test.go common/*_test.go`) — un seul
 cas trouvé le 2026-10-14, celui-ci.
 
+### L-113 — Une constante mesurée appartient à la configuration où elle a été mesurée — 2026-10-14
+Les 290 et 455 octets par pixel d'U-11 sortaient d'un banc à `-threads 4`, sur le portable du
+signalement. Le code les appliquait à toute machine, qui encode avec un fil par cœur : à 16 fils
+le besoin réel est ×1,47, et le garde-fou, écrit pour empêcher l'arrêt de ffmpeg par le noyau,
+laissait passer exactement ces conversions. Le commentaire de la constante nommait ses
+conditions (`-threads 4`) ; rien ne forçait le code à les respecter, et la question Q-02 est
+restée ouverte jusqu'à ce qu'on la mesure.
+→ **Une constante issue d'un banc se lit avec ses paramètres : tout paramètre du banc qui varie
+en production devient un argument de la fonction qui l'utilise, pas une valeur oubliée.** Et
+l'argument se branche à l'endroit où la production le décide — ici `effectiveEncoderThreads`,
+la même fonction que la ligne de commande — avec un test par appelant : sans lui, deux appels
+sur trois passaient encore la valeur du banc (contre-épreuve 3a/3b). Contrôle :
+`grep -n "runtime.NumCPU" common/*.go | grep -v _test` — chaque occurrence doit passer par
+`requestedEncoderThreads`, sauf `health.go` et `hardware.go`, qui ne décident rien.
+
 ## 3. Corrections appliquées
+
+### [2026-10-14] Q-02, Q-03 — Le garde-fou mémoire suit les fils ; pas de télémétrie GoPro
+
+| | |
+| --- | --- |
+| **Constat** | Q-02, Q-03 ([ANALYSE.md § 5](ANALYSE.md)) |
+| **Fichiers** | `common/memory.go`, `common/encode.go`, `common/pipeline.go` ; tests : `common/memoryguard_test.go`, `common/fallbackmemory_test.go`, `common/integration_test.go` |
+| **PR** | #90 |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint` ✅ · 5 contre-épreuves ✅ (voir ci-dessous) |
+
+**Symptôme** — Aucun observé : une sous-estimation soupçonnée (Q-02), puis mesurée.
+
+**Cause racine** — Les constantes d'U-11 valaient pour 4 fils et s'appliquaient à 16.
+
+**Correctif** — `memoryNeededForFrame` prend le nombre de fils et ajoute 4 % par fil au-delà
+de 4 (DEC-37) ; `effectiveEncoderThreads` donne le compte réel aux deux appelants. Q-03 :
+rien à coder, DEC-38.
+
+**Contre-épreuves** — (1) pente ignorée : `GrowsWithThreads` et `RefusesWhatOnlyManyThreadsCannotHold`
+rougissent ; (2) plafond de 16 retiré : `TestEffectiveEncoderThreads` rougit ; (3a) `PerformEncoding`
+repasse la base : `MemoryCheckPricesTheConfiguredThreads` rougit ; (3b) le repli repasse la
+base : `FallbackPricesTheThreadsItWillUse/sixteen_threads_do_not_fit` rougit ; (4) économie
+créditée sous 4 fils : `NeverBelowTheBaseline` rougit.
+
+**Leçon** — L-113.
 
 ### [2026-10-14] E-26, E-27 — Le gate ne bloquait rien, et ce qu'il cachait sous Windows
 
@@ -3294,3 +3334,4 @@ Voir [ANALYSE.md](ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
 | 2026-10-14 | **M-06 corrigé** : les branches fusionnées par `merge-on-label.yml` restaient, parce que le réglage du dépôt ne s'applique pas à ce que fait `GITHUB_TOKEN`. Le workflow les supprime lui-même, sauf empilement. Leçon L-100. |
 | 2026-10-14 | **E-03, E-14, E-15, E-20 corrigés, E-23 en partie** (PR 2 du plan) : `appState.shutdown` attend la goroutine d'encodage depuis les trois sorties ; `completeEncoding` distingue l'annulation ; *Diagnostic* verrouillé ; encodeur capturé sur le fil UI et préférence préservée ; zenity 255 = erreur ; sélecteurs natifs hors du fil UI ; closures de `main()` repliées ; `fyneDo = true`. Leçon L-109, L-102 corrigée (le chemin signal de Fyne ne passe pas par `SetOnClosed`). |
 | 2026-10-14 | **E-26, E-27 corrigés** (#88) : le gate requis, sauté dès qu'un test échouait, comptait comme réussi ; quatre défauts Windows qu'il cachait. Leçons L-111, L-112. |
+| 2026-10-14 | **Q-02 mesurée, Q-03 tranchée** (#90) : garde-fou mémoire à +4 % par fil au-delà de 4 (DEC-37) ; pas de télémétrie GoPro (DEC-38). Leçon L-113. |

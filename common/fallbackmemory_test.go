@@ -129,3 +129,47 @@ func TestEncodeVideo_FallbackProceedsWhenMemoryAllows(t *testing.T) {
 		t.Fatalf("ffmpeg was launched %d times, want 3: two hardware attempts and the CPU fallback", got)
 	}
 }
+
+// TestEncodeVideo_FallbackPricesTheThreadsItWillUse: the fallback's guard must
+// be given the thread count the CPU encode will really run with, not the
+// baseline. 7.5 GiB holds the 6.25 GiB this clip costs at four threads and not
+// what it costs at sixteen (about 9 GiB), so the same machine is refused or
+// not according to the configured count.
+func TestEncodeVideo_FallbackPricesTheThreadsItWillUse(t *testing.T) {
+	run := func(t *testing.T, threads int) (error, int32) {
+		t.Helper()
+		video := hevcSource("yuv420p10le")
+		startSessionWithMaps(t, video, false)
+
+		dir := t.TempDir()
+		fakeRefusingFFmpeg(t, dir, filepath.Join(dir, "calls.txt"))
+		launches := countFFmpegLaunches(t)
+		withAvailableMemory(t, 7*gib+gib/2, true)
+
+		cfg := reAudioConfig()
+		cfg.EncoderThreads = threads
+		err := EncodeVideo(cfg, video, "h264_vaapi", 2_000_000,
+			filepath.Join(t.TempDir(), "out.mp4"), vaapiMachine, func(float64) {}, make(chan struct{}))
+		return err, launches.Load()
+	}
+
+	t.Run("sixteen threads do not fit", func(t *testing.T) {
+		err, launched := run(t, 16)
+		if err == nil || !strings.Contains(err.Error(), "not enough memory") {
+			t.Fatalf("16 threads need about 9 GiB of the 7.5 free: want the memory refusal, got %v", err)
+		}
+		if launched != 2 {
+			t.Fatalf("ffmpeg was launched %d times, want 2: the fallback must not start", launched)
+		}
+	})
+
+	t.Run("four threads fit", func(t *testing.T) {
+		err, launched := run(t, 4)
+		if err != nil && strings.Contains(err.Error(), "not enough memory") {
+			t.Fatalf("4 threads need 6.25 GiB of the 7.5 free, must not be refused: %v", err)
+		}
+		if launched != 3 {
+			t.Fatalf("ffmpeg was launched %d times, want 3: two hardware attempts and the CPU fallback", launched)
+		}
+	})
+}

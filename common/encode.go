@@ -237,6 +237,22 @@ func clampEncoderThreads(encoder string, threads int) int {
 	return threads
 }
 
+// requestedEncoderThreads is the thread count asked for, before any encoder
+// clamps it: the configured value, else one per core.
+func requestedEncoderThreads(cfg *Config) int {
+	if cfg != nil && cfg.EncoderThreads > 0 {
+		return cfg.EncoderThreads
+	}
+	return runtime.NumCPU()
+}
+
+// effectiveEncoderThreads is the -threads value an encode with this encoder
+// really passes to ffmpeg. The memory guard prices this count, not the host's
+// core count, so the two cannot disagree about libx265's 16-thread ceiling.
+func effectiveEncoderThreads(cfg *Config, encoder string) int {
+	return clampEncoderThreads(encoder, requestedEncoderThreads(cfg))
+}
+
 // encoderThreadArgs returns the -threads option for the chosen encoder, or
 // nothing at all.
 //
@@ -470,10 +486,7 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 
 	cfg = configOrDefault(cfg)
 	safePerformanceMode := cfg.IsSafePerformanceMode()
-	encoderThreads := runtime.NumCPU()
-	if cfg.EncoderThreads > 0 {
-		encoderThreads = cfg.EncoderThreads
-	}
+	encoderThreads := requestedEncoderThreads(cfg)
 	filterThreads := cfg.FilterThreads
 	videoPreset := cfg.VideoPreset
 
@@ -720,7 +733,7 @@ func EncodeVideo(cfg *Config, video *VideoSpecs, encoder string, bitrate int, ou
 			// ffmpeg in the first place. Falling into that silently would have
 			// made the guard a half-truth.
 			if outX, outY, known := sessionOutputSize(); known {
-				if memErr := checkMemoryForFrame(outX, outY, video, fallbackEncoder); memErr != nil {
+				if memErr := checkMemoryForFrame(outX, outY, video, fallbackEncoder, effectiveEncoderThreads(cfg, fallbackEncoder)); memErr != nil {
 					logger.Error("The CPU encoder that would take over does not fit in memory",
 						slog.String("failed_encoder", encoder),
 						slog.String("fallback_encoder", fallbackEncoder),

@@ -48,7 +48,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-14](#dec-14) | L'interface ne promet pas la compatibilité GoPro | Acceptée |
 | [DEC-15](#dec-15) | L'encodage écrit dans un fichier de travail renommé en place ; l'entrée ne peut pas être la sortie | Acceptée |
 | [DEC-16](#dec-16) | L'annulation et l'arrêt système sont deux erreurs typées distinctes | Acceptée |
-| [DEC-17](#dec-17) | Le garde-fou mémoire est chiffré au banc et ne chiffre pas les encodeurs matériels | Acceptée |
+| [DEC-17](#dec-17) | Le garde-fou mémoire est chiffré au banc et ne chiffre pas les encodeurs matériels | Remplacée par DEC-37 |
 | [DEC-18](#dec-18) | Le journal va dans un fichier plafonné sous le cache utilisateur ; la progression y est en `debug` | Acceptée |
 | [DEC-19](#dec-19) | Les liens symboliques sont résolus puis validés, pas rejetés | Acceptée |
 | [DEC-20](#dec-20) | Une option sans effet se retire ; une fonctionnalité inatteignable s'expose | Acceptée |
@@ -68,6 +68,8 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
 | [DEC-36](#dec-36) | `common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
+| [DEC-37](#dec-37) | Le garde-fou mémoire chiffre au nombre de fils réellement passé à ffmpeg : +4 % par fil au-delà de 4 | Acceptée |
+| [DEC-38](#dec-38) | La télémétrie GoPro (piste `gpmd`) n'est pas conservée | Acceptée |
 
 ---
 
@@ -201,10 +203,11 @@ origine du dépôt · Acceptée
 
 ### DEC-17
 **Le garde-fou mémoire est chiffré au banc et ne chiffre pas les encodeurs matériels.**
-2026-09-08 · Acceptée · U-11, U-14, L-88
+2026-09-08 · Remplacée par DEC-37 · U-11, U-14, L-88
 
 **Décision** — 290 o/pixel (8 bits) et 455 o/pixel (10 bits) de sortie, mesurés avec `libx265` à `-threads 4`. Les encodeurs matériels rendent 0 : « refuser sur un chiffre que personne n'a mesuré serait pire que ne pas vérifier ».
 **À rouvrir si** — La mesure est refaite à `-threads 16` (voir Q-02) ou pour un encodeur matériel.
+*Rouverte le 2026-10-14 : Q-02 mesurée, voir DEC-37. Les encodeurs matériels restent non chiffrés.*
 
 ### DEC-18
 **Le journal va dans un fichier plafonné sous le cache utilisateur ; la progression y est en `debug`.**
@@ -343,3 +346,21 @@ prose en `common.go:NNN` sont remplacées par le nom du fichier et du symbole, q
 moins vite (L-98). `main()` de `gui_main.go` n'est **pas** concerné (DEC-23).
 **À rouvrir si** — Jamais vers un retour à un fichier unique. Un fichier qui dépasse ~700
 lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
+
+### DEC-37
+**Le garde-fou mémoire chiffre au nombre de fils réellement passé à ffmpeg : +4 % par fil au-delà de 4.**
+2026-10-14 · Acceptée · Q-02, L-113 · remplace DEC-17
+
+**Contexte** — Les 290 et 455 o/pixel d'U-11 avaient été mesurés à `-threads 4`, alors que l'application encode avec un fil par cœur, jusqu'à 16 pour `libx265`. x265 alloue par fil de trames : la question Q-02 soupçonnait une sous-estimation sur les machines à nombreux cœurs.
+**Décision** — Mesurée le 2026-10-14 sur 16 cœurs (`libx265`, preset `medium`, pic de mémoire résidente, plafond cgroup) : 5120×2880 en 8 bits, 3,54 / 4,15 / 5,19 Gio à 4 / 8 / 16 fils ; en 10 bits, 5,30 / 6,14 Gio à 4 / 8 fils et plus de 7 Gio à 16 (tué au plafond) ; 2560×1440 donne les mêmes rapports. La pente est une droite, ×1,16 à 8 fils et ×1,47 à 16 : `besoin × (100 + 4 × (fils − 4)) / 100`, avec les constantes d'U-11 comme base à 4 fils. En dessous de 4 fils on ne crédite rien (non mesuré). Le compte de fils est celui qu'ffmpeg reçoit (`effectiveEncoderThreads` : valeur configurée ou un par cœur, plafonnée à 16 pour `libx265`), aux deux endroits qui appellent le garde-fou (`PerformEncoding` et le repli matériel → CPU). Les encodeurs matériels restent non chiffrés (DEC-17).
+**Conséquences** — Une machine à 16 cœurs se voit refuser plus tôt une conversion 10 bits en 5120×2880 qui aurait fini tuée par le noyau. Le banc utilisait une mire sans filtre `remap` : son niveau à 4 fils est 11 à 15 % sous les constantes d'U-11, seule sa pente est retenue. Toute nouvelle valeur de `-threads` ou tout nouvel encodeur logiciel passe par `effectiveEncoderThreads`, jamais par `runtime.NumCPU()` en direct.
+**À rouvrir si** — Le banc est refait avec le filtre `remap` et une vraie source (la pente pourrait différer), ou un encodeur matériel est chiffré, ou x265 change sa politique de fils de trames.
+
+### DEC-38
+**La télémétrie GoPro (piste `gpmd`) n'est pas conservée.**
+2026-10-14 · Acceptée · Q-03, décision de l'utilisateur
+
+**Contexte** — `-map "[v]" -map "0:a?"` ne garde aucun flux de données : la piste GPS, IMU et température d'un fichier HERO est perdue, de la même famille que N-04/N-05. `-map 0:d? -c:d copy` fonctionnerait pour `gpmd` en MP4, au prix de pistes inconnues pour certains lecteurs.
+**Décision** — Ne pas la conserver. L'outil existe pour la vidéo ; l'utilisateur n'a pas besoin de la télémétrie.
+**Conséquences** — La perte est voulue : ne pas la rouvrir comme défaut. Une conversion ne porte ni piste de données, ni métadonnées de télémétrie.
+**À rouvrir si** — Une demande d'utilisateur réelle de télémétrie dans la sortie ; à mesurer alors sur un vrai fichier HERO (`-copy_unknown`, lecteurs qui s'en plaignent).
