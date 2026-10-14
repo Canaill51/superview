@@ -40,8 +40,8 @@ ls /tmp/glue/sysroot/usr/include/wayland-client-core.h 2>/dev/null || echo "sysr
 
 ```bash
 # 1. Toolchain Go, sans sudo -- prendre la dernière 1.26.x, comme la CI
-cd /tmp && curl -sLO https://go.dev/dl/go1.26.8.linux-amd64.tar.gz
-rm -rf ~/.local/go && mkdir -p ~/.local && tar -C ~/.local -xzf go1.26.8.linux-amd64.tar.gz
+cd /tmp && curl -sLO https://go.dev/dl/go1.26.9.linux-amd64.tar.gz
+rm -rf ~/.local/go && mkdir -p ~/.local && tar -C ~/.local -xzf go1.26.9.linux-amd64.tar.gz
 export PATH=$HOME/.local/go/bin:$PATH && go version
 
 # 2. En-têtes GUI sans sudo : télécharger les .deb et les extraire dans un sysroot.
