@@ -1,9 +1,12 @@
-//! Logique de Superview, sans interface graphique (DEC-43).
+//! Superview's logic, with no graphical interface (DEC-43).
 //!
-//! Le squelette ne contient encore que la version ; les modules arrivent un par PR,
-//! chacun avec ses tests (voir le plan de portage).
+//! Modules arrive one pull request at a time, each with its tests (see the port plan).
 
-/// Version du cœur, celle du workspace.
+pub mod error;
+pub mod pgm;
+pub mod video;
+
+/// The core's version, which is the workspace's.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
