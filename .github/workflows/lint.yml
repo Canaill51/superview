@@ -5,6 +5,14 @@ on:
     branches: [ master, main, develop ]
   pull_request:
     branches: [ master, main, develop ]
+  # Dispatched by merge-on-label.yml once it has merged a pull request: the
+  # push its GITHUB_TOKEN makes to master starts no workflow by itself, and
+  # workflow_dispatch is the documented exception. See test.yml.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -26,27 +34,53 @@ jobs:
   # math.Pow calls in GeneratePGM, which must stay readable against the
   # reference algorithm). Two jobs contradicting the config is worse than no
   # jobs; the config is the single place that decides.
+  #
+  # This job and the vulnerability scan stay separate although both install
+  # the same headers: they run side by side (3m35 and 2m24 on 801660d), and
+  # one job doing both would take their sum. Their names are required checks
+  # of the master ruleset, too.
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Setup Go
+      id: go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache-dependency-path: go.sum
 
     # Required to type-check the root package (Fyne GUI, cgo).
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+
+    # The linter is compiled from source by "go install", which is most of the
+    # step's three minutes and produces the same binary every run until the
+    # pin or the Go version moves -- both are in the key. The Go version is
+    # there because golangci-lint analyses with the Go it was built with, and
+    # a binary from an older patch release would read the newer one's code
+    # with the older one's rules.
+    - name: Cache the golangci-lint binary
+      id: lint-bin
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/go/bin/golangci-lint
+        key: golangci-lint-${{ env.GOLANGCI_LINT_VERSION }}-go${{ steps.go.outputs.go-version }}-${{ runner.os }}
+
+    - name: Install golangci-lint
+      if: steps.lint-bin.outputs.cache-hit != 'true'
+      run: go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
 
     - name: Run golangci-lint
       run: |
-        go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+        "$(go env GOPATH)/bin/golangci-lint" version
         "$(go env GOPATH)/bin/golangci-lint" run ./... --timeout=5m
 
   govulncheck:
@@ -55,24 +89,42 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     # check-latest, here and on every setup-go step: without it '1.26.x' means
     # whatever patch release the runner image has cached, not the newest one.
     # Go 1.26.9 fixed nine standard-library vulnerabilities while the images
     # still carried 1.26.8, and this job went red on every pull request (M-05).
     - name: Setup Go
+      id: go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache-dependency-path: go.sum
 
     - name: Install GUI build dependencies
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+
+    # Same reasoning as the linter's binary cache above. The Go version is in
+    # the key because the scan's verdict on the standard library is the one of
+    # the toolchain that built the binary (M-05).
+    - name: Cache the govulncheck binary
+      id: vuln-bin
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/go/bin/govulncheck
+        key: govulncheck-${{ env.GOVULNCHECK_VERSION }}-go${{ steps.go.outputs.go-version }}-${{ runner.os }}
+
+    - name: Install govulncheck
+      if: steps.vuln-bin.outputs.cache-hit != 'true'
+      run: go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
     - name: Run govulncheck
       run: |
-        go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+        "$(go env GOPATH)/bin/govulncheck" -version
         "$(go env GOPATH)/bin/govulncheck" ./...
 
   fmt:
@@ -81,13 +133,20 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+    # cache: false, and it matters more than it looks. gofmt reads no module,
+    # so this job's module and build caches are empty -- and setup-go saves
+    # them anyway, under the same key every Linux job with this go.sum and Go
+    # version uses, seven seconds into the run, before any other job can. A
+    # cache key is written once, so every other job then restored 7.5 KB
+    # (801660d) and compiled Fyne's cgo from nothing, on every run, for months.
     - name: Setup Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.26.x'
         check-latest: true
+        cache: false
 
     - name: Check gofmt
       run: |
@@ -111,7 +170,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     # Compares the sequence of heading levels, never the titles: the French
     # ones are translated, their shape is not. Fenced blocks are skipped so a
