@@ -127,6 +127,14 @@ func TestGUIHandler_GetEncoderWithoutVideo(t *testing.T) {
 	}
 }
 
+// TestGUIHandler_GetSqueezeAndBitrate pins that the handler hands the pipeline
+// the values it was built with.
+//
+// It used to assert "the GUI never enables squeeze today", an absence that
+// stopped being true with C-04 and stayed green for twelve passes (E-19,
+// L-106): a handler that dropped the checkbox's state and always answered false
+// would have satisfied it. It now asserts the presence, in both directions, so
+// a constant answer either way reddens it.
 func TestGUIHandler_GetSqueezeAndBitrate(t *testing.T) {
 	h := &GUIHandler{bitrate: 4_000_000}
 	got, err := h.GetBitrate()
@@ -136,8 +144,12 @@ func TestGUIHandler_GetSqueezeAndBitrate(t *testing.T) {
 	if got != 4_000_000 {
 		t.Errorf("GetBitrate = %d, want 4000000", got)
 	}
-	if h.GetSqueeze() {
-		t.Error("the GUI never enables squeeze today; update this test if that changes")
+
+	for _, squeeze := range []bool{true, false} {
+		h := &GUIHandler{squeeze: squeeze}
+		if got := h.GetSqueeze(); got != squeeze {
+			t.Errorf("GUIHandler{squeeze: %v}.GetSqueeze() = %v: the checkbox's state does not reach the pipeline", squeeze, got)
+		}
 	}
 }
 
@@ -980,18 +992,41 @@ func TestAppState_RefreshHardwareStatus(t *testing.T) {
 		}
 	})
 
+	// This subtest used to leave encoderProbe nil, so the line it read was
+	// "Hardware: checking which encoders...", which satisfied its HasPrefix
+	// check without DescribeHardwareAccelerationPlan ever being reached (E-19).
+	// With a probe report and a dropdown selection it now catches a refresh
+	// that ignores the user's codec (the plan would name h264_nvenc, first in
+	// line for an h264 source with cuda), and one that hands the raw dropdown
+	// label to the planner (`encoder "libx264 encoder" not in approved list`).
 	t.Run("describes the planned path", func(t *testing.T) {
 		state := newTestAppState(t)
 		state.ffmpeg = map[string]string{"accels": "cuda", "encoders": "h264_nvenc,libx264"}
+		// Selected before the probe lands, an order the window can see; it
+		// also keeps encoderChanged from starting a background verification
+		// that would race this test's reads of the label.
+		state.encoder.Options = encoderOptionsFor(state.ffmpeg["encoders"])
+		state.encoder.SetSelected("libx264 encoder")
 		state.video = testVideo()
+		state.setEncoderProbe(&common.EncoderProbeReport{Results: []common.EncoderProbe{
+			{Encoder: "h264_nvenc", Usable: true},
+			{Encoder: "libx264", Usable: true},
+		}})
 
 		state.refreshHardwareStatus()
 
-		if !strings.HasPrefix(state.hardwareStatus.Text, "Hardware: ") {
-			t.Errorf("hardware status = %q, want a Hardware: line", state.hardwareStatus.Text)
+		line := state.hardwareStatus.Text
+		if !strings.HasPrefix(line, "Hardware: ") {
+			t.Errorf("hardware status = %q, want a Hardware: line", line)
 		}
-		if strings.Contains(state.hardwareStatus.Text, "unavailable") {
-			t.Errorf("hardware status = %q, want a real plan", state.hardwareStatus.Text)
+		if strings.Contains(line, "checking") {
+			t.Fatalf("hardware status = %q: still the waiting line, the plan was never computed", line)
+		}
+		if strings.Contains(line, "not in approved list") {
+			t.Errorf("hardware status = %q: the dropdown label reached the planner unparsed", line)
+		}
+		if !strings.Contains(line, "libx264") || strings.Contains(line, "nvenc") {
+			t.Errorf("hardware status = %q, want the plan for the selected libx264", line)
 		}
 	})
 }
@@ -1043,6 +1078,18 @@ func TestAppState_SetFFmpegUnblocksTheWindow(t *testing.T) {
 	}
 	if strings.Contains(state.hardwareStatus.Text, "unavailable") {
 		t.Errorf("hardware status = %q, want a real plan after the retry", state.hardwareStatus.Text)
+	}
+
+	// Without a probe report the line above is "checking which encoders...",
+	// which the "unavailable" check alone accepts (E-19). In main() the retry
+	// is followed by the probe; once it lands, the line must be a plan.
+	state.setEncoderProbe(&common.EncoderProbeReport{Results: []common.EncoderProbe{
+		{Encoder: "h264_nvenc", Usable: true},
+		{Encoder: "libx264", Usable: true},
+	}})
+	state.refreshHardwareStatus()
+	if got := state.hardwareStatus.Text; strings.Contains(got, "checking") || !strings.Contains(got, "h264_nvenc") {
+		t.Errorf("hardware status = %q after the retry and the probe, want the plan naming h264_nvenc", got)
 	}
 	for i, w := range state.locked {
 		if w.Disabled() {

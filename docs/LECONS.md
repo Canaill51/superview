@@ -1189,6 +1189,67 @@ après le travail : `grep -n "close(done)\|<-done" *.go common/*.go`.
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-19 (fin, côté GUI) — Les tests de la fenêtre lisaient la ligne d'attente
+
+| | |
+| --- | --- |
+| **Constat** | E-19, sous-items du paquet racine ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | tests seulement : `gui_main_test.go`, `gui_handler_test.go` (nouveau) ; aucune ligne de production |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ (seul le test VAAPI saute) · 13 contre-épreuves ✅, toutes compilées |
+
+**Symptôme** — `TestAppState_RefreshHardwareStatus` (« describes the planned path ») et
+`TestAppState_SetFFmpegUnblocksTheWindow` laissaient `encoderProbe` à nil : la ligne lue était
+« Hardware: checking which encoders… », qui satisfaisait leurs assertions sans que
+`DescribeHardwareAccelerationPlan` soit atteint. `TestGUIHandler_GetSqueezeAndBitrate` affirmait
+« the GUI never enables squeeze today », faux depuis C-04 (L-106). `GUIHandler.Show*` à 0 %
+(`ShowProgressDetail` 40 %), `showPrerequisiteDialog` 13,3 %.
+
+**Cause racine** — L-35 : un état de test qui ne peut pas atteindre la branche testée. L-106 :
+une assertion d'absence qui n'a pas suivi l'arrivée de la fonction.
+
+**Correctif** — Les deux tests `appState` posent un rapport de sonde utilisable ; le premier
+sélectionne aussi `libx264 encoder` dans la liste (avant la sonde, pour que `encoderChanged` ne
+lance pas de vérification en arrière-plan) et exige `libx264`, ni `nvenc`, ni « checking », ni
+« not in approved list ». `GetSqueeze` testé dans les deux sens. Nouveau `gui_handler_test.go` :
+`ShowProgress(42)` → 0,42 ; `ShowProgressDetail(42, 90 s)` → `formatEncodingStatus(42, 90 s)` ;
+`ShowInfo` ouvre un dialogue portant le message ; `ShowError` route « cannot find
+ffmpeg/ffprobe » vers le dialogue au lien d'installation et pas une autre erreur ;
+`showPrerequisiteDialog` rend vrai (avec et sans *Retry*) pour cette erreur, faux et sans
+dialogue pour une autre et pour `nil`. Les dialogues sont observés sur une vraie fenêtre de test
+(`test.NewTempWindow`, `test.LaidOutObjects` sur l'overlay).
+La garde de génération de `applyVerifiedHardwareLine` était déjà tenue par
+`AStaleVerificationDoesNotOverwriteANewerLine` et `RefreshInvalidatesAVerificationInFlight` :
+rien ajouté, contre-épreuves refaites.
+
+**Contre-épreuves** — libellé brut passé au planificateur (ligne 593) → rouge (`encoder
+libx264 encoder not available`) ; sélection ignorée → rouge (`planned h264_nvenc`) ; appels
+`setEncoderProbe` retirés des deux tests → deux rouges (« checking ») ; `GetSqueeze` rendant
+`false` puis `true` → rouge chaque fois ; `percent / 1000` → rouge (0,042) ; `ShowProgressDetail`
+sans le temps restant → rouge ; `ShowError` sans `showPrerequisiteDialog` → rouge ;
+`ShowInfo` sans le message → rouge ; `showPrerequisiteDialog` acceptant tout → trois rouges,
+refusant tout → rouges ; garde de génération retirée → deux rouges ; `hardwareStatusGen++`
+retiré → rouge.
+
+**Couverture** (`go test . -covermode=atomic`, paquet racine, même machine)
+
+| | avant (`98b8a5d`) | après |
+| --- | --- | --- |
+| `superview` | 36,3 % | 40,3 % |
+| `ShowError` / `ShowInfo` / `ShowProgress` | 0,0 % | 100,0 % |
+| `ShowProgressDetail` | 40,0 % | 100,0 % |
+| `showPrerequisiteDialog` | 13,3 % | 73,3 % (branche `url.Parse` en échec inatteignable : constante) |
+| `refreshHardwareStatus` | 92,3 % | 100,0 % |
+| `verifyHardwareInBackground` | 18,2 % | 18,2 % |
+
+**Non fait** — `verifyHardwareInBackground` reste à 18,2 % : sa goroutine lance une vraie sonde
+ffmpeg ; sa seule décision, la garde de génération, est testée dans `applyVerifiedHardwareLine`.
+Le passage de la case squeeze au `GUIHandler` se fait dans la closure du bouton *Start* de
+`main()` (`squeeze := state.squeeze`, puis `squeeze: squeeze`) : aucune méthode ne construit le
+handler, donc ce passage n'est pas testable sans extraction, non faite (tests seulement).
+
+**Leçon** — Aucune nouvelle : L-35, L-37, L-86, L-106 s'appliquent.
+
 ### [2026-10-14] E-19 (partiel, côté `common`) — Combler les trous de la suite qu'une régression traverserait
 
 | | |
