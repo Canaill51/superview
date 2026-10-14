@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -196,4 +197,160 @@ func TestIsValidOutputPath_RejectsADirectory(t *testing.T) {
 	if err := isValidOutputPath(filepath.Join(dir, "clip.mp4")); err != nil {
 		t.Fatalf("a plain file path next to it must still pass: %v", err)
 	}
+}
+
+// fakeAudioCopyRefusingFFmpeg stands in for an ffmpeg that cannot copy the
+// source's audio into MP4 -- a PCM track, a codec the muxer has no tag for --
+// and converts fine once asked for AAC. Every call appends its argv to ledger.
+//
+// With afterOutput, the copy run reports a frame before failing: the shape of a
+// failure that is not about opening the audio stream at all, and that the
+// audio retry must not replay any more than the cascade does (E-13).
+func fakeAudioCopyRefusingFFmpeg(t *testing.T, dir, ledger string, afterOutput bool) {
+	t.Helper()
+
+	name, mode := "ffmpeg", os.FileMode(0o755)
+	copyRun := "echo 'Could not find tag for codec pcm_s16le in stream #1' 1>&2; exit 1"
+	if afterOutput {
+		copyRun = "echo out_time_ms=500000; sleep 0.2; echo 'No space left on device' 1>&2; exit 1"
+	}
+	script := "#!/bin/sh\n" +
+		"echo \"call $*\" >> '" + ledger + "'\n" +
+		"case \" $* \" in *\" -c:a copy \"*) " + copyRun + " ;; esac\n" +
+		"echo out_time_ms=1000000\n" +
+		"echo progress=end\n" +
+		"exit 0\n"
+	if runtime.GOOS == "windows" {
+		name, mode = "ffmpeg.bat", os.FileMode(0o644)
+		copyRun = "echo Could not find tag for codec pcm_s16le in stream #1 1>&2\r\n" +
+			"exit /b 1\r\n"
+		if afterOutput {
+			copyRun = "echo out_time_ms=500000\r\n" +
+				"ping -n 2 127.0.0.1 >nul\r\n" +
+				"echo No space left on device 1>&2\r\n" +
+				"exit /b 1\r\n"
+		}
+		script = "@echo off\r\n" +
+			"echo call %* >> \"" + ledger + "\"\r\n" +
+			"echo %* | findstr /C:\"-c:a copy\" >nul && goto copyrun\r\n" +
+			"echo out_time_ms=1000000\r\n" +
+			"echo progress=end\r\n" +
+			"exit /b 0\r\n" +
+			":copyrun\r\n" + copyRun
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), mode); err != nil {
+		t.Fatalf("failed to create the stand-in ffmpeg: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Cleanup(func() { toolResolveCache.Delete("ffmpeg") })
+	toolResolveCache.Delete("ffmpeg")
+}
+
+// ledgerCalls returns the argv lines the stand-in ffmpeg appended to ledger.
+func ledgerCalls(t *testing.T, ledger string) []string {
+	t.Helper()
+	data, err := os.ReadFile(ledger)
+	if err != nil {
+		t.Fatalf("the stand-in ffmpeg never ran: %v", err)
+	}
+	return strings.Split(strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n")), "\n")
+}
+
+// TestEncodeVideo_SafePerformanceRetriesAudioAsAAC pins the audio retry of the
+// configuration that actually ships (E-19).
+//
+// config.yaml sets safe_performance, which copies the audio stream and falls
+// back to AAC when the copy fails. Every other test passes a nil config, which
+// means "aac" from the start, so the copy attempt and its retry were 0 %
+// covered: deleting the retry, or letting it fire on a stop, would have passed
+// the whole suite while every clip with a PCM track failed for real users.
+//
+// Counter-proofs: delete the `return run(hwaccel, "aac")` branch in
+// runWithAudioFallback and the first subtest reports one launch and an error;
+// delete its `shouldNotRetry` check and the other two report two launches.
+func TestEncodeVideo_SafePerformanceRetriesAudioAsAAC(t *testing.T) {
+	cfg := &Config{PerformanceMode: "safe_performance"}
+	cpuOnly := map[string]string{"accels": "", "encoders": "libx264"}
+
+	t.Run("copy refused, AAC accepted", func(t *testing.T) {
+		tempDir := t.TempDir()
+		ledger := filepath.Join(tempDir, "calls.txt")
+		fakeAudioCopyRefusingFFmpeg(t, tempDir, ledger, false)
+		launches := countFFmpegLaunches(t)
+
+		if err := InitEncodingSession(nil); err != nil {
+			t.Fatalf("InitEncodingSession: %v", err)
+		}
+		defer func() { _ = CleanUp() }()
+
+		err := EncodeVideo(cfg, cascadeVideo(tempDir), "libx264", 2_000_000,
+			filepath.Join(tempDir, "output.mp4"), cpuOnly, func(float64) {}, make(chan struct{}))
+		if err != nil {
+			t.Fatalf("the AAC retry should have rescued the conversion, got: %v", err)
+		}
+		if got := launches.Load(); got != 2 {
+			t.Fatalf("ffmpeg was launched %d time(s), want 2: the copy, then the AAC retry", got)
+		}
+		calls := ledgerCalls(t, ledger)
+		if len(calls) != 2 {
+			t.Fatalf("ledger holds %d call(s), want 2: %q", len(calls), calls)
+		}
+		if !strings.Contains(calls[0], "-c:a copy") {
+			t.Errorf("safe_performance must try copying the audio first, first call: %s", calls[0])
+		}
+		if !strings.Contains(calls[1], "-c:a aac") {
+			t.Errorf("the retry must ask for AAC, second call: %s", calls[1])
+		}
+	})
+
+	t.Run("copy fails after output: no retry", func(t *testing.T) {
+		tempDir := t.TempDir()
+		ledger := filepath.Join(tempDir, "calls.txt")
+		fakeAudioCopyRefusingFFmpeg(t, tempDir, ledger, true)
+		launches := countFFmpegLaunches(t)
+
+		if err := InitEncodingSession(nil); err != nil {
+			t.Fatalf("InitEncodingSession: %v", err)
+		}
+		defer func() { _ = CleanUp() }()
+
+		var progressed atomic.Bool
+		err := EncodeVideo(cfg, cascadeVideo(tempDir), "libx264", 2_000_000,
+			filepath.Join(tempDir, "output.mp4"), cpuOnly,
+			func(float64) { progressed.Store(true) }, make(chan struct{}))
+
+		if !progressed.Load() {
+			t.Fatal("the stand-in never reported progress, so this test cannot tell a late failure from an early one")
+		}
+		if !errors.Is(err, errFailedAfterOutput) {
+			t.Fatalf("error = %v, want it marked as a failure after output", err)
+		}
+		if got := launches.Load(); got != 1 {
+			t.Fatalf("ffmpeg was launched %d time(s) after a failure that came after frames were written, want 1: the audio retry replayed it", got)
+		}
+	})
+
+	t.Run("cancelled during the copy run: no retry", func(t *testing.T) {
+		tempDir := t.TempDir()
+		fakeHangingFFmpeg(t, tempDir)
+		launches := countFFmpegLaunches(t)
+
+		if err := InitEncodingSession(nil); err != nil {
+			t.Fatalf("InitEncodingSession: %v", err)
+		}
+		defer func() { _ = CleanUp() }()
+
+		cancel := make(chan struct{})
+		var cancelOnce sync.Once
+		progress := func(float64) { cancelOnce.Do(func() { close(cancel) }) }
+
+		err := EncodeVideo(cfg, cascadeVideo(tempDir), "libx264", 2_000_000,
+			filepath.Join(tempDir, "output.mp4"), cpuOnly, progress, cancel)
+		if !errors.Is(err, ErrCancelled) {
+			t.Fatalf("error = %v, want ErrCancelled", err)
+		}
+		if got := launches.Load(); got != 1 {
+			t.Fatalf("ffmpeg was launched %d time(s) after a cancellation, want 1: the audio retry ran anyway", got)
+		}
+	})
 }

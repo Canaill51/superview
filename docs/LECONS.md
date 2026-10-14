@@ -1189,6 +1189,76 @@ après le travail : `grep -n "close(done)\|<-done" *.go common/*.go`.
 
 ## 3. Corrections appliquées
 
+### [2026-10-14] E-19 (partiel, côté `common`) — Combler les trous de la suite qu'une régression traverserait
+
+| | |
+| --- | --- |
+| **Constat** | E-19, sous-items du paquet `common` ([ANALYSE.md § 3duodecies](ANALYSE.md)) |
+| **Fichiers** | `common/pgm.go` (une ligne), `common/pipeline.go` (commentaire) ; tests `common/stopcascade_test.go`, `common/toolresolve_test.go`, `common/earlyfailures_test.go` (nouveau), `common/refusals_test.go`, `common/integration_test.go`, `common/lognoise_test.go` |
+| **PR** | *à ouvrir* |
+| **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ (seul le test VAAPI saute, pilote CQP) · 11 contre-épreuves ✅, toutes compilées |
+
+**Symptôme** — Le chemin audio de la configuration livrée (`safe_performance` : copie puis
+AAC) était à 0 % ; `findWindowsToolBinary` à 0 % sur les deux runners ; les sorties précoces de
+`PerformEncoding` et leur étiquette `stage` jamais vérifiées ; les branches d'erreur de
+`CheckFfmpeg` et le refus de `checkTempSpaceForMaps` jamais atteints ; `integrationUI.GetSqueeze`
+rendait `false` en dur, donc squeeze ne traversait jamais le pipeline ; deux tests de
+`lognoise_test.go` échouaient au lieu de sauter sans ffmpeg.
+
+**Cause racine** — Des tests écrits sur la configuration par défaut (`nil` → `aac`) et non sur
+celle qu'on livre ; un double de test qui ne pouvait pas atteindre l'état testé (L-35) : une valeur de retour codée en dur dans un double de test ; un
+lecteur d'espace libre rendu injectable pour un appelant et pas pour l'autre.
+
+**Correctif** — `checkTempSpaceForMaps` lit `readFreeDiskGB` (seule ligne de production ; lève
+le « délibérément laissé » de l'entrée précédente). Tests : `SafePerformanceRetriesAudioAsAAC`
+(trois cas : relance AAC = 2 lancements et `-c:a aac` au second ; échec après sortie = 1 ;
+annulation pendant la copie = 1), nouveau double `fakeAudioCopyRefusingFFmpeg` (+ `.bat`) ;
+`FindWindowsToolBinary_FindsAWingetPackagesTree` (arbre `Packages`, paquet hors ffmpeg ignoré,
+`Links` prioritaire ; tourne sur tous les OS, variables jamais vides — E-22 non touché) ;
+`CheckFfmpeg_ReportsAFailingEncodersQuery` (témoin + `-encoders` + `-hwaccels`, lookup
+empaqueté neutralisé par `withFakeExecutableIn`) ; `PerformEncoding_EarlyFailuresAreRecorded`
+(six cas, `stage` exact, rien dans le répertoire de sortie) ;
+`CheckTempSpaceForMaps_RefusesWhenTmpIsFull` ; `Integration_SqueezeKeepsTheSourceWidth`
+(640×480 → 640×480 en squeeze, 852×480 sinon) ; garde `requireRealFFmpegProcess` dans
+`lognoise_test.go` (SKIP sans ffmpeg, FAIL sous `SUPERVIEW_REQUIRE_FFMPEG=1`, vérifié).
+Le contrat « annulation » sur Windows : les tests bâtis sur `fakeHangingFFmpeg` ne sautent
+pas sous Windows (variante `.bat`), rien à écrire.
+
+**Contre-épreuves** — relance AAC retirée → cas 1 rouge (erreur, 1 lancement) ;
+`shouldNotRetry` retiré de la relance audio → cas 2 et 3 rouges (2 lancements) ; parcours
+`Packages` retiré → rouge (`""`) ; erreur `-encoders` ignorée → rouge ; erreur `-hwaccels`
+ignorée → rouge ; étiquettes `encoder_sanitization`/`bitrate_validation` permutées → deux cas
+rouges ; `return nil` après l'erreur de sortie enregistrée → rouge ; refus de
+`checkTempSpaceForMaps` neutralisé → rouge ; retour à `getFreeDiskGB` → rouge ; `GeneratePGM(video,
+false)` dans `PerformEncoding` → squeeze sort en 852×480, rouge ; gardes `lognoise` retirées,
+`PATH` sans ffmpeg → deux FAIL.
+
+**Couverture** (`SUPERVIEW_REQUIRE_FFMPEG=1 go test ./... -covermode=atomic`, même machine)
+
+| | avant (`cc2f725`) | après |
+| --- | --- | --- |
+| Total module | 72,8 % | 75,2 % |
+| `common` | 87,1 % | 90,3 % |
+| `PerformEncoding` | 74,8 % | 85,9 % |
+| `findWindowsToolBinary` | 0,0 % | 89,7 % |
+| `CheckFfmpeg` | 92,0 % | 100,0 % |
+| `checkTempSpaceForMaps` | 69,2 % | 92,3 % |
+| `EncodeVideo` | 93,0 % | 94,5 % |
+
+Seuil CI laissé à 50 % (DEC-27).
+
+**Laissé à la PR GUI** — `appState` avec un rapport de sonde (les deux tests qui passent sur
+la ligne d'attente), `GUIHandler.Show*`, `showPrerequisiteDialog`, `verifyHardwareInBackground`,
+et l'assertion périmée de `TestGUIHandler_GetSqueezeAndBitrate` (« the GUI never enables
+squeeze today », fausse depuis C-04) : tous dans `gui_main_test.go`, qu'une autre PR modifie.
+Hors périmètre aussi : l'échec du `Rename` final (couvert par la PR pipeline) et la preuve
+Windows « aucun ffmpeg orphelin » (pas de runner pour l'établir).
+
+**Leçon** — Aucune nouvelle : L-35 (le double `integrationUI` ne pouvait pas atteindre
+squeeze), L-40 (annulation tirée de la progression), L-41 (lancements comptés côté Go, pas dans
+le faux ffmpeg), L-50 (`findWindowsToolBinary` testé hors de Windows plutôt que sauté), L-60
+(garde ffmpeg) et L-86 (contre-épreuves toutes compilées) s'appliquent.
+
 ### [2026-10-14] E-22, E-23 (SessionError), DEC-33 — Ménage : un interblocage latent, un chemin relatif, le journal, le cgroup, le mode audio
 
 | | |

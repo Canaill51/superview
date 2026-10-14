@@ -30,6 +30,10 @@ type integrationUI struct {
 	// only makes the estimate quietly disappear.
 	detailCalls   int
 	lastRemaining time.Duration
+
+	// squeeze is what GetSqueeze answers. It used to be a hard-coded false,
+	// so squeeze mode never went through PerformEncoding in any test (E-19).
+	squeeze bool
 }
 
 func (u *integrationUI) ShowProgressDetail(_ float64, remaining time.Duration) {
@@ -48,7 +52,7 @@ func (u *integrationUI) ShowProgress(p float64) {
 }
 func (u *integrationUI) GetBitrate() (int, error) { return u.bitrate, nil }
 func (u *integrationUI) GetEncoder() string       { return u.encoder }
-func (u *integrationUI) GetSqueeze() bool         { return false }
+func (u *integrationUI) GetSqueeze() bool         { return u.squeeze }
 
 // makeTestClip renders a short 4:3 clip with ffmpeg, skipping the test when
 // ffmpeg is unavailable.
@@ -636,5 +640,38 @@ func TestIntegration_RenameFailureKeepsTheFinishedFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), kept[0]) {
 		t.Fatalf("the error must tell the user where the finished video is, got: %v", err)
+	}
+}
+
+// TestIntegration_SqueezeKeepsTheSourceWidth drives squeeze mode through the
+// whole pipeline, which no test did: integrationUI answered false
+// unconditionally, so PerformEncoding asking GetSqueeze once and handing the
+// answer to the probe, the space checks and GeneratePGM was only ever exercised
+// with false (E-19). A PerformEncoding that passed a constant to GeneratePGM
+// would have widened every squeezed clip and passed the suite.
+//
+// The same clip without squeeze is the control: it must come out 16:9, so a
+// pipeline that ignored the remap entirely cannot pass both halves.
+//
+// Counter-proof: pass false to GeneratePGM in PerformEncoding and the squeeze
+// case comes out 852 wide.
+func TestIntegration_SqueezeKeepsTheSourceWidth(t *testing.T) {
+	input, ffmpeg := refusalSetup(t, 640, 480)
+
+	for _, tc := range []struct {
+		squeeze bool
+		wantW   int
+	}{
+		{squeeze: true, wantW: 640},
+		{squeeze: false, wantW: 852},
+	} {
+		output := filepath.Join(t.TempDir(), "output.mp4")
+		ui := &integrationUI{bitrate: 2_000_000, encoder: "libx264", squeeze: tc.squeeze}
+		if err := PerformEncoding(nil, input, output, ui, ffmpeg, make(chan struct{})); err != nil {
+			t.Fatalf("squeeze=%v: PerformEncoding: %v", tc.squeeze, err)
+		}
+		if w, h := probeDimensions(t, output); w != tc.wantW || h != 480 {
+			t.Errorf("squeeze=%v: output is %dx%d, want %dx480", tc.squeeze, w, h, tc.wantW)
+		}
 	}
 }

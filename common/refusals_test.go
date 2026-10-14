@@ -52,6 +52,38 @@ func TestCheckOutputSpace_UnreadableFreeSpaceAllowsTheEncode(t *testing.T) {
 	}
 }
 
+// TestCheckTempSpaceForMaps_RefusesWhenTmpIsFull pins the refusal itself, which
+// no test reached (E-19): the only existing test checks that a small job on a
+// real disk goes through, so a check that never refused passed it too. On a
+// tmpfs /tmp that refusal is what turns an opaque write error halfway through
+// into a message naming TMPDIR.
+//
+// Counter-proof: make checkTempSpaceForMaps return nil after reading the free
+// space and the first assertion reddens; call getFreeDiskGB directly again and
+// the injected 1 MB is never seen.
+func TestCheckTempSpaceForMaps_RefusesWhenTmpIsFull(t *testing.T) {
+	video := &VideoSpecs{File: "big.mp4", Streams: []VideoStream{{
+		Codec: "h264", Width: 1440, Height: 1080,
+		Duration: "60", DurationFloat: 60, Bitrate: "5000000", BitrateInt: 5000000,
+	}}}
+
+	// About 1 MB free, for maps of about 16 MB.
+	withFreeDisk(t, 0.001, nil)
+	err := checkTempSpaceForMaps(video, false)
+	var session *SessionError
+	if !errors.As(err, &session) {
+		t.Fatalf("maps that cannot fit in the temporary directory were not refused: %v", err)
+	}
+	if !strings.Contains(err.Error(), "TMPDIR") {
+		t.Errorf("the refusal must say how to get out of it (TMPDIR), got: %v", err)
+	}
+
+	withFreeDisk(t, 0, errors.New("statfs: operation not supported"))
+	if err := checkTempSpaceForMaps(video, false); err != nil {
+		t.Errorf("an unreadable free space refused the encode: %v", err)
+	}
+}
+
 // TestEncodingMetrics_EstimateStartsAtFirstProgress pins the other half of
 // E-16: StartTime is taken before validation, the maps and the wait for the
 // first frame, and the estimate measured from it read hours at one percent.
