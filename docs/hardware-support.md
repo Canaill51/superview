@@ -154,6 +154,10 @@ Important limitations:
 - CPUs without an active iGPU or without Quick Sync available are not compatible
 - some `F`, `KF`, Xeon, and workstation variants may not expose usable Quick Sync
 - BIOS settings can disable the iGPU and therefore remove hardware video support entirely
+- a driver that reports `supported modes: CQP` only (the iHD driver without its HuC
+  firmware loaded, typically `i915.enable_guc=2` missing from the kernel command line)
+  cannot honour a bitrate at all; Superview's probe asks for one and refuses the encoder,
+  and the Diagnostic window shows that line. Loading the firmware brings the encoder back
 
 ## What Superview actually targets
 

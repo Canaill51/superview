@@ -255,7 +255,7 @@ func PerformEncoding(cfg *Config, inputFile string, outputFile string, ui UIHand
 	// entitled to know which encoder will really run: the memory estimate
 	// declines to price a hardware encoder, and the metrics and the log would
 	// otherwise record one that never encoded a frame.
-	encoder, _ = verifyEncoderForOutput(context.Background(), encoder, video, squeeze, ffmpeg)
+	encoder, _ = verifyEncoderForOutput(context.Background(), encoder, video, squeeze, ffmpeg, cfg.VideoPreset)
 
 	profile := AnalyzeMachineProfile(ffmpeg)
 	logger.Info("Machine profile analyzed",

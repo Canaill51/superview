@@ -27,7 +27,7 @@ func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
 		"hevc_vulkan":  "vulkan",
 		"h264_d3d12va": "d3d12va",
 	} {
-		joined := strings.Join(probeArgs(encoder, probeFrameSize), " ")
+		joined := strings.Join(probeArgs(sweepSpec(encoder)), " ")
 
 		for _, needed := range []string{
 			"-init_hw_device " + deviceType + "=" + hwDeviceAlias,
@@ -44,7 +44,7 @@ func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
 	// NVENC, AMF and QSV upload for themselves. Asking for a device they do not
 	// need would fail on machines that cannot create one.
 	for _, encoder := range []string{"h264_nvenc", "hevc_amf", "h264_qsv", "libx264"} {
-		joined := strings.Join(probeArgs(encoder, probeFrameSize), " ")
+		joined := strings.Join(probeArgs(sweepSpec(encoder)), " ")
 		for _, unwanted := range []string{"-init_hw_device", "hwupload"} {
 			if strings.Contains(joined, unwanted) {
 				t.Errorf("the %s probe should not carry %q: %s", encoder, unwanted, joined)
@@ -56,44 +56,88 @@ func TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload(t *testing.T) {
 // TestProbeAndConversionAskTheSameQuestion is the guard that makes the probe
 // worth trusting.
 //
-// A probe that sets up a device the conversion does not would pass and then
-// fail at encoding time -- the user watching a run fall back to the CPU after
-// being told the hardware path was ready. A probe that omits a device the
-// conversion does set up would condemn a working encoder. Both mistakes are
-// invisible in either function read on its own, so the two are checked against
-// each other here.
+// The first version compared two options -- the device setup and the upload --
+// and guaranteed exactly those two. The conversion then gained a rate control,
+// a preset and a 10-bit chain the probe never received, and a driver that only
+// knows CQP passed the probe and refused every real conversion (E-01, L-103).
+//
+// So this version compares the *whole* argv and lists the differences it
+// allows: the inputs, the output, and the options that concern the container
+// or the CPU rather than the encoder. Anything else that appears on one side
+// and not the other fails the test -- which is what a new encoder option added
+// to one builder and not the other must do.
 func TestProbeAndConversionAskTheSameQuestion(t *testing.T) {
+	// Options whose values the probe is allowed to lack or to differ on, with
+	// the number of values each takes.
+	conversionOnly := map[string]int{
+		"-progress": 1, "-y": 0, "-i": 1, "-filter_complex": 1,
+		"-map": 1, "-map_metadata": 1, "-c:a": 1,
+		"-threads": 1, "-filter_threads": 1, "-x265-params": 1,
+	}
+	probeOnly := map[string]int{"-f": 1, "-i": 1, "-vf": 1}
+
+	// strip returns the argv without the listed options and without the
+	// trailing output (a path for the conversion, "-" for the probe).
+	strip := func(args []string, drop map[string]int) []string {
+		kept := make([]string, 0, len(args))
+		for i := 0; i < len(args)-1; i++ { // -1: the output path is last
+			if n, ok := drop[args[i]]; ok {
+				i += n
+				continue
+			}
+			kept = append(kept, args[i])
+		}
+		return kept
+	}
+
+	video := &VideoSpecs{File: "in.mp4", Streams: []VideoStream{{
+		Codec: "hevc", Width: 1440, Height: 1080, DurationFloat: 10, BitrateInt: 8_000_000, PixFmt: "yuv420p10le",
+	}}}
+
 	for _, encoder := range []string{
-		"h264_nvenc", "hevc_amf", "h264_qsv",
-		"h264_vaapi", "hevc_vulkan", "h264_d3d12va",
+		"h264_nvenc", "hevc_nvenc", "hevc_amf", "h264_qsv",
+		"h264_vaapi", "hevc_vaapi", "hevc_vulkan", "h264_d3d12va",
 		"h264_v4l2m2m", "libx264", "libx265",
 	} {
-		probe := strings.Join(probeArgs(encoder, probeFrameSize), " ")
+		for _, preset := range []string{"", "fast", "veryslow"} {
+			conversion := buildEncodeBaseArgs(video, "x.pgm", "y.pgm", encoder, 8_000_000, "aac", 4, 0, preset)
+			probe := probeArgs(probeSpec{
+				Encoder: encoder, Size: "1920x1080", PixFmt: sourcePixelFormat(video),
+				Bitrate: 8_000_000, Preset: preset,
+			})
 
-		// The conversion's device setup, verbatim from what it emits.
-		conversionDevice := strings.Join(hwDeviceArgs(encoder), " ")
-		if conversionDevice == "" {
-			if strings.Contains(probe, "-init_hw_device") {
-				t.Errorf("%s: the probe creates a device the conversion does not", encoder)
+			got := strings.Join(strip(probe, probeOnly), " ")
+			want := strings.Join(strip(conversion, conversionOnly), " ")
+			if got != want {
+				t.Errorf("%s preset=%q: the probe and the conversion ask the encoder different questions\n  conversion: %s\n  probe:      %s",
+					encoder, preset, want, got)
 			}
-		} else if !strings.Contains(probe, conversionDevice) {
-			t.Errorf("%s: the conversion sets up %q, the probe does not:\n  %s", encoder, conversionDevice, probe)
-		}
 
-		// And the upload steps, which the conversion appends to its remap chain.
-		chain := remapFilterChain("yuv420p", encoder)
-		uploads := strings.Contains(chain, "hwupload")
-		if uploads != strings.Contains(probe, "hwupload") {
-			t.Errorf("%s: conversion uploads=%v but probe uploads=%v\n  chain: %s\n  probe: %s",
-				encoder, uploads, !uploads, chain, probe)
+			// And the pixel-format steps: everything after remap in the
+			// conversion must be the probe's whole -vf chain.
+			chain := remapFilterChain(sourcePixelFormat(video), encoder)
+			afterRemap := strings.TrimSuffix(strings.SplitN(chain, "remap,", 2)[1], "[v]")
+			if vf := valueOf(probe, "-vf"); vf != afterRemap {
+				t.Errorf("%s: conversion formats %q, probe formats %q", encoder, afterRemap, vf)
+			}
 		}
 	}
+}
+
+// valueOf returns the value following an option in an argv, or "".
+func valueOf(args []string, option string) string {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == option {
+			return args[i+1]
+		}
+	}
+	return ""
 }
 
 // TestProbeArgs_NamesTheEncoderAndDiscardsOutput checks the probe is a probe:
 // it encodes with the requested encoder and writes nothing anywhere.
 func TestProbeArgs_NamesTheEncoderAndDiscardsOutput(t *testing.T) {
-	args := probeArgs("hevc_nvenc", probeFrameSize)
+	args := probeArgs(sweepSpec("hevc_nvenc"))
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-c:v hevc_nvenc") {

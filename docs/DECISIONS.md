@@ -112,8 +112,8 @@ origine du dépôt · Acceptée
 
 **Contexte** — `ffmpeg -encoders` décrit le binaire, pas le pilote ; six encodeurs annoncés sur la machine de développement ne peuvent ouvrir aucun périphérique. Une sonde 256×256 ne prouve pas qu'une trame 5120×2880 passera (Intel HD 620).
 **Décision** — Au démarrage, une trame par encodeur (`ProbeEncoders`), en série parce que les sessions GPU sont comptées ; avant chaque conversion, `verifyEncoderForOutput` resonde à la géométrie de sortie, résultat mis en cache pour la session. `ApplyEncoderProbe` ne retire que les encodeurs **refusés**.
-**Conséquences** — La sonde doit poser **la même question** que l'encodage (`hwDeviceArgs`, `hwUploadFilters` partagés, `TestProbeAndConversionAskTheSameQuestion`). Toute option ajoutée à l'encodage et absente de la sonde reproduit le défaut VAAPI/CQP ([ANALYSE.md § 3undecies](ANALYSE.md)).
-**À rouvrir si** — Jamais vers « lire la liste ». Éventuellement vers une sonde qui passe aussi le contrôle de débit (voir E-01 de la 13ᵉ passe).
+**Conséquences** — La sonde pose **la même question** que l'encodage : `hwDeviceArgs`, `pixelFormatChain` et `encoderFacingArgs` sont partagés, et `TestProbeAndConversionAskTheSameQuestion` compare l'argv entier en ne tolérant que les différences qu'il liste (E-01, corrigé). Une option d'encodeur s'ajoute dans `encoderFacingArgs`, jamais dans un seul des deux constructeurs.
+**À rouvrir si** — Jamais vers « lire la liste ». L'option (b) de E-01 — s'adapter à un pilote CQP-only en `-rc_mode CQP -qp N` — reste possible comme réglage « qualité constante » explicite.
 
 ### DEC-06
 **Un encodeur matériel de l'autre famille de codec vaut mieux que le CPU.**
