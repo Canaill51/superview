@@ -34,10 +34,12 @@ jobs:
       with:
         workspaces: rust
 
-    - name: Install FFmpeg
+    # libfontconfig1-dev: Slint's text layout (yeslogic-fontconfig-sys) is built against it
+    # and the runner image does not have it. The window's other libraries are loaded at run time.
+    - name: Install FFmpeg and the window's build libraries
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends ffmpeg
+        sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
 
     # The same recipe as scripts/checks/rust.sh, one step at a time so that CI says
     # which one fails.
