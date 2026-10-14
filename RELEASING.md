@@ -110,26 +110,42 @@ build cannot burn a version number. Before anything is built, the run refuses a
 version that is not `x.y.z` and a tag that already exists. Checksums are
 generated from the uploaded artifacts with bare filenames, so the
 `sha256sum -c checksums.txt` the notes advertise works on the files as
-downloaded. Each packaged binary is unpacked and rejected if it is stamped
+downloaded. Each packaged binary is inspected and rejected if it is stamped
 `vcs.modified=true`, which is what stops a release from announcing itself as a
 modified build.
 
-Both archives carry a pinned FFmpeg, and the run refuses to ship one whose
+Both downloads carry a pinned FFmpeg, and the run refuses to ship one whose
 NVENC driver floor is not the 570.0 it was pinned for — the check reads that
 floor out of the downloaded binary. See **Bumping the bundled FFmpeg** below
-before changing the pin. The Linux package is also installed into a throwaway
-directory and rejected if `make install` does not put `ffmpeg`, `ffprobe`, the
-application and its icon where they belong.
+before changing the pin.
+
+Each download is also tried, not just built:
+
+- **Windows.** The installer (Inno Setup, `packaging/windows/superview.iss`) is
+  run silently for the current user. The run checks that `superview.exe`,
+  `ffmpeg.exe` and `ffprobe.exe` landed together, runs the two tools, then
+  uninstalls and checks nothing is left. It does not start the GUI: the runner
+  has no display.
+- **Linux.** The AppImage (`packaging/linux/build_appimage.sh`, with
+  `appimagetool` pinned by SHA-256) is unpacked and checked for its binary and
+  its two tools, which are run, then launched under `xvfb`. It must still be
+  open after 20 seconds (`timeout` exits with 124); any other code means the GUI
+  exited by itself.
 
 Not checked automatically: that the published binary reports the version it
-claims. Downloading the Linux archive and running it is still worth doing on a
-release that matters — the log line is enough:
+claims, and anything that needs a real GPU or a real desktop. Downloading the
+AppImage and running it is still worth doing on a release that matters — the log
+line is enough:
 
 ```bash
-tar -xJf superview-gui-v0.2.4-linux-x86_64.tar.xz
-DISPLAY= timeout 10 ./superview/usr/local/bin/superview
+chmod +x superview-v0.2.4-linux-x86_64.AppImage
+DISPLAY= timeout 10 ./superview-v0.2.4-linux-x86_64.AppImage
 tail -1 ~/.cache/superview/superview.log     # should read 0.2.4 (<commit>)
 ```
+
+The Windows installer is not signed (SmartScreen will warn). The installer's
+`AppId` in `superview.iss` must never change: it is how a new version installs
+over an old one.
 
 ## Bumping the bundled FFmpeg
 
@@ -162,8 +178,8 @@ month, and those have held since October 2024.
 The two pins are not the same version: Windows ships gyan.dev 8.1.1, Linux ships
 BtbN's n8.1.2 autobuild of 2026-08-31. Both read back a 570.0 floor, which is
 the only property they are required to share. The Linux build job also runs the
-test suite against the binary it has just verified, with `SUPERVIEW_FFMPEG_DIR`
-pointing at it, and `test.yml` runs the Windows suite against the same gyan.dev
+test suite against the binary it has just verified, with it first on `PATH`
+(L-114), and `test.yml` runs the Windows suite against the same gyan.dev
 archive — so moving either pin is exercised before it ships.
 
 ## Manual pins

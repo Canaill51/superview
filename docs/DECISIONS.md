@@ -56,7 +56,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-22](#dec-22) | La version vient du tag, jamais d'un fichier commité | Acceptée |
 | [DEC-23](#dec-23) | `main()` reste long ; l'état est dans `appState` | Acceptée |
 | [DEC-24](#dec-24) | Toute modification passe par une PR fusionnée sur label `merge` ; le workflow choisit la méthode | Acceptée |
-| [DEC-25](#dec-25) | La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné | Acceptée |
+| [DEC-25](#dec-25) | La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné | Acceptée (partie `Makefile` : *Remplacée* par DEC-41) |
 | [DEC-26](#dec-26) | Journaux internes en français, tout ce qu'un tiers lit en anglais ; README en deux langues à parité | Acceptée |
 | [DEC-27](#dec-27) | La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier | Acceptée |
 | [DEC-28](#dec-28) | Tout test est prouvé par contre-épreuve | Acceptée |
@@ -72,6 +72,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-38](#dec-38) | La télémétrie GoPro (piste `gpmd`) n'est pas conservée | Acceptée |
 | [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Acceptée |
 | [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
+| [DEC-41](#dec-41) | La release livre un installateur Windows et une AppImage Linux, pas des archives | Acceptée |
 
 ---
 
@@ -259,7 +260,7 @@ origine du dépôt · Acceptée
 **La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné.**
 2026-09-05 / 2026-09-06 · Acceptée · R-xx, U-04, L-67, L-76
 
-**Décision** — `workflow_dispatch` seul, jamais de tag manuel. La catégorie `"*"` est porteuse : GitHub jette toute PR sans catégorie. Le `Makefile` généré par fyne n'installe pas les outils embarqués et sa ligne d'icône est cassée ; le patch est clé sur les lignes exactes et `make install` est exécuté dans un répertoire jetable pour le prouver.
+**Décision** — `workflow_dispatch` seul, jamais de tag manuel. La catégorie `"*"` est porteuse : GitHub jette toute PR sans catégorie. Le `Makefile` généré par fyne n'installe pas les outils embarqués et sa ligne d'icône est cassée ; le patch est clé sur les lignes exactes et `make install` est exécuté dans un répertoire jetable pour le prouver. **La partie `Makefile` est *Remplacée* par [DEC-41](#dec-41)** : il n'y a plus de `Makefile` fyne livré.
 
 ### DEC-26
 **Journaux internes en français, tout ce qu'un tiers lit en anglais ; README en deux langues à parité.**
@@ -384,3 +385,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Ajouter `ARCHITECTURE.md` (importée par `CLAUDE.md`), `PIEGES.md` (index d'une ligne par leçon de `LECONS.md` § 2), `pieges/_modele.md` et `SUITE.md` (lu au démarrage par le hook `debut-session`). Alléger les journaux **sans réécrire une ligne** : les passes 3 à 13 d'`ANALYSE.md` vont dans `archives/ANALYSE-passes-3-a-13.md`, le § 3 de `LECONS.md` dans `CORRECTIONS.md` (journal vivant, pas une archive : on y ajoute encore). Chaque section déplacée laisse un titre-renvoi, pour que les 87 renvois « § 3bis … § 3duodecies » restent vrais.
 **Conséquences** — Écarts assumés : pas de `CHANGELOG.md` (les notes de version viennent des PR, et un second journal serait saisi deux fois), pas de `ci-go.yml` (`test.yml` et `lint.yml` sont plus complets, épinglés par SHA, et couvrent Windows), un seul `DECISIONS.md` au lieu de `decisions/NNNN-*.md` (les numéros `DEC-xx` sont cités partout), des tests de caractérisation `*_test.go` à côté du code plutôt que dans `tests/caracterisation/` (Go ne teste pas l'interne depuis un autre dossier). `PIEGES.md` n'est **pas** importé par `CLAUDE.md` : 114 lignes à chaque session pour un index qu'on interroge par mot-clé. Un constat archivé se retrouve par `grep -rn "U-03" docs/`.
 **À rouvrir si** — Un outil lit `docs/decisions/` ou `CHANGELOG.md` en dehors de Claude Code, ou l'archive redevient la partie qu'on consulte le plus (alors la remonter).
+
+### DEC-41
+**La release livre un installateur Windows et une AppImage Linux, pas des archives.**
+2026-10-14 · Acceptée · à la demande de l'utilisateur (modèle : OpenTuneBox)
+
+**Contexte** — Les releases étaient un `.zip` (à extraire, avec trois fichiers à garder ensemble) et un `.tar.xz` (avec le `Makefile` de fyne rustiné, DEC-25). L'utilisateur voulait, comme OpenTuneBox, un fichier prêt à lancer par système.
+**Décision** — Windows : `superview-<version>-windows-x86_64-setup.exe`, un installateur Inno Setup 6 (`packaging/windows/superview.iss`), par utilisateur sans droits d'administrateur, qui dépose `superview.exe`, `ffmpeg.exe` et `ffprobe.exe` dans le même dossier. Linux : `superview-<version>-linux-x86_64.AppImage` (`packaging/linux/build_appimage.sh`), avec `appimagetool` 1.9.1 épinglé par SHA-256, les outils dans `usr/lib/superview/`. Les anciens formats sont retirés, pas gardés en double. `fyne package` reste l'outil qui compile et tamponne la version ; seul le binaire en est repris. Chaque paquet est essayé en CI : installation, outils exécutés et désinstallation sous Windows ; extraction, outils exécutés et lancement sous `xvfb` (code 124 de `timeout` = resté ouvert) sous Linux.
+**Conséquences** — Le patch du `Makefile` de fyne et son `make install` jetable disparaissent (DEC-25). L'`AppId` de l'installateur ne doit jamais changer : c'est lui qui permet la mise à jour par-dessus. L'AppImage exige FUSE 2 sur le poste de l'utilisateur (`libfuse2t64` sous Ubuntu 24.04) ou `--appimage-extract-and-run`, noté dans les deux README. Pas de signature de code : SmartScreen avertit toujours (le README l'explique). `fyne package` réécrit `cmd/superview/FyneApp.toml` quand on le lance en local (`Build` incrémenté, commentaires perdus) : `git checkout cmd/superview/FyneApp.toml` après.
+**À rouvrir si** — Un paquet `.deb`/Flatpak est demandé, si la signature de code devient possible, ou si les AppImage cessent de fonctionner sur Ubuntu LTS (FUSE).

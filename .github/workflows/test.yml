@@ -174,10 +174,12 @@ jobs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        $version = (ffmpeg -version | Select-Object -First 1)
+        # Whole output first, then its first line: cutting the pipe early makes the
+        # tool exit non-zero (L-115).
+        $version = (ffmpeg -version)[0]
         Write-Host $version
         if ($version -notmatch '8\.1\.1') { throw "ffmpeg on PATH is not the pinned 8.1.1: $version" }
-        ffprobe -version | Select-Object -First 1
+        (ffprobe -version)[0]
 
     # No -race here. The detector needs a C toolchain, which on this image
     # means the mingw gcc that cgo already uses, and under it this run -- 7m38

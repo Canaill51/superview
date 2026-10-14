@@ -1,6 +1,6 @@
 # Third-party notices
 
-Superview's release archives ship a copy of **FFmpeg** (`ffmpeg` and `ffprobe`)
+Superview's releases (the Windows installer and the Linux AppImage) ship a copy of **FFmpeg** (`ffmpeg` and `ffprobe`)
 alongside the application. This file records what that copy is and what your
 rights to it are.
 

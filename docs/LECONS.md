@@ -1246,6 +1246,19 @@ touchent ce fichier ou ses chemins le disent dans leur description. Contrôle :
 réussi doit être postérieur au dernier commit qui a touché `release.yml`
 (`git log -1 --format=%H -- .github/workflows/release.yml`).
 
+### L-115 — Couper la sortie d'un outil dans un tube (`| head`, `| Select-Object -First 1`) le fait échouer — 2026-10-14
+L'étape d'essai de l'installateur Windows (DEC-41) lançait `ffmpeg.exe -version | Select-Object -First 1`
+puis testait `$LASTEXITCODE`. Le journal affichait « ffmpeg version 8.1.1 … » **et**
+« the installed ffmpeg.exe does not run » : `Select-Object -First 1` ferme le tube après la première
+ligne, l'outil écrit dans un tube fermé et sort avec un code non nul. Sous bash avec `set -o pipefail`,
+`| head -n 1` donne de même le code 141 (SIGPIPE) quand la sortie est plus grosse que le tampon du tube ;
+l'étape Linux n'a passé que parce que la sortie de `-version` tient dans ce tampon.
+→ **Capturer toute la sortie avant d'en garder la première ligne** (`$out = & outil -version`, puis
+`$out[0]` ; sous bash, vers un fichier, puis `head -n 1 fichier`), et tester le code de sortie sur la
+commande elle-même. Contrôle : `go test ./cmd/superview -run TestWorkflows_DoNotCut`
+(`cmd/superview/workflow_pipes_test.go`) refuse ce motif dans `.github/workflows/*.yml` ; contre-preuve faite en
+le réintroduisant dans `release.yml`. Trouvé par l'essai à blanc de la release (L-114), qui a donc payé.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**

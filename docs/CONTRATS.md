@@ -167,7 +167,7 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 `resolveToolBinary` cherche `ffmpeg` et `ffprobe` dans cet ordre, et **l'ordre est le contrat** :
 
 1. `SUPERVIEW_FFMPEG_DIR`, la sortie de secours explicite de l'utilisateur ;
-2. la copie livrée dans l'archive de release ;
+2. la copie livrée avec la version (installateur Windows, AppImage Linux) ;
 3. le `PATH` ;
 4. sous Windows, les répertoires d'installation de winget et scoop.
 
@@ -176,15 +176,15 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 > inverser cet ordre pour « prendre le plus récent » : c'est précisément le plus récent qui a
 > retiré NVENC à une RTX A1000 (U-03).
 
-Deux dispositions sur disque, parce que les deux archives ne sont pas faites pareil :
+Deux dispositions sur disque, parce que les deux paquets ne sont pas faits pareil :
 
 | Plateforme | Emplacement des outils | Pourquoi |
 | --- | --- | --- |
-| Windows | à côté de l'exécutable | Le zip se déploie dans un dossier unique. |
-| Linux | `../lib/superview/` relatif à l'exécutable | L'application s'installe dans `$PREFIX/bin` : un `ffmpeg` déposé à côté d'elle atterrirait dans `/usr/local/bin` et **masquerait celui du système pour toute la machine**. |
+| Windows | à côté de l'exécutable | L'installateur dépose les trois fichiers dans un dossier unique. |
+| Linux | `../lib/superview/` relatif à l'exécutable | Dans l'AppImage : `usr/bin/superview` et `usr/lib/superview/ffmpeg`. Un `ffmpeg` déposé à côté du binaire atterrirait, pour toute installation sous `$PREFIX/bin`, dans `/usr/local/bin` et **masquerait celui du système pour toute la machine**. |
 
-Le chemin Linux vaut aussi bien pour l'archive simplement décompressée que pour l'archive
-installée, puisqu'il est relatif au binaire.
+Le chemin Linux vaut pour l'AppImage montée comme pour toute installation, puisqu'il est
+relatif au binaire.
 
 **Ce qui est épinglé est le plancher pilote, pas la version.** `FFMPEG_DRIVER_FLOOR` vaut `570.0`
 dans les deux jobs de release, et `.github/scripts/nvenc-driver-floor.sh` le relit dans le binaire
