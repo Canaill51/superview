@@ -302,11 +302,10 @@ filter_threads: 0         # 0 = auto/default
 encoder_threads: 0        # 0 = auto/default
 ```
 
-> Une valeur diffère entre ce fichier et les valeurs par défaut internes : le
-> fichier livré fixe `performance_mode: safe_performance` (copier la piste audio
-> telle quelle), alors que la valeur par défaut interne, utilisée quand aucun
-> fichier de configuration n'est trouvé, est `safe` (réencoder l'audio en AAC).
-> Supprimer votre `superview.yaml` change donc le traitement de l'audio.
+> Le fichier livré et les valeurs par défaut internes concordent : `performance_mode`
+> vaut `safe_performance` par défaut (copier la piste audio telle quelle, avec repli
+> sur l'AAC si la copie est refusée), avec ou sans `superview.yaml`. Réglez `safe`
+> pour toujours réencoder l'audio en AAC.
 
 Une clé que Superview ne connaît pas, ou un `min_bitrate` supérieur à
 `max_bitrate`, fait ignorer le fichier entier plutôt que de l'appliquer à moitié :

@@ -30,8 +30,8 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 		t.Errorf("Expected LogLevel=info, got %s", cfg.LogLevel)
 	}
 
-	if cfg.PerformanceMode != "safe" {
-		t.Errorf("Expected PerformanceMode=safe, got %s", cfg.PerformanceMode)
+	if cfg.PerformanceMode != "safe_performance" {
+		t.Errorf("Expected PerformanceMode=safe_performance, got %s", cfg.PerformanceMode)
 	}
 
 	if cfg.VideoPreset != "" {

@@ -199,11 +199,57 @@ const unknownMemory = "unknown"
 // answer for "unknown": reporting an encode as impossible because the question
 // could not be asked would be worse than letting it try.
 func availableMemoryBytes() (uint64, bool) {
-	data, err := os.ReadFile("/proc/meminfo")
+	data, err := os.ReadFile(procMeminfoPath)
 	if err != nil {
 		return 0, false
 	}
-	return parseMemAvailable(data)
+	available, ok := parseMemAvailable(data)
+	if !ok {
+		return 0, false
+	}
+
+	// In a container the kernel's figure describes the host, not the budget the
+	// process may use: a cgroup limit of 1 GiB on a 64 GiB machine reads as 60
+	// GiB free. When the cgroup v2 limit is a number, what is left of it is
+	// the other ceiling, and the smaller of the two is the honest answer.
+	if left, limited := cgroupMemoryLeft(); limited && left < available {
+		return left, true
+	}
+	return available, true
+}
+
+// Paths read by availableMemoryBytes; variables so a test can point them at
+// temporary files.
+var (
+	procMeminfoPath     = "/proc/meminfo"
+	cgroupMemoryMaxPath = "/sys/fs/cgroup/memory.max"
+	cgroupMemoryCurPath = "/sys/fs/cgroup/memory.current"
+)
+
+// cgroupMemoryLeft returns the memory left under the cgroup v2 limit, and false
+// when there is no limit to speak of: no such file, "max", or an unreadable
+// current usage.
+func cgroupMemoryLeft() (uint64, bool) {
+	maxData, err := os.ReadFile(cgroupMemoryMaxPath)
+	if err != nil {
+		return 0, false
+	}
+	limit, err := strconv.ParseUint(strings.TrimSpace(string(maxData)), 10, 64)
+	if err != nil {
+		return 0, false // "max", or something unparseable
+	}
+	curData, err := os.ReadFile(cgroupMemoryCurPath)
+	if err != nil {
+		return 0, false
+	}
+	current, err := strconv.ParseUint(strings.TrimSpace(string(curData)), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	if current >= limit {
+		return 0, true
+	}
+	return limit - current, true
 }
 
 // parseMemAvailable pulls the MemAvailable line out of /proc/meminfo's contents.

@@ -95,11 +95,17 @@ func shouldNotRetry(err error) bool {
 // It indicates problems with temporary directory management.
 type SessionError struct {
 	Msg string
+	Err error // optional underlying cause, reachable through errors.Is/As
 }
 
 func (e *SessionError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("session error: %s: %v", e.Msg, e.Err)
+	}
 	return fmt.Sprintf("session error: %s", e.Msg)
 }
+
+func (e *SessionError) Unwrap() error { return e.Err }
 
 // SetLogger sets the global logger instance used throughout the encoding pipeline.
 // If nil is passed, the current logger is unchanged.

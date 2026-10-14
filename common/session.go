@@ -3,7 +3,6 @@
 package common
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,12 +31,12 @@ func InitEncodingSession(cfg *Config) error {
 	defer sessionMutex.Unlock()
 
 	if currentSession != nil {
-		return errors.New("encoding session already active")
+		return &SessionError{Msg: "encoding session already active"}
 	}
 
 	tempDir, err := os.MkdirTemp("", configOrDefault(cfg).TempDirPrefix)
 	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+		return &SessionError{Msg: "failed to create temp directory", Err: err}
 	}
 
 	session := &EncodingSession{
@@ -72,7 +71,7 @@ func getSessionPaths() (xPath, yPath string, err error) {
 	defer sessionMutex.Unlock()
 
 	if currentSession == nil {
-		return "", "", errors.New("no encoding session active")
+		return "", "", &SessionError{Msg: "no encoding session active"}
 	}
 
 	return currentSession.pgmXPath, currentSession.pgmYPath, nil

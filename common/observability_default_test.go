@@ -198,7 +198,7 @@ func TestOpenLogFile_CreatesAppends(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenLogFile: %v", err)
 	}
-	if _, err := f.WriteString("first\n"); err != nil {
+	if _, err := f.Write([]byte("first\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -213,7 +213,7 @@ func TestOpenLogFile_CreatesAppends(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second OpenLogFile: %v", err)
 	}
-	if _, err := f2.WriteString("second\n"); err != nil {
+	if _, err := f2.Write([]byte("second\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if err := f2.Close(); err != nil {
@@ -243,7 +243,7 @@ func TestOpenLogFile_TruncatesOversized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenLogFile: %v", err)
 	}
-	if _, err := f.WriteString(strings.Repeat("x", 4096)); err != nil {
+	if _, err := f.Write([]byte(strings.Repeat("x", 4096))); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -272,7 +272,7 @@ func TestOpenLogFile_TruncatesOversized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("third open: %v", err)
 	}
-	if _, err := f3.WriteString("kept\n"); err != nil {
+	if _, err := f3.Write([]byte("kept\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if err := f3.Close(); err != nil {

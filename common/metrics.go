@@ -206,7 +206,17 @@ func (m *EncodingMetrics) Remaining() time.Duration {
 func (m *EncodingMetrics) ElapsedTime() time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return m.elapsedLocked()
+}
 
+// elapsedLocked is ElapsedTime for a caller that already holds m.mu.
+//
+// Summary and LogMetrics used to take the read lock and then call ElapsedTime,
+// which took it again. sync.RWMutex forbids that: a Lock call that arrives
+// between the two RLocks blocks the second one, and the writer is itself
+// waiting for the first -- a deadlock whenever RecordProgress runs
+// concurrently, which is the normal state of an encode.
+func (m *EncodingMetrics) elapsedLocked() time.Duration {
 	if m.EndTime.IsZero() {
 		return time.Since(m.StartTime)
 	}
@@ -218,10 +228,7 @@ func (m *EncodingMetrics) Summary() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	elapsed := m.ElapsedTime()
-	if m.EndTime.IsZero() {
-		elapsed = time.Since(m.StartTime)
-	}
+	elapsed := m.elapsedLocked()
 
 	status := "FAILED"
 	if m.Success {
@@ -270,10 +277,7 @@ func (m *EncodingMetrics) LogMetrics(log *slog.Logger) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	elapsed := m.ElapsedTime()
-	if m.EndTime.IsZero() {
-		elapsed = time.Since(m.StartTime)
-	}
+	elapsed := m.elapsedLocked()
 
 	if m.Success {
 		log.Info("Encoding completed successfully",

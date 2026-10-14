@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,19 +18,22 @@ import (
 // Diagnostics used to be written to io.Discard, which made the whole metrics
 // and event machinery unobservable: when a conversion failed on a user's
 // machine there was simply nothing to look at. The file is capped: once it
-// exceeds maxLogBytes it is truncated, so it cannot grow without bound.
+// exceeds maxLogBytes it is truncated, at open and then while it is written
+// (see cappedLogWriter), so it cannot grow without bound in a session that
+// stays open for days. The directory is 0700 and the file 0600: the log carries
+// home-directory paths.
 //
-// The caller owns the returned file and must close it. On any failure the
+// The caller owns the returned writer and must close it. On any failure the
 // error is returned and the caller should fall back to a discarding logger
 // rather than refuse to start.
-func OpenLogFile(appName string, maxLogBytes int64) (*os.File, string, error) {
+func OpenLogFile(appName string, maxLogBytes int64) (io.WriteCloser, string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, "", fmt.Errorf("cannot locate user cache directory: %w", err)
 	}
 
 	dir := filepath.Join(cacheDir, appName)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, "", fmt.Errorf("cannot create log directory %s: %w", dir, err)
 	}
 
@@ -45,11 +49,51 @@ func OpenLogFile(appName string, maxLogBytes int64) (*os.File, string, error) {
 		}
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, "", fmt.Errorf("cannot open log file %s: %w", path, err)
 	}
-	return file, path, nil
+
+	var size int64
+	if info, statErr := file.Stat(); statErr == nil {
+		size = info.Size()
+	}
+	return &cappedLogWriter{file: file, max: maxLogBytes, size: size}, path, nil
+}
+
+// cappedLogWriter keeps a log file under a size cap while it is being written.
+//
+// The cap used to be applied once, at open, so a session that stayed open grew
+// the file without limit. Here, a write that would take the file past max
+// empties it first and starts over: it is a diagnostic log, not an archive,
+// and the file never holds more than max bytes (a single record larger than
+// max is still written whole). The file is opened O_APPEND, so truncating it
+// needs no seek.
+type cappedLogWriter struct {
+	mu   sync.Mutex
+	file *os.File
+	max  int64 // 0 or less: no cap
+	size int64 // bytes in the file as far as this writer knows
+}
+
+func (w *cappedLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.max > 0 && w.size+int64(len(p)) > w.max {
+		if err := w.file.Truncate(0); err == nil {
+			w.size = 0
+		}
+	}
+	n, err := w.file.Write(p)
+	w.size += int64(n)
+	return n, err
+}
+
+func (w *cappedLogWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.file.Close()
 }
 
 // ParseLogLevel maps a configuration string to an slog level.
