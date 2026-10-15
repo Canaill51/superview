@@ -18,8 +18,9 @@
 //!   them, and the argument builder (PR 4) will reuse them from this module.
 //! - `find_encoder` logs through `log::info!` where Go uses `slog` with attributes, so
 //!   the attributes become `key=value` text (same convention as `config.rs`).
-//! - Left out: `probeEncoderForSizeCached`, `verifyEncoderForOutput`,
-//!   `DescribeVerifiedHardwarePlan` and `outputFrameSize` (they depend on the probe, PR 5).
+//! - Not here: `probeEncoderForSizeCached`, `verifyEncoderForOutput`,
+//!   `DescribeVerifiedHardwarePlan` and `outputFrameSize` (they depend on the probe: see
+//!   `probe.rs`).
 
 use std::collections::HashMap;
 
@@ -89,7 +90,7 @@ pub fn is_hardware_encoder(encoder: &str) -> bool {
 
 /// Names the hardware device the filter graph uploads to. Any name would do; it only
 /// has to be the same in `-init_hw_device` and `-filter_hw_device`.
-const HW_DEVICE_ALIAS: &str = "sv";
+pub(crate) const HW_DEVICE_ALIAS: &str = "sv";
 
 /// The ffmpeg hardware device an encoder needs its frames to live on, or "" for the
 /// encoders that take frames from system memory.
