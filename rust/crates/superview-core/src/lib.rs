@@ -3,12 +3,15 @@
 //! Modules arrive one pull request at a time, each with its tests (see the port plan).
 
 pub mod config;
+pub mod disk;
 pub mod encode;
 pub mod error;
 pub mod hardware;
+pub mod memory;
 pub mod pgm;
 pub mod process;
 pub mod security;
+pub mod session;
 pub mod tools;
 pub mod video;
 

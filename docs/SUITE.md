@@ -13,7 +13,8 @@
   PR 2/7 `tools.rs` + `process.rs` (`ToolResolver` : cache et environnement injectés, aucun global ; `check_ffmpeg` ; `isStopRequest`/`shouldNotRetry` restent pour la PR 6, avec la cascade) ;
   PR 3/7 `hardware.rs` (partie pure de `hardware.go` + `FindEncoder` : nombre de cœurs et profil injectés ; `decisions.json` reproduit en entier par `tests/parity_decisions.rs` ; `isHEVCEncoder`/`isHighBitDepth`/`sourcePixelFormat` y vivent (réutilisés par la PR 4) ; la sonde reste pour la PR 5) ;
   PR 4/7 `encode/args.rs` (`ValidateBitrate` à `mapVideoPresetForEncoder` ; argv complet reproduit par `tests/parity_encode_args.rs` sur les 237 cas d'`encode_args.json` ; nombre de cœurs injecté ; `probe_args.json` reste pour la PR 5) ;
-  suivantes : `probe`/`session`/`memory`/`disk`/`health`, `encode/run`, `pipeline`+`logfile`.
+  PR 5a/7 `session.rs` + `memory.rs` + `disk.rs` (session possédée dont le `Drop` supprime le dossier, sans global ; mémoire et lecteur de disque injectés ; `fs4` pour l'espace libre, sans `unsafe` ; `memory.json` reproduit par `tests/parity_memory.rs`) ; PR 5b = `probe` + `health` (Diagnostic réduit à ffmpeg, ffprobe et disque) ;
+  suivantes : `probe`/`health` (5b), `encode/run`, `pipeline`+`logfile`.
   À savoir : winit charge `libxkbcommon-x11` à l'exécution sous X11 et l'AppImage ne l'embarque pas ; `rfd` a besoin de libdbus (portail) ou de zenity ;
   le sélecteur n'a pas de champ texte de secours (phase 6, étape 4).
   Plan approuvé : `~/.claude/plans/distributed-kindling-alpaca.md`. Rust s'installe par rustup dans `~/.cargo` (`docs/ENVIRONNEMENT.md`) ;
