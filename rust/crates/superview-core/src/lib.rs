@@ -3,6 +3,7 @@
 //! Modules arrive one pull request at a time, each with its tests (see the port plan).
 
 pub mod config;
+pub mod encode;
 pub mod error;
 pub mod hardware;
 pub mod pgm;
