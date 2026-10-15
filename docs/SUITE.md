@@ -11,8 +11,9 @@
   **GO donné le 2026-10-15** (JSON et 4 empreintes PGM identiques, cartes ~2 fois plus rapides que Go, fenêtre OK sous xvfb, Windows et AppImage d'essai).
   **Phase 4 en cours (cœur `superview-core`, 7 PR)** : PR 1/7 `config.rs` + `security.rs` (YAML par `serde-saphyr`, sans migration des clés retirées ni variables `SUPERVIEW_*`) ;
   PR 2/7 `tools.rs` + `process.rs` (`ToolResolver` : cache et environnement injectés, aucun global ; `check_ffmpeg` ; `isStopRequest`/`shouldNotRetry` restent pour la PR 6, avec la cascade) ;
-  PR 3/7 `hardware.rs` (partie pure de `hardware.go` + `FindEncoder` : nombre de cœurs et profil injectés ; `decisions.json` reproduit en entier par `tests/parity_decisions.rs` ; `isHEVCEncoder`/`isHighBitDepth`/`sourcePixelFormat` y vivent en attendant la PR 4 ; la sonde reste pour la PR 5) ;
-  suivantes : `encode/args`, `probe`/`session`/`memory`/`disk`/`health`, `encode/run`, `pipeline`+`logfile`.
+  PR 3/7 `hardware.rs` (partie pure de `hardware.go` + `FindEncoder` : nombre de cœurs et profil injectés ; `decisions.json` reproduit en entier par `tests/parity_decisions.rs` ; `isHEVCEncoder`/`isHighBitDepth`/`sourcePixelFormat` y vivent (réutilisés par la PR 4) ; la sonde reste pour la PR 5) ;
+  PR 4/7 `encode/args.rs` (`ValidateBitrate` à `mapVideoPresetForEncoder` ; argv complet reproduit par `tests/parity_encode_args.rs` sur les 237 cas d'`encode_args.json` ; nombre de cœurs injecté ; `probe_args.json` reste pour la PR 5) ;
+  suivantes : `probe`/`session`/`memory`/`disk`/`health`, `encode/run`, `pipeline`+`logfile`.
   À savoir : winit charge `libxkbcommon-x11` à l'exécution sous X11 et l'AppImage ne l'embarque pas ; `rfd` a besoin de libdbus (portail) ou de zenity ;
   le sélecteur n'a pas de champ texte de secours (phase 6, étape 4).
   Plan approuvé : `~/.claude/plans/distributed-kindling-alpaca.md`. Rust s'installe par rustup dans `~/.cargo` (`docs/ENVIRONNEMENT.md`) ;

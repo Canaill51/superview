@@ -1,0 +1,846 @@
+//! The ffmpeg argument list of one encode, ported from `internal/common/encode.go`
+//! (`ValidateBitrate` to `mapVideoPresetForEncoder`).
+//!
+//! Every argument and its order are the Go ones: `testdata/parity/encode_args.json`
+//! pins the full argv of `build_encode_base_args` over 237 cases
+//! (`tests/parity_encode_args.rs`), and a different argv is a defect.
+//!
+//! Deliberate differences from the Go code:
+//! - `requested_encoder_threads` and `effective_encoder_threads` take the logical core
+//!   count as a parameter instead of reading `runtime.NumCPU()`: the logic reads nothing
+//!   from the machine, and a test can pick the count.
+//! - A Go `nil` `*Config` is `None`; the Go `nil` slices returned by `encoderThreadArgs`
+//!   are empty `Vec`s.
+//! - `clamp_encoder_threads` logs through `log::debug!` where Go uses `slog` with
+//!   attributes, so the attributes become `key=value` text (same convention as
+//!   `hardware.rs`).
+//! - `ValidateBitrate` returns [`Error::Plain`]; the messages are Go's.
+//! - `build_encode_base_args` takes the video as `&VideoSpecs` (never absent here, like
+//!   Go, which dereferences `video.File`), and the sizes as `i64` for Go's `int`.
+//! - `is_hevc_encoder`, `is_high_bit_depth` and `source_pixel_format`, which live in
+//!   `encode.go` in Go, are in `hardware.rs` (PR 3) and are reused from there.
+//! - `encoder_rate_args` saturates `-bufsize` for a bit rate above i64::MAX / 2, where Go
+//!   wraps around to a negative number (and a debug build here would panic). Only an
+//!   absurd ffprobe figure with no `max_bitrate` ceiling gets there.
+//! - `map_video_preset_for_encoder` lowercases with Rust's `to_lowercase`, which applies
+//!   the final-sigma rule that Go's `strings.ToLower` does not (`"ΟΣ"`); ffmpeg refuses
+//!   such a preset either way.
+//! - Left out: `classifyFfmpegFailure` and `EncodeVideo` (the run, PR 6) and `FindEncoder`
+//!   (already in `hardware.rs`).
+
+use crate::config::Config;
+use crate::error::Error;
+use crate::hardware::{
+    hw_device_args, hw_upload_filters, is_hardware_encoder, is_hevc_encoder, is_high_bit_depth,
+    needs_device_frames, source_pixel_format,
+};
+use crate::video::VideoSpecs;
+
+/// The largest `-threads` value libx265 accepts.
+///
+/// ffmpeg maps `-threads` onto x265's `--frame-threads`, which rejects anything higher
+/// with "frameNumThreads (--frame-threads) must be [0 .. X265_MAX_FRAME_THREADS)" and
+/// then fails to open the encoder at all. Since the default thread count is one per core,
+/// every H.265 encode failed outright on a machine with more than 16 logical cores -- and
+/// libx265 is a CPU encoder, so the hardware-to-CPU fallback never fires for it. Verified
+/// against ffmpeg 8.0.1: 16 works, 17 does not.
+pub const X265_MAX_FRAME_THREADS: i64 = 16;
+
+/// Checks that the bitrate is within the acceptable constraints. `min_bitrate` and
+/// `max_bitrate` are in bits per second; a constraint of 0 is not applied.
+pub fn validate_bitrate(bitrate: i64, min_bitrate: i64, max_bitrate: i64) -> Result<(), Error> {
+    if bitrate <= 0 {
+        return Err(Error::Plain(format!(
+            "bitrate must be positive, got {bitrate}"
+        )));
+    }
+    if min_bitrate > 0 && bitrate < min_bitrate {
+        return Err(Error::Plain(format!(
+            "bitrate {bitrate} is below minimum {min_bitrate} bits/second"
+        )));
+    }
+    if max_bitrate > 0 && bitrate > max_bitrate {
+        return Err(Error::Plain(format!(
+            "bitrate {bitrate} exceeds maximum {max_bitrate} bits/second"
+        )));
+    }
+    Ok(())
+}
+
+/// Whether a conversion keeps its source's ten bits.
+///
+/// One function rather than the same condition written twice: the filter chain decides
+/// the working depth here, and the memory estimate has to reach the same answer -- ten
+/// bits costs about half as much memory again, so a copy of this test that drifted would
+/// silently make the estimate wrong by that much.
+pub fn encodes_in_ten_bits(pix_fmt: &str, encoder: &str) -> bool {
+    is_high_bit_depth(pix_fmt) && is_hevc_encoder(encoder)
+}
+
+/// Builds the filter graph, choosing the working and output pixel formats from the
+/// source depth and the target encoder.
+///
+/// The remap filter needs a planar 4:4:4 intermediate, so a conversion is unavoidable;
+/// the question is only what it converts *to*. The chain used to be pinned to 8-bit,
+/// which silently flattened every 10-bit source -- and HERO 10 and later GoPros, the
+/// cameras this tool exists for, record 10-bit.
+///
+/// Ten bits are kept only for HEVC encoders. HEVC Main10 is supported by libx265 and by
+/// every consumer hardware HEVC encoder, whereas h264_nvenc cannot encode 10-bit at all
+/// and libx264's High 10 profile plays back poorly. GoPro's 10-bit modes record HEVC, so
+/// the case that matters is covered without risking a failed encode on the H.264 path.
+/// Sources deeper than 10 bits are brought to 10, not to their native depth: nothing in
+/// this pipeline targets Main12.
+pub fn remap_filter_chain(pix_fmt: &str, encoder: &str) -> String {
+    format!(
+        "[0:v:0][1:v:0][2:v:0]remap,{}[v]",
+        pixel_format_chain(pix_fmt, encoder)
+    )
+}
+
+/// Everything after remap: the working and output pixel formats, then the upload for the
+/// encoders that need their frames on the device. The probe runs exactly this chain on a
+/// synthetic source, so a frame the conversion would hand the encoder is a frame the
+/// probe has already handed it -- depth included (E-01).
+pub fn pixel_format_chain(pix_fmt: &str, encoder: &str) -> String {
+    let (intermediate, output) = if encodes_in_ten_bits(pix_fmt, encoder) {
+        ("yuv444p10le", "yuv420p10le")
+    } else {
+        ("yuv444p", "yuv420p")
+    };
+    // remap is a CPU filter, so the frames are in system memory at this point whatever
+    // the encoder. The ones that cannot take them from there get the upload appended.
+    format!(
+        "format={intermediate},format={output}{}",
+        hw_upload_filters(encoder, output)
+    )
+}
+
+/// Lowers the requested thread count to what the encoder can actually accept. Only
+/// libx265 has a ceiling low enough to matter; x264 clamps internally instead of failing.
+pub fn clamp_encoder_threads(encoder: &str, threads: i64) -> i64 {
+    if encoder == "libx265" && threads > X265_MAX_FRAME_THREADS {
+        log::debug!(
+            "Capping encoder threads for libx265 requested={threads} capped={X265_MAX_FRAME_THREADS}"
+        );
+        return X265_MAX_FRAME_THREADS;
+    }
+    threads
+}
+
+/// The thread count asked for, before any encoder clamps it: the configured value, else
+/// one per core (`cpu_count`, which Go reads from `runtime.NumCPU()`).
+pub fn requested_encoder_threads(cfg: Option<&Config>, cpu_count: i64) -> i64 {
+    match cfg {
+        Some(cfg) if cfg.encoder_threads > 0 => cfg.encoder_threads,
+        _ => cpu_count,
+    }
+}
+
+/// The `-threads` value an encode with this encoder really passes to ffmpeg. The memory
+/// guard prices this count, not the host's core count, so the two cannot disagree about
+/// libx265's 16-thread ceiling.
+pub fn effective_encoder_threads(cfg: Option<&Config>, encoder: &str, cpu_count: i64) -> i64 {
+    clamp_encoder_threads(encoder, requested_encoder_threads(cfg, cpu_count))
+}
+
+/// The `-threads` option for the chosen encoder, or nothing at all.
+///
+/// A hardware encoder does its work on the GPU's dedicated block; the CPU thread count
+/// says nothing about it, and passing the host core count was only ever noise in the
+/// command line. Software encoders get the value, clamped to what they accept.
+pub fn encoder_thread_args(encoder: &str, threads: i64) -> Vec<String> {
+    if is_hardware_encoder(encoder) {
+        return Vec::new();
+    }
+    vec![
+        "-threads".to_string(),
+        clamp_encoder_threads(encoder, threads).to_string(),
+    ]
+}
+
+/// The argument list of one encode, up to and including the audio and filter options.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a 1:1 port of the Go signature; the parity matrix drives every parameter"
+)]
+pub fn build_encode_base_args(
+    video: &VideoSpecs,
+    x_path: &str,
+    y_path: &str,
+    encoder: &str,
+    bitrate: i64,
+    audio_codec: &str,
+    encoder_threads: i64,
+    filter_threads: i64,
+    video_preset: &str,
+) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "-hide_banner",
+        "-progress",
+        "pipe:1",
+        "-loglevel",
+        "error",
+        "-y",
+    ]
+    .map(String::from)
+    .to_vec();
+    // No "-re" here on purpose. It throttles reading the input to its native frame rate,
+    // which only makes sense when streaming to a realtime sink. For a file-to-file
+    // transcode it just caps the run at the clip's duration, so a 10-minute video could
+    // never convert in less than 10 minutes regardless of the hardware.
+
+    // Before -i, with the other global options: this creates the device the filter graph
+    // uploads to, and is nothing at all for the encoders that take frames from system
+    // memory.
+    args.extend(hw_device_args(encoder));
+
+    args.extend(
+        [
+            "-i",
+            video.file.as_str(),
+            "-i",
+            x_path,
+            "-i",
+            y_path,
+            "-filter_complex",
+            &remap_filter_chain(source_pixel_format(Some(video)), encoder),
+            // Explicit maps. Left to itself with three inputs, ffmpeg picks one stream per
+            // type and keeps a single audio track -- a camera or an edit carrying two of
+            // them silently lost one. "0:a?" is optional on purpose: the "?" is what keeps
+            // a clip with no audio from failing.
+            "-map",
+            "[v]",
+            "-map",
+            "0:a?",
+            // With three inputs ffmpeg cannot tell which one holds the global metadata, so
+            // it kept none and the recording date was dropped. Point it at the source.
+            "-map_metadata",
+            "0",
+        ]
+        .map(String::from),
+    );
+
+    // Everything the encoder itself is asked for comes from one function the probe
+    // shares, so the two cannot drift apart again (E-01).
+    args.extend(encoder_facing_args(encoder, bitrate, video_preset));
+
+    // After -c:v so it applies to the encoder. Placed before -i it would have configured
+    // the input decoder instead, which is not the intent.
+    args.extend(encoder_thread_args(encoder, encoder_threads));
+
+    args.push("-c:a".to_string());
+    args.push(audio_codec.to_string());
+
+    if filter_threads > 0 {
+        args.push("-filter_threads".to_string());
+        args.push(filter_threads.to_string());
+    }
+
+    if encoder == "libx265" {
+        args.push("-x265-params".to_string());
+        args.push("log-level=error".to_string());
+    }
+
+    args
+}
+
+/// What the encoder itself is asked for: which codec, what rate control, which preset,
+/// which tag. One function, used by the conversion and by the probe, so the probe cannot
+/// pass an encoder that the conversion then fails on. It used to: the probe passed none
+/// of this, and an Intel driver that only knows the CQP rate-control mode accepted the
+/// probe and refused every conversion, silently, onto the CPU (E-01).
+pub fn encoder_facing_args(encoder: &str, bitrate: i64, video_preset: &str) -> Vec<String> {
+    let mut args = vec!["-c:v".to_string(), encoder.to_string()];
+    args.extend(encoder_rate_args(bitrate));
+    let mapped_preset = map_video_preset_for_encoder(encoder, video_preset);
+    if !mapped_preset.is_empty() {
+        args.push("-preset".to_string());
+        args.push(mapped_preset);
+    }
+    if is_hevc_encoder(encoder) {
+        // MP4 can tag HEVC as "hev1" or "hvc1"; ffmpeg's default is hev1, which QuickTime,
+        // iOS Photos and Final Cut refuse to open. hvc1 is what every camera writes.
+        // Measured: without this the output reads codec_tag_string=hev1 (E-09).
+        args.push("-tag:v".to_string());
+        args.push("hvc1".to_string());
+    }
+    args
+}
+
+/// The rate control every encode and every probe asks for.
+///
+/// -b:v on its own is an *average* target with no ceiling, so a demanding scene
+/// overshoots freely: measured at +83% on incompressible content (8 Mbps requested,
+/// 14.7 Mbps produced). Constraining the VBV brings that to +24% for the same request.
+/// maxrate equal to the target with a buffer of twice it measured better than the usual
+/// 1.5x headroom (+24% against +29%) and keeps the resulting file size predictable, which
+/// is the point: the quality profile already builds its own headroom into the request.
+pub fn encoder_rate_args(bitrate: i64) -> Vec<String> {
+    vec![
+        "-b:v".to_string(),
+        bitrate.to_string(),
+        "-maxrate".to_string(),
+        bitrate.to_string(),
+        "-bufsize".to_string(),
+        bitrate.saturating_mul(2).to_string(),
+    ]
+}
+
+/// Translates an x264-style preset name into what the target encoder accepts, or "" when
+/// the encoder takes none.
+///
+/// The names in the configuration are x264's, and only libx264 and libx265 take them
+/// verbatim. NVENC's option parser rejects most of them outright -- measured on ffmpeg
+/// 8.0.1: "ultrafast", "superfast", "veryfast", "faster", "slower", "veryslow" and
+/// "placebo" all fail with "Undefined constant or missing '(' in 'veryslow'", exit 234,
+/// before the driver is consulted -- and the cascade then landed on libx264 with nothing
+/// saying why (E-08). NVENC's own scale is p1 (fastest) to p7 (slowest); its legacy "fast"
+/// is an alias of p1, the coarsest of all, which is not what "Fast" promises. The encoders
+/// that take frames on the device have no preset to speak of: an unknown -preset is only a
+/// warning there, but a warning on every run is noise.
+pub fn map_video_preset_for_encoder(encoder: &str, video_preset: &str) -> String {
+    let preset = video_preset.trim().to_lowercase();
+    if preset.is_empty() {
+        return String::new();
+    }
+
+    if encoder.contains("_nvenc") {
+        return match preset.as_str() {
+            "ultrafast" | "superfast" | "veryfast" => "p1",
+            "faster" => "p2",
+            "fast" => "p3",
+            "medium" => "p4",
+            "slow" => "p5",
+            "slower" => "p6",
+            "veryslow" | "placebo" => "p7",
+            _ => "",
+        }
+        .to_string();
+    }
+
+    if needs_device_frames(encoder) || encoder.contains("_v4l2m2m") {
+        return String::new();
+    }
+
+    if encoder.contains("_amf") {
+        return match preset.as_str() {
+            "ultrafast" | "superfast" | "veryfast" | "faster" | "fast" => "speed",
+            "medium" => "balanced",
+            "slow" | "slower" | "veryslow" | "placebo" => "quality",
+            _ => "",
+        }
+        .to_string();
+    }
+
+    if encoder.contains("_qsv") {
+        return match preset.as_str() {
+            "ultrafast" | "superfast" => "veryfast".to_string(),
+            "placebo" => "veryslow".to_string(),
+            "veryfast" | "faster" | "fast" | "medium" | "slow" | "slower" | "veryslow" => preset,
+            _ => String::new(),
+        };
+    }
+
+    preset
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::video::VideoStream;
+
+    fn no_streams() -> VideoSpecs {
+        VideoSpecs {
+            file: "input.mp4".into(),
+            streams: vec![],
+        }
+    }
+
+    fn build(
+        video: &VideoSpecs,
+        encoder: &str,
+        bitrate: i64,
+        audio: &str,
+        threads: i64,
+        filter_threads: i64,
+        preset: &str,
+    ) -> Vec<String> {
+        build_encode_base_args(
+            video,
+            "x.pgm",
+            "y.pgm",
+            encoder,
+            bitrate,
+            audio,
+            threads,
+            filter_threads,
+            preset,
+        )
+    }
+
+    fn joined(args: &[String]) -> String {
+        args.join(" ")
+    }
+
+    // Go: TestValidateBitrate_ValidBitrate
+    #[test]
+    fn validate_bitrate_cases() {
+        // (name, bitrate, min, max, wants an error)
+        let cases: [(&str, i64, i64, i64, bool); 8] = [
+            (
+                "valid bitrate in range",
+                5_000_000,
+                100_000,
+                50_000_000,
+                false,
+            ),
+            (
+                "bitrate at minimum boundary",
+                100_000,
+                100_000,
+                50_000_000,
+                false,
+            ),
+            (
+                "bitrate at maximum boundary",
+                50_000_000,
+                100_000,
+                50_000_000,
+                false,
+            ),
+            ("bitrate below minimum", 50_000, 100_000, 50_000_000, true),
+            (
+                "bitrate above maximum",
+                100_000_000,
+                100_000,
+                50_000_000,
+                true,
+            ),
+            ("zero bitrate", 0, 100_000, 50_000_000, true),
+            ("negative bitrate", -1_000_000, 100_000, 50_000_000, true),
+            ("no min/max constraints", 12345, 0, 0, false),
+        ];
+        for (name, bitrate, min, max, wants_err) in cases {
+            assert_eq!(
+                validate_bitrate(bitrate, min, max).is_err(),
+                wants_err,
+                "{name}"
+            );
+        }
+    }
+
+    // Go: TestValidateBitrate_WithConfig
+    #[test]
+    fn validate_bitrate_with_config() {
+        let cfg = Config {
+            min_bitrate: 256_000,
+            max_bitrate: 10_000_000,
+            ..Config::default()
+        };
+        for (name, bitrate, wants_err) in [
+            ("valid bitrate", 5_000_000, false),
+            ("below custom min", 100_000, true),
+            ("above custom max", 50_000_000, true),
+            ("at custom min", 256_000, false),
+            ("at custom max", 10_000_000, false),
+        ] {
+            assert_eq!(
+                validate_bitrate(bitrate, cfg.min_bitrate, cfg.max_bitrate).is_err(),
+                wants_err,
+                "{name}"
+            );
+        }
+    }
+
+    // No Go test pins the messages; the parity of the text with Go is checked here.
+    #[test]
+    fn validate_bitrate_messages_are_gos() {
+        let text = |r: Result<(), Error>| r.unwrap_err().to_string();
+        assert_eq!(
+            text(validate_bitrate(0, 0, 0)),
+            "bitrate must be positive, got 0"
+        );
+        assert_eq!(
+            text(validate_bitrate(5, 10, 0)),
+            "bitrate 5 is below minimum 10 bits/second"
+        );
+        assert_eq!(
+            text(validate_bitrate(50, 0, 10)),
+            "bitrate 50 exceeds maximum 10 bits/second"
+        );
+    }
+
+    // Go: TestBuildEncodeBaseArgs_Defaults
+    #[test]
+    fn build_encode_base_args_defaults() {
+        let args = build(&no_streams(), "libx264", 2_000_000, "aac", 6, 0, "");
+        let j = joined(&args);
+        // -re throttles the input to realtime; it must never appear for file output.
+        assert!(!args.iter().any(|a| a == "-re"), "{args:?}");
+        assert!(!j.contains("-preset"), "{args:?}");
+        assert!(!j.contains("-filter_threads"), "{args:?}");
+        assert!(j.contains("-threads 6"), "{args:?}");
+        assert!(j.contains("-b:v 2000000"), "{args:?}");
+    }
+
+    // Go: TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads
+    #[test]
+    fn build_encode_base_args_preset_and_filter_threads() {
+        let args = build(&no_streams(), "libx264", 2_000_000, "copy", 8, 4, "fast");
+        let j = joined(&args);
+        assert!(!args.iter().any(|a| a == "-re"), "{args:?}");
+        assert!(j.contains("-preset fast"), "{args:?}");
+        assert!(j.contains("-filter_threads 4"), "{args:?}");
+        assert!(j.contains("-threads 8"), "{args:?}");
+    }
+
+    fn preset_of(encoder: &str, preset: &str) -> String {
+        joined(&build(
+            &no_streams(),
+            encoder,
+            2_000_000,
+            "copy",
+            8,
+            4,
+            preset,
+        ))
+    }
+
+    // Go: TestBuildEncodeBaseArgs_AMFMapsFastPreset
+    #[test]
+    fn amf_maps_fast_preset() {
+        let j = preset_of("h264_amf", "fast");
+        assert!(j.contains("-preset speed"), "{j}");
+        assert!(!j.contains("-preset fast"), "{j}");
+    }
+
+    // Go: TestBuildEncodeBaseArgs_AMFMapsMediumPreset
+    #[test]
+    fn amf_maps_medium_preset() {
+        assert!(preset_of("hevc_amf", "medium").contains("-preset balanced"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset
+    #[test]
+    fn amf_suppresses_unsupported_preset() {
+        assert!(!preset_of("h264_amf", "p4").contains("-preset"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset
+    #[test]
+    fn qsv_keeps_supported_preset() {
+        assert!(preset_of("h264_qsv", "fast").contains("-preset fast"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset
+    #[test]
+    fn qsv_maps_ultrafast_preset() {
+        assert!(preset_of("h264_qsv", "ultrafast").contains("-preset veryfast"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset
+    #[test]
+    fn qsv_maps_placebo_preset() {
+        assert!(preset_of("hevc_qsv", "placebo").contains("-preset veryslow"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset
+    #[test]
+    fn qsv_suppresses_unsupported_preset() {
+        assert!(!preset_of("h264_qsv", "p4").contains("-preset"));
+    }
+
+    // Go: TestBuildEncodeBaseArgs_Libx265AddsQuietParams
+    #[test]
+    fn libx265_adds_quiet_params() {
+        let args = build(&no_streams(), "libx265", 2_000_000, "aac", 4, 0, "slow");
+        assert!(
+            joined(&args).contains("-x265-params log-level=error"),
+            "{args:?}"
+        );
+        let other = build(&no_streams(), "libx264", 2_000_000, "aac", 4, 0, "slow");
+        assert!(!joined(&other).contains("-x265-params"), "{other:?}");
+    }
+
+    // Go: TestRemapFilterChain
+    #[test]
+    fn remap_filter_chain_cases() {
+        let head = "[0:v:0][1:v:0][2:v:0]remap,";
+        // (name, pix_fmt, encoder, chain after remap)
+        let cases = [
+            (
+                "8-bit source stays 8-bit",
+                "yuv420p",
+                "libx265",
+                "format=yuv444p,format=yuv420p[v]",
+            ),
+            (
+                "10-bit source with an HEVC encoder keeps its depth",
+                "yuv420p10le",
+                "libx265",
+                "format=yuv444p10le,format=yuv420p10le[v]",
+            ),
+            (
+                "10-bit source with hardware HEVC keeps its depth",
+                "yuv420p10le",
+                "hevc_nvenc",
+                "format=yuv444p10le,format=yuv420p10le[v]",
+            ),
+            // h264_nvenc cannot encode 10-bit at all.
+            (
+                "10-bit source with an H.264 encoder falls back to 8-bit",
+                "yuv420p10le",
+                "h264_nvenc",
+                "format=yuv444p,format=yuv420p[v]",
+            ),
+            // Old ffprobe builds do not report pix_fmt; 8-bit is the safe read.
+            (
+                "unknown pixel format is treated as 8-bit",
+                "",
+                "libx265",
+                "format=yuv444p,format=yuv420p[v]",
+            ),
+            (
+                "a Vulkan encoder gets the frames uploaded",
+                "yuv420p",
+                "h264_vulkan",
+                "format=yuv444p,format=yuv420p,format=nv12,hwupload[v]",
+            ),
+            (
+                "a VAAPI encoder gets the frames uploaded",
+                "yuv420p",
+                "h264_vaapi",
+                "format=yuv444p,format=yuv420p,format=nv12,hwupload[v]",
+            ),
+            (
+                "a 10-bit upload goes through p010, not the planar format",
+                "yuv420p10le",
+                "hevc_vulkan",
+                "format=yuv444p10le,format=yuv420p10le,format=p010,hwupload[v]",
+            ),
+            (
+                "NVENC is left to upload for itself",
+                "yuv420p",
+                "h264_nvenc",
+                "format=yuv444p,format=yuv420p[v]",
+            ),
+        ];
+        for (name, pix_fmt, encoder, tail) in cases {
+            assert_eq!(
+                remap_filter_chain(pix_fmt, encoder),
+                format!("{head}{tail}"),
+                "{name}"
+            );
+        }
+    }
+
+    // Go: TestBuildEncodeBaseArgs_DeviceOptionsComeBeforeTheInput
+    #[test]
+    fn device_options_come_before_the_input() {
+        let args = build(&no_streams(), "h264_vulkan", 2_000_000, "aac", 6, 0, "");
+        let device_at = args
+            .iter()
+            .position(|a| a == "-init_hw_device")
+            .unwrap_or_else(|| panic!("a Vulkan encode carries no -init_hw_device: {args:?}"));
+        let input_at = args
+            .iter()
+            .position(|a| a == "-i")
+            .unwrap_or_else(|| panic!("no -i in the arguments at all: {args:?}"));
+        assert!(
+            device_at < input_at,
+            "-init_hw_device is at {device_at}, after the input at {input_at}"
+        );
+        // And nothing of the sort for an encoder that uploads for itself.
+        let cpu = joined(&build(&no_streams(), "libx264", 2_000_000, "aac", 6, 0, ""));
+        assert!(!cpu.contains("-init_hw_device"), "{cpu}");
+    }
+
+    // Go: TestBuildEncodeBaseArgs_MapsStreamsAndMetadata
+    #[test]
+    fn maps_streams_and_metadata() {
+        let video = VideoSpecs {
+            file: "input.mp4".into(),
+            streams: vec![VideoStream {
+                codec: "hevc".into(),
+                width: 1440,
+                height: 1080,
+                pix_fmt: "yuv420p10le".into(),
+                duration: "1".into(),
+                duration_float: 1.0,
+                bitrate: "2000000".into(),
+                bitrate_int: 2_000_000,
+                ..VideoStream::default()
+            }],
+        };
+        let args = build(&video, "libx265", 2_000_000, "aac", 6, 0, "");
+        let j = joined(&args);
+        // Without these three, ffmpeg keeps one audio track and no global metadata.
+        assert!(j.contains("-map [v] -map 0:a?"), "{args:?}");
+        assert!(j.contains("-map_metadata 0"), "{args:?}");
+        // The "?" is what makes a clip with no audio work rather than fail.
+        assert!(!j.contains("-map 0:a "), "{args:?}");
+        assert!(j.contains("format=yuv420p10le[v]"), "{args:?}");
+    }
+
+    // Go: TestBuildEncodeBaseArgs_NoStreamsFallsBackToEightBit
+    #[test]
+    fn no_streams_falls_back_to_eight_bit() {
+        let args = build(&no_streams(), "libx265", 2_000_000, "aac", 6, 0, "");
+        assert!(
+            joined(&args).contains("format=yuv444p,format=yuv420p[v]"),
+            "{args:?}"
+        );
+    }
+
+    // Go: TestClampEncoderThreads
+    #[test]
+    fn clamp_encoder_threads_cases() {
+        assert_eq!(clamp_encoder_threads("libx265", 24), X265_MAX_FRAME_THREADS);
+        // Below the cap, leave it alone.
+        assert_eq!(clamp_encoder_threads("libx265", 8), 8);
+        // Everything else clamps internally instead of failing; do not second-guess it.
+        assert_eq!(clamp_encoder_threads("libx264", 24), 24);
+        assert_eq!(clamp_encoder_threads("hevc_nvenc", 24), 24);
+    }
+
+    // Go: TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped
+    #[test]
+    fn libx265_threads_are_capped() {
+        let args = build(&no_streams(), "libx265", 2_000_000, "aac", 32, 0, "");
+        assert!(joined(&args).contains("-threads 16"), "{args:?}");
+    }
+
+    // Go: TestBuildEncodeBaseArgs_ConstrainsTheBitrateCeiling
+    #[test]
+    fn constrains_the_bitrate_ceiling() {
+        let args = build(&no_streams(), "libx264", 8_000_000, "aac", 6, 0, "");
+        let j = joined(&args);
+        assert!(j.contains("-b:v 8000000"), "{args:?}");
+        assert!(j.contains("-maxrate 8000000"), "{args:?}");
+        assert!(j.contains("-bufsize 16000000"), "{args:?}");
+    }
+
+    // Go: TestEncoderThreadArgs
+    #[test]
+    fn encoder_thread_args_cases() {
+        assert_eq!(joined(&encoder_thread_args("libx264", 24)), "-threads 24");
+        assert_eq!(joined(&encoder_thread_args("libx265", 24)), "-threads 16");
+        for enc in [
+            "h264_nvenc",
+            "hevc_nvenc",
+            "h264_amf",
+            "hevc_qsv",
+            "h264_vaapi",
+        ] {
+            assert!(encoder_thread_args(enc, 24).is_empty(), "{enc}");
+        }
+    }
+
+    // Go: TestBuildEncodeBaseArgs_NoThreadsForHardwareEncoders
+    #[test]
+    fn no_threads_for_hardware_encoders() {
+        let args = build(&no_streams(), "h264_nvenc", 2_000_000, "aac", 24, 0, "");
+        assert!(!joined(&args).contains("-threads"), "{args:?}");
+    }
+
+    // Go: TestEffectiveEncoderThreads (the core count is a parameter here)
+    #[test]
+    fn effective_encoder_threads_cases() {
+        let cfg = Config {
+            encoder_threads: 24,
+            ..Config::default()
+        };
+        assert_eq!(
+            effective_encoder_threads(Some(&cfg), "libx265", 8),
+            X265_MAX_FRAME_THREADS
+        );
+        assert_eq!(effective_encoder_threads(Some(&cfg), "libx264", 8), 24);
+        // Unconfigured: one per core, clamped like the command line.
+        let unset = Config {
+            encoder_threads: 0,
+            ..Config::default()
+        };
+        assert_eq!(effective_encoder_threads(Some(&unset), "libx265", 40), 16);
+        assert_eq!(effective_encoder_threads(Some(&unset), "libx265", 6), 6);
+        assert_eq!(effective_encoder_threads(None, "libx265", 40), 16);
+        assert_eq!(effective_encoder_threads(None, "libx264", 40), 40);
+        // A negative configured value is not a request either.
+        let negative = Config {
+            encoder_threads: -3,
+            ..Config::default()
+        };
+        assert_eq!(requested_encoder_threads(Some(&negative), 12), 12);
+    }
+
+    // Go: TestMapVideoPreset_NVENCTakesItsOwnScale
+    #[test]
+    fn nvenc_takes_its_own_scale() {
+        let cases = [
+            ("ultrafast", "p1"),
+            ("superfast", "p1"),
+            ("veryfast", "p1"),
+            ("faster", "p2"),
+            ("fast", "p3"),
+            ("medium", "p4"),
+            ("slow", "p5"),
+            ("slower", "p6"),
+            ("veryslow", "p7"),
+            ("placebo", "p7"),
+            ("", ""),
+            ("bogus", ""),
+        ];
+        for (input, want) in cases {
+            for encoder in ["h264_nvenc", "hevc_nvenc"] {
+                assert_eq!(
+                    map_video_preset_for_encoder(encoder, input),
+                    want,
+                    "{encoder} {input:?}"
+                );
+            }
+        }
+    }
+
+    // Go: TestMapVideoPreset_DeviceFrameEncodersTakeNone
+    #[test]
+    fn device_frame_encoders_take_no_preset() {
+        for encoder in ["h264_vaapi", "hevc_vulkan", "h264_d3d12va", "h264_v4l2m2m"] {
+            assert_eq!(
+                map_video_preset_for_encoder(encoder, "medium"),
+                "",
+                "{encoder}"
+            );
+        }
+        // The CPU encoders still take the name verbatim.
+        assert_eq!(
+            map_video_preset_for_encoder("libx264", "veryslow"),
+            "veryslow"
+        );
+        // Case and whitespace are normalised, as Go's TrimSpace + ToLower do.
+        assert_eq!(map_video_preset_for_encoder("libx264", " FAST "), "fast");
+        assert_eq!(map_video_preset_for_encoder("h264_qsv", " SLOW "), "slow");
+    }
+
+    // Go: TestEncoderFacingArgs_TagsHEVCForApplePlayers
+    #[test]
+    fn hevc_is_tagged_for_apple_players() {
+        for encoder in ["libx265", "hevc_nvenc", "hevc_vaapi"] {
+            let j = joined(&encoder_facing_args(encoder, 1_000_000, ""));
+            assert!(j.contains("-tag:v hvc1"), "{encoder}: {j}");
+        }
+        for encoder in ["libx264", "h264_nvenc"] {
+            let j = joined(&encoder_facing_args(encoder, 1_000_000, ""));
+            assert!(!j.contains("-tag:v"), "{encoder}: {j}");
+        }
+    }
+
+    // Go: TestBuildEncodeBaseArgs's ten-bit rule, which encodesInTenBits names.
+    #[test]
+    fn ten_bits_need_a_high_depth_source_and_an_hevc_encoder() {
+        assert!(encodes_in_ten_bits("yuv420p10le", "libx265"));
+        assert!(encodes_in_ten_bits("p010le", "hevc_vaapi"));
+        assert!(!encodes_in_ten_bits("yuv420p10le", "libx264"));
+        assert!(!encodes_in_ten_bits("yuv420p", "libx265"));
+        assert!(!encodes_in_ten_bits("", "libx265"));
+    }
+}
