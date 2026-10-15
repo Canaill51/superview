@@ -67,7 +67,7 @@ fn system_directories() -> Vec<String> {
 }
 
 /// Compares two paths, case-insensitively on Windows.
-fn path_equal(a: &str, b: &str) -> bool {
+pub(crate) fn path_equal(a: &str, b: &str) -> bool {
     if cfg!(windows) {
         a.to_lowercase() == b.to_lowercase()
     } else {
@@ -77,7 +77,7 @@ fn path_equal(a: &str, b: &str) -> bool {
 
 /// `filepath.Clean` for the paths that reach it: `.` components, repeated and
 /// trailing separators go. `..` never gets here (see [`has_traversal_component`]).
-fn clean(path: &Path) -> PathBuf {
+pub(crate) fn clean(path: &Path) -> PathBuf {
     path.components().collect()
 }
 
