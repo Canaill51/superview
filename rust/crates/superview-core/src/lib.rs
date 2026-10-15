@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod error;
+pub mod hardware;
 pub mod pgm;
 pub mod process;
 pub mod security;
