@@ -89,7 +89,7 @@ pub struct StopControl<'a> {
 
 /// The error for a stop that has been requested, if one has. A signal first: it carries
 /// the cause, and says it was not the user.
-fn stop_requested(stop: &StopControl) -> Option<Error> {
+pub(crate) fn stop_requested(stop: &StopControl) -> Option<Error> {
     let signal = stop.signal.load(Ordering::Acquire);
     if signal != 0 {
         let name = signal_description(signal);
