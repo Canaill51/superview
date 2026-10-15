@@ -1,13 +1,19 @@
 //! What ffprobe says about the input, and its validation.
 //!
 //! Port of `internal/common/video.go` (`VideoSpecs`, `parseFrameRate`,
-//! `Validate`, `parseVideoSpecs`). Verdicts are pinned by the parity oracle
+//! `Validate`, `parseVideoSpecs`, `CheckVideo`). Verdicts are pinned by the parity oracle
 //! `testdata/parity/specs.json`.
+//!
+//! `check_video` differs from `CheckVideo` in one respect: when ffprobe cannot even be
+//! started, Go's message ends at "output:\n" with nothing after it; here the cause (the
+//! `io::Error`) takes the place of the output, so the user learns that ffprobe is missing.
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::error::{Error, InvalidVideoError};
+use crate::process::combined_output;
+use crate::tools::ToolResolver;
 
 /// Metadata about a video file extracted by ffprobe.
 #[derive(Debug, Clone, PartialEq)]
@@ -155,6 +161,34 @@ impl VideoSpecs {
         }
         Ok(())
     }
+}
+
+/// The ffprobe command that reads the first video stream of `file` as JSON.
+fn check_video_command(resolver: &ToolResolver, file: &str) -> std::process::Command {
+    resolver.ffprobe_command([
+        "-i",
+        file,
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=codec_name,width,height,duration,bit_rate,pix_fmt,r_frame_rate",
+        "-print_format",
+        "json",
+    ])
+}
+
+/// Loads and validates video metadata using ffprobe: codec, dimensions, duration and bitrate
+/// of the first video stream (Go: `CheckVideo`). `InvalidVideo` if required metadata is
+/// missing or invalid; `Plain` "ffprobe failed, output:\n..." if ffprobe fails.
+pub fn check_video(resolver: &ToolResolver, file: &str) -> Result<VideoSpecs, Error> {
+    let output = match combined_output(check_video_command(resolver, file)) {
+        Ok((status, output)) if status.success() => output,
+        Ok((_, output)) => return Err(Error::Plain(format!("ffprobe failed, output:\n{output}"))),
+        Err(e) => return Err(Error::Plain(format!("ffprobe failed, output:\n{e}"))),
+    };
+    parse_video_specs(file, output.as_bytes())
 }
 
 /// Turns ffprobe's JSON into validated [`VideoSpecs`].
@@ -435,5 +469,199 @@ mod tests {
                 Err(Error::InvalidVideo(_))
             ));
         }
+    }
+
+    // ---- check_video ----
+
+    use crate::probe::tests::fake_tools;
+    use crate::process::tests::spawn_lock;
+    use std::path::{Path, PathBuf};
+
+    fn fixture(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../internal/common/testdata/ffprobe")
+            .join(name)
+    }
+
+    /// A stand-in ffprobe printing the content of `fixture`, copied next to a canonical
+    /// path so the script quotes a plain Windows path too.
+    fn ffprobe_printing(fixture_name: &str) -> (crate::probe::tests::FakeTools, tempfile::TempDir) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let copy = dir.path().join("out.json");
+        std::fs::copy(fixture(fixture_name), &copy).unwrap();
+        let copy = dunce::canonicalize(copy).unwrap();
+        #[cfg(unix)]
+        let body = format!("cat '{}'", copy.display());
+        #[cfg(windows)]
+        let body = format!("type \"{}\"", copy.display());
+        (fake_tools(&[("ffprobe", &body)]), dir)
+    }
+
+    // No Go test of CheckVideo against a recorded output (the Go tests run the real ffprobe).
+    #[test]
+    fn check_video_parses_what_ffprobe_prints() {
+        let _guard = spawn_lock();
+        let (tools, _dir) = ffprobe_printing("valid-h264-4x3.json");
+        let specs = check_video(&tools.resolver, "clip.mp4").unwrap();
+        assert_eq!(specs.file, "clip.mp4");
+        let stream = &specs.streams[0];
+        assert_eq!(
+            (stream.codec.as_str(), stream.width, stream.height),
+            ("h264", 1440, 1080)
+        );
+        assert_eq!(stream.bitrate_int, 192_648);
+        assert_eq!(stream.duration_float, 1.0);
+        assert_eq!(stream.frame_rate, 30.0);
+    }
+
+    #[test]
+    fn check_video_hands_a_bad_stream_to_the_validation() {
+        let _guard = spawn_lock();
+        let (tools, _dir) = ffprobe_printing("no-streams.json");
+        let err = check_video(&tools.resolver, "clip.mp4").unwrap_err();
+        assert!(
+            matches!(&err, Error::InvalidVideo(v) if v.reason == "no video streams in file"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn check_video_reports_a_failing_ffprobe_with_its_output() {
+        let _guard = spawn_lock();
+        #[cfg(unix)]
+        let body = "echo 'broken file' 1>&2\nexit 1";
+        #[cfg(windows)]
+        let body = ">&2 echo broken file\r\nexit /b 1";
+        let tools = fake_tools(&[("ffprobe", body)]);
+        let err = check_video(&tools.resolver, "clip.mp4").unwrap_err();
+        assert!(matches!(err, Error::Plain(_)), "{err:?}");
+        // A batch file adds a carriage return.
+        assert_eq!(
+            err.to_string().trim_end(),
+            "ffprobe failed, output:\nbroken file"
+        );
+    }
+
+    // Unix only: on Windows a child that does not find its program in its own PATH is also
+    // looked for in the parent's, where CI has a real ffprobe. That one starts and fails on
+    // clip.mp4, so "ffprobe is missing" cannot be simulated there.
+    #[cfg(unix)]
+    #[test]
+    fn check_video_reports_a_missing_ffprobe() {
+        let _guard = spawn_lock();
+        let empty = tempfile::TempDir::new().unwrap();
+        let path = empty.path().to_path_buf();
+        let resolver = ToolResolver::new(
+            move |key| (key == "PATH").then(|| path.clone().into_os_string()),
+            Some(empty.path().to_path_buf()),
+        );
+        let err = check_video(&resolver, "clip.mp4").unwrap_err();
+        // The io::Error of a program that cannot start never names the file.
+        assert!(
+            matches!(&err, Error::Plain(m) if m.starts_with("ffprobe failed, output:\n")
+                && m.len() > 24 && !m.contains("clip.mp4")),
+            "{err:?}"
+        );
+    }
+
+    // The argv is part of the contract with ffprobe: the file goes through `-i`, whatever
+    // its name, and the JSON carries exactly the fields parse_video_specs reads.
+    #[test]
+    fn check_video_asks_ffprobe_for_the_first_video_stream_as_json() {
+        let resolver = ToolResolver::new(|_| None, None);
+        let cmd = check_video_command(&resolver, "-weird name.mp4");
+        let args: Vec<_> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            [
+                "-i",
+                "-weird name.mp4",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,width,height,duration,bit_rate,pix_fmt,r_frame_rate",
+                "-print_format",
+                "json"
+            ]
+        );
+    }
+
+    /// The machine's ffprobe, or `None` where there is none -- unless
+    /// `SUPERVIEW_REQUIRE_FFMPEG=1`, which CI sets, where its absence fails the test.
+    fn real_ffprobe() -> Option<ToolResolver> {
+        let resolver = ToolResolver::from_process();
+        let works = combined_output(resolver.ffprobe_command(["-version"]))
+            .is_ok_and(|(status, _)| status.success());
+        let require = std::env::var("SUPERVIEW_REQUIRE_FFMPEG").as_deref() == Ok("1");
+        assert!(
+            works || !require,
+            "no usable ffprobe although SUPERVIEW_REQUIRE_FFMPEG=1"
+        );
+        works.then_some(resolver)
+    }
+
+    // Go: the integration tests' CheckVideo on a missing file.
+    #[test]
+    fn check_video_refuses_a_file_that_does_not_exist() {
+        let _guard = spawn_lock();
+        let Some(resolver) = real_ffprobe() else {
+            return;
+        };
+        let dir = tempfile::TempDir::new().unwrap();
+        let missing = dir.path().join("missing.mp4");
+        let err = check_video(&resolver, &missing.to_string_lossy()).unwrap_err();
+        assert!(
+            matches!(&err, Error::Plain(m) if m.starts_with("ffprobe failed, output:\n")),
+            "{err:?}"
+        );
+    }
+
+    // Go: makeTestClip + CheckVideo (cancel_leak_test.go, integration tests).
+    #[test]
+    fn check_video_reads_a_real_clip() {
+        let _guard = spawn_lock();
+        let Some(resolver) = real_ffprobe() else {
+            return;
+        };
+        let dir = tempfile::TempDir::new().unwrap();
+        let clip = dir.path().join("clip.mp4");
+        let mut make = resolver.ffmpeg_command([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=640x480:rate=10:duration=2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+        ]);
+        make.arg(&clip);
+        let (status, output) = combined_output(make).unwrap();
+        if !status.success() {
+            assert!(
+                std::env::var("SUPERVIEW_REQUIRE_FFMPEG").as_deref() != Ok("1"),
+                "cannot make a test clip although SUPERVIEW_REQUIRE_FFMPEG=1: {output}"
+            );
+            return;
+        }
+        let specs = check_video(&resolver, &clip.to_string_lossy()).unwrap();
+        let stream = &specs.streams[0];
+        assert_eq!(
+            (stream.codec.as_str(), stream.width, stream.height),
+            ("h264", 640, 480)
+        );
+        assert_eq!(stream.frame_rate, 10.0);
+        assert!(
+            stream.duration_float > 1.0 && stream.bitrate_int > 0,
+            "{stream:?}"
+        );
     }
 }
