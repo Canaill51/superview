@@ -13,6 +13,7 @@ pub mod memory;
 pub mod metrics;
 pub mod output;
 pub mod pgm;
+pub mod pipeline;
 pub mod probe;
 pub mod process;
 pub mod security;

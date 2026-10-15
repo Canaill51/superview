@@ -49,8 +49,8 @@ impl EncodingSession {
     }
 
     /// [`EncodingSession::new`] with the parent directory chosen (a test reaches the
-    /// failure path through it).
-    fn new_in(parent: &Path, cfg: &Config) -> Result<Self, SessionError> {
+    /// failure path through it, and the pipeline's injected temporary directory is used here).
+    pub fn new_in(parent: &Path, cfg: &Config) -> Result<Self, SessionError> {
         let pattern = cfg.temp_dir_prefix.as_str();
         if pattern
             .chars()
