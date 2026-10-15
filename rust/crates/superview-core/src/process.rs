@@ -241,9 +241,11 @@ pub fn killed_by_signal(_status: &ExitStatus) -> Option<String> {
     None
 }
 
-/// Go's `syscall.Signal.String()` on Linux.
-#[cfg(unix)]
-fn signal_name(signal: i32) -> String {
+/// Go's `syscall.Signal.String()` on Linux. Not Unix-only: [`crate::error::signal_description`]
+/// names the signal behind a stop request on every platform. (Go's Windows table names only 1 to
+/// 15 and prints "signal 16" beyond; this one keeps Linux's names. No effect: only 2 and 15 are
+/// ever listened to.)
+pub(crate) fn signal_name(signal: i32) -> String {
     const NAMES: [&str; 31] = [
         "hangup",
         "interrupt",
