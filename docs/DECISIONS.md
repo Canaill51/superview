@@ -74,7 +74,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
 | [DEC-41](#dec-41) | La release livre un installateur Windows et une AppImage Linux, pas des archives | Acceptée |
 | [DEC-42](#dec-42) | Un agent peut déclencher la release, sur demande explicite, par `/publier` | Acceptée |
-| [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée (porte GO/NO-GO après la phase 3) |
+| [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée, GO donné le 2026-10-15 |
 | [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
 
 ---
@@ -409,12 +409,13 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-43
 **Superview est porté vers Rust + Slint ; la version Go reste la référence et continue d'être livrée jusqu'à la parité ; `rust/` cohabite avec le code Go.**
-2026-10-14 · Acceptée · à la demande de l'utilisateur · porte GO/NO-GO après la phase 3
+2026-10-14 · Acceptée, GO donné le 2026-10-15 · à la demande de l'utilisateur
 
 **Contexte** — Le code Go pèse 7 200 lignes de code et 11 100 de tests, et l'utilisateur le trouve difficile à maintenir. Les paquets de release (DEC-41) sont en place. FFmpeg et ffprobe ne changent pas : mêmes binaires embarqués, mêmes pins, mêmes arguments (DEC-04, plancher NVENC).
 **Décision** — Un workspace Cargo sous `rust/` (edition 2024) : `superview-core` (logique, sans GUI), `superview-harness` (banc d'essai, DEC-44) et `superview-app` (Slint, licence GPLv3 compatible avec celle de Superview). Une PR par étape, `scripts/check.sh` vert sur Go **et** Rust tant qu'ils cohabitent, `scripts/checks/rust.sh` en est la moitié Rust. Un oracle de parité (`testdata/parity/*.json`, écrit côté Go) fixe ce que Rust doit reproduire. La phase 3 est un essai (cartes PGM aux empreintes dorées sur les deux OS, fenêtre Slint, AppImage d'essai) suivi d'une porte GO/NO-GO.
 **Conséquences** — Pendant le portage, le dépôt a deux chaînes d'outils : le pre-commit exige Rust installé (`docs/ENVIRONNEMENT.md`). Les `math.Pow(x, 2)` de `pgm.go` se portent en `powi(2)`, jamais `powf(2.0)` (dépend de la libm). Aucun test Rust ne modifie l'environnement du processus (`std::env::set_var` est `unsafe` en edition 2024 et les tests tournent en parallèle) : la résolution des outils reçoit l'environnement en paramètre (L-114). Un NO-GO coûte une PR de suppression de `rust/`, rien de plus. À la bascule, les DEC liées à Go/Fyne (21, 23, 36, 39, partie « Go + Fyne » de DEC-02) seront *Remplacées* et d'autres amendées.
-**À rouvrir si** — La phase 3 donne un NO-GO (empreintes différentes selon l'OS, PGM plus de 1,5 fois plus lent que Go, fenêtre ou dialogue défaillants, PR jugées illisibles).
+**Porte GO/NO-GO (2026-10-15)** — L'essai de la phase 3 a donné **GO** : JSON d'oracle reproduits champ par champ et 4 empreintes PGM identiques (Linux et Windows), génération des cartes environ 2 fois plus rapide que Go (critère : au plus 1,5 fois plus lent), fenêtre Slint ouverte sous xvfb, sous Windows et dans l'AppImage d'essai. La phase 4 (cœur `superview-core`) est lancée. Choix de la phase 4, PR 1 : le YAML se lit avec `serde-saphyr` (Rust sûr, sans RUSTSEC), pas `serde_yaml_ng` (qui repose sur `unsafe-libyaml`, signalé non maintenu, RUSTSEC-2024-0449) ; la migration des clés retirées et les variables `SUPERVIEW_*` (sauf `SUPERVIEW_FFMPEG_DIR`) ne sont pas portées. Divergences voulues du décodeur YAML avec Go : un nombre entre guillemets (`"5"`) est accepté dans un champ entier ; plusieurs documents (`---`) sont refusés (Go lisait le premier) ; un décimal dans un champ entier (`1e6`, `1.5`) est refusé (yaml.v3 acceptait `1e6` et tronquait `1.5` en 1, ce qui était un défaut). Le fichier est lu en UTF-8 (BOM toléré) ou UTF-16 avec BOM, comme yaml.v3.
+**À rouvrir si** — Une PR de la phase 4 rend la parité impossible à tenir (oracle ou empreintes divergents), ou si les PR restent jugées illisibles.
 
 ### DEC-44
 **`superview-harness` est un banc d'essai, jamais livré ; ce n'est pas une CLI et DEC-02 tient.**

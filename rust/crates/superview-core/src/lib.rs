@@ -2,8 +2,10 @@
 //!
 //! Modules arrive one pull request at a time, each with its tests (see the port plan).
 
+pub mod config;
 pub mod error;
 pub mod pgm;
+pub mod security;
 pub mod video;
 
 /// The core's version, which is the workspace's.

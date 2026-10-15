@@ -8,10 +8,11 @@
 - Toute modification de `.github/workflows/release.yml` : essai à blanc AVANT fusion (L-114,
   `gh workflow run release.yml --ref <branche>`, sans version).
 - Portage Rust + Slint (DEC-43) : **phases 1 à 3 faites** (#99 #100, oracle de parité #101, port `video`/`pgm`/`error` #102, fenêtre Slint + `rfd` #103).
-  **En attente : la décision GO/NO-GO de l'utilisateur.** Mesuré : JSON d'oracle reproduits champ par champ, 4 empreintes PGM identiques,
-  génération des cartes ~2 fois plus rapide que Go (critère : ≤ 1,5 ×), fenêtre ouverte sous xvfb, sous Windows et dans une AppImage d'essai (CI).
+  **GO donné le 2026-10-15** (JSON et 4 empreintes PGM identiques, cartes ~2 fois plus rapides que Go, fenêtre OK sous xvfb, Windows et AppImage d'essai).
+  **Phase 4 en cours (cœur `superview-core`, 7 PR)** : PR 1/7 `config.rs` + `security.rs` (YAML par `serde-saphyr`, sans migration des clés retirées ni variables `SUPERVIEW_*`) ;
+  suivantes : `tools`+`process`, `hardware`, `encode/args`, `probe`/`session`/`memory`/`disk`/`health`, `encode/run`, `pipeline`+`logfile`.
   À savoir : winit charge `libxkbcommon-x11` à l'exécution sous X11 et l'AppImage ne l'embarque pas ; `rfd` a besoin de libdbus (portail) ou de zenity ;
-  le sélecteur n'a pas de champ texte de secours (phase 6, étape 4). Si GO : phase 4 (cœur `superview-core`). Si NO-GO : DEC-43 *Rejetée*, `rust/` supprimé en une PR.
+  le sélecteur n'a pas de champ texte de secours (phase 6, étape 4).
   Plan approuvé : `~/.claude/plans/distributed-kindling-alpaca.md`. Rust s'installe par rustup dans `~/.cargo` (`docs/ENVIRONNEMENT.md`) ;
   le pre-commit l'exige. Les jobs `rust.yml` ne sont pas des checks requis.
 - Publier une version : demander « publie la version x.y.z » ; l'agent passe par `/publier` (DEC-42), confirme le numéro, lance le workflow Release et vérifie les fichiers.
