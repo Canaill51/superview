@@ -71,7 +71,7 @@ where
 /// hexadecimal floats (`0x1p-2`), which Go accepts and this refuses; JSON keys,
 /// which Go matches without regard to case and serde matches exactly; invalid
 /// UTF-8 in the JSON, which Go replaces with U+FFFD and serde rejects.
-fn parse_go_float(text: &str) -> Option<f64> {
+pub(crate) fn parse_go_float(text: &str) -> Option<f64> {
     if !underscores_ok(text) {
         return None;
     }

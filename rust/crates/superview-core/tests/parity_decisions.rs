@@ -144,6 +144,10 @@ fn kind(err: &Error) -> &'static str {
         Error::Encoder(_) => "EncoderError",
         Error::Session(_) => "SessionError",
         Error::Plain(_) => "plain",
+        // No oracle case produces a stop (PR 6a): named so the match stays exhaustive.
+        Error::Cancelled => "cancelled",
+        Error::StoppedBySignal(_) => "stopped_by_signal",
+        Error::FailedAfterOutput(_) => "failed_after_output",
     }
 }
 
