@@ -1502,7 +1502,11 @@ pub(crate) mod tests {
             let (encoder, _) = verify(&prober, &video, false, &vaapi_machine());
             assert_eq!(encoder, "libx265", "call {call}: expected the step-back");
         }
-        let data = std::fs::read_to_string(&ledger).expect("the stand-in was never run");
+        // std quotes the arguments it hands a `.bat` that hold `=` or `,`
+        // (`"vaapi=sv"`); the quotes are the batch file's view, not a defect.
+        let data = std::fs::read_to_string(&ledger)
+            .expect("the stand-in was never run")
+            .replace('"', "");
         assert_eq!(
             data.matches("call").count(),
             1,
