@@ -744,7 +744,17 @@ mod tests {
         const MISSING: &str = "superview-definitely-not-a-real-tool";
         assert_eq!(resolver.resolve(MISSING), PathBuf::from(MISSING));
         let installed = write_fake_tool(on_path.path(), MISSING);
-        assert_eq!(resolver.resolve(MISSING), installed);
+        let found = resolver.resolve(MISSING);
+        // PATHEXT supplies the extension as the user wrote it (`.EXE`), and NTFS
+        // takes both spellings for the same file: compare the paths without case there.
+        if cfg!(windows) {
+            assert_eq!(
+                found.to_string_lossy().to_lowercase(),
+                installed.to_string_lossy().to_lowercase()
+            );
+        } else {
+            assert_eq!(found, installed);
+        }
     }
 
     // Go: TestResolveToolBinary_CachesSuccess, on a stand-in rather than a real
