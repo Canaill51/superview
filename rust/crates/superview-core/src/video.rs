@@ -542,6 +542,10 @@ mod tests {
         );
     }
 
+    // Unix only: on Windows a child that does not find its program in its own PATH is also
+    // looked for in the parent's, where CI has a real ffprobe. That one starts and fails on
+    // clip.mp4, so "ffprobe is missing" cannot be simulated there.
+    #[cfg(unix)]
     #[test]
     fn check_video_reports_a_missing_ffprobe() {
         let _guard = spawn_lock();
@@ -552,9 +556,7 @@ mod tests {
             Some(empty.path().to_path_buf()),
         );
         let err = check_video(&resolver, "clip.mp4").unwrap_err();
-        // On Windows a child that does not find its program in its own PATH is also looked
-        // for in the parent's, where CI has a real ffprobe: that one would start and fail
-        // on clip.mp4, naming it. The io::Error of a program that cannot start never does.
+        // The io::Error of a program that cannot start never names the file.
         assert!(
             matches!(&err, Error::Plain(m) if m.starts_with("ffprobe failed, output:\n")
                 && m.len() > 24 && !m.contains("clip.mp4")),
