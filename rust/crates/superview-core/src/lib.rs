@@ -5,7 +5,9 @@
 pub mod config;
 pub mod error;
 pub mod pgm;
+pub mod process;
 pub mod security;
+pub mod tools;
 pub mod video;
 
 /// The core's version, which is the workspace's.
