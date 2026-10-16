@@ -25,8 +25,8 @@
 //!   interval. A cancel flag already raised before the call starts nothing, as Go's
 //!   `Start` refuses a done context.
 //! - Known limit, shared with Go: the kill reaches the process that was started, not its
-//!   children. On Windows a `.bat`/`.cmd` ffmpeg (accepted through `PATHEXT` as in Go)
-//!   would make the kill reach only `cmd.exe`; a real ffmpeg is an `.exe`, so this stays.
+//!   children. On Windows a `.bat`/`.cmd` ffmpeg would make the kill reach only
+//!   `cmd.exe`; the `PATH` search therefore refuses them (`tools.rs`), where Go accepts them.
 //!   Where Go would then wait on the pipe for as long as a child holds it, the run here
 //!   gives the reader [`READER_GRACE`] after a kill and returns the partial output.
 

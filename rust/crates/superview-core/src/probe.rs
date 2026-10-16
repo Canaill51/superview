@@ -707,7 +707,8 @@ pub(crate) mod tests {
         let resolver = ToolResolver::new(
             move |key| (key == "PATH").then(|| path.clone()),
             Some(empty.path().to_path_buf()),
-        );
+        )
+        .with_batch_stand_ins();
         FakeTools {
             _dir: dir,
             _empty: empty,
@@ -725,7 +726,7 @@ pub(crate) mod tests {
         install_tools(&files)
     }
 
-    /// Batch stand-ins, found through `PATHEXT` as Go's tests do (`ffmpeg.bat`).
+    /// Batch stand-ins, found on `PATH` through `with_batch_stand_ins` (`ffmpeg.bat`).
     #[cfg(windows)]
     pub(crate) fn fake_tools(scripts: &[(&str, &str)]) -> FakeTools {
         let files: Vec<(String, String)> = scripts
