@@ -276,11 +276,15 @@ fn absolute_path_entries(path: OsString) -> OsString {
 
 /// The `PATHEXT` extensions the search tries: those that name a program (`.com`,
 /// `.exe`, in any case), plus `.bat`/`.cmd` when `batch_files`. An unset or empty
-/// `PATHEXT` is `.COM;.EXE`.
+/// `PATHEXT` is `.COM;.EXE` (and `.BAT;.CMD` with `batch_files`).
 fn program_extensions(pathext: Option<&str>, batch_files: bool) -> Vec<String> {
     pathext
         .filter(|e| !e.is_empty())
-        .unwrap_or(".COM;.EXE")
+        .unwrap_or(if batch_files {
+            ".COM;.EXE;.BAT;.CMD"
+        } else {
+            ".COM;.EXE"
+        })
         .split(';')
         .filter(|e| !e.is_empty())
         .filter(|e| {
@@ -789,6 +793,10 @@ mod tests {
         );
         assert_eq!(program_extensions(None, false), [".COM", ".EXE"]);
         assert_eq!(program_extensions(Some(""), false), [".COM", ".EXE"]);
+        assert_eq!(
+            program_extensions(None, true),
+            [".COM", ".EXE", ".BAT", ".CMD"]
+        );
         assert_eq!(
             program_extensions(Some(".COM;.EXE;.BAT;.CMD"), true),
             [".COM", ".EXE", ".BAT", ".CMD"]
