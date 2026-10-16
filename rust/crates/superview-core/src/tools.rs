@@ -15,7 +15,7 @@
 //! - `PATH` is searched here, by [`lookup_in_path`], not by `exec.LookPath`:
 //!   the environment is injected. It ignores a relative `PATH` entry and goes
 //!   on, where Go's `LookPath` stops with an error on one. On Windows it
-//!   tries each `PATHEXT` extension (default `.COM;.EXE;.BAT;.CMD`).
+//!   tries each `PATHEXT` extension that names a program (default `.COM;.EXE`).
 //! - The command constructors pass the injected `PATH` on to the child, so a
 //!   tool left unresolved is looked up in the same `PATH` that was searched.
 //! - The command constructors hand the child a `PATH` reduced to its absolute
@@ -25,10 +25,12 @@
 //!   bytes too, and a non-UTF-8 `PATH` must not blind the search. Only the
 //!   trimming of the override and `PATHEXT` need text; a non-UTF-8 override
 //!   is used as it is, a non-UTF-8 `PATHEXT` is replaced by the default.
-//! - TODO PR 5: `lookup_in_path` accepts `.BAT` and `.CMD` on Windows, as Go
-//!   does, and spawning a batch file goes through `cmd.exe`, which may leave
-//!   an orphan on cancellation and re-parses arguments. Restrict to
-//!   `.exe`/`.com`? Not decided here.
+//! - `lookup_in_path` accepts only `.COM` and `.EXE` on Windows, where Go also
+//!   takes `.BAT` and `.CMD`: a batch file runs through `cmd.exe`, so a
+//!   cancellation would kill `cmd.exe` and leave ffmpeg running, against the
+//!   "cancellation leaves nothing behind" contract. Decided by the user on
+//!   2026-10-17. Only the tests' stand-ins on Windows are batch files, and
+//!   they opt in with `ToolResolver::with_batch_stand_ins`.
 //! - `usable_tool_file` answers with a `bool`, not the path or `""`.
 //! - Unlike the Go test helper, a failing query reports "exit status: N" (Rust's
 //!   `ExitStatus` text); only the leading text of a message is comparable.
@@ -63,6 +65,8 @@ pub struct ToolResolver {
     env: Box<EnvFn>,
     exe_dir: Option<PathBuf>,
     usable: fn(&Path) -> bool,
+    /// Windows only: also accept `.bat`/`.cmd` on `PATH`. Off, except for test stand-ins.
+    batch_files: bool,
     cache: Mutex<HashMap<String, PathBuf>>,
 }
 
@@ -77,6 +81,7 @@ impl ToolResolver {
             env: Box::new(env),
             exe_dir,
             usable: usable_tool_file,
+            batch_files: false,
             cache: Mutex::new(HashMap::new()),
         }
     }
@@ -93,6 +98,16 @@ impl ToolResolver {
     #[must_use]
     pub fn with_usable(mut self, usable: fn(&Path) -> bool) -> Self {
         self.usable = usable;
+        self
+    }
+
+    /// Lets the `PATH` search return `.bat`/`.cmd` files too. The Windows tests'
+    /// stand-in tools are batch files; a real ffmpeg is an `.exe`, and a batch
+    /// file would leave ffmpeg running on a cancellation (it dies with `cmd.exe`).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_batch_stand_ins(mut self) -> Self {
+        self.batch_files = true;
         self
     }
 
@@ -144,7 +159,7 @@ impl ToolResolver {
         if let Some(path) = self.find_bundled(tool) {
             return self.remember(tool, path);
         }
-        if let Some(path) = lookup_in_path(tool, &*self.env) {
+        if let Some(path) = lookup_in_path(tool, &*self.env, self.batch_files) {
             return self.remember(tool, path);
         }
         if cfg!(windows)
@@ -259,16 +274,43 @@ fn absolute_path_entries(path: OsString) -> OsString {
         .unwrap_or_else(|| OsString::from(nowhere))
 }
 
+/// The `PATHEXT` extensions the search tries: those that name a program (`.com`,
+/// `.exe`, in any case), plus `.bat`/`.cmd` when `batch_files`. An unset or empty
+/// `PATHEXT` is `.COM;.EXE` (and `.BAT;.CMD` with `batch_files`).
+fn program_extensions(pathext: Option<&str>, batch_files: bool) -> Vec<String> {
+    pathext
+        .filter(|e| !e.is_empty())
+        .unwrap_or(if batch_files {
+            ".COM;.EXE;.BAT;.CMD"
+        } else {
+            ".COM;.EXE"
+        })
+        .split(';')
+        .filter(|e| !e.is_empty())
+        .filter(|e| {
+            ["com", "exe"]
+                .iter()
+                .chain(if batch_files {
+                    &["bat", "cmd"][..]
+                } else {
+                    &[][..]
+                })
+                .any(|ok| {
+                    e.strip_prefix('.')
+                        .is_some_and(|x| x.eq_ignore_ascii_case(ok))
+                })
+        })
+        .map(str::to_string)
+        .collect()
+}
+
 /// `exec.LookPath` over the injected environment.
-fn lookup_in_path(tool: &str, env: &EnvFn) -> Option<PathBuf> {
+fn lookup_in_path(tool: &str, env: &EnvFn, batch_files: bool) -> Option<PathBuf> {
     let path = env("PATH")?;
     let names: Vec<String> = if cfg!(windows) {
-        let ext = env("PATHEXT")
-            .and_then(|e| e.into_string().ok())
-            .filter(|e| !e.is_empty())
-            .unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".to_string());
-        ext.split(';')
-            .filter(|e| !e.is_empty())
+        let pathext = env("PATHEXT").and_then(|e| e.into_string().ok());
+        program_extensions(pathext.as_deref(), batch_files)
+            .into_iter()
             .map(|e| format!("{tool}{e}"))
             .collect()
     } else {
@@ -735,6 +777,32 @@ mod tests {
         assert_eq!(resolver.find_bundled("ffmpeg"), None);
     }
 
+    // No Go test (Go accepts batch files): a batch file would leave ffmpeg running when a
+    // cancellation kills `cmd.exe`, so `PATHEXT` is cut down to programs. Pure, so it runs
+    // on every OS; the Windows search uses it.
+    #[test]
+    fn path_search_keeps_only_program_extensions() {
+        assert_eq!(
+            program_extensions(Some(".COM;.EXE;.BAT;.CMD;.VBS"), false),
+            [".COM", ".EXE"]
+        );
+        assert_eq!(program_extensions(Some(".bat;.Exe"), false), [".Exe"]);
+        assert_eq!(
+            program_extensions(Some(".BAT;.CMD"), false),
+            Vec::<String>::new()
+        );
+        assert_eq!(program_extensions(None, false), [".COM", ".EXE"]);
+        assert_eq!(program_extensions(Some(""), false), [".COM", ".EXE"]);
+        assert_eq!(
+            program_extensions(None, true),
+            [".COM", ".EXE", ".BAT", ".CMD"]
+        );
+        assert_eq!(
+            program_extensions(Some(".COM;.EXE;.BAT;.CMD"), true),
+            [".COM", ".EXE", ".BAT", ".CMD"]
+        );
+    }
+
     // Go: TestResolveToolBinary_DoesNotCacheFailures. The Go test peeks into
     // the cache; this one shows the effect: a tool installed afterwards is found.
     #[test]
@@ -1110,7 +1178,8 @@ V....D libvpx-vp9           VP9 video\n";
         .unwrap();
         let path = path.to_str().unwrap().to_string();
         let resolver =
-            ToolResolver::new(env_of(&[("PATH", &path)]), Some(empty.path().to_path_buf()));
+            ToolResolver::new(env_of(&[("PATH", &path)]), Some(empty.path().to_path_buf()))
+                .with_batch_stand_ins();
         FakeFfmpeg {
             _dir: dir,
             _empty: empty,

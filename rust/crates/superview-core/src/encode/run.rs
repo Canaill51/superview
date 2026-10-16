@@ -39,8 +39,8 @@
 //!   then abandoned: a grandchild of ffmpeg that keeps the pipes open cannot hold the caller. The
 //!   same grace applies to the lines still queued when ffmpeg ends by itself. The
 //!   known limit shared with Go: the kill reaches the process that was started, not its
-//!   children; on Windows a `.bat`/`.cmd` ffmpeg (accepted through `PATHEXT`) would be killed
-//!   through `cmd.exe` only. A real ffmpeg is an `.exe`, so the limit stays.
+//!   children; on Windows a `.bat`/`.cmd` ffmpeg would be killed through `cmd.exe` only, which is
+//!   why the `PATH` search refuses them (`tools.rs`).
 //! - The process is killed and reaped on every way out of the function, an error or a panic
 //!   of the callback included ([`Running`]); Go relies on its goroutine and a `defer`.
 //! - The progress pipe is read as bytes and decoded lossily: an invalid byte is a replacement

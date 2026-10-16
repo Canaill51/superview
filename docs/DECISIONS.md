@@ -76,6 +76,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-42](#dec-42) | Un agent peut déclencher la release, sur demande explicite, par `/publier` | Acceptée |
 | [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée, GO donné le 2026-10-15 |
 | [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
+| [DEC-45](#dec-45) | Sous Windows, la recherche d'ffmpeg/ffprobe sur `PATH` refuse `.bat` et `.cmd` (Rust) | Acceptée |
 
 ---
 
@@ -427,3 +428,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Le binaire `superview-harness` (`publish = false`) n'est ni empaqueté ni mentionné dans les README, ni installé par l'installateur ou l'AppImage. Il sert aux tests et à la comparaison avec Go, rien d'autre.
 **Conséquences** — Le produit reste une application graphique seule. Aucun argument de `superview-harness` n'est un contrat public.
 **À rouvrir si** — Le harnais est référencé dans un README ou un paquet : c'est alors une CLI, et DEC-02 doit être rouverte explicitement.
+
+### DEC-45
+**Le cœur Rust cherche ffmpeg et ffprobe sur `PATH` parmi les seuls `.com` et `.exe` ; Go, lui, accepte aussi `.bat` et `.cmd`.**
+2026-10-17 · Acceptée · à la demande de l'utilisateur
+
+**Contexte** — Un `.bat` se lance par `cmd.exe`. Annuler tue `cmd.exe` et laisse ffmpeg tourner, ce qui viole « l'annulation ne laisse rien derrière elle ». Un vrai ffmpeg est un `.exe`.
+**Décision** — `lookup_in_path` (`tools.rs`) ne garde dans `PATHEXT` que `.com` et `.exe`. Seuls les faux outils des tests Windows sont des `.bat` : ils passent par `ToolResolver::with_batch_stand_ins`, réservé aux tests.
+**Conséquences** — Écart voulu avec Go, qui reste la référence mais n'est plus corrigé sur ce point. Quelqu'un qui n'aurait qu'un `.bat` nommé `ffmpeg` sur `PATH` n'est plus servi : il doit pointer `SUPERVIEW_FFMPEG_DIR` vers un vrai `ffmpeg.exe`.
+**À rouvrir si** — Un besoin réel d'un lanceur `.bat` apparaît ; il faudrait alors tuer l'arbre de processus (job object), pas seulement `cmd.exe`.
