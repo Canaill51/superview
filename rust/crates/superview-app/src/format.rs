@@ -225,6 +225,7 @@ mod tests {
     use std::time::Instant;
 
     use superview_core::error::Error;
+    #[cfg(unix)]
     use superview_core::tools::{ToolResolver, check_ffmpeg};
 
     use super::*;
@@ -295,26 +296,35 @@ mod tests {
     fn is_missing_ffmpeg_error_matches_only_the_real_message() {
         let other = Error::Plain("some other failure".into());
         assert!(!is_missing_ffmpeg_error(&other), "unrelated errors");
+        check_wrappers("cannot find ffmpeg/ffprobe on your system");
+        assert!(!is_missing_ffmpeg_error(&Opaque(Box::new(other))));
+    }
 
-        // The real error: `check_ffmpeg` on a resolver that sees no environment at all (its
-        // commands get an empty PATH, so the machine's own ffmpeg is not found either).
+    /// The same, with the error `check_ffmpeg` really produces, so that a change of its
+    /// wording breaks this test. Unix only: on Windows the system search finds the
+    /// machine's own ffmpeg whatever the injected environment says.
+    #[cfg(unix)]
+    #[test]
+    fn is_missing_ffmpeg_error_matches_what_check_ffmpeg_reports() {
         let resolver = ToolResolver::new(|_| None, None);
         let missing = check_ffmpeg(&Config::default(), &resolver)
             .expect_err("no ffmpeg can be found without a PATH");
         assert!(is_missing_ffmpeg_error(&missing), "{missing}");
-        let message = missing.to_string();
+        check_wrappers(&missing.to_string());
+    }
 
+    /// `message` must be recognised bare, wrapped in text, and behind a wrapper error.
+    fn check_wrappers(message: &str) {
+        assert!(is_missing_ffmpeg_error(&Error::Plain(message.into())));
         // Wrapped, as the pipeline wraps errors on the way up: in the text...
         let wrapped = Error::Plain(format!("startup: {message}"));
         assert!(is_missing_ffmpeg_error(&wrapped));
         // ... and only in the chain of causes.
-        let hidden = Opaque(Box::new(Error::Plain(message)));
+        let hidden = Opaque(Box::new(Error::Plain(message.into())));
         assert!(
             is_missing_ffmpeg_error(&hidden),
             "a cause hidden behind a wrapper must still match"
         );
-        let hidden_other = Opaque(Box::new(other));
-        assert!(!is_missing_ffmpeg_error(&hidden_other));
     }
 
     fn metrics(input: i64, output: i64) -> EncodingMetrics {
