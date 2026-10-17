@@ -444,7 +444,7 @@ make clean       # résidus de compilation, de couverture et d'empaquetage
 
 `make test` et `make coverage` exigent **ffmpeg dans votre PATH** et échouent en
 son absence, au lieu de sauter en silence les tests qui s'en servent -- les
-quatre tests d'intégration et le test d'équivalence du remap, qui sont à eux
+tests d'intégration et le test d'équivalence du remap, qui sont à eux
 seuls tout ce qui vérifie une conversion réelle de bout en bout.
 
 `make build-gui-windows` s'exécute nativement sous Windows : Fyne dessine à

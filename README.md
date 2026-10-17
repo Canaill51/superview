@@ -404,7 +404,7 @@ make clean       # build, coverage and packaging leftovers
 ```
 
 `make test` and `make coverage` need **ffmpeg on your PATH** and fail without
-it, rather than quietly skipping the tests that use it -- the four integration
+it, rather than quietly skipping the tests that use it -- the integration
 tests and the remap equivalence test, which are the whole of what checks a real
 conversion end to end.
 

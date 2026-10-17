@@ -18,7 +18,7 @@ const requireFFmpegEnv = "SUPERVIEW_REQUIRE_FFMPEG"
 // The distinction matters because a skip is invisible. Every test that shells
 // out to ffmpeg guards itself this way, so on a machine where ffmpeg is missing
 // -- or present but built without libx264, or unable to render the 10-bit
-// multi-track fixture -- the four integration tests and the remap equivalence
+// multi-track fixture -- the integration tests and the remap equivalence
 // test all report success having encoded nothing. That is the whole of what
 // checks a real conversion end to end.
 //
