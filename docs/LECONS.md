@@ -1259,6 +1259,20 @@ commande elle-même. Contrôle : `go test ./cmd/superview -run TestWorkflows_DoN
 (`cmd/superview/workflow_pipes_test.go`) refuse ce motif dans `.github/workflows/*.yml` ; contre-preuve faite en
 le réintroduisant dans `release.yml`. Trouvé par l'essai à blanc de la release (L-114), qui a donc payé.
 
+### L-116 — Deux encodages multi-fil du même clip ne donnent pas les mêmes images — 2026-10-17
+Le croisement Go↔Rust (phase 5, `internal/common/crosscheck_test.go`) comparait les images décodées
+de deux conversions aux arguments ffmpeg identiques (prouvés par `parity_encode_args`). Les empreintes
+divergeaient. Ce n'était pas un écart Go/Rust : `ffmpeg -threads 16` seul, lancé deux fois sur le
+même clip, donne deux empreintes différentes avec libx264 sous `-b:v`/`-maxrate` ; libx265 est
+non reproductible **même à un fil** (1 empreinte différente sur 5 à 8 lancements).
+→ **Pour comparer deux encodages, fixer les fils** (`-threads 1` des deux côtés ; le banc Rust tourne
+sous `taskset -c 0`, ce qui ramène `available_parallelism` à 1) : libx264 devient reproductible
+(6 lancements identiques) et se compare bit à bit. Pour libx265, comparer un PSNR (seuil 50 dB,
+écarts mesurés 69 à 75 dB) **et** les métadonnées ffprobe, qui ne dépendent pas du PSNR. Ne jamais
+conclure à une régression d'un seul écart d'empreinte avant d'avoir lancé la même commande deux fois.
+Limite connue : un PSNR ne voit pas un débit faux sur un clip court qui sature (1 Mbit/s contre
+2 Mbit/s donne 63 dB). Prolonge L-36 (ne pas figer une empreinte qui dépend d'un outil externe).
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**

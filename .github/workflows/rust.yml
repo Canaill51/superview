@@ -113,6 +113,60 @@ jobs:
           exit 1
         fi
 
+  # Go/Rust cross-check (PR 5c): the same clip converted by Go's PerformEncoding and by the
+  # Rust test bench, with the same encoder and rate; the decoded frames and the ffprobe
+  # summaries must agree. Go has no windowless executable, hence a Go test that runs the
+  # bench. Ubuntu only. Not a required check; it goes away with Go (phase 8).
+  cross-check:
+    name: Go and Rust cross-check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Setup Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.26.x'
+        check-latest: true
+        # No cache saved: this job builds little Go and a shared key would be written
+        # by whichever job ends first (L-108).
+        cache: false
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: rust
+
+    # libfontconfig1-dev: the workspace build libraries, as in rust-linux.
+    - name: Install FFmpeg and the build libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
+
+    - name: Build the bench
+      working-directory: rust
+      run: cargo build -p superview-harness --locked
+
+    # SUPERVIEW_REQUIRE_RUST_HARNESS makes a missing bench a failure, not a skip. The grep
+    # then insists both tests really passed, so a renamed test cannot leave the job green
+    # having run nothing.
+    - name: Cross-check
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
+        SUPERVIEW_REQUIRE_RUST_HARNESS: '1'
+      run: |
+        set -euo pipefail
+        export SUPERVIEW_RUST_HARNESS="$GITHUB_WORKSPACE/rust/target/debug/superview-harness"
+        go test ./internal/common -run 'TestCrossCheck' -count=1 -v 2>&1 | tee "$RUNNER_TEMP/crosscheck.log"
+        for name in TestCrossCheck_GoAndRustProduceTheSameVideo TestCrossCheck_UsableEncodersAreTheSame; do
+          if ! grep -q -- "--- PASS: ${name}" "$RUNNER_TEMP/crosscheck.log"; then
+            echo "::error::${name} did not pass (renamed, skipped or missing)"
+            exit 1
+          fi
+        done
+
   rust-windows:
     name: Rust on windows-latest
     runs-on: windows-latest
