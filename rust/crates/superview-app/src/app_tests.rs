@@ -1240,6 +1240,17 @@ fn a_quit_question_that_waited_is_dropped_when_nothing_runs() {
     assert_eq!(r.popup(), Popup::None);
 }
 
+/// A typed path made absolute on the platform the test runs on: Windows has no absolute path
+/// without a drive letter, and the text field refuses a relative one. Forward slashes stay
+/// (Windows takes them, `file_name` and `ensure_mp4_extension` split on them).
+fn abs(path: &str) -> String {
+    if cfg!(windows) {
+        format!("C:{path}")
+    } else {
+        path.to_string()
+    }
+}
+
 /// The window with no picker to open and the text field up for `button`.
 fn rig_asking_for_a_path(button: &str, engine: FakeEngine) -> Rig {
     let r = rig(engine, FakeHost::new().without_pickers());
@@ -1278,12 +1289,13 @@ fn the_text_field_stands_in_for_the_input_picker() {
     assert_eq!(r.window.get_input_name(), "No file selected");
 
     // A file ffprobe refuses: the error dialog, the input untouched, the button back.
-    r.window.set_path_entry_text("/videos/other.mkv".into());
+    r.window
+        .set_path_entry_text(abs("/videos/other.mkv").into());
     r.click("OK");
     r.wait("the error", |w| w.get_popup() == Popup::Error);
     assert_eq!(
         r.window.get_error_message(),
-        "not an MP4 file: /videos/other.mkv"
+        format!("not an MP4 file: {}", abs("/videos/other.mkv")).as_str()
     );
     assert_eq!(r.status(), "Status: Invalid input");
     assert_eq!(r.window.get_input_name(), "No file selected");
@@ -1300,8 +1312,11 @@ fn the_text_field_stands_in_for_the_input_picker() {
         "the field kept old text"
     );
     assert_eq!(r.window.get_path_entry_error(), "");
-    r.type_keys("/videos/trip/clip.mp4");
-    assert_eq!(r.window.get_path_entry_text(), "/videos/trip/clip.mp4");
+    r.type_keys(&abs("/videos/trip/clip.mp4"));
+    assert_eq!(
+        r.window.get_path_entry_text(),
+        abs("/videos/trip/clip.mp4").as_str()
+    );
     r.type_keys("\n");
     r.wait("the input", |w| w.get_input_name() == "clip.mp4");
     assert_eq!(r.status(), "Status: Input loaded");
@@ -1319,7 +1334,8 @@ fn the_text_field_stands_in_for_the_output_picker() {
     assert!(!r.enabled("Choose output file"));
 
     // No extension: .mp4 is added, as for a picked file.
-    r.window.set_path_entry_text("/tmp/videos/result".into());
+    r.window
+        .set_path_entry_text(abs("/tmp/videos/result").into());
     r.click("OK");
     r.wait("the output", |w| w.get_output_name() == "result.mp4");
     assert_eq!(r.status(), "Status: Output selected");
@@ -1333,12 +1349,14 @@ fn the_text_field_stands_in_for_the_output_picker() {
     // Another extension gets .mp4 on top of it, an .MP4 is kept.
     r.click("Choose output file");
     r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
-    r.window.set_path_entry_text("/tmp/videos/clip.mov".into());
+    r.window
+        .set_path_entry_text(abs("/tmp/videos/clip.mov").into());
     r.click("OK");
     r.wait("the output", |w| w.get_output_name() == "clip.mov.mp4");
     r.click("Choose output file");
     r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
-    r.window.set_path_entry_text("/tmp/videos/CLIP.MP4".into());
+    r.window
+        .set_path_entry_text(abs("/tmp/videos/CLIP.MP4").into());
     r.click("OK");
     r.wait("the output", |w| w.get_output_name() == "CLIP.MP4");
 }
@@ -1346,7 +1364,7 @@ fn the_text_field_stands_in_for_the_output_picker() {
 fn a_cancelled_text_field_changes_nothing() {
     let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
     r.window
-        .set_path_entry_text("/videos/trip/other.mp4".into());
+        .set_path_entry_text(abs("/videos/trip/other.mp4").into());
     r.click_enabled("Cancel");
     assert_eq!(r.popup(), Popup::None);
     assert_eq!(r.window.get_input_name(), "No file selected");
@@ -1355,7 +1373,8 @@ fn a_cancelled_text_field_changes_nothing() {
     assert!(lock(&r.engine.check_video_threads).is_empty());
 
     let r = rig_asking_for_a_path("Choose output file", FakeEngine::new());
-    r.window.set_path_entry_text("/tmp/videos/other.mp4".into());
+    r.window
+        .set_path_entry_text(abs("/tmp/videos/other.mp4").into());
     r.click_enabled("Cancel");
     assert_eq!(r.popup(), Popup::None);
     assert_eq!(r.window.get_output_name(), "No file selected");
@@ -1370,7 +1389,7 @@ fn a_cancelled_text_field_changes_nothing() {
 
 fn the_text_field_keeps_the_popup_queue() {
     let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
-    r.window.set_path_entry_text("/videos/par".into());
+    r.window.set_path_entry_text(abs("/videos/par").into());
     // The Diagnostic's report lands while the field is open: it waits its turn and the field
     // keeps what was typed.
     r.window.invoke_diagnostic();
@@ -1379,7 +1398,7 @@ fn the_text_field_keeps_the_popup_queue() {
         w.get_status() == "Status: Ready"
     });
     assert_eq!(r.popup(), Popup::PathEntry, "the report jumped the queue");
-    assert_eq!(r.window.get_path_entry_text(), "/videos/par");
+    assert_eq!(r.window.get_path_entry_text(), abs("/videos/par").as_str());
     r.click_enabled("Cancel");
     assert_eq!(r.popup(), Popup::Diagnostic, "the queued report was lost");
     assert!(r.window.get_open_enabled());
@@ -1396,7 +1415,8 @@ fn a_second_text_field_for_the_other_file_starts_empty() {
     pump(Duration::from_millis(300));
     assert_eq!(r.popup(), Popup::PathEntry);
     let first_is_output = r.window.get_path_entry_output();
-    r.window.set_path_entry_text("/videos/typed.mp4".into());
+    r.window
+        .set_path_entry_text(abs("/videos/typed.mp4").into());
     r.window
         .set_path_entry_error("Please type the path of a file.".into());
     r.click_enabled("Cancel");
@@ -1413,7 +1433,8 @@ fn a_second_text_field_for_the_other_file_starts_empty() {
 fn a_video_check_that_cannot_start_reports_and_frees_the_button() {
     let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
     lock(&crate::app::FAILING_SPAWNS).push("check-input");
-    r.window.set_path_entry_text("/videos/trip/clip.mp4".into());
+    r.window
+        .set_path_entry_text(abs("/videos/trip/clip.mp4").into());
     r.click("OK");
     lock(&crate::app::FAILING_SPAWNS).clear();
     assert_eq!(r.popup(), Popup::Error);
