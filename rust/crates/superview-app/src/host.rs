@@ -1,24 +1,15 @@
 //! What the window asks of the desktop: file pickers, the browser, the end of the event loop.
 //! Behind the [`Host`](crate::app::Host) trait, so that the tests choose what a picker answers.
 //!
-//! The pickers are rfd's, for now (the `portal` path on Linux, the native box on Windows); the
-//! fallbacks for a machine with no portal arrive with PR 6.4, in this file.
+//! The pickers are `dialogs.rs`'s: rfd, then zenity and kdialog on a Linux machine with no
+//! portal, then a text field in the window (PR 6.4).
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use superview_core::process::background_command;
 
 use crate::app::Host;
-use crate::format::SUPPORTED_INPUT_EXTENSIONS;
-
-/// The picker's extensions, without the dot, from the one list of what the product reads.
-fn picker_extensions() -> Vec<&'static str> {
-    SUPPORTED_INPUT_EXTENSIONS
-        .iter()
-        .map(|ext| ext.trim_start_matches('.'))
-        .collect()
-}
+use crate::dialogs::{self, Kind, Pick, SystemDesktop};
 
 /// The command that opens `url` in the user's browser: one argument per element, never a shell
 /// string (the address is a constant of the program, but the habit is the contract).
@@ -37,20 +28,13 @@ pub struct SystemHost;
 
 impl Host for SystemHost {
     /// Blocks until the picker closes: call it off the UI thread.
-    fn pick_input(&self) -> Option<PathBuf> {
-        rfd::FileDialog::new()
-            .set_title("Select input video")
-            .add_filter("MP4 Video", &picker_extensions())
-            .pick_file()
+    fn pick_input(&self) -> Pick {
+        dialogs::pick(&SystemDesktop, Kind::Input)
     }
 
     /// Blocks until the picker closes: call it off the UI thread.
-    fn pick_output(&self) -> Option<PathBuf> {
-        rfd::FileDialog::new()
-            .set_title("Save output video")
-            .add_filter("MP4 Video", &picker_extensions())
-            .set_file_name("output.mp4")
-            .save_file()
+    fn pick_output(&self) -> Pick {
+        dialogs::pick(&SystemDesktop, Kind::Output)
     }
 
     fn open_link(&self, url: &str) {
@@ -85,11 +69,6 @@ impl Host for SystemHost {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_picker_filter_comes_from_the_supported_extensions() {
-        assert_eq!(picker_extensions(), ["mp4", "MP4"]);
-    }
 
     #[test]
     fn the_browser_gets_the_address_as_one_argument_and_no_shell() {
