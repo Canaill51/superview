@@ -34,7 +34,7 @@ Three things about that:
   survive a reboot. Without it `./internal/common` compiles and `cmd/superview` does not — do not
   report a GUI change as verified in that state.
 - **`SUPERVIEW_REQUIRE_FFMPEG=1` is not optional.** Without it, every test that
-  needs ffmpeg skips silently: the four integration tests and the remap
+  needs ffmpeg skips silently: the integration tests and the remap
   equivalence test, which together are the whole of what checks a real
   conversion. A green suite can mean nothing was encoded. CI sets it.
 - **`./internal/common` alone is not the suite.** It skips the `cmd/superview` GUI tests
@@ -96,7 +96,8 @@ than it looks.
 - **`exec.Command` with arguments, never a shell string**, for ffmpeg and
   ffprobe. Paths from file pickers are untrusted: validate before use.
 - **Cancellation must leave nothing behind** — no orphan ffmpeg process, no
-  partial output file, no temp directory. Tests pin all three.
+  partial output file, no temp directory. Tests pin all three: the Go suite checks the
+  first two, `superview-harness`'s signal tests (Rust, Unix only) check the temp directory as well.
 - **Check every error return.** Domain errors are typed: `InvalidVideoError`,
   `EncoderError`, `SessionError`.
 
