@@ -1,0 +1,989 @@
+//! The glue between the Slint window and everything else (phase 6, PR 6.3 of DEC-43): it turns
+//! the window's callbacks into calls on [`AppState`], runs the slow work (pickers, ffprobe,
+//! probes, the conversion, the diagnostic) on threads of its own, and brings every result back
+//! to the event loop with `upgrade_in_event_loop` before a property is touched. It ports the
+//! body of Go's `main` (`cmd/superview/gui_main.go`).
+//!
+//! Nothing here reaches ffmpeg or the desktop directly: [`Engine`] (tools, pipeline) and
+//! [`Host`] (pickers, browser, end of the loop) are injected, so the window's tests run the
+//! real wiring with a conversion that is only simulated.
+//!
+//! What differs from Go, on purpose:
+//!
+//! * Dialogs are one [`Popup`] at a time, in a queue: a second one waits for the first to be
+//!   answered, where Fyne stacked windows. The same dialog is never queued twice.
+//! * A panic in the encoder, a picker, ffprobe, a probe or the diagnostic is caught on its
+//!   thread: it counts as a failure (an error dialog), a cancel or a neutral text, and the
+//!   window is never left locked. Go let a panic take the process down.
+//! * The video check (ffprobe) runs on the picker's thread, after the pick, with the button
+//!   still held down; Go ran `CheckVideo` on the UI thread.
+//! * The choice of the output file is applied as it is picked and the overwrite question is
+//!   asked at Start, as in Go (the native picker may ask it too).
+//! * The install link opens through `xdg-open` / `explorer.exe`, never a shell string, and only
+//!   for the one address the program knows.
+//! * The probe, the hardware verification and the Diagnostic threads are not joined at exit:
+//!   they watch the `leaving` flag (a probe cut short is not remembered), and the process ends
+//!   under them. Only the conversion is waited for, because it owns files and a process.
+//! * The path from a system signal to the exit (signal handler, end of the event loop,
+//!   `App::shutdown`) is not covered by a test here: the window's tests simulate the encoder's
+//!   answer to a signal (`StoppedBySignal`) but cannot send one. `superview-harness` covers the
+//!   signal's effect on a real conversion.
+//! * A file that cannot be opened for the log, or a log line that cannot be written, never
+//!   stops anything.
+
+use std::any::Any;
+use std::collections::{HashMap, VecDeque};
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+#[cfg(test)]
+use std::time::Duration;
+
+use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use superview_core::config::Config;
+use superview_core::error::Error;
+use superview_core::pipeline::{EncodeOutcome, PipelineUi};
+use superview_core::probe::EncoderProbeReport;
+use superview_core::video::VideoSpecs;
+
+use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_start_settings};
+use crate::prefs::Preferences;
+use crate::state::{
+    AppState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink, ViewModel,
+    run_encoding,
+};
+use crate::{MainWindow, Popup};
+
+/// Where the prerequisite dialog sends the user (Go: `installURL`).
+pub const INSTALL_URL: &str =
+    "https://github.com/Canaill51/superview?tab=readme-ov-file#download-and-install";
+
+/// The status line while the diagnostic runs.
+const RUNNING_DIAGNOSTIC: &str = "Status: Running diagnostic...";
+
+/// Everything one conversion needs, captured on the UI thread when Start is pressed.
+#[derive(Debug, Clone)]
+pub struct EncodeJob {
+    /// The configuration with the quality profile's preset applied.
+    pub cfg: Config,
+    pub input: PathBuf,
+    pub output: PathBuf,
+    /// What `check_ffmpeg` and the probe left in the capability map.
+    pub ffmpeg: HashMap<String, String>,
+}
+
+/// What does the work: ffmpeg, ffprobe and the pipeline. Every method may block, and none is
+/// called on the UI thread, except `check_ffmpeg` and `forget_tools` (a few milliseconds, as in
+/// Go).
+pub trait Engine: Send + Sync + 'static {
+    /// Go: `CheckFfmpeg`.
+    fn check_ffmpeg(&self) -> Result<HashMap<String, String>, Error>;
+    /// Forgets what was found about the tools, before a retry.
+    fn forget_tools(&self);
+    /// Asks each advertised encoder to encode a frame. `cancel` ends it early.
+    fn probe_hardware(
+        &self,
+        ffmpeg: &HashMap<String, String>,
+        cancel: &AtomicBool,
+    ) -> EncoderProbeReport;
+    /// ffprobe on a file.
+    fn check_video(&self, path: &str) -> Result<VideoSpecs, Error>;
+    /// The "Hardware: …" line, with the planned encoder asked about this file's frame.
+    fn verify_hardware(
+        &self,
+        request: &crate::state::VerificationRequest,
+        cancel: &AtomicBool,
+    ) -> String;
+    /// One conversion, from the first check to the rename. `cancel` is the Cancel button.
+    fn encode(
+        &self,
+        job: &EncodeJob,
+        ui: &dyn PipelineUi,
+        cancel: &AtomicBool,
+    ) -> Result<EncodeOutcome, Error>;
+    /// The text of the health report (and a mirror of it in the log). `temp_dir` is where the
+    /// remap maps would be written.
+    fn health_report(&self, temp_dir: &Path, cancel: &AtomicBool) -> String;
+}
+
+/// What the window asks of the desktop.
+pub trait Host: Send + Sync + 'static {
+    /// The input picker; `None` is a cancel. May block: called off the UI thread.
+    fn pick_input(&self) -> Option<PathBuf>;
+    /// The output picker; `None` is a cancel. May block: called off the UI thread.
+    fn pick_output(&self) -> Option<PathBuf>;
+    /// Opens an address in the browser.
+    fn open_link(&self, url: &str);
+    /// Ends the event loop; callable from any thread.
+    fn quit(&self);
+}
+
+/// What `main` hands to [`App::wire`].
+pub struct Setup {
+    pub cfg: Config,
+    pub engine: Arc<dyn Engine>,
+    pub host: Arc<dyn Host>,
+    pub prefs: Preferences,
+    pub prefs_path: Option<PathBuf>,
+    /// The log file, for the Diagnostic report; `None` when it could not be opened.
+    pub log_path: Option<PathBuf>,
+    /// Which binary this is (`format::build_identity`).
+    pub identity: String,
+    /// The directory the Diagnostic checks the room of.
+    pub temp_dir: PathBuf,
+}
+
+/// A dialog, with what it says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PopupKind {
+    Done(String),
+    Error(String),
+    /// "cannot find ffmpeg/ffprobe": with Retry when something can be retried.
+    Prerequisite {
+        retry: bool,
+    },
+    Overwrite,
+    Quit,
+    NoInput,
+    NoOutput,
+    Diagnostic(String),
+}
+
+/// The dialogs waiting to be answered; the first one is on screen.
+#[derive(Default)]
+struct Popups {
+    queue: VecDeque<PopupKind>,
+}
+
+impl Popups {
+    /// Queues a dialog, unless the very same one is already waiting.
+    fn push(&mut self, kind: PopupKind) {
+        if !self.queue.contains(&kind) {
+            self.queue.push_back(kind);
+        }
+    }
+
+    fn current(&self) -> Option<&PopupKind> {
+        self.queue.front()
+    }
+
+    /// The answered dialog goes; the next one, if any, is now the current one. A "Cancel and
+    /// quit" question that waited behind it is dropped when nothing runs any more (`encoding`
+    /// false): the question is stale.
+    fn close(&mut self, encoding: bool) {
+        self.queue.pop_front();
+        if !encoding {
+            self.queue.retain(|kind| *kind != PopupKind::Quit);
+        }
+    }
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The text of a panic payload.
+fn panic_message(payload: &(dyn Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|text| (*text).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown cause".to_string())
+}
+
+/// The error a caught panic becomes.
+fn panic_error(what: &str, payload: &(dyn Any + Send)) -> Error {
+    let message = panic_message(payload);
+    log::error!("A thread panicked: what={what} panic={message}");
+    Error::Plain(format!("{what} stopped unexpectedly: {message}"))
+}
+
+/// Everything the callbacks share. The state is touched from the UI thread only; the rest is
+/// either immutable or its own synchronisation.
+struct Core {
+    state: Mutex<AppState>,
+    popups: Mutex<Popups>,
+    lifecycle: Arc<Lifecycle>,
+    engine: Arc<dyn Engine>,
+    host: Arc<dyn Host>,
+    cfg: Config,
+    log_path: Option<PathBuf>,
+    identity: String,
+    temp_dir: PathBuf,
+    window: slint::Weak<MainWindow>,
+    /// Raised when the application is leaving: ends the probes (a cancelled probe is not
+    /// remembered as a verdict).
+    leaving: AtomicBool,
+}
+
+impl Core {
+    fn state(&self) -> MutexGuard<'_, AppState> {
+        lock(&self.state)
+    }
+
+    /// Copies the view into the window's properties.
+    fn refresh(&self, window: &MainWindow) {
+        // Cloned, so that no lock is held while the properties are written.
+        let view = self.state().view.clone();
+        apply_view(window, &view);
+    }
+
+    /// Queues a dialog and shows the first one.
+    fn show(&self, window: &MainWindow, kind: PopupKind) {
+        let mut popups = lock(&self.popups);
+        popups.push(kind);
+        apply_popup(window, popups.current());
+    }
+
+    /// Answers the dialog on screen.
+    fn close_popup(&self, window: &MainWindow) {
+        let encoding = self.state().is_encoding();
+        let mut popups = lock(&self.popups);
+        popups.close(encoding);
+        apply_popup(window, popups.current());
+    }
+
+    /// Asks a running conversion to stop and waits, within a bound, for it to have unwound.
+    fn shutdown(&self, reason: &str) -> bool {
+        self.leaving.store(true, Ordering::Release);
+        self.lifecycle.shutdown(reason)
+    }
+}
+
+/// Writes the view into the window.
+fn apply_view(window: &MainWindow, view: &ViewModel) {
+    window.set_status(view.status.as_str().into());
+    window.set_results(view.results.as_str().into());
+    window.set_hardware(view.hardware.as_str().into());
+    window.set_input_name(view.input_name.as_str().into());
+    window.set_output_name(view.output_name.as_str().into());
+    window.set_progress(view.progress as f32);
+    window.set_quality(view.quality.as_str().into());
+    window.set_squeeze(view.squeeze);
+    // The list is replaced only when it changed: a new model would close an open dropdown.
+    let shown: Vec<String> = window
+        .get_encoder_options()
+        .iter()
+        .map(|option| option.to_string())
+        .collect();
+    if shown != view.encoder_options {
+        let options: Vec<SharedString> = view
+            .encoder_options
+            .iter()
+            .map(|option| SharedString::from(option.as_str()))
+            .collect();
+        window.set_encoder_options(ModelRc::new(VecModel::from(options)));
+    }
+    window.set_encoder_selected(view.encoder_selected.as_str().into());
+    window.set_start_enabled(view.start_enabled);
+    window.set_cancel_enabled(view.cancel_enabled);
+    window.set_open_enabled(view.is_enabled(Control::Open));
+    window.set_output_enabled(view.is_enabled(Control::SelectOutput));
+    window.set_quality_enabled(view.is_enabled(Control::Quality));
+    window.set_squeeze_enabled(view.is_enabled(Control::Squeeze));
+    window.set_encoder_enabled(view.is_enabled(Control::Encoder));
+    window.set_diagnostic_enabled(view.is_enabled(Control::Diagnostic));
+}
+
+/// Shows `current` in the window, or closes the popup when there is none.
+fn apply_popup(window: &MainWindow, current: Option<&PopupKind>) {
+    let popup = match current {
+        None => Popup::None,
+        Some(PopupKind::Done(message)) => {
+            window.set_done_message(message.as_str().into());
+            Popup::Done
+        }
+        Some(PopupKind::Error(message)) => {
+            window.set_error_message(message.as_str().into());
+            Popup::Error
+        }
+        Some(PopupKind::Prerequisite { retry }) => {
+            window.set_install_url(INSTALL_URL.into());
+            window.set_prerequisite_retry(*retry);
+            Popup::Prerequisite
+        }
+        Some(PopupKind::Overwrite) => Popup::Overwrite,
+        Some(PopupKind::Quit) => Popup::Quit,
+        Some(PopupKind::NoInput) => Popup::NoInput,
+        Some(PopupKind::NoOutput) => Popup::NoOutput,
+        Some(PopupKind::Diagnostic(report)) => {
+            window.set_diagnostic_report(report.as_str().into());
+            Popup::Diagnostic
+        }
+    };
+    window.set_popup(popup);
+}
+
+/// Runs `work` later, on the event loop, with the window. If the loop is gone (the application
+/// is leaving) the work is dropped.
+fn post(core: &Arc<Core>, work: impl FnOnce(&Arc<Core>, &MainWindow) + Send + 'static) {
+    let for_work = Arc::clone(core);
+    if let Err(e) = core
+        .window
+        .upgrade_in_event_loop(move |window| work(&for_work, &window))
+    {
+        log::debug!("Dropping an update: the event loop is gone: error={e}");
+    }
+}
+
+/// A thread with a name, for the log and the debugger.
+fn spawn(
+    name: &str,
+    work: impl FnOnce() + Send + 'static,
+) -> std::io::Result<std::thread::JoinHandle<()>> {
+    #[cfg(test)]
+    if lock(&FAILING_SPAWNS).contains(&name) {
+        return Err(std::io::Error::other("no thread for the test"));
+    }
+    std::thread::Builder::new().name(name.into()).spawn(work)
+}
+
+/// The names of the threads that refuse to start, in tests.
+#[cfg(test)]
+pub static FAILING_SPAWNS: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+/// The window, wired. Keep it alive for as long as the event loop runs.
+pub struct App {
+    core: Arc<Core>,
+}
+
+impl App {
+    /// Connects `window` to the state and the injected services, runs the startup (ffmpeg
+    /// check, probe in the background) and registers every callback.
+    pub fn wire(window: &MainWindow, setup: Setup) -> Self {
+        let state = AppState::new(setup.prefs, setup.prefs_path);
+        let lifecycle = state.lifecycle();
+        let core = Arc::new(Core {
+            state: Mutex::new(state),
+            popups: Mutex::new(Popups::default()),
+            lifecycle,
+            engine: setup.engine,
+            host: setup.host,
+            cfg: setup.cfg,
+            log_path: setup.log_path,
+            identity: setup.identity,
+            temp_dir: setup.temp_dir,
+            window: window.as_weak(),
+            leaving: AtomicBool::new(false),
+        });
+
+        {
+            let mut state = core.state();
+            let host = Arc::clone(&core.host);
+            state.set_quit_hook(move || host.quit());
+            let weak = Arc::downgrade(&core);
+            state.set_verify_hook(move |request| {
+                if let Some(core) = weak.upgrade() {
+                    verify_in_background(&core, request);
+                }
+            });
+        }
+
+        register(&core, window);
+        startup(&core, window);
+        Self { core }
+    }
+
+    /// What every way out goes through once the loop has stopped: asks a running conversion to
+    /// stop and waits for it. Safe to call any number of times (Go: the line after
+    /// `ShowAndRun`).
+    pub fn shutdown(&self, reason: &str) -> bool {
+        self.core.shutdown(reason)
+    }
+
+    /// Shortens the wait of [`App::shutdown`], for tests.
+    #[cfg(test)]
+    pub fn set_shutdown_grace(&self, grace: Duration) {
+        self.core.state().set_shutdown_grace(grace);
+    }
+}
+
+/// A callback without argument that finds the window again.
+fn bind(core: &Arc<Core>, action: fn(&Arc<Core>, &MainWindow)) -> impl Fn() + 'static {
+    let core = Arc::clone(core);
+    move || {
+        if let Some(window) = core.window.upgrade() {
+            action(&core, &window);
+        }
+    }
+}
+
+fn register(core: &Arc<Core>, window: &MainWindow) {
+    window.on_choose_input(bind(core, choose_input));
+    window.on_choose_output(bind(core, choose_output));
+    window.on_start(bind(core, start));
+    window.on_cancel(bind(core, cancel));
+    window.on_diagnostic(bind(core, diagnostic));
+    window.on_quit(bind(core, quit_pressed));
+
+    {
+        let core = Arc::clone(core);
+        window.on_quality_changed(move |profile| core.state().quality_changed(&profile));
+    }
+    {
+        let core = Arc::clone(core);
+        window.on_squeeze_toggled(move |checked| {
+            core.state().squeeze_changed(checked);
+            if let Some(window) = core.window.upgrade() {
+                core.refresh(&window);
+            }
+        });
+    }
+    {
+        let core = Arc::clone(core);
+        window.on_encoder_changed(move |selection| {
+            core.state().encoder_changed(&selection);
+            if let Some(window) = core.window.upgrade() {
+                core.refresh(&window);
+            }
+        });
+    }
+
+    // The popups. "OK", "Close" and "No" only answer; the others also act.
+    window.on_done_ok(bind(core, |core, window| core.close_popup(window)));
+    window.on_error_ok(bind(core, |core, window| core.close_popup(window)));
+    window.on_prerequisite_close(bind(core, |core, window| core.close_popup(window)));
+    window.on_no_input_ok(bind(core, |core, window| core.close_popup(window)));
+    window.on_no_output_ok(bind(core, |core, window| core.close_popup(window)));
+    window.on_diagnostic_close(bind(core, |core, window| core.close_popup(window)));
+    window.on_overwrite_no(bind(core, |core, window| core.close_popup(window)));
+    window.on_quit_no(bind(core, |core, window| core.close_popup(window)));
+    window.on_prerequisite_retry_clicked(bind(core, retry_prerequisite));
+    window.on_overwrite_yes(bind(core, |core, window| {
+        core.close_popup(window);
+        begin_conversion(core, window);
+    }));
+    window.on_quit_yes(bind(core, |core, window| {
+        core.close_popup(window);
+        leave(core, window, "quit confirmed");
+    }));
+    {
+        let core = Arc::clone(core);
+        window.on_open_install_link(move |url| {
+            // The window reports the address it was given; only the program's own is opened.
+            if url == INSTALL_URL {
+                core.host.open_link(INSTALL_URL);
+            } else {
+                log::warn!("Refusing to open an address the program did not set: url={url}");
+            }
+        });
+    }
+
+    // The system's close request (the title bar's cross, Alt+F4): the same question as the
+    // Quit button, and the same wait.
+    {
+        let core = Arc::clone(core);
+        window.window().on_close_requested(move || {
+            if core.state().is_encoding() {
+                if let Some(window) = core.window.upgrade() {
+                    core.show(&window, PopupKind::Quit);
+                }
+                return CloseRequestResponse::KeepWindowShown;
+            }
+            core.shutdown("window closing");
+            core.host.quit();
+            CloseRequestResponse::HideWindow
+        });
+    }
+}
+
+/// Go's startup: the ffmpeg check, the codec list, then the probe of the encoders.
+fn startup(core: &Arc<Core>, window: &MainWindow) {
+    match core.engine.check_ffmpeg() {
+        Ok(ffmpeg) => core.state().set_ffmpeg(ffmpeg),
+        Err(err) => {
+            log::error!("ffmpeg is unavailable at startup: error={err}");
+            core.state().set_ffmpeg_unavailable();
+            show_ffmpeg_failure(core, window, &err, true);
+            core.state().view.status = "Status: ffmpeg unavailable".into();
+        }
+    }
+    // Fills the options and restores the saved selection, under the flag that keeps a
+    // fallback from being saved over it. Without ffmpeg it also writes "Hardware: ffmpeg
+    // unavailable".
+    core.state().refresh_encoder_options();
+    core.refresh(window);
+    start_encoder_probe(core);
+}
+
+/// The prerequisite dialog for a missing ffmpeg, the error dialog for anything else.
+fn show_ffmpeg_failure(core: &Arc<Core>, window: &MainWindow, err: &Error, retry: bool) {
+    if is_missing_ffmpeg_error(err) {
+        core.show(window, PopupKind::Prerequisite { retry });
+    } else {
+        core.show(window, PopupKind::Error(err.to_string()));
+    }
+}
+
+/// Retry, after the user installed ffmpeg. The lookup is not cached when it fails, so this sees
+/// an ffmpeg installed while the application was running.
+fn retry_prerequisite(core: &Arc<Core>, window: &MainWindow) {
+    core.close_popup(window);
+    core.engine.forget_tools();
+    match core.engine.check_ffmpeg() {
+        Err(err) => {
+            log::warn!("ffmpeg still unavailable after retry: error={err}");
+            show_ffmpeg_failure(core, window, &err, true);
+        }
+        Ok(ffmpeg) => {
+            log::info!(
+                "ffmpeg found on retry: version={}",
+                ffmpeg.get("version").map_or("", String::as_str)
+            );
+            {
+                let mut state = core.state();
+                state.set_ffmpeg(ffmpeg);
+                state.refresh_encoder_options();
+            }
+            start_encoder_probe(core);
+            let mut state = core.state();
+            // The same list the startup path disabled, computed by the same function.
+            state.apply_ffmpeg_availability();
+            state.view.status = "Status: Ready".into();
+            state.refresh_hardware_status();
+            state.refresh_start();
+            drop(state);
+            core.refresh(window);
+        }
+    }
+}
+
+/// Asks the encoders whether they actually work, off the UI thread: a few hundred milliseconds
+/// per encoder, far too long to spend before the window appears, and far too important to skip.
+fn start_encoder_probe(core: &Arc<Core>) {
+    let ffmpeg = {
+        let state = core.state();
+        if !state.is_ffmpeg_available() {
+            return;
+        }
+        state.ffmpeg().clone()
+    };
+    let thread_core = Arc::clone(core);
+    let spawned = spawn("probe-encoders", move || {
+        let report = catch_unwind(AssertUnwindSafe(|| {
+            thread_core
+                .engine
+                .probe_hardware(&ffmpeg, &thread_core.leaving)
+        }))
+        .unwrap_or_else(|payload| {
+            // No verdict: the encoders stay as ffmpeg advertised them.
+            panic_error("the encoder probe", payload.as_ref());
+            EncoderProbeReport::default()
+        });
+        post(&thread_core, move |core, window| {
+            {
+                let mut state = core.state();
+                state.set_encoder_probe(report);
+                state.refresh_encoder_options();
+                state.refresh_hardware_status();
+                state.verify_hardware_in_background();
+                state.refresh_start();
+            }
+            core.refresh(window);
+        });
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the encoder probe: error={e}");
+    }
+}
+
+/// Asks the planned encoder, off the UI thread, whether it takes this file's frame. The answer
+/// carries the generation it was computed for, so a slow one cannot overwrite a newer line.
+fn verify_in_background(core: &Arc<Core>, request: crate::state::VerificationRequest) {
+    let generation = request.generation;
+    let thread_core = Arc::clone(core);
+    let spawned = spawn("verify-hardware", move || {
+        let line = catch_unwind(AssertUnwindSafe(|| {
+            thread_core
+                .engine
+                .verify_hardware(&request, &thread_core.leaving)
+        }));
+        post(&thread_core, move |core, window| {
+            {
+                let mut state = core.state();
+                match line {
+                    Ok(text) => state.apply_verified_hardware_line(generation, &text),
+                    Err(payload) => {
+                        panic_error("the hardware verification", payload.as_ref());
+                        state.apply_verification_failed(generation);
+                    }
+                }
+            }
+            core.refresh(window);
+        });
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the hardware verification: error={e}");
+        // Not here: the caller (the verify hook) holds the lock on the state, which is not
+        // re-entrant. The event loop applies it once the lock is free.
+        post(core, move |core, window| {
+            core.state().apply_verification_failed(generation);
+            core.refresh(window);
+        });
+    }
+}
+
+/// The input picker. The button is held down from the click to the end of the ffprobe check, so
+/// that a second click cannot open a second picker.
+fn choose_input(core: &Arc<Core>, window: &MainWindow) {
+    if !core.state().begin_pick(Control::Open) {
+        return;
+    }
+    core.refresh(window);
+    let thread_core = Arc::clone(core);
+    let spawned = spawn("pick-input", move || {
+        // A picker that panics counts as a cancel: the button must never stay greyed out.
+        let chosen = catch_unwind(AssertUnwindSafe(|| thread_core.host.pick_input()))
+            .ok()
+            .flatten();
+        // The file is read here, off the UI thread. A path that is not UTF-8 is not read at
+        // all: `apply_chosen_input` refuses it with a message of its own.
+        let checked = chosen.as_deref().and_then(Path::to_str).map(|text| {
+            catch_unwind(AssertUnwindSafe(|| thread_core.engine.check_video(text)))
+                .unwrap_or_else(|payload| Err(panic_error("reading the video", payload.as_ref())))
+        });
+        post(&thread_core, move |core, window| {
+            let outcome = {
+                let mut state = core.state();
+                state.finish_pick(Control::Open);
+                chosen.map(|path| {
+                    state.apply_chosen_input(&path, |_| {
+                        checked.unwrap_or_else(|| {
+                            Err(Error::Plain(
+                                "the input file path is not valid UTF-8".to_string(),
+                            ))
+                        })
+                    })
+                })
+            };
+            core.refresh(window);
+            if let Some(ChosenOutcome::Rejected(message)) = outcome {
+                core.show(window, PopupKind::Error(message));
+            }
+        });
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the input picker: error={e}");
+        core.state().finish_pick(Control::Open);
+        core.refresh(window);
+        core.show(
+            window,
+            PopupKind::Error(format!("cannot open the file picker: {e}")),
+        );
+    }
+}
+
+/// The output picker.
+fn choose_output(core: &Arc<Core>, window: &MainWindow) {
+    if !core.state().begin_pick(Control::SelectOutput) {
+        return;
+    }
+    core.refresh(window);
+    let thread_core = Arc::clone(core);
+    let spawned = spawn("pick-output", move || {
+        let chosen = catch_unwind(AssertUnwindSafe(|| thread_core.host.pick_output()))
+            .ok()
+            .flatten();
+        post(&thread_core, move |core, window| {
+            let outcome = {
+                let mut state = core.state();
+                state.finish_pick(Control::SelectOutput);
+                chosen.map(|path| state.apply_chosen_output(&path))
+            };
+            core.refresh(window);
+            if let Some(ChosenOutcome::Rejected(message)) = outcome {
+                core.show(window, PopupKind::Error(message));
+            }
+        });
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the output picker: error={e}");
+        core.state().finish_pick(Control::SelectOutput);
+        core.refresh(window);
+        core.show(
+            window,
+            PopupKind::Error(format!("cannot open the file picker: {e}")),
+        );
+    }
+}
+
+/// The Start button.
+fn start(core: &Arc<Core>, window: &MainWindow) {
+    let (no_input, output) = {
+        let state = core.state();
+        (state.video().is_none(), state.output_path().to_string())
+    };
+    if no_input {
+        core.show(window, PopupKind::NoInput);
+        return;
+    }
+    if output.is_empty() {
+        core.show(window, PopupKind::NoOutput);
+        return;
+    }
+    if !core.state().can_start() {
+        return;
+    }
+    match std::fs::metadata(&output) {
+        Ok(_) => core.show(window, PopupKind::Overwrite),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => begin_conversion(core, window),
+        Err(e) => core.show(
+            window,
+            PopupKind::Error(format!("cannot access output file: {e}")),
+        ),
+    }
+}
+
+/// Sends what the encoding thread reports to the window.
+struct WindowSink {
+    core: Arc<Core>,
+}
+
+impl ProgressSink for WindowSink {
+    fn bar(&self, fraction: f64) {
+        post(&self.core, move |core, window| {
+            let mut state = core.state();
+            // Nothing after the end: the completion has rewritten the bar.
+            if !state.is_encoding() {
+                return;
+            }
+            state.set_progress(fraction);
+            let progress = state.view.progress;
+            drop(state);
+            window.set_progress(progress as f32);
+        });
+    }
+
+    fn status(&self, text: &str) {
+        let text = text.to_string();
+        post(&self.core, move |core, window| {
+            let mut state = core.state();
+            if !state.is_encoding() {
+                return;
+            }
+            state.view.status.clone_from(&text);
+            drop(state);
+            window.set_status(text.as_str().into());
+        });
+    }
+}
+
+/// Reads everything the encoding thread will be asked for, here, on the UI thread, while the
+/// widgets are still the user's to change (E-15), then starts it.
+fn begin_conversion(core: &Arc<Core>, window: &MainWindow) {
+    let (job, video, bitrate, encoder, squeeze, cancel, done) = {
+        let mut state = core.state();
+        if !state.can_start() {
+            return;
+        }
+        let Some(video) = state.video().cloned() else {
+            return;
+        };
+        // Keep hardware encoders and scale the bitrate by profile.
+        let input_bitrate = video.streams.first().map_or(0, |stream| stream.bitrate_int);
+        let (bitrate, preset) =
+            resolve_start_settings(&core.cfg, &state.view.quality, input_bitrate);
+        let mut cfg = core.cfg.clone();
+        cfg.video_preset = preset;
+        let job = EncodeJob {
+            cfg,
+            input: PathBuf::from(&video.file),
+            output: PathBuf::from(state.output_path()),
+            ffmpeg: state.ffmpeg().clone(),
+        };
+        let encoder = parse_encoder_selection(&state.view.encoder_selected);
+        let squeeze = state.view.squeeze;
+        // Not "0%": ffmpeg produces no figure until the first frame leaves the filter graph.
+        state.announce_start();
+        let (cancel, done) = state.begin_encoding();
+        (job, video, bitrate, encoder, squeeze, cancel, done)
+    };
+    core.refresh(window);
+
+    let output = job.output.to_string_lossy().into_owned();
+    let handler = GuiHandler::new(
+        bitrate,
+        encoder,
+        squeeze,
+        Some(&video),
+        Some(Box::new(WindowSink {
+            core: Arc::clone(core),
+        })),
+    );
+    let thread_core = Arc::clone(core);
+    let thread_done = done.clone();
+    let thread_output = output.clone();
+    let spawned = spawn("encode", move || {
+        run_encoding(
+            &thread_done,
+            || {
+                // A panic is a failed conversion, not a window locked for good.
+                catch_unwind(AssertUnwindSafe(|| {
+                    thread_core.engine.encode(&job, &handler, &cancel)
+                }))
+                .unwrap_or_else(|payload| Err(panic_error("the conversion", payload.as_ref())))
+            },
+            |result| {
+                post(&thread_core, move |core, window| {
+                    complete(core, window, result, &thread_output);
+                });
+            },
+        );
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the conversion thread: error={e}");
+        done.release();
+        complete(
+            core,
+            window,
+            Err(Error::Plain(format!("cannot start the conversion: {e}"))),
+            &output,
+        );
+    }
+}
+
+/// The single completion path, on the UI thread, once the pipeline has returned.
+fn complete(
+    core: &Arc<Core>,
+    window: &MainWindow,
+    result: Result<EncodeOutcome, Error>,
+    output: &str,
+) {
+    let completion = core.state().complete_encoding(result, output);
+    core.refresh(window);
+    match completion {
+        // Shutting down, asked by the system (the loop is ending), or asked by the user.
+        Completion::Ignored | Completion::Quit | Completion::Cancelled => {}
+        Completion::Succeeded { message } => core.show(window, PopupKind::Done(message)),
+        Completion::Failed {
+            message,
+            missing_ffmpeg,
+        } => {
+            if missing_ffmpeg {
+                core.show(window, PopupKind::Prerequisite { retry: false });
+            } else {
+                core.show(window, PopupKind::Error(message));
+            }
+        }
+    }
+}
+
+/// The Cancel button.
+fn cancel(core: &Arc<Core>, window: &MainWindow) {
+    core.state().request_cancel();
+    core.refresh(window);
+}
+
+/// The Quit button: asks first during a conversion.
+fn quit_pressed(core: &Arc<Core>, window: &MainWindow) {
+    if core.state().is_encoding() {
+        core.show(window, PopupKind::Quit);
+    } else {
+        leave(core, window, "quit button");
+    }
+}
+
+/// Leaves for good: stops a running conversion and waits for it (the UI thread is held for at
+/// most the grace period, as in Go), then ends the loop.
+fn leave(core: &Arc<Core>, window: &MainWindow, reason: &str) {
+    // The window goes first, so that it does not stay on screen while the wait runs.
+    if let Err(e) = window.hide() {
+        log::warn!("Cannot hide the window: error={e}");
+    }
+    core.host.quit();
+    core.shutdown(reason);
+}
+
+/// The Diagnostic button: the checks shell out to ffmpeg, so they run off the UI thread.
+fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
+    let before = {
+        let mut state = core.state();
+        let before = state.view.status.clone();
+        state.view.status = RUNNING_DIAGNOSTIC.into();
+        before
+    };
+    core.refresh(window);
+    let thread_core = Arc::clone(core);
+    let restore = before.clone();
+    let spawned = spawn("diagnostic", move || {
+        let health = catch_unwind(AssertUnwindSafe(|| {
+            thread_core
+                .engine
+                .health_report(&thread_core.temp_dir, &thread_core.leaving)
+        }))
+        .unwrap_or_else(|payload| {
+            format!(
+                "The diagnostic stopped unexpectedly: {}\n",
+                panic_error("the diagnostic", payload.as_ref())
+            )
+        });
+        // The build goes first: it is the line that tells a maintainer which binary produced
+        // everything below it. The log path is where a user finds what to attach to a bug
+        // report.
+        let log_line = match &thread_core.log_path {
+            Some(path) => format!("\nLog file: {}\n", path.display()),
+            None => "\nLog file: unavailable (diagnostics are being discarded)\n".to_string(),
+        };
+        let report = format!(
+            "Superview build: {}\n\n{health}{log_line}",
+            thread_core.identity
+        );
+        post(&thread_core, move |core, window| {
+            {
+                // The line goes back to what it said before, and only if nothing has written
+                // over "Running diagnostic..." since: a conversion started meanwhile owns it.
+                let mut state = core.state();
+                if state.view.status == RUNNING_DIAGNOSTIC {
+                    state.view.status = restore;
+                }
+            }
+            core.refresh(window);
+            core.show(window, PopupKind::Diagnostic(report));
+        });
+    });
+    if let Err(e) = spawned {
+        log::error!("Cannot start the diagnostic: error={e}");
+        {
+            let mut state = core.state();
+            if state.view.status == RUNNING_DIAGNOSTIC {
+                state.view.status = before;
+            }
+        }
+        core.refresh(window);
+        core.show(
+            window,
+            PopupKind::Error(format!("cannot start the diagnostic: {e}")),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_dialog_is_not_queued_twice_and_the_next_one_waits_its_turn() {
+        let mut popups = Popups::default();
+        popups.push(PopupKind::Quit);
+        popups.push(PopupKind::Quit);
+        popups.push(PopupKind::Done("x".into()));
+        assert_eq!(popups.current(), Some(&PopupKind::Quit));
+        popups.close(true);
+        assert_eq!(popups.current(), Some(&PopupKind::Done("x".into())));
+        popups.close(true);
+        assert_eq!(popups.current(), None);
+        popups.close(true); // answering nothing is harmless
+        assert_eq!(popups.current(), None);
+    }
+
+    #[test]
+    fn a_panic_payload_is_read_whatever_its_type() {
+        let text = catch_unwind(|| panic!("static text")).expect_err("panics");
+        assert_eq!(panic_message(text.as_ref()), "static text");
+        let owned = catch_unwind(|| panic!("{}", String::from("owned text"))).expect_err("panics");
+        assert_eq!(panic_message(owned.as_ref()), "owned text");
+        let other = catch_unwind(|| std::panic::panic_any(7_u8)).expect_err("panics");
+        assert_eq!(panic_message(other.as_ref()), "unknown cause");
+    }
+}

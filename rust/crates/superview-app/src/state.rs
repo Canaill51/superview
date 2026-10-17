@@ -45,8 +45,9 @@ pub const SHUTDOWN_GRACE: Duration = Duration::from_secs(20);
 /// line in place, which described a state the window had moved on from.
 pub const HARDWARE_UNVERIFIED: &str = "Hardware: could not verify the encoder on this machine";
 
-/// The controls whose enabled state the transitions drive. `Quit` is here so that "Quit is in
-/// no list" is something a test can say.
+/// The controls whose enabled state the transitions drive. `Quit` exists in the tests only,
+/// so that "Quit is in no list" is something a test can say: the window never reads it, since
+/// the Quit button is never greyed out by a transition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Control {
     Open,
@@ -55,10 +56,14 @@ pub enum Control {
     Squeeze,
     Encoder,
     Diagnostic,
+    #[cfg(test)]
     Quit,
 }
 
+#[cfg(test)]
 const CONTROL_COUNT: usize = 7;
+#[cfg(not(test))]
+const CONTROL_COUNT: usize = 6;
 
 /// Every control that changes what the next conversion will do, or that would run a GPU probe
 /// beside a hardware encode (Diagnostic probes every hardware encoder: two probes on one GPU
@@ -246,6 +251,7 @@ impl Lifecycle {
         }
     }
 
+    #[cfg(test)]
     fn has_cancel(&self) -> bool {
         lock(&self.inner).cancel.is_some()
     }
@@ -254,6 +260,8 @@ impl Lifecycle {
         self.shutting_down.load(Ordering::Acquire)
     }
 
+    /// Shortens the wait; the window never does, only tests.
+    #[cfg(test)]
     pub fn set_grace(&self, grace: Duration) {
         lock(&self.inner).grace = Some(grace);
     }
@@ -800,11 +808,14 @@ impl AppState {
         self.view.results = results.into();
     }
 
-    /// What every exit goes through; see [`Lifecycle::shutdown`].
+    /// What every exit goes through; see [`Lifecycle::shutdown`]. The window calls the
+    /// lifecycle itself, without taking the lock on the state; this stays for the tests.
+    #[cfg(test)]
     pub fn shutdown(&self, reason: &str) -> bool {
         self.lifecycle.shutdown(reason)
     }
 
+    #[cfg(test)]
     pub fn set_shutdown_grace(&self, grace: Duration) {
         self.lifecycle.set_grace(grace);
     }
