@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-17] Phase 6, PR 6.1 : la logique de la fenêtre portée en Rust, sans fenêtre
+
+| | |
+| --- | --- |
+| **Constat** | `appState` et les fonctions de `gui_main.go` n'existaient que sous Fyne ; le port Rust n'avait que la fenêtre d'essai |
+| **Cause** | la logique (états, textes, préférences) était liée aux widgets, donc intestable sans eux |
+| **Fichiers** | `rust/crates/superview-app/src/{state,format,prefs}.rs` (neufs), `main.rs`, `selection.rs` supprimé |
+| **PR** | feat/rust-gui-state |
+| **Vérification** | 92 tests ; contre-épreuve faite pour chaque groupe (génération non avancée, préférence écrasée par un repli, Diagnostic hors de la liste verrouillée, `done` non libéré sur panique, etc.) · écarts voulus avec Go dans DEC-43 et DEC-46 |
+
 ### [2026-10-14] L'AppImage affiche l'icône générique « W » sous Wayland (KDE)
 
 | | |
