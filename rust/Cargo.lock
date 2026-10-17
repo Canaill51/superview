@@ -4019,10 +4019,14 @@ name = "superview-app"
 version = "0.0.0"
 dependencies = [
  "i-slint-backend-testing",
+ "log",
  "rfd",
+ "serde",
+ "serde_json",
  "slint",
  "slint-build",
  "superview-core",
+ "tempfile",
 ]
 
 [[package]]

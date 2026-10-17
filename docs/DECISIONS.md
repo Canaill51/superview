@@ -77,6 +77,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée, GO donné le 2026-10-15 |
 | [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
 | [DEC-45](#dec-45) | Sous Windows, la recherche d'ffmpeg/ffprobe sur `PATH` refuse `.bat` et `.cmd` (Rust) | Acceptée |
+| [DEC-46](#dec-46) | Interface Rust : préférences neuves, aucune reprise des choix Fyne | Acceptée |
 
 ---
 
@@ -420,6 +421,8 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 **Phase 5 terminée (2026-10-17)** — Banc d'essai `superview-harness` (#117), tests à vrai ffmpeg portés (#118), croisement Go↔Rust sur le même clip (L-116 : libx264 comparé bit à bit à un fil, libx265 par PSNR, car non reproductible).
 
+**Phase 6, PR 6.1 (2026-10-17)** — La logique de la fenêtre (`state.rs`, `format.rs`, `prefs.rs`, sans type Slint) est portée méthode pour méthode depuis `appState`. Écarts voulus avec Go : (a) en fin de conversion ratée ou annulée la ligne « Hardware: … » est vidée au lieu de rester sur un plan que personne n'a exécuté, et une vérification matérielle qui échoue la remplace par un texte neutre ; (b) un chemin d'entrée ou de sortie non UTF-8 est refusé avec un message clair (`check_video` prend un `&str`) ; (c) les dialogues deviennent des valeurs (`Completion`, `ChosenOutcome`) que la fenêtre affiche, et la vérification vidéo et la vérification matérielle sont injectées ; (d) la génération de la ligne matérielle avance à chaque rafraîchissement, au début d'une conversion et quand la fin l'écrit, pas seulement quand le plan est calculé. Préférences : voir DEC-46.
+
 **À rouvrir si** — Une PR de la phase 4 rend la parité impossible à tenir (oracle ou empreintes divergents), ou si les PR restent jugées illisibles.
 
 ### DEC-44
@@ -439,3 +442,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `lookup_in_path` (`tools.rs`) ne garde dans `PATHEXT` que `.com` et `.exe`. Seuls les faux outils des tests Windows sont des `.bat` : ils passent par `ToolResolver::with_batch_stand_ins`, réservé aux tests.
 **Conséquences** — Écart voulu avec Go, qui reste la référence mais n'est plus corrigé sur ce point. Quelqu'un qui n'aurait qu'un `.bat` nommé `ffmpeg` sur `PATH` n'est plus servi : il doit pointer `SUPERVIEW_FFMPEG_DIR` vers un vrai `ffmpeg.exe`.
 **À rouvrir si** — Un besoin réel d'un lanceur `.bat` apparaît ; il faudrait alors tuer l'arbre de processus (job object), pas seulement `cmd.exe`.
+
+### DEC-46
+**L'interface Rust garde ses préférences dans un fichier neuf, `preferences.json` ; elle ne reprend aucun choix de la version Go/Fyne.**
+2026-10-17 · Acceptée · conséquence de DEC-43
+
+**Contexte** — La version Go enregistre trois choix (profil de qualité, codec, case « source déjà étirée ») dans les préférences de Fyne. Fyne disparaît avec Go, et leur format n'est pas un contrat.
+**Décision** — Trois clés (`quality_profile`, `encoder_selection`, `squeeze_source`) dans `<dossier de configuration utilisateur>/superview/preferences.json`, écrites de façon atomique. Un fichier absent, illisible ou invalide donne les valeurs par défaut (« Balanced », codec de la source, case décochée) et un avertissement dans le journal, jamais une erreur. Aucune lecture des préférences Fyne.
+**Conséquences** — Au premier lancement de la version Rust, quelqu'un qui avait choisi « Fast » ou un codec le choisit de nouveau, une fois. Une clé de type faux invalide tout le fichier (défauts), elle n'est pas rattrapée clé par clé.
+**À rouvrir si** — Des utilisateurs se plaignent de la perte de leurs choix à la bascule : une lecture unique des préférences Fyne serait alors à écrire.
