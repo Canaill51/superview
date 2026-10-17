@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-17] Phase 6, PR 6.2 : la vraie fenêtre Slint, sans câblage
+
+| | |
+| --- | --- |
+| **Constat** | le port Rust n'avait que la fenêtre d'essai (un bouton, un champ) |
+| **Cause** | la fenêtre complète (libellés Go verbatim, barre de 6 boutons centrée, popups) restait à écrire |
+| **Fichiers** | `rust/crates/superview-app/{ui/main.slint,src/window_tests.rs,build.rs}`, `main.rs` (test renommé `window_scenarios`) |
+| **PR** | feat/rust-ui-window |
+| **Vérification** | contre-épreuve de chaque test ; relecture : liaisons `in-out` (case et listes), modale qui verrouille aussi le clavier, une seule popup à la fois (enum `Popup`). Non prouvé : le `TouchArea` de la modale seul, `char-wrap`, le rendu réel (pas de Xvfb) |
+
 ### [2026-10-17] Phase 6, PR 6.1 : la logique de la fenêtre portée en Rust, sans fenêtre
 
 | | |

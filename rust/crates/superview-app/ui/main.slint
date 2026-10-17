@@ -1,41 +1,332 @@
-import { Palette, Button, LineEdit, VerticalBox, HorizontalBox } from "std-widgets.slint";
+// The application window, laid out as the Go one (`cmd/superview/gui_main.go`) and with its
+// labels word for word. Nothing is computed here: the window shows properties it is given and
+// reports clicks through callbacks, and `main.rs` owns every decision (phase 6 of DEC-43).
+import { Palette, Button, CheckBox, ComboBox, ProgressIndicator, ScrollView } from "std-widgets.slint";
+
+// The popup that is open: one at a time, `none` when the window is free.
+export enum Popup {
+    none,
+    done,
+    error,
+    prerequisite,
+    overwrite,
+    quit,
+    no-input,
+    no-output,
+    diagnostic,
+}
+
+// A modal card. `if open` at the use site builds it only while it is shown; the full-window
+// TouchArea takes every click, so nothing behind the card can be reached (a PopupWindow
+// closes on an outside click by default, which is the opposite of a question the user must
+// answer).
+component Modal inherits Rectangle {
+    in property <string> title;
+
+    background: #000000a0;
+    TouchArea { }
+    // Takes the keyboard focus, so keys do not reach the window behind the card.
+    FocusScope {
+        init => { self.focus(); }
+    }
+    Rectangle {
+        width: min(parent.width - 40px, 600px);
+        height: card.preferred-height + 32px;
+        background: Palette.background;
+        border-width: 1px;
+        border-color: Palette.border;
+        border-radius: 6px;
+        card := VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            Text { text: root.title; font-size: 16px; font-weight: 700; }
+            @children
+        }
+    }
+}
+
+// The row of buttons that closes a modal, pushed to the right.
+component ModalButtons inherits HorizontalLayout {
+    alignment: end;
+    spacing: 8px;
+    @children
+}
 
 export component MainWindow inherits Window {
     title: "Superview";
     // Fixed size: minimum and maximum are the same, so the window cannot be resized.
-    min-width: 720px;
-    max-width: 720px;
-    min-height: 200px;
-    max-height: 200px;
+    min-width: 980px;
+    max-width: 980px;
+    min-height: 470px;
+    max-height: 470px;
 
     // Dark theme, whatever the desktop uses.
     init => { Palette.color-scheme = ColorScheme.dark; }
 
-    // The name of the file the user chose, shown in the read-only field.
-    in property <string> input-path;
+    // What the window shows.
     in property <string> status: "Status: Ready";
+    in property <string> results: "Results: no completed run yet";
+    in property <string> hardware: "Hardware: waiting for input video";
+    in property <string> input-name: "No file selected";
+    in property <string> output-name: "No file selected";
+    // The trial window's input file name; shown instead of `input-name` while not empty.
+    in property <string> input-path;
+    // 0 to 1.
+    in property <float> progress: 0;
+    // "Fast" or "Balanced".
+    in-out property <string> quality: "Balanced";
+    // The "source already stretched" box.
+    in-out property <bool> squeeze: false;
+    in property <[string]> encoder-options: [];
+    in-out property <string> encoder-selected: "";
+
+    // What the user can do now.
+    in property <bool> start-enabled: false;
+    in property <bool> cancel-enabled: false;
+    in property <bool> open-enabled: true;
+    in property <bool> output-enabled: true;
+    in property <bool> quality-enabled: true;
+    in property <bool> squeeze-enabled: true;
+    in property <bool> encoder-enabled: true;
+    in property <bool> diagnostic-enabled: true;
     // True while the picker is open: the button is held down so a second click
     // cannot open a second picker.
     in property <bool> picking: false;
 
-    callback choose-input();
+    // Which popup is open (one at a time) and what it says.
+    in property <Popup> popup: Popup.none;
+    in property <string> done-message;
+    in property <string> error-message;
+    in property <string> install-url;
+    // False when there is nothing to retry: the dialog then only offers to close.
+    in property <bool> prerequisite-retry: true;
+    in property <string> diagnostic-report;
 
-    VerticalBox {
-        alignment: start;
-        HorizontalBox {
-            Button {
-                text: "Choose input file";
-                enabled: !root.picking;
-                clicked => { root.choose-input(); }
+    // False while a popup is open: the controls behind it cannot be used, by mouse or key.
+    private property <bool> free: root.popup == Popup.none;
+
+    callback choose-input();
+    callback choose-output();
+    callback start();
+    callback cancel();
+    callback diagnostic();
+    callback quit();
+    callback quality-changed(string);
+    callback squeeze-toggled(bool);
+    callback encoder-changed(string);
+
+    callback done-ok();
+    callback error-ok();
+    callback prerequisite-retry-clicked();
+    callback prerequisite-close();
+    callback open-install-link(string);
+    callback overwrite-yes();
+    callback overwrite-no();
+    callback quit-yes();
+    callback quit-no();
+    callback no-input-ok();
+    callback no-output-ok();
+    callback diagnostic-close();
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 10px;
+        alignment: LayoutAlignment.start;
+
+        VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: "Superview";
+                font-size: 28px;
+                font-weight: 700;
+                horizontal-alignment: center;
             }
-            LineEdit {
-                text: root.input-path;
-                read-only: true;
-                placeholder-text: "No file selected";
+            Text {
+                text: "Convert 4:3 to 16:9 in one workflow";
+                horizontal-alignment: center;
             }
         }
+
+        // Centred: the layout packs the buttons together and centres the pack.
+        HorizontalLayout {
+            alignment: center;
+            spacing: 8px;
+            Button {
+                text: "Choose input file";
+                enabled: root.free && root.open-enabled && !root.picking;
+                clicked => { root.choose-input(); }
+            }
+            Button {
+                text: "Choose output file";
+                enabled: root.free && root.output-enabled;
+                clicked => { root.choose-output(); }
+            }
+            Button {
+                text: "Start transformation";
+                enabled: root.free && root.start-enabled;
+                clicked => { root.start(); }
+            }
+            Button {
+                text: "Cancel";
+                enabled: root.free && root.cancel-enabled;
+                clicked => { root.cancel(); }
+            }
+            Button {
+                text: "Diagnostic";
+                enabled: root.free && root.diagnostic-enabled;
+                clicked => { root.diagnostic(); }
+            }
+            Button {
+                text: "Quit";
+                enabled: root.free;
+                clicked => { root.quit(); }
+            }
+        }
+
+        GridLayout {
+            spacing: 8px;
+            Row {
+                Text { text: "Input file"; vertical-alignment: center; }
+                Text {
+                    text: root.input-path != "" ? root.input-path : root.input-name;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+            Row {
+                Text { text: "Output file"; vertical-alignment: center; }
+                Text { text: root.output-name; vertical-alignment: center; overflow: elide; }
+            }
+            Row {
+                Text { text: "Quality profile"; vertical-alignment: center; }
+                ComboBox {
+                    model: ["Fast", "Balanced"];
+                    current-value <=> root.quality;
+                    enabled: root.free && root.quality-enabled;
+                    selected(value) => { root.quality-changed(value); }
+                }
+            }
+            Row {
+                Text { text: "Video codec"; vertical-alignment: center; }
+                ComboBox {
+                    model: root.encoder-options;
+                    current-value <=> root.encoder-selected;
+                    enabled: root.free && root.encoder-enabled;
+                    selected(value) => { root.encoder-changed(value); }
+                }
+            }
+            Row {
+                Text { text: "Input format"; vertical-alignment: center; }
+                CheckBox {
+                    text: "Source already stretched to 16:9 (un-squeeze)";
+                    checked <=> root.squeeze;
+                    enabled: root.free && root.squeeze-enabled;
+                    toggled => { root.squeeze-toggled(self.checked); }
+                }
+            }
+        }
+
+        Text { text: root.status; font-weight: 700; wrap: word-wrap; }
+        Text { text: root.results; wrap: word-wrap; }
+        Text { text: root.hardware; wrap: word-wrap; }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text { text: "Progress"; vertical-alignment: center; }
+            ProgressIndicator { progress: root.progress; }
+        }
+    }
+
+    if root.popup == Popup.done: Modal {
+        title: "Done";
+        Text { text: root.done-message; wrap: char-wrap; }
+        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.done-ok(); } } }
+    }
+
+    if root.popup == Popup.error: Modal {
+        title: "Error";
+        Text { text: root.error-message; wrap: char-wrap; }
+        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.error-ok(); } } }
+    }
+
+    if root.popup == Popup.prerequisite: Modal {
+        title: "Error";
+        Text { text: "cannot find ffmpeg/ffprobe on your system"; }
+        Text { text: "make sure to install it first:"; }
+        // The link: a click is reported with the address, the host opens the browser.
         Text {
-            text: root.status;
+            text: root.install-url;
+            color: #5aa9ff;
+            wrap: char-wrap;
+            TouchArea {
+                accessible-role: button;
+                accessible-label: "Open " + root.install-url;
+                accessible-action-default => { root.open-install-link(root.install-url); }
+                mouse-cursor: pointer;
+                clicked => { root.open-install-link(root.install-url); }
+            }
+        }
+        if root.prerequisite-retry: Text { text: "Already installed it? Use Retry."; }
+        ModalButtons {
+            if root.prerequisite-retry: Button {
+                text: "Retry";
+                primary: true;
+                clicked => { root.prerequisite-retry-clicked(); }
+            }
+            Button {
+                text: root.prerequisite-retry ? "Close" : "OK";
+                clicked => { root.prerequisite-close(); }
+            }
+        }
+    }
+
+    if root.popup == Popup.overwrite: Modal {
+        title: "Overwrite output file";
+        Text { text: "The selected output file already exists. Overwrite it?"; wrap: word-wrap; }
+        ModalButtons {
+            Button { text: "Yes"; primary: true; clicked => { root.overwrite-yes(); } }
+            Button { text: "No"; clicked => { root.overwrite-no(); } }
+        }
+    }
+
+    if root.popup == Popup.quit: Modal {
+        title: "Cancel and quit";
+        Text {
+            text: "An encoding is in progress. Do you want to cancel and quit?";
+            wrap: word-wrap;
+        }
+        ModalButtons {
+            Button { text: "Yes"; primary: true; clicked => { root.quit-yes(); } }
+            Button { text: "No"; clicked => { root.quit-no(); } }
+        }
+    }
+
+    if root.popup == Popup.no-input: Modal {
+        title: "No input";
+        Text { text: "Please open an input video first."; wrap: word-wrap; }
+        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-input-ok(); } } }
+    }
+
+    if root.popup == Popup.no-output: Modal {
+        title: "No output";
+        Text { text: "Please choose an output file first."; wrap: word-wrap; }
+        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-output-ok(); } } }
+    }
+
+    if root.popup == Popup.diagnostic: Modal {
+        title: "System diagnostic";
+        ScrollView {
+            width: 520px;
+            height: 300px;
+            Text {
+                text: root.diagnostic-report;
+                font-family: "monospace";
+                wrap: char-wrap;
+                width: 520px;
+            }
+        }
+        ModalButtons {
+            Button { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
         }
     }
 }
