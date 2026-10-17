@@ -1,6 +1,6 @@
 //! Scenarios on the real window under the testing backend: the labels it shows, where its
 //! toolbar sits, what it starts with, that every button reports its click, and the popups.
-//! Plain functions called from the one `#[test]` in `main.rs`: the backend can be initialised
+//! Plain functions called from the one `#[test]` in `app_tests.rs`: the backend can be initialised
 //! only once per process. Port of Go's `TestToolbarFitsWindow` and `TestToolbarIsCentred`.
 //!
 //! The testing backend does not measure the real font, so nothing here asserts that a label
@@ -58,13 +58,13 @@ fn find(window: &MainWindow, label: &str) -> Vec<ElementHandle> {
 }
 
 /// The one element labelled `label`: a missing label or a duplicated one fails.
-fn only(window: &MainWindow, label: &str) -> ElementHandle {
+pub(crate) fn only(window: &MainWindow, label: &str) -> ElementHandle {
     let mut found = find(window, label);
     assert_eq!(found.len(), 1, "expected exactly one {label:?}");
     found.remove(0)
 }
 
-fn is_shown(window: &MainWindow, label: &str) -> bool {
+pub(crate) fn is_shown(window: &MainWindow, label: &str) -> bool {
     !find(window, label).is_empty()
 }
 
@@ -81,8 +81,8 @@ fn shown() -> MainWindow {
 }
 
 /// Runs `future` on the event loop and returns when it is done. Gives up after 5 s, like
-/// `click_and_wait` in `main.rs`: a hang must not freeze the suite.
-fn drive(future: impl std::future::Future<Output = ()> + 'static) {
+/// `wait_until` in `app_tests.rs`: a hang must not freeze the suite.
+pub(crate) fn drive(future: impl std::future::Future<Output = ()> + 'static) {
     slint::spawn_local(async move {
         future.await;
         slint::quit_event_loop().expect("quit");

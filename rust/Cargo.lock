@@ -4018,11 +4018,13 @@ dependencies = [
 name = "superview-app"
 version = "0.0.0"
 dependencies = [
+ "ctrlc",
  "i-slint-backend-testing",
  "log",
  "rfd",
  "serde",
  "serde_json",
+ "signal-hook",
  "slint",
  "slint-build",
  "superview-core",
