@@ -27,6 +27,9 @@ use superview_core::video::VideoSpecs;
 
 slint::include_modules!();
 
+#[cfg(test)]
+mod window_tests;
+
 /// The picker's extensions, without the dot, from the one list of what the product reads.
 fn picker_extensions() -> Vec<&'static str> {
     SUPPORTED_INPUT_EXTENSIONS
@@ -187,10 +190,11 @@ mod tests {
         assert_eq!(picker_extensions(), ["mp4", "MP4"]);
     }
 
-    // One test only: the testing backend can be initialised once per process,
-    // so every window scenario lives in this function.
+    // One test only: the testing backend can be initialised once per process, so every window
+    // scenario lives in this function (the picker's here, the layout's in `window_tests`).
+    // Each scenario names itself in its failure message.
     #[test]
-    fn the_window_follows_the_picker() {
+    fn window_scenarios() {
         i_slint_backend_testing::init_integration_test_with_system_time();
 
         let window = window_with(|| None);
@@ -247,5 +251,8 @@ mod tests {
         click_and_wait(&window);
         assert!(!window.get_picking(), "a panicking picker froze the button");
         assert_eq!(window.get_status(), "Status: Ready");
+
+        // The real window's layout, labels, initial state and popups.
+        window_tests::run();
     }
 }
