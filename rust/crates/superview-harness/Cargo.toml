@@ -7,7 +7,18 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+log = "0.4.34"
+serde_json = "1.0.154"
 superview-core = { path = "../superview-core" }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.4.5"
+
+[target.'cfg(windows)'.dependencies]
+ctrlc = "3.5.2"
+
+[dev-dependencies]
+tempfile = "3.27.0"
 
 [lints]
 workspace = true
