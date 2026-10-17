@@ -13,6 +13,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::ThreadId;
 use std::time::{Duration, Instant};
 
+use i_slint_backend_testing::ElementHandle;
 use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, Model};
 use superview_core::config::Config;
@@ -24,6 +25,7 @@ use superview_core::probe::EncoderProbeReport;
 use superview_core::video::{VideoSpecs, VideoStream};
 
 use crate::app::{App, EncodeJob, Engine, Host, INSTALL_URL, Setup};
+use crate::dialogs::Pick;
 use crate::format::resolve_start_settings;
 use crate::prefs::Preferences;
 use crate::state::VerificationRequest;
@@ -204,7 +206,12 @@ impl Engine for FakeEngine {
     }
 }
 
-type Picker = Box<dyn Fn() -> Option<PathBuf> + Send + Sync>;
+type Picker = Box<dyn Fn() -> Pick + Send + Sync>;
+
+/// A cancel is `None`, a file is `Some`.
+fn picked(answer: Option<PathBuf>) -> Pick {
+    answer.map_or(Pick::Cancelled, Pick::Chosen)
+}
 
 /// A desktop whose pickers answer from closures.
 struct FakeHost {
@@ -217,17 +224,24 @@ struct FakeHost {
 impl FakeHost {
     fn new() -> Self {
         Self {
-            pick_input: Box::new(|| None),
-            pick_output: Box::new(|| None),
+            pick_input: Box::new(|| Pick::Cancelled),
+            pick_output: Box::new(|| Pick::Cancelled),
             links: Mutex::new(Vec::new()),
             quits: AtomicU32::new(0),
         }
     }
 
+    /// No picker can be opened: both ask for the path in the window instead.
+    fn without_pickers(mut self) -> Self {
+        self.pick_input = Box::new(|| Pick::NoPicker);
+        self.pick_output = Box::new(|| Pick::NoPicker);
+        self
+    }
+
     /// The input picker answers these in turn (`None` is a cancel).
     fn picking_inputs(mut self, answers: Vec<Option<PathBuf>>) -> Self {
         let queue = Mutex::new(VecDeque::from(answers));
-        self.pick_input = Box::new(move || lock(&queue).pop_front().flatten());
+        self.pick_input = Box::new(move || picked(lock(&queue).pop_front().flatten()));
         self
     }
 
@@ -235,7 +249,7 @@ impl FakeHost {
         mut self,
         picker: impl Fn() -> Option<PathBuf> + Send + Sync + 'static,
     ) -> Self {
-        self.pick_input = Box::new(picker);
+        self.pick_input = Box::new(move || picked(picker()));
         self
     }
 
@@ -243,17 +257,17 @@ impl FakeHost {
         mut self,
         picker: impl Fn() -> Option<PathBuf> + Send + Sync + 'static,
     ) -> Self {
-        self.pick_output = Box::new(picker);
+        self.pick_output = Box::new(move || picked(picker()));
         self
     }
 }
 
 impl Host for FakeHost {
-    fn pick_input(&self) -> Option<PathBuf> {
+    fn pick_input(&self) -> Pick {
         (self.pick_input)()
     }
 
-    fn pick_output(&self) -> Option<PathBuf> {
+    fn pick_output(&self) -> Pick {
         (self.pick_output)()
     }
 
@@ -355,6 +369,29 @@ impl Rig {
         only(&self.window, label).invoke_accessible_default_action();
     }
 
+    /// Clicks the enabled one of several elements with the same label: "Cancel" is both the
+    /// toolbar's (greyed out behind a popup) and the text field's.
+    fn click_enabled(&self, label: &str) {
+        let mut found: Vec<_> = ElementHandle::find_by_accessible_label(&self.window, label)
+            .filter(|e| e.accessible_enabled() == Some(true))
+            .collect();
+        assert_eq!(found.len(), 1, "expected one enabled {label:?}");
+        found.remove(0).invoke_accessible_default_action();
+    }
+
+    /// Types into the focused element, key by key, as a keyboard would.
+    fn type_keys(&self, text: &str) {
+        for c in text.chars() {
+            let key: slint::SharedString = c.into();
+            self.window
+                .window()
+                .dispatch_event(WindowEvent::KeyPressed { text: key.clone() });
+            self.window
+                .window()
+                .dispatch_event(WindowEvent::KeyReleased { text: key });
+        }
+    }
+
     fn enabled(&self, label: &str) -> bool {
         only(&self.window, label).accessible_enabled() == Some(true)
     }
@@ -404,7 +441,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 24] = [
+    let scenarios: [(&str, fn()); 30] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -456,6 +493,24 @@ pub fn run() {
             the_real_missing_ffmpeg_error_reaches_the_popup,
         ),
         ("preferences", the_quality_choice_reaches_the_conversion),
+        (
+            "text field input",
+            the_text_field_stands_in_for_the_input_picker,
+        ),
+        (
+            "text field output",
+            the_text_field_stands_in_for_the_output_picker,
+        ),
+        ("text field cancel", a_cancelled_text_field_changes_nothing),
+        ("text field queue", the_text_field_keeps_the_popup_queue),
+        (
+            "text field twice",
+            a_second_text_field_for_the_other_file_starts_empty,
+        ),
+        (
+            "text field no thread",
+            a_video_check_that_cannot_start_reports_and_frees_the_button,
+        ),
     ];
     for (name, scenario) in scenarios {
         println!("scenario: {name}");
@@ -1183,4 +1238,193 @@ fn a_quit_question_that_waited_is_dropped_when_nothing_runs() {
     );
     r.click("OK");
     assert_eq!(r.popup(), Popup::None);
+}
+
+/// The window with no picker to open and the text field up for `button`.
+fn rig_asking_for_a_path(button: &str, engine: FakeEngine) -> Rig {
+    let r = rig(engine, FakeHost::new().without_pickers());
+    r.ready();
+    r.click(button);
+    r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
+    r
+}
+
+fn the_text_field_stands_in_for_the_input_picker() {
+    let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
+    assert!(is_shown(&r.window, "Select input video"));
+    assert!(!r.window.get_path_entry_output());
+    assert!(
+        !r.enabled("Choose input file"),
+        "the button is held while the field is open"
+    );
+    assert!(lock(&r.engine.check_video_threads).is_empty());
+
+    // Empty, then relative: the field stays open and says why; nothing was read.
+    r.click("OK");
+    assert_eq!(r.popup(), Popup::PathEntry);
+    assert_eq!(
+        r.window.get_path_entry_error(),
+        "Please type the path of a file."
+    );
+    r.window.set_path_entry_text("clip.mp4".into());
+    r.click("OK");
+    assert_eq!(r.popup(), Popup::PathEntry);
+    assert!(
+        r.window.get_path_entry_error().contains("full path"),
+        "{}",
+        r.window.get_path_entry_error()
+    );
+    assert!(lock(&r.engine.check_video_threads).is_empty());
+    assert_eq!(r.window.get_input_name(), "No file selected");
+
+    // A file ffprobe refuses: the error dialog, the input untouched, the button back.
+    r.window.set_path_entry_text("/videos/other.mkv".into());
+    r.click("OK");
+    r.wait("the error", |w| w.get_popup() == Popup::Error);
+    assert_eq!(
+        r.window.get_error_message(),
+        "not an MP4 file: /videos/other.mkv"
+    );
+    assert_eq!(r.status(), "Status: Invalid input");
+    assert_eq!(r.window.get_input_name(), "No file selected");
+    assert!(r.window.get_open_enabled());
+    r.click("OK");
+    assert_eq!(r.popup(), Popup::None);
+
+    // A valid path, typed key by key and validated with Enter, read off the UI thread.
+    r.click("Choose input file");
+    r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
+    assert_eq!(
+        r.window.get_path_entry_text(),
+        "",
+        "the field kept old text"
+    );
+    assert_eq!(r.window.get_path_entry_error(), "");
+    r.type_keys("/videos/trip/clip.mp4");
+    assert_eq!(r.window.get_path_entry_text(), "/videos/trip/clip.mp4");
+    r.type_keys("\n");
+    r.wait("the input", |w| w.get_input_name() == "clip.mp4");
+    assert_eq!(r.status(), "Status: Input loaded");
+    assert_eq!(r.popup(), Popup::None);
+    assert!(r.window.get_open_enabled());
+    let threads = lock(&r.engine.check_video_threads).clone();
+    assert_eq!(threads.len(), 2, "one refused file and one good one");
+    assert!(threads.iter().all(|t| *t != std::thread::current().id()));
+}
+
+fn the_text_field_stands_in_for_the_output_picker() {
+    let r = rig_asking_for_a_path("Choose output file", FakeEngine::new());
+    assert!(is_shown(&r.window, "Save output video"));
+    assert!(r.window.get_path_entry_output());
+    assert!(!r.enabled("Choose output file"));
+
+    // No extension: .mp4 is added, as for a picked file.
+    r.window.set_path_entry_text("/tmp/videos/result".into());
+    r.click("OK");
+    r.wait("the output", |w| w.get_output_name() == "result.mp4");
+    assert_eq!(r.status(), "Status: Output selected");
+    assert_eq!(r.popup(), Popup::None);
+    assert!(r.window.get_output_enabled());
+    assert!(
+        lock(&r.engine.check_video_threads).is_empty(),
+        "an output is not read by ffprobe"
+    );
+
+    // Another extension gets .mp4 on top of it, an .MP4 is kept.
+    r.click("Choose output file");
+    r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
+    r.window.set_path_entry_text("/tmp/videos/clip.mov".into());
+    r.click("OK");
+    r.wait("the output", |w| w.get_output_name() == "clip.mov.mp4");
+    r.click("Choose output file");
+    r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
+    r.window.set_path_entry_text("/tmp/videos/CLIP.MP4".into());
+    r.click("OK");
+    r.wait("the output", |w| w.get_output_name() == "CLIP.MP4");
+}
+
+fn a_cancelled_text_field_changes_nothing() {
+    let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
+    r.window
+        .set_path_entry_text("/videos/trip/other.mp4".into());
+    r.click_enabled("Cancel");
+    assert_eq!(r.popup(), Popup::None);
+    assert_eq!(r.window.get_input_name(), "No file selected");
+    assert_eq!(r.status(), "Status: Ready");
+    assert!(r.window.get_open_enabled(), "the button must come back");
+    assert!(lock(&r.engine.check_video_threads).is_empty());
+
+    let r = rig_asking_for_a_path("Choose output file", FakeEngine::new());
+    r.window.set_path_entry_text("/tmp/videos/other.mp4".into());
+    r.click_enabled("Cancel");
+    assert_eq!(r.popup(), Popup::None);
+    assert_eq!(r.window.get_output_name(), "No file selected");
+    assert_eq!(r.status(), "Status: Ready");
+    assert!(r.window.get_output_enabled());
+
+    // A field that was cancelled opens empty the next time.
+    r.click("Choose output file");
+    r.wait("the text field", |w| w.get_popup() == Popup::PathEntry);
+    assert_eq!(r.window.get_path_entry_text(), "");
+}
+
+fn the_text_field_keeps_the_popup_queue() {
+    let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
+    r.window.set_path_entry_text("/videos/par".into());
+    // The Diagnostic's report lands while the field is open: it waits its turn and the field
+    // keeps what was typed.
+    r.window.invoke_diagnostic();
+    // The status goes back to what it was in the same step that queues the report.
+    r.wait("the report to be queued", |w| {
+        w.get_status() == "Status: Ready"
+    });
+    assert_eq!(r.popup(), Popup::PathEntry, "the report jumped the queue");
+    assert_eq!(r.window.get_path_entry_text(), "/videos/par");
+    r.click_enabled("Cancel");
+    assert_eq!(r.popup(), Popup::Diagnostic, "the queued report was lost");
+    assert!(r.window.get_open_enabled());
+    r.click("Close");
+    assert_eq!(r.popup(), Popup::None);
+}
+
+fn a_second_text_field_for_the_other_file_starts_empty() {
+    let r = rig(FakeEngine::new(), FakeHost::new().without_pickers());
+    r.ready();
+    // Both pickers are asked before the event loop runs: two fields, one after the other.
+    r.click("Choose input file");
+    r.click("Choose output file");
+    pump(Duration::from_millis(300));
+    assert_eq!(r.popup(), Popup::PathEntry);
+    let first_is_output = r.window.get_path_entry_output();
+    r.window.set_path_entry_text("/videos/typed.mp4".into());
+    r.window
+        .set_path_entry_error("Please type the path of a file.".into());
+    r.click_enabled("Cancel");
+    assert_eq!(r.popup(), Popup::PathEntry, "the second field is not there");
+    assert_ne!(r.window.get_path_entry_output(), first_is_output);
+    assert_eq!(r.window.get_path_entry_text(), "", "the first field's text");
+    assert_eq!(
+        r.window.get_path_entry_error(),
+        "",
+        "the first field's error"
+    );
+}
+
+fn a_video_check_that_cannot_start_reports_and_frees_the_button() {
+    let r = rig_asking_for_a_path("Choose input file", FakeEngine::new());
+    lock(&crate::app::FAILING_SPAWNS).push("check-input");
+    r.window.set_path_entry_text("/videos/trip/clip.mp4".into());
+    r.click("OK");
+    lock(&crate::app::FAILING_SPAWNS).clear();
+    assert_eq!(r.popup(), Popup::Error);
+    assert!(
+        r.window
+            .get_error_message()
+            .starts_with("cannot read the video: "),
+        "{}",
+        r.window.get_error_message()
+    );
+    assert!(r.window.get_open_enabled(), "the button stays held");
+    assert_eq!(r.window.get_input_name(), "No file selected");
+    assert!(lock(&r.engine.check_video_threads).is_empty());
 }

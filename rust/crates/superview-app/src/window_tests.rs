@@ -33,11 +33,12 @@ const TOOLBAR: [&str; 6] = [
 ];
 
 const SQUEEZE: &str = "Source already stretched to 16:9 (un-squeeze)";
+const PATH_ENTRY_BODY: &str = "No file picker could be opened. Type the full path of the file:";
 const INSTALL_URL: &str = "https://example.com/ffmpeg";
 
 /// Every text that only a popup shows (titles and bodies; "OK" and "Error" are shared and
 /// checked where they matter). None may be on screen while no popup is open.
-const POPUP_TEXTS: [&str; 12] = [
+const POPUP_TEXTS: [&str; 13] = [
     "Done",
     "Overwrite output file",
     "The selected output file already exists. Overwrite it?",
@@ -50,6 +51,7 @@ const POPUP_TEXTS: [&str; 12] = [
     "System diagnostic",
     "cannot find ffmpeg/ffprobe on your system",
     "make sure to install it first:",
+    PATH_ENTRY_BODY,
 ];
 
 /// The elements whose accessible label is exactly `label`.
@@ -374,6 +376,8 @@ fn the_popups_open_close_and_say_what_they_should() {
     window.on_no_input_ok(bump());
     window.on_no_output_ok(bump());
     window.on_diagnostic_close(bump());
+    window.on_path_entry_ok(bump());
+    window.on_path_entry_cancel(bump());
 
     window.set_done_message("Transform complete. Output file:\n/tmp/out.mp4".into());
     check_popup(
@@ -454,6 +458,36 @@ fn the_popups_open_close_and_say_what_they_should() {
         "Close",
         &fired,
     );
+
+    // The text field: the title follows the file asked for, the reason shows only when there
+    // is one, and both buttons report. "Cancel" also names the toolbar's (greyed out).
+    check_popup(
+        &window,
+        Popup::PathEntry,
+        &["Select input video", PATH_ENTRY_BODY],
+        "OK",
+        &fired,
+    );
+    window.set_path_entry_output(true);
+    check_popup(
+        &window,
+        Popup::PathEntry,
+        &["Save output video", PATH_ENTRY_BODY],
+        "OK",
+        &fired,
+    );
+    window.set_path_entry_error("Please type the path of a file.".into());
+    window.set_popup(Popup::PathEntry);
+    assert!(is_shown(&window, "Please type the path of a file."));
+    let cancel = find(&window, "Cancel")
+        .into_iter()
+        .find(|e| e.accessible_enabled() == Some(true))
+        .expect("the text field's Cancel is enabled");
+    cancel.invoke_accessible_default_action();
+    assert_eq!(fired.get(), 1, "Cancel did not report its click");
+    window.set_popup(Popup::None);
+    window.set_path_entry_error("".into());
+    window.set_path_entry_output(false);
 }
 
 /// With nothing to retry the popup offers "OK" alone and no hint about Retry.
