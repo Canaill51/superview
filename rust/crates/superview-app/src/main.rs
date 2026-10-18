@@ -5,6 +5,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+#[cfg(test)]
+#[path = "../build_support.rs"]
+mod build_support;
 mod dialogs;
 mod engine;
 mod format;
@@ -25,6 +28,40 @@ use superview_core::logfile::parse_log_level;
 
 slint::include_modules!();
 
+/// The application ID the compositor matches to a desktop file of the same name (Wayland
+/// `app_id`). `packaging/linux/build_appimage.sh` names its `.desktop` file after the same ID;
+/// a test pins the two together.
+const APP_ID: &str = "com.canaill51.superview";
+
+/// What the build recorded, in plain bytes of the binary: the release checks a built file for
+/// `modified=true` with `grep -a SUPERVIEW-BUILD`, without running it. `#[used]` keeps it
+/// when nothing reads it.
+#[used]
+static BUILD_MARKER: &str = concat!(
+    "SUPERVIEW-BUILD version=",
+    env!("SUPERVIEW_BUILD_VERSION"),
+    " revision=",
+    env!("SUPERVIEW_BUILD_REVISION"),
+    " modified=",
+    env!("SUPERVIEW_BUILD_MODIFIED"),
+    // The linker packs string literals back to back; the NUL ends the line for `grep -a`.
+    "\0",
+);
+
+/// The identity line of the log and the Diagnostic, from the values `build.rs` recorded.
+fn build_identity() -> String {
+    let revision = env!("SUPERVIEW_BUILD_REVISION");
+    let vcs = format::Vcs {
+        revision,
+        modified: env!("SUPERVIEW_BUILD_MODIFIED") == "true",
+    };
+    format::build_identity(
+        env!("SUPERVIEW_BUILD_VERSION"),
+        env!("SUPERVIEW_BUILD_STAMPED") == "true",
+        (!revision.is_empty()).then_some(&vcs),
+    )
+}
+
 #[cfg(test)]
 mod app_tests;
 #[cfg(test)]
@@ -38,9 +75,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let cfg = format::load_startup_config(config_path.as_deref());
     log::set_max_level(parse_log_level(&cfg.log_level));
 
-    // The git stamp of the build arrives with the release work (phase 7): until then every
-    // build is "dev".
-    let identity = format::build_identity(superview_core::version(), false, None);
+    let identity = build_identity();
     log::info!(
         "Superview starting: build={identity} log_file={} config_file={} log_level={}",
         log_path
@@ -57,6 +92,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let prefs = prefs_path.as_deref().map(prefs::load).unwrap_or_default();
 
     let window = MainWindow::new()?;
+    // Set once the window exists (before that Slint has no platform yet and refuses), and before
+    // it is shown, which is when winit reads the ID. It only matters on Wayland and X11. A
+    // refusal costs the taskbar icon, not the program.
+    if let Err(err) = slint::set_xdg_app_id(APP_ID) {
+        log::warn!("could not set the application ID {APP_ID}: {err}");
+    }
     // A system stop request ends the event loop; a conversion that runs sees the number
     // through the flag and unwinds on its own.
     let signal = signals::install(|| SystemHost.quit());
@@ -95,6 +136,36 @@ fn clean_dir(path: &std::path::Path) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// On Wayland the compositor finds the taskbar icon through a desktop file named after the
+    /// window's app_id; the AppImage script must build the same ID (Go:
+    /// `TestAppImageDesktopFileIsNamedAfterTheAppID`).
+    #[test]
+    fn the_appimage_desktop_file_is_named_after_the_app_id() {
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../packaging/linux/build_appimage.sh");
+        let script = std::fs::read_to_string(&script).unwrap_or_else(|e| panic!("{script:?}: {e}"));
+        let want = format!("APP_ID=\"{APP_ID}\"");
+        assert!(
+            script.lines().any(|line| line.trim_end() == want),
+            "build_appimage.sh must set {want} so its desktop file is named after the window's app ID"
+        );
+    }
+
+    // A test of shape only: that `#[used]` keeps the bytes in the linked binary (not guaranteed
+    // under MSVC) is checked on the built files by `rust.yml`.
+    #[test]
+    fn shape_test_the_build_marker_has_the_agreed_shape() {
+        assert!(
+            BUILD_MARKER.starts_with("SUPERVIEW-BUILD version="),
+            "{BUILD_MARKER}"
+        );
+        assert!(
+            BUILD_MARKER.ends_with(" modified=true\0")
+                || BUILD_MARKER.ends_with(" modified=false\0"),
+            "{BUILD_MARKER}"
+        );
+    }
 
     #[test]
     fn a_trailing_separator_is_dropped() {

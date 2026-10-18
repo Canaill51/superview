@@ -87,7 +87,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 Pour lancer la fenêtre réelle sans écran, il faut **retirer `WAYLAND_DISPLAY`** :
 
 ```bash
-env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1280x800x24" rust/target/debug/superview-app
+env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1280x800x24" rust/target/debug/superview
 ```
 
 Sans cela, winit vise Wayland (la session de la machine), ne trouve pas son affichage et
