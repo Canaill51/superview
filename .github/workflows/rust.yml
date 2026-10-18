@@ -60,7 +60,7 @@ jobs:
       run: cargo test --workspace --locked
 
     # The window trial (phase 3b): the release binary starts and stays open, bare and
-    # then packed in an AppImage with the script of the Go release. Slint's software
+    # then packed in an AppImage with the release's script. Slint's software
     # renderer needs no GL; xvfb is the display. timeout ends the window after 10 s with
     # code 124, so it was still open; any other code means it exited by itself.
     - name: Install the window trial tooling
@@ -105,19 +105,28 @@ jobs:
           exit 1
         fi
 
-    # build_appimage.sh takes what `fyne package` writes: a tarball with the binary under
-    # usr/local/bin. The Rust binary is packed the same way, so the script is reused as is.
-    # The runner's own ffmpeg stands in for the bundled tools: only the packaging is on trial.
+    # build_appimage.sh takes the binary, the tools and the output (DEC-47). The runner's own
+    # ffmpeg stands in for the bundled tools: only the packaging is on trial.
+    #
+    # The script copies libxkbcommon, libxkbcommon-x11 and libxcb-xkb into the image, so they must be on the
+    # runner while it runs. The launch then happens without libxkbcommon-x11 (the bare window
+    # test above needed it and is over): the package is removed and its absence asserted, and
+    # check_appimage_libs.sh reads the loader's log (LD_DEBUG=libs) to show that all three libraries
+    # came from the image, although the system keeps its own libxkbcommon. This is what tests the embedding on every pull request.
     - name: Pack and launch an AppImage
       run: |
         set -euo pipefail
         work="${RUNNER_TEMP}/trial"
-        mkdir -p "${work}/pkg/usr/local/bin" "${work}/tools"
-        install -m 0755 rust/target/release/superview "${work}/pkg/usr/local/bin/superview"
-        tar -cJf "${work}/superview.tar.xz" -C "${work}/pkg" usr
+        mkdir -p "${work}/tools"
         cp "$(command -v ffmpeg)" "$(command -v ffprobe)" "${work}/tools/"
         APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
-          "${work}/superview.tar.xz" "${work}/tools" "${work}/trial.AppImage"
+          rust/target/release/superview "${work}/tools" "${work}/trial.AppImage"
+        sudo dpkg --remove --force-depends libxkbcommon-x11-0
+        if dpkg -s libxkbcommon-x11-0 > /dev/null 2>&1 || [ -e /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 ]; then
+          echo "::error::libxkbcommon-x11 is still on the system, so the launch below would prove nothing"
+          exit 1
+        fi
+        echo "libxkbcommon-x11-0: absent from the system"
         export APPIMAGE_EXTRACT_AND_RUN=1
         set +e
         xvfb-run -a timeout 10 "${work}/trial.AppImage"
@@ -128,6 +137,7 @@ jobs:
           echo "::error::the AppImage did not stay open (exit code ${code}, expected 124)"
           exit 1
         fi
+        sh packaging/linux/check_appimage_libs.sh "${work}/trial.AppImage" 10
 
   # Go/Rust cross-check (PR 5c): the same clip converted by Go's PerformEncoding and by the
   # Rust test bench, with the same encoder and rate; the decoded frames and the ffprobe

@@ -93,13 +93,14 @@ That path stops at a draft, so you can read it before it is public.
 
 ## The version number lives in the tag
 
-`fyne package --app-version` stamps it into the binary, which then reports it
-in its window title, its log and its Diagnostic report. **Nothing reads the
-version from the source tree**, and `FyneApp.toml` deliberately carries no
-`Version` line, so there is nothing to bump and nothing that can drift.
+The environment variable `SUPERVIEW_VERSION=x.y.z`, set by the build jobs from
+the tag, is read by `rust/crates/superview-app/build.rs` and stamped into the
+binary, which then reports it in its window title, its log and its Diagnostic
+report. **Nothing reads the version from the source tree**, so there is nothing
+to bump and nothing that can drift. `build.rs` refuses anything but `x.y.z`.
 
-A binary built any other way — a plain `go build` — has no version to claim and
-says `dev`, followed by the commit it came from:
+A binary built any other way — a plain `cargo build` — has no version to claim
+and says `dev`, followed by the commit it came from:
 
 ```
 dev (7a74276)                 built locally, clean tree
@@ -126,9 +127,17 @@ build cannot burn a version number. Before anything is built, the run refuses a
 version that is not `x.y.z` and a tag that already exists. Checksums are
 generated from the uploaded artifacts with bare filenames, so the
 `sha256sum -c checksums.txt` the notes advertise works on the files as
-downloaded. Each packaged binary is inspected and rejected if it is stamped
-`vcs.modified=true`, which is what stops a release from announcing itself as a
-modified build.
+downloaded. Each built binary is inspected and rejected if its readable marker
+(`SUPERVIEW-BUILD version=… revision=… modified=…`) says `modified=true` or
+carries another version than the one being released, which is what stops a
+release from announcing itself as a modified build. The build jobs use no cargo
+cache, so that marker describes this build and no earlier one.
+
+**What the release builds** (DEC-47): the Rust binary, `cargo build --release
+--locked -p superview-app`, nothing from Go. Before anything is built, the
+`test` job runs `cargo fmt`, `clippy`, the test suite with
+`SUPERVIEW_REQUIRE_FFMPEG=1` under `cargo llvm-cov` (at least 50 % of lines) and
+`cargo audit`; the two cargo tools are installed at a pinned version.
 
 Both downloads carry a pinned FFmpeg, and the run refuses to ship one whose
 NVENC driver floor is not the 570.0 it was pinned for — the check reads that
@@ -142,14 +151,20 @@ Each download is also tried, not just built:
   `ffmpeg.exe` and `ffprobe.exe` landed together, runs the two tools, then
   uninstalls and checks nothing is left. It does not start the GUI: the runner
   has no display.
-- **Linux.** The AppImage (`packaging/linux/build_appimage.sh`, with
-  `appimagetool` pinned by SHA-256) is unpacked and checked for its binary and
-  its two tools, which are run, then launched under `xvfb`. It must still be
-  open after 20 seconds (`timeout` exits with 124); any other code means the GUI
-  exited by itself.
+- **Linux.** The AppImage (`packaging/linux/build_appimage.sh <binary> <tools>
+  <out>`, with `appimagetool` pinned by SHA-256) is unpacked and checked for its
+  binary, its two tools (which are run) and the three X11 libraries it embeds
+  (`libxkbcommon.so.0`, `libxkbcommon-x11.so.0`, `libxcb-xkb.so.1`, copied from the build machine and
+  found through the binary's `$ORIGIN/../lib` RPATH, never `LD_LIBRARY_PATH`).
+  The run then removes `libxkbcommon-x11-0` from the runner and launches the
+  image under `xvfb`: it must still be open after 20 seconds (`timeout` exits
+  with 124), and `packaging/linux/check_appimage_libs.sh` reads the loader's log
+  to confirm all three came from the image. The CI cannot catch a version mismatch with a
+  newer system `libxkbcommon`: before a release, also run the AppImage by hand on a machine
+  whose system `libxkbcommon` is newer than the image's (DEC-47).
 
-Not checked automatically: that the published binary reports the version it
-claims, and anything that needs a real GPU or a real desktop. Downloading the
+The version the binary claims is checked by the build marker (see above, DEC-47).
+Not checked automatically: anything that needs a real GPU or a real desktop. Downloading the
 AppImage and running it is still worth doing on a release that matters — the log
 line is enough:
 
@@ -194,7 +209,7 @@ month, and those have held since October 2024.
 The two pins are not the same version: Windows ships gyan.dev 8.1.1, Linux ships
 BtbN's n8.1.2 autobuild of 2026-08-31. Both read back a 570.0 floor, which is
 the only property they are required to share. The Linux build job also runs the
-test suite against the binary it has just verified, with it first on `PATH`
+Rust test suite against the binary it has just verified, with it first on `PATH`
 (L-114), and `test.yml` runs the Windows suite against the same gyan.dev
 archive — so moving either pin is exercised before it ships.
 
@@ -205,7 +220,7 @@ not see these, which move only when someone edits the file:
 
 | Pin | Where |
 | --- | --- |
-| `fyne.io/tools/cmd/fyne@v1.7.2`, the packaging tool | both build jobs of `.github/workflows/release.yml` |
+| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2) | `test` job of `.github/workflows/release.yml`, `cargo install --locked --version` |
 | `GOLANGCI_LINT_VERSION` (v2.13.2) | `.github/workflows/lint.yml`, top-level `env:` |
 | `GOVULNCHECK_VERSION` (v1.7.0) | `.github/workflows/lint.yml`, top-level `env:` |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `test.yml`, `test-windows`, and in `rust.yml`, `rust-windows` — keep all three identical |

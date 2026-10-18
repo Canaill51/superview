@@ -8,6 +8,20 @@ fn main() {
     compile_window();
     stamp_build();
     embed_windows_resources();
+    link_for_appimage();
+}
+
+/// The Linux binary looks for its bundled libraries in `../lib` (the AppImage's `usr/lib`)
+/// before the system's, DEC-47. Only the binary (`rustc-link-arg-bins`: not the tests, not
+/// the build scripts) and only on Linux. `--disable-new-dtags` makes it a DT_RPATH, not a
+/// RUNPATH: a RUNPATH is not searched for the dependencies of a library the program loads
+/// with `dlopen` (winit does, for libxkbcommon-x11), a DT_RPATH is. No `LD_LIBRARY_PATH`:
+/// it would leak to ffmpeg, zenity and kdialog.
+fn link_for_appimage() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        println!("cargo:rustc-link-arg-bins=-Wl,--disable-new-dtags");
+        println!("cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN/../lib");
+    }
 }
 
 fn compile_window() {
