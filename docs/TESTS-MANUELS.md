@@ -62,6 +62,14 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Divers
 
+- [ ] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre un rapport dans une zone
+      à ascenseurs ; le début (« Superview build ») est visible, la molette et l'ascenseur
+      mènent jusqu'à « Log file » ; la fenêtre ne coupe ni la zone ni le bouton Close ; on peut
+      sélectionner du texte (souris, Ctrl+A) et le copier (Ctrl+C) dans un éditeur. Le test
+      automatique ne mesure pas la police : il ne voit pas si le texte défile, seulement que la
+      zone tient dans la fenêtre. Les coches des contrôles s'affichent peut-être vides si la police
+      n'a pas de symbole emoji (vu sous Xvfb).
+
 - [ ] **Lien d'installation dans le navigateur** : sans ffmpeg dans le `PATH`, la popup « cannot find
       ffmpeg/ffprobe » s'ouvre ; un clic sur l'adresse ouvre le navigateur (`xdg-open` ou
       `explorer.exe`) sur la page de téléchargement. Retry après installation relance la sonde.

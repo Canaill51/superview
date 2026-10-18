@@ -1,7 +1,7 @@
 // The application window, laid out as the Go one (`cmd/superview/gui_main.go`) and with its
 // labels word for word. Nothing is computed here: the window shows properties it is given and
 // reports clicks through callbacks, and `app.rs` owns every decision (phase 6 of DEC-43).
-import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, TextEdit } from "std-widgets.slint";
 
 // The popup that is open: one at a time, `none` when the window is free.
 export enum Popup {
@@ -25,6 +25,11 @@ component Modal inherits Rectangle {
     in property <string> title;
     // False for a card that has a field of its own to focus.
     in property <bool> take-focus: true;
+    // True for a card that holds a long text: it then takes the window's height (less a margin)
+    // and its width up to `max-width`, and the child that stretches gets the room, so the
+    // buttons below it stay inside the window however long the text is.
+    in property <bool> fill: false;
+    in property <length> card-max-width: 600px;
 
     background: #000000a0;
     TouchArea { }
@@ -37,8 +42,8 @@ component Modal inherits Rectangle {
         }
     }
     Rectangle {
-        width: min(parent.width - 40px, 600px);
-        height: card.preferred-height + 32px;
+        width: min(parent.width - 40px, root.card-max-width);
+        height: root.fill ? parent.height - 24px : card.preferred-height + 32px;
         background: Palette.background;
         border-width: 1px;
         border-color: Palette.border;
@@ -326,15 +331,17 @@ export component MainWindow inherits Window {
 
     if root.popup == Popup.diagnostic: Modal {
         title: "System diagnostic";
-        ScrollView {
-            width: 520px;
-            height: 300px;
-            Text {
-                text: root.diagnostic-report;
-                font-family: "monospace";
-                wrap: char-wrap;
-                width: 520px;
-            }
+        fill: true;
+        card-max-width: 900px;
+        // Read-only, not disabled: scrollbars, wheel, keyboard and selection (Ctrl+C) work, so a
+        // report too long for the card can be read to its end and copied into a bug report.
+        TextEdit {
+            read-only: true;
+            text: root.diagnostic-report;
+            font-family: "monospace";
+            wrap: char-wrap;
+            vertical-stretch: 1;
+            min-height: 120px;
         }
         ModalButtons {
             Button { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
