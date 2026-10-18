@@ -30,7 +30,7 @@ sortie : contrainte produit, pas un oubli.
 ## Arborescence
 | Dossier | Rôle |
 |---------|------|
-| `cmd/superview/` | point d'entrée GUI, `FyneApp.toml`, `Icon.png` (lus par `fyne package`) |
+| `cmd/superview/` | point d'entrée GUI, `FyneApp.toml`, `Icon.png` (lus par `fyne package` en local ; la release ne l'utilise plus, DEC-47) |
 | `internal/common/` | la logique ; `testdata/ffprobe/` = sorties ffprobe enregistrées |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/go.sh` |
 | `.github/` | CI, release, `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
@@ -52,7 +52,7 @@ processus ffmpeg, ni sortie partielle, ni dossier temporaire.
 |---------------|----------|------------|
 | Fyne v2 (2.8) | interface graphique (cgo : en-têtes GL/X11/Wayland requis) | `docs/ENVIRONNEMENT.md` |
 | FFmpeg / ffprobe | l'encodage ; livré dans l'installateur et l'AppImage, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
-| `fyne.io/tools` | `fyne package` à la release (version tirée du tag) ; seul son binaire est repris | `RELEASING.md` |
+| `fyne.io/tools` | `fyne package` : n'est plus utilisé par la release depuis DEC-47 (qui livre le binaire Rust, version tirée du tag par `SUPERVIEW_VERSION`) | `RELEASING.md` |
 | Rust (rustup, `rust/rust-toolchain.toml`), Slint | le port en cours ; Slint (rendu logiciel, backend winit) et rfd (portail xdg, sans GTK) pour la fenêtre d'essai (phase 3b) | `docs/ENVIRONNEMENT.md`, DEC-43 |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 

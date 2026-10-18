@@ -2,44 +2,73 @@
 # Superview's Linux AppImage: one file, run by double-click, nothing to install.
 #
 #   APPIMAGETOOL=path/to/appimagetool-x86_64.AppImage \
-#     sh packaging/linux/build_appimage.sh <fyne-package.tar.xz> <dir with ffmpeg+ffprobe> <out.AppImage>
+#     sh packaging/linux/build_appimage.sh <superview binary> <dir with ffmpeg+ffprobe> <out.AppImage>
 #
-# The tarball is what `fyne package` writes. Only the binary is taken from it: it is the one
-# that carries the version stamped by --app-version and the vcs.* build info the release
-# checks. The icon is the repository's own.
+# The binary is `rust/target/release/superview`, built with SUPERVIEW_VERSION set (it carries
+# the version and the build marker the release checks). The icon is the repository's own.
 #
 # Layout inside the image:
 #   usr/bin/superview            the application
 #   usr/lib/superview/ffmpeg     the bundled tools. The application looks for them in
 #   usr/lib/superview/ffprobe    ../lib/superview, relative to its own binary.
+#   usr/lib/libxkbcommon-x11.so.0, libxcb-xkb.so.1
+#                                the two libraries winit loads with dlopen on X11 and that a
+#                                minimal system may lack (DEC-47). Copied from the build
+#                                machine, so they must be installed there (libxkbcommon-x11-0).
+#   usr/share/doc/<package>/copyright   the licence texts of those two libraries.
+#
+# How the application finds them, without LD_LIBRARY_PATH (AppRun must not set it: it would be
+# inherited by ffmpeg, zenity and kdialog, and a Qt tool would load our copies): the binary is
+# linked with a DT_RPATH of $ORIGIN/../lib (rust/crates/superview-app/build.rs). A DT_RPATH,
+# unlike a RUNPATH, also applies to the dependencies of a library loaded by dlopen, so
+# libxkbcommon-x11 finds libxcb-xkb.so.1 beside itself. Both measured with LD_DEBUG=libs.
 set -eu
 
 if [ "$#" -ne 3 ]; then
-  echo "usage: $0 <fyne-package.tar.xz> <tools-dir> <out.AppImage>" >&2
+  echo "usage: $0 <superview binary> <tools-dir> <out.AppImage>" >&2
   exit 2
 fi
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-TARBALL="$1"
+BIN="$1"
 TOOLS="$2"
 OUT="$3"
 TOOL="${APPIMAGETOOL:-appimagetool}"
+# Where the build machine keeps the two libraries (Debian/Ubuntu x86_64 by default).
+LIBDIR="${SUPERVIEW_LIBDIR:-/usr/lib/x86_64-linux-gnu}"
+
+if [ ! -f "$BIN" ]; then
+  echo "error: $BIN is not a file; build it first (cargo build --release --locked -p superview-app)" >&2
+  exit 1
+fi
+for lib in libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
+  if [ ! -e "$LIBDIR/$lib" ]; then
+    echo "error: $LIBDIR/$lib is missing; the AppImage embeds it. Install libxkbcommon-x11-0 (and libxcb-xkb1) on the build machine" >&2
+    exit 1
+  fi
+done
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 APPDIR="$WORK/Superview.AppDir"
-mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib/superview" "$WORK/unpacked"
+mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib/superview"
 
-tar -xJf "$TARBALL" -C "$WORK/unpacked"
-BIN="$(find "$WORK/unpacked" -type f -path '*/usr/local/bin/*' | head -n 1)"
-if [ -z "$BIN" ]; then
-  echo "error: the fyne package has no usr/local/bin/<binary>; its layout changed" >&2
-  find "$WORK/unpacked" -maxdepth 4 >&2
-  exit 1
-fi
 install -m 0755 "$BIN" "$APPDIR/usr/bin/superview"
 install -m 0755 "$TOOLS/ffmpeg" "$APPDIR/usr/lib/superview/ffmpeg"
 install -m 0755 "$TOOLS/ffprobe" "$APPDIR/usr/lib/superview/ffprobe"
+# cp -L: the real file, under the name the loader asks for (these are symlinks on the system).
+for lib in libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
+  cp -L "$LIBDIR/$lib" "$APPDIR/usr/lib/$lib"
+  chmod 0644 "$APPDIR/usr/lib/$lib"
+done
+# Their licence texts travel with them (THIRD_PARTY_NOTICES.md quotes them too).
+for pkg in libxkbcommon-x11-0 libxcb-xkb1; do
+  if [ ! -f "/usr/share/doc/$pkg/copyright" ]; then
+    echo "error: /usr/share/doc/$pkg/copyright is missing; the AppImage ships it beside the library" >&2
+    exit 1
+  fi
+  install -D -m 0644 "/usr/share/doc/$pkg/copyright" "$APPDIR/usr/share/doc/$pkg/copyright"
+done
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APPDIR/"
 
 # Entry point: the image is mounted, then this script runs the application.
@@ -50,7 +79,7 @@ exec "$HERE/usr/bin/superview" "$@"
 EOF
 chmod 0755 "$APPDIR/AppRun"
 
-# The file is named after the application ID the GUI passes to app.NewWithID, and Icon= after
+# The file is named after the application ID the window sets (slint::set_xdg_app_id), and Icon= after
 # it too. On Wayland the window carries that ID as its app_id and the compositor finds the
 # icon by looking for a desktop file of exactly that name: with `superview.desktop` KDE shows
 # its generic icon instead of ours (measured, 2026-10-14). appimagetool wants the icon beside

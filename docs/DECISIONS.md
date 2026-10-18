@@ -78,6 +78,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
 | [DEC-45](#dec-45) | Sous Windows, la recherche d'ffmpeg/ffprobe sur `PATH` refuse `.bat` et `.cmd` (Rust) | Acceptée |
 | [DEC-46](#dec-46) | Interface Rust : préférences neuves, aucune reprise des choix Fyne | Acceptée |
+| [DEC-47](#dec-47) | La release livre le binaire Rust ; AppImage sans `LD_LIBRARY_PATH` (DT_RPATH) | Acceptée |
 
 ---
 
@@ -248,6 +249,7 @@ origine du dépôt · Acceptée
 2026-09-05 · Acceptée · R-05, L-65
 
 **Décision** — `FyneApp.toml` n'a pas de `Version` ; `fyne package --app-version` la prend du tag. Un `go build` dit `dev`, avec la révision VCS si elle existe.
+**Amendée par [DEC-47](#dec-47)** : pour le binaire Rust, la version vient de la variable d'environnement `SUPERVIEW_VERSION` lue par `build.rs` (tirée du tag par `prepare`), `dev` si elle est absente.
 
 ### DEC-23
 **`main()` reste long ; l'état est dans `appState`.**
@@ -278,6 +280,7 @@ origine du dépôt · Acceptée
 2026-09-04 / 2026-09-11 · Acceptée · T-02, M-01, L-50, L-60, L-96
 
 **Décision** — Sans la variable, quinze tests sautent en silence, dont tout ce qui encode. `make test` et la CI la posent. Le seuil mesure `./...`, pas `./internal/common`.
+**Amendée par [DEC-47](#dec-47)** : le job `test` de la release exécute la suite Rust avec la variable et un seuil de 50 % de lignes (`cargo llvm-cov`) ; `-race` n'a pas d'équivalent.
 
 ### DEC-28
 **Tout test est prouvé par contre-épreuve.**
@@ -398,6 +401,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Contexte** — Les releases étaient un `.zip` (à extraire, avec trois fichiers à garder ensemble) et un `.tar.xz` (avec le `Makefile` de fyne rustiné, DEC-25). L'utilisateur voulait, comme OpenTuneBox, un fichier prêt à lancer par système.
 **Décision** — Windows : `superview-<version>-windows-x86_64-setup.exe`, un installateur Inno Setup 6 (`packaging/windows/superview.iss`), par utilisateur sans droits d'administrateur, qui dépose `superview.exe`, `ffmpeg.exe` et `ffprobe.exe` dans le même dossier. Linux : `superview-<version>-linux-x86_64.AppImage` (`packaging/linux/build_appimage.sh`), avec `appimagetool` 1.9.1 épinglé par SHA-256, les outils dans `usr/lib/superview/`. Les anciens formats sont retirés, pas gardés en double. `fyne package` reste l'outil qui compile et tamponne la version ; seul le binaire en est repris. Chaque paquet est essayé en CI : installation, outils exécutés et désinstallation sous Windows ; extraction, outils exécutés et lancement sous `xvfb` (code 124 de `timeout` = resté ouvert) sous Linux.
 **Conséquences** — Le patch du `Makefile` de fyne et son `make install` jetable disparaissent (DEC-25). L'`AppId` de l'installateur ne doit jamais changer : c'est lui qui permet la mise à jour par-dessus. L'AppImage exige FUSE 2 sur le poste de l'utilisateur (`libfuse2t64` sous Ubuntu 24.04) ou `--appimage-extract-and-run`, noté dans les deux README. Pas de signature de code : SmartScreen avertit toujours (le README l'explique). `fyne package` réécrit `cmd/superview/FyneApp.toml` quand on le lance en local (`Build` incrémenté, commentaires perdus) : `git checkout cmd/superview/FyneApp.toml` après.
+**Amendée par [DEC-47](#dec-47)** : le binaire emballé est celui de Rust (`build_appimage.sh <binaire> <outils> <sortie>`), plus de `fyne package` ; l'AppImage embarque deux bibliothèques X11.
 **À rouvrir si** — Un paquet `.deb`/Flatpak est demandé, si la signature de code devient possible, ou si les AppImage cessent de fonctionner sur Ubuntu LTS (FUSE).
 
 ### DEC-42
@@ -459,3 +463,13 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Trois clés (`quality_profile`, `encoder_selection`, `squeeze_source`) dans `<dossier de configuration utilisateur>/superview/preferences.json`, écrites de façon atomique. Un fichier absent, illisible ou invalide donne les valeurs par défaut (« Balanced », codec de la source, case décochée) et un avertissement dans le journal, jamais une erreur. Aucune lecture des préférences Fyne.
 **Conséquences** — Au premier lancement de la version Rust, quelqu'un qui avait choisi « Fast » ou un codec le choisit de nouveau, une fois. Une clé de type faux invalide tout le fichier (défauts), elle n'est pas rattrapée clé par clé.
 **À rouvrir si** — Des utilisateurs se plaignent de la perte de leurs choix à la bascule : une lecture unique des préférences Fyne serait alors à écrire.
+
+### DEC-47
+**La release livre le binaire Rust ; l'AppImage embarque deux bibliothèques X11 sans `LD_LIBRARY_PATH`.**
+2026-10-18 · Acceptée · PR 7.2 du port (DEC-43)
+
+**Contexte** — `release.yml` compilait et emballait le programme Go par `fyne package`. Le binaire Rust (`rust/target/release/superview`, DEC-43) est livrable depuis la PR 7.1. winit charge `libxkbcommon-x11.so.0` par `dlopen` sous X11, et celle-ci dépend de `libxcb-xkb.so.1` : un poste minimal n'a ni l'une ni l'autre.
+**Décision** — (1) **Bascule franche** : `release.yml` ne livre plus que Rust ; Go reste dans le dépôt (tests, référence) jusqu'à la phase 8. (2) Les deux build jobs font `cargo build --release --locked -p superview-app` avec `SUPERVIEW_VERSION` ; le marqueur `SUPERVIEW-BUILD version=… modified=…`, lu dans le binaire, remplace `go version -m` : échec si `modified=true` ou si la version n'est pas celle attendue. **Pas de cache de `target/`** dans ces jobs : le marqueur doit décrire ce build. (3) `build_appimage.sh <binaire> <outils> <sortie>` copie les deux bibliothèques du poste de build dans `usr/lib/` ; il échoue clairement si elles manquent. (4) **Pas de `LD_LIBRARY_PATH` dans `AppRun`** : il serait hérité par ffmpeg, zenity et kdialog (un outil Qt chargerait nos copies). À la place, `build.rs` lie le binaire (Linux, `rustc-link-arg-bins` seulement : ni tests ni scripts de build, et `RUSTFLAGS` ne peut pas l'écraser) avec `-Wl,--disable-new-dtags -Wl,-rpath,$ORIGIN/../lib`. (5) Le job `test` de la release : `cargo fmt/clippy`, puis `cargo llvm-cov` (0.9.1, un seul passage, `SUPERVIEW_REQUIRE_FFMPEG=1`) avec un plancher de 50 % de lignes, puis `cargo audit` (0.22.2) ; les outils sont épinglés et installés `--locked`. Mesuré le 2026-10-18 : 95,5 % de lignes, audit sans vulnérabilité (5 avertissements « non maintenu »). (6) Les pins FFmpeg, le plancher NVENC 570.0, l'`AppId`, l'installation silencieuse sous Windows ne changent pas.
+**Mesures (`LD_DEBUG=libs`, AppImage extraite, sous `xvfb`)** — Avec DT_RPATH `$ORIGIN/../lib` : `libxkbcommon-x11.so.0` **et** `libxcb-xkb.so.1` viennent de `usr/lib/` de l'image. Sans rpath (contre-preuve) : les deux viennent de `/usr/lib/x86_64-linux-gnu`. Avec un **RUNPATH** (le défaut) : `libxkbcommon-x11` vient de l'image mais `libxcb-xkb` du système, car un RUNPATH ne s'applique pas aux dépendances d'une bibliothèque chargée par `dlopen` ; d'où `--disable-new-dtags`. `packaging/linux/check_appimage_libs.sh` rejoue cette mesure en CI (rust.yml à chaque PR, release.yml) après avoir retiré `libxkbcommon-x11-0` du poste.
+**Conséquences** — Le poste de build doit avoir `libxkbcommon-x11-0` et `libxcb-xkb1` au moment de `build_appimage.sh`. Les bibliothèques embarquées sont celles d'Ubuntu 24.04 : elles dépendent de `libxcb` et `libxkbcommon.so.0`, que tout poste de bureau a. Le test de lancement ne prouve l'embarquement que si la bibliothèque système est absente : l'étape échoue si le paquet est encore là. `cargo audit` lit la base d'avis la plus récente, qui n'est **pas épinglée** : un avis publié le matin peut bloquer la release l'après-midi ; la parade est un `ignore` motivé dans `rust/.cargo/audit.toml`, pas le retrait de l'étape. Le contrôle du marqueur exige `revision=<HEAD> modified=false` (le positif), car sans git `build.rs` écrit `modified=false` sans révision. L'AppImage et `THIRD_PARTY_NOTICES.md` portent les licences des deux bibliothèques. Le seuil de 50 % est très en dessous du mesuré : à remonter quand on le décide, pas avant.
+**À rouvrir si** — winit cesse de passer par `dlopen` (liaison statique), si le DT_RPATH est refusé par un outil de packaging, ou si une autre bibliothèque chargée à l'exécution manque sur des postes minimaux.
