@@ -413,9 +413,10 @@ jobs:
 
     # libfontconfig1-dev: Slint's text layout is built against it (as in rust.yml).
     #
-    # libxkbcommon-x11-0 and libxcb-xkb1 are installed for ONE reason: the AppImage embeds
-    # copies of them, taken from here when it is built. winit loads them at run time (dlopen)
-    # and a minimal system may not have them. The launch test below removes them again before
+    # libxkbcommon0, libxkbcommon-x11-0 and libxcb-xkb1 are installed for ONE reason: the
+    # AppImage embeds copies of them, taken from here when it is built. All three, because
+    # libxkbcommon-x11 mixed with another version of libxkbcommon crashes (DEC-47). winit loads
+    # them at run time (dlopen) and a minimal system may not have them. The launch test below removes them again before
     # starting the image, so that the test proves the embedded copies are the ones used.
     #
     # xvfb and mesa are for the launch test only.
@@ -423,7 +424,7 @@ jobs:
       run: |
         set -euo pipefail
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends libfontconfig1-dev libxkbcommon-x11-0 libxcb-xkb1 xvfb libgl1-mesa-dri
+        sudo apt-get install -y --no-install-recommends libfontconfig1-dev libxkbcommon0 libxkbcommon-x11-0 libxcb-xkb1 xvfb libgl1-mesa-dri
         curl -fsSL -o "${RUNNER_TEMP}/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
         echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  ${RUNNER_TEMP}/appimagetool" | sha256sum -c -
         chmod +x "${RUNNER_TEMP}/appimagetool"
@@ -552,7 +553,8 @@ jobs:
     # installed to be copied is removed first (--force-depends: only that package goes, and
     # nothing here needs it), and its absence is asserted, otherwise the proof would be
     # empty. check_appimage_libs.sh then reads the loader's log (LD_DEBUG=libs) and fails
-    # unless both libraries were loaded from the image. libxcb-xkb1 stays installed (other
+    # unless the three libraries (libxkbcommon too: the system one stays, and a mix of versions
+    # crashes) were loaded from the image. libxcb-xkb1 stays installed (other
     # packages need it); the log is what shows that its embedded copy is the one used.
     #
     # APPIMAGE_EXTRACT_AND_RUN: GitHub's runners do not allow FUSE. timeout stops
@@ -565,7 +567,7 @@ jobs:
         export APPIMAGE_EXTRACT_AND_RUN=1
 
         rm -rf squashfs-root && "${image}" --appimage-extract > /dev/null
-        for f in usr/bin/superview usr/lib/superview/ffmpeg usr/lib/superview/ffprobe usr/lib/libxkbcommon-x11.so.0 usr/lib/libxcb-xkb.so.1; do
+        for f in usr/bin/superview usr/lib/superview/ffmpeg usr/lib/superview/ffprobe usr/lib/libxkbcommon.so.0 usr/lib/libxkbcommon-x11.so.0 usr/lib/libxcb-xkb.so.1; do
           if [ ! -e "squashfs-root/$f" ]; then
             echo "::error::the AppImage has no $f"
             find squashfs-root -type f

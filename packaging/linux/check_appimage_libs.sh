@@ -1,10 +1,11 @@
 #!/bin/sh
-# Proves that an AppImage runs on its own copies of libxkbcommon-x11 and libxcb-xkb (DEC-47).
+# Proves that an AppImage runs on its own copies of libxkbcommon, libxkbcommon-x11 and
+# libxcb-xkb (DEC-47). The three must come from the image together: a mix of versions crashes.
 #
 #   sh packaging/linux/check_appimage_libs.sh <image.AppImage> [seconds]
 #
 # The image is extracted, its AppRun is started under xvfb with LD_DEBUG=libs, and the loader's
-# own log must show both libraries initialised from the extracted tree: not from /usr/lib, not
+# own log must show the three libraries initialised from the extracted tree: not from /usr/lib, not
 # missing. The window must also still be open after the delay (timeout's exit code 124). Whether
 # the system copy exists is not tested here: with or without it, the log says which one won.
 # The caller removes the system package first when it wants the stronger statement "it starts
@@ -35,7 +36,7 @@ if [ "$code" -ne 124 ]; then
   exit 1
 fi
 
-for lib in libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
+for lib in libxkbcommon.so.0 libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
   # "calling init: <path>" is printed once per library, with the file the loader chose.
   found="$(grep "calling init: .*/${lib}\$" "$WORK/ld.log" || true)"
   if [ -z "$found" ]; then
@@ -48,4 +49,4 @@ for lib in libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
     exit 1
   fi
 done
-echo "libxkbcommon-x11 and libxcb-xkb: both come from the image"
+echo "libxkbcommon, libxkbcommon-x11 and libxcb-xkb: all three come from the image"

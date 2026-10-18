@@ -108,11 +108,11 @@ jobs:
     # build_appimage.sh takes the binary, the tools and the output (DEC-47). The runner's own
     # ffmpeg stands in for the bundled tools: only the packaging is on trial.
     #
-    # The script copies libxkbcommon-x11 and libxcb-xkb into the image, so they must be on the
+    # The script copies libxkbcommon, libxkbcommon-x11 and libxcb-xkb into the image, so they must be on the
     # runner while it runs. The launch then happens without libxkbcommon-x11 (the bare window
     # test above needed it and is over): the package is removed and its absence asserted, and
-    # check_appimage_libs.sh reads the loader's log (LD_DEBUG=libs) to show that both libraries
-    # came from the image. This is what tests the embedding on every pull request.
+    # check_appimage_libs.sh reads the loader's log (LD_DEBUG=libs) to show that all three libraries
+    # came from the image, although the system keeps its own libxkbcommon. This is what tests the embedding on every pull request.
     - name: Pack and launch an AppImage
       run: |
         set -euo pipefail

@@ -153,13 +153,15 @@ Each download is also tried, not just built:
   has no display.
 - **Linux.** The AppImage (`packaging/linux/build_appimage.sh <binary> <tools>
   <out>`, with `appimagetool` pinned by SHA-256) is unpacked and checked for its
-  binary, its two tools (which are run) and the two X11 libraries it embeds
-  (`libxkbcommon-x11.so.0`, `libxcb-xkb.so.1`, copied from the build machine and
+  binary, its two tools (which are run) and the three X11 libraries it embeds
+  (`libxkbcommon.so.0`, `libxkbcommon-x11.so.0`, `libxcb-xkb.so.1`, copied from the build machine and
   found through the binary's `$ORIGIN/../lib` RPATH, never `LD_LIBRARY_PATH`).
   The run then removes `libxkbcommon-x11-0` from the runner and launches the
   image under `xvfb`: it must still be open after 20 seconds (`timeout` exits
   with 124), and `packaging/linux/check_appimage_libs.sh` reads the loader's log
-  to confirm both libraries came from the image.
+  to confirm all three came from the image. The CI cannot catch a version mismatch with a
+  newer system `libxkbcommon`: before a release, also run the AppImage by hand on a machine
+  whose system `libxkbcommon` is newer than the image's (DEC-47).
 
 The version the binary claims is checked by the build marker (see above, DEC-47).
 Not checked automatically: anything that needs a real GPU or a real desktop. Downloading the
