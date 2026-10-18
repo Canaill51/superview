@@ -66,6 +66,14 @@ pub const INSTALL_URL: &str =
 /// The status line while the diagnostic runs.
 const RUNNING_DIAGNOSTIC: &str = "Status: Running diagnostic...";
 
+/// The core's report marks each check with an emoji (✅ and ❌, as the Go one does). The window's
+/// software renderer draws no colour emoji, and a machine without a symbols font shows nothing
+/// at all, so the window swaps them for plain text. The core's text stays the Go one, which a
+/// parity test pins; only what is shown changes.
+fn plain_marks(report: &str) -> String {
+    report.replace('✅', "[OK]").replace('❌', "[FAIL]")
+}
+
 /// Everything one conversion needs, captured on the UI thread when Start is pressed.
 #[derive(Debug, Clone)]
 pub struct EncodeJob {
@@ -1030,8 +1038,9 @@ fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
             None => "\nLog file: unavailable (diagnostics are being discarded)\n".to_string(),
         };
         let report = format!(
-            "Superview build: {}\n\n{health}{log_line}",
-            thread_core.identity
+            "Superview build: {}\n\n{}{log_line}",
+            thread_core.identity,
+            plain_marks(&health)
         );
         post(&thread_core, move |core, window| {
             {
@@ -1065,6 +1074,15 @@ fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_emoji_marks_become_plain_text() {
+        assert_eq!(
+            plain_marks("Status: ✅ HEALTHY\n❌ DISK: low\n✅ FFMPEG: ok"),
+            "Status: [OK] HEALTHY\n[FAIL] DISK: low\n[OK] FFMPEG: ok"
+        );
+        assert_eq!(plain_marks("no marks here"), "no marks here");
+    }
 
     #[test]
     fn a_dialog_is_not_queued_twice_and_the_next_one_waits_its_turn() {
