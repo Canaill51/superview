@@ -1,7 +1,7 @@
 // The application window, laid out as the Go one (`cmd/superview/gui_main.go`) and with its
 // labels word for word. Nothing is computed here: the window shows properties it is given and
 // reports clicks through callbacks, and `app.rs` owns every decision (phase 6 of DEC-43).
-import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, TextEdit } from "std-widgets.slint";
+import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView, TextEdit } from "std-widgets.slint";
 
 // The popup that is open: one at a time, `none` when the window is free.
 export enum Popup {
@@ -15,6 +15,91 @@ export enum Popup {
     no-output,
     diagnostic,
     path-entry,
+}
+
+// What one line of the Diagnostic report is (parsed by `report.rs`, never by this file).
+export enum ReportRowKind {
+    blank,
+    section,
+    // A check or an encoder: an icon, then the text.
+    check,
+    // The detail under a check, indented and dimmer.
+    value,
+    // The overall verdict: "Status:", an icon, then the text.
+    status,
+    plain,
+}
+
+export struct DiagnosticRow {
+    kind: ReportRowKind,
+    // The icon's verdict for `check` and `status`; unused for the other kinds.
+    ok: bool,
+    text: string,
+}
+
+// A green disc with a tick, or a red one with a cross, drawn from shapes: no emoji and no font
+// (the software renderer draws no colour emoji, which is why the report lost its marks).
+component StatusIcon inherits Rectangle {
+    in property <bool> ok;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: root.ok ? #2e9e4f : #d23a3a;
+    accessible-role: image;
+    accessible-label: root.ok ? "OK" : "Failed";
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 16;
+        viewbox-height: 16;
+        stroke: white;
+        stroke-width: 1.8px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: root.ok ? "M 4.5 8.5 L 7 11 L 11.5 5.5" : "M 5 5 L 11 11 M 11 5 L 5 11";
+    }
+}
+
+// One line of the report. Built from fixed positions and not from layouts: a layout asks a
+// wrapped Text for its height before the width is known, takes one line, and the list then
+// ends a few lines short of the end of the report (measured). The Text's own
+// `preferred-height`, at the width it is given, is right.
+component ReportLine inherits Rectangle {
+    in property <DiagnosticRow> line;
+    // What "Status:" takes, with room for a wider monospace font on another system.
+    private property <length> label-width: 54px;
+    private property <bool> icon: root.line.kind == ReportRowKind.check
+        || root.line.kind == ReportRowKind.status;
+    private property <length> indent: root.line.kind == ReportRowKind.check ? 24px
+        : root.line.kind == ReportRowKind.value ? 24px
+        : root.line.kind == ReportRowKind.status ? root.label-width + 32px
+        : 0px;
+    height: root.line.kind == ReportRowKind.blank ? 8px : max(txt.preferred-height, 18px);
+    if root.line.kind == ReportRowKind.status: Text {
+        x: 0px;
+        y: 0px;
+        width: root.label-width;
+        height: self.preferred-height;
+        text: "Status:";
+        font-family: "monospace";
+        font-weight: 700;
+    }
+    if root.icon: StatusIcon {
+        x: root.line.kind == ReportRowKind.status ? root.label-width + 8px : 0px;
+        y: 1px;
+        ok: root.line.ok;
+    }
+    txt := Text {
+        x: root.indent;
+        width: root.width - root.indent;
+        height: self.preferred-height;
+        text: root.line.kind == ReportRowKind.blank ? "" : root.line.text;
+        font-family: "monospace";
+        font-weight: root.line.kind == ReportRowKind.section
+            || root.line.kind == ReportRowKind.status ? 700 : 400;
+        color: root.line.kind == ReportRowKind.value ? #a8a8a8 : Palette.foreground;
+        wrap: char-wrap;
+    }
 }
 
 // A modal card. `if open` at the use site builds it only while it is shown; the full-window
@@ -109,7 +194,12 @@ export component MainWindow inherits Window {
     in property <string> install-url;
     // False when there is nothing to retry: the dialog then only offers to close.
     in property <bool> prerequisite-retry: true;
+    // The report as plain text (`[OK]` / `[FAIL]`), for the text view and for copying.
     in property <string> diagnostic-report;
+    // The same report, line by line, for the list with drawn icons.
+    in property <[DiagnosticRow]> diagnostic-rows: [];
+    // Which view of the report is shown: the list (false) or the selectable text.
+    in-out property <bool> diagnostic-as-text: false;
     // The text field that stands in for a file picker the system cannot open: whether it asks
     // for the output file (else the input), what is typed, and what is wrong with it.
     in property <bool> path-entry-output: false;
@@ -333,9 +423,34 @@ export component MainWindow inherits Window {
         title: "System diagnostic";
         fill: true;
         card-max-width: 900px;
-        // Read-only, not disabled: scrollbars, wheel, keyboard and selection (Ctrl+C) work, so a
-        // report too long for the card can be read to its end and copied into a bug report.
-        TextEdit {
+        // The list has drawn icons but no text selection (Slint has no clipboard API); the text
+        // view is a read-only TextEdit, not a disabled one, so Ctrl+C copies the report into a
+        // bug report. Both have visible scrollbars and a wheel: a report too long for the card
+        // can be read to its end.
+        if !root.diagnostic-as-text: Rectangle {
+            vertical-stretch: 1;
+            min-height: 120px;
+            background: Palette.alternate-background;
+            border-width: 1px;
+            border-color: Palette.border;
+            ScrollView {
+                x: 4px;
+                y: 4px;
+                width: parent.width - 8px;
+                height: parent.height - 8px;
+                vertical-scrollbar-policy: always-on;
+                horizontal-scrollbar-policy: always-off;
+                content-width: self.visible-width;
+                content-height: rows.preferred-height;
+                rows := VerticalLayout {
+                    width: parent.visible-width;
+                    padding: 6px;
+                    spacing: 3px;
+                    for entry in root.diagnostic-rows: ReportLine { line: entry; }
+                }
+            }
+        }
+        if root.diagnostic-as-text: TextEdit {
             read-only: true;
             text: root.diagnostic-report;
             font-family: "monospace";
@@ -344,6 +459,10 @@ export component MainWindow inherits Window {
             min-height: 120px;
         }
         ModalButtons {
+            Button {
+                text: root.diagnostic-as-text ? "Show as list" : "Show as text";
+                clicked => { root.diagnostic-as-text = !root.diagnostic-as-text; }
+            }
             Button { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
         }
     }

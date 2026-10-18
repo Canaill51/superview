@@ -62,13 +62,21 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Divers
 
-- [ ] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre un rapport dans une zone
-      à ascenseurs ; le début (« Superview build ») est visible, la molette et l'ascenseur
-      mènent jusqu'à « Log file » ; la fenêtre ne coupe ni la zone ni le bouton Close ; on peut
-      sélectionner du texte (souris, Ctrl+A) et le copier (Ctrl+C) dans un éditeur. Le test
-      automatique ne mesure pas la police : il ne voit pas si le texte défile, seulement que la
-      zone tient dans la fenêtre. Les contrôles sont marqués [OK] / [FAIL] en texte : le rendu
-      logiciel de Slint ne dessine pas les emoji ✅/❌ (constaté à la main le 2026-10-18).
+- [ ] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre le rapport en liste : une
+      icône ronde par contrôle, VERTE avec une coche (OK) ou ROUGE avec une croix (échec), la
+      ligne « Status: » avec son icône, les « Value: » en retrait et plus ternes. L'ascenseur est
+      visible à droite ; le début (« Superview build ») est visible, la molette et l'ascenseur
+      mènent jusqu'à « Log file » (dernière ligne entière) ; une longue raison d'échec ffmpeg
+      passe à la ligne sans couper les lignes d'après ; la fenêtre ne coupe ni la liste ni les
+      boutons. « Show as text » bascule vers le texte brut ([OK] / [FAIL]) : on y sélectionne
+      (souris, Ctrl+A) et copie (Ctrl+C) dans un éditeur ; « Show as list » revient aux icônes.
+      La liste ne défile pas au clavier (molette et ascenseur seulement) ; c'est la vue texte qui
+      défile au clavier. Le test automatique mesure bien le texte (une ligne de 300 caractères
+      doit être plus haute qu'une ligne courte, et la liste au moins aussi haute que ses lignes
+      ensemble), mais pas le défilement lui-même ni le rendu des icônes : la fin de la liste a
+      été vérifiée sous Xvfb le 2026-10-18 (une mise en page à base de layouts la coupait de
+      quelques lignes). Les icônes sont dessinées, pas des emoji : le rendu logiciel de Slint ne
+      dessine pas ✅/❌ (constaté à la main le 2026-10-18).
 
 - [ ] **Lien d'installation dans le navigateur** : sans ffmpeg dans le `PATH`, la popup « cannot find
       ffmpeg/ffprobe » s'ouvre ; un clic sur l'adresse ouvre le navigateur (`xdg-open` ou
