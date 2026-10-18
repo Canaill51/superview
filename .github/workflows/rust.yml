@@ -76,16 +76,32 @@ jobs:
       working-directory: rust
       run: cargo build --release --locked -p superview-app
 
+    - name: The build marker must be in the binary
+      run: |
+        set -euo pipefail
+        # Not guaranteed to survive the linker: the release greps this marker in the built file.
+        if ! grep -aq "SUPERVIEW-BUILD version=dev" rust/target/release/superview; then
+          echo "::error::the SUPERVIEW-BUILD marker is missing from the release binary"
+          exit 1
+        fi
+
     - name: The window must stay open
       run: |
         set -euo pipefail
         set +e
-        xvfb-run -a timeout 10 rust/target/release/superview-app
+        xvfb-run -a timeout 10 rust/target/release/superview
         code=$?
         set -e
         echo "exit code: ${code}"
         if [ "$code" -ne 124 ]; then
           echo "::error::the window did not stay open (exit code ${code}, expected 124)"
+          exit 1
+        fi
+        # The application ID is set once the window exists; a refusal is only logged.
+        log="${XDG_CACHE_HOME:-$HOME/.cache}/superview/superview.log"
+        if grep -q "could not set the application ID" "$log"; then
+          echo "::error::the application ID was refused"
+          grep "could not set the application ID" "$log"
           exit 1
         fi
 
@@ -97,7 +113,7 @@ jobs:
         set -euo pipefail
         work="${RUNNER_TEMP}/trial"
         mkdir -p "${work}/pkg/usr/local/bin" "${work}/tools"
-        install -m 0755 rust/target/release/superview-app "${work}/pkg/usr/local/bin/superview"
+        install -m 0755 rust/target/release/superview "${work}/pkg/usr/local/bin/superview"
         tar -cJf "${work}/superview.tar.xz" -C "${work}/pkg" usr
         cp "$(command -v ffmpeg)" "$(command -v ffprobe)" "${work}/tools/"
         APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
@@ -244,11 +260,22 @@ jobs:
       working-directory: rust
       run: cargo build --release --locked -p superview-app
 
+    - name: The build marker must be in the binary
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $bytes = [System.IO.File]::ReadAllBytes("rust\target\release\superview.exe")
+        $text = [System.Text.Encoding]::Latin1.GetString($bytes)
+        if (-not $text.Contains("SUPERVIEW-BUILD version=dev")) {
+          Write-Host "::error::the SUPERVIEW-BUILD marker is missing from the release binary"
+          exit 1
+        }
+
     - name: The window must stay open
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        $proc = Start-Process -FilePath rust\target\release\superview-app.exe -PassThru
+        $proc = Start-Process -FilePath rust\target\release\superview.exe -PassThru
         Start-Sleep -Seconds 10
         if ($proc.HasExited) { throw "the window exited by itself with code $($proc.ExitCode)" }
         Write-Host "still running after 10 s (pid $($proc.Id))"
