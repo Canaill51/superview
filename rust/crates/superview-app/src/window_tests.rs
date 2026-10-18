@@ -362,6 +362,47 @@ fn check_popup(window: &MainWindow, popup: Popup, texts: &[&str], button: &str, 
     }
 }
 
+/// A report far longer than the window: the card stays inside it, the Close button with it, and
+/// the report sits in a read-only `TextEdit`, whose scrollbars, wheel and selection are what
+/// reach the end of it and copy it. The testing backend does not measure the font, so the
+/// content height cannot be compared with the visible one here: the box being read-only text
+/// that is not clipped to a fixed size is what is checked (`docs/TESTS-MANUELS.md` reads it).
+fn the_long_diagnostic_fits_and_can_be_read_to_its_end(window: &MainWindow) {
+    let report: String = (0..200)
+        .map(|i| format!("line {i}: {}\n", "x".repeat(300)))
+        .collect();
+    window.set_diagnostic_report(report.as_str().into());
+    window.set_popup(Popup::Diagnostic);
+
+    let inside = |what: &str, element: &ElementHandle| {
+        let (position, size) = (element.absolute_position(), element.size());
+        assert!(
+            position.x >= 0.0
+                && position.y >= 0.0
+                && position.x + size.width <= WINDOW_WIDTH
+                && position.y + size.height <= WINDOW_HEIGHT,
+            "the diagnostic's {what} leaves the window: {position:?} {size:?}"
+        );
+    };
+    let boxes: Vec<ElementHandle> =
+        ElementHandle::find_by_element_type_name(window, "TextEdit").collect();
+    assert_eq!(boxes.len(), 1, "the report is not in one TextEdit");
+    let report_box = &boxes[0];
+    assert_eq!(report_box.accessible_read_only(), Some(true));
+    assert_eq!(
+        report_box.accessible_value().as_deref(),
+        Some(report.as_str())
+    );
+    assert!(
+        report_box.size().height >= 120.0 && report_box.size().width >= 600.0,
+        "the report box is too small to read: {:?}",
+        report_box.size()
+    );
+    inside("report box", report_box);
+    inside("Close button", &only(window, "Close"));
+    window.set_popup(Popup::None);
+}
+
 fn the_popups_open_close_and_say_what_they_should() {
     let window = shown();
     let (fired, bump) = counter();
@@ -450,14 +491,25 @@ fn the_popups_open_close_and_say_what_they_should() {
         "OK",
         &fired,
     );
+    // The report is the value of a `TextEdit`, not a label: it is read from there.
     window.set_diagnostic_report("ffmpeg: ok\nffprobe: ok".into());
+    window.set_popup(Popup::Diagnostic);
+    let report_box = ElementHandle::find_by_element_type_name(&window, "TextEdit")
+        .next()
+        .expect("the report box");
+    assert_eq!(
+        report_box.accessible_value().as_deref(),
+        Some("ffmpeg: ok\nffprobe: ok")
+    );
+    window.set_popup(Popup::None);
     check_popup(
         &window,
         Popup::Diagnostic,
-        &["System diagnostic", "ffmpeg: ok\nffprobe: ok"],
+        &["System diagnostic"],
         "Close",
         &fired,
     );
+    the_long_diagnostic_fits_and_can_be_read_to_its_end(&window);
 
     // The text field: the title follows the file asked for, the reason shows only when there
     // is one, and both buttons report. "Cancel" also names the toolbar's (greyed out).
