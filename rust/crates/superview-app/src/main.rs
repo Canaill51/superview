@@ -34,8 +34,9 @@ slint::include_modules!();
 const APP_ID: &str = "com.canaill51.superview";
 
 /// What the build recorded, in plain bytes of the binary: the release checks a built file for
-/// `modified=true` with `grep -a SUPERVIEW-BUILD`, without running it. `#[used]` keeps it
-/// when nothing reads it.
+/// `modified=true` with `grep -a SUPERVIEW-BUILD`, without running it. `#[used]` only keeps the
+/// static, which is a pointer: the MSVC linker still dropped the text it points to (measured, CI
+/// of #127). `main` therefore reads it through `black_box`, which keeps the bytes everywhere.
 #[used]
 static BUILD_MARKER: &str = concat!(
     "SUPERVIEW-BUILD version=",
@@ -68,6 +69,7 @@ mod app_tests;
 mod window_tests;
 
 fn main() -> Result<(), slint::PlatformError> {
+    std::hint::black_box(BUILD_MARKER);
     // Records go to the log file from the start, at the default level; the configured level
     // applies as soon as the configuration is read.
     let log_path = journal::install(log::LevelFilter::Info);
@@ -152,8 +154,8 @@ mod tests {
         );
     }
 
-    // A test of shape only: that `#[used]` keeps the bytes in the linked binary (not guaranteed
-    // under MSVC) is checked on the built files by `rust.yml`.
+    // A test of shape only: that the bytes stay in the linked binary (the MSVC linker
+    // drops it unless it is read) is checked on the built files by `rust.yml`.
     #[test]
     fn shape_test_the_build_marker_has_the_agreed_shape() {
         assert!(
