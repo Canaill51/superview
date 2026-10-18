@@ -15,7 +15,7 @@ use i_slint_backend_testing::{AccessibleRole, ElementHandle};
 use slint::platform::PointerEventButton;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
-use super::{MainWindow, Popup};
+use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
 /// The window's size, as the Go window's `windowWidth` and `windowHeight`.
 const WINDOW_WIDTH: f32 = 980.0;
@@ -212,6 +212,10 @@ fn the_window_starts_in_its_initial_state() {
     assert_eq!(window.get_output_name(), "No file selected");
     assert_eq!(window.get_quality(), "Balanced");
     assert!(!window.get_squeeze());
+    assert!(
+        !window.get_diagnostic_as_text(),
+        "the Diagnostic opens on the list with icons"
+    );
     assert!(window.get_progress().abs() < f32::EPSILON);
     for (label, enabled) in [
         ("Choose input file", true),
@@ -372,6 +376,7 @@ fn the_long_diagnostic_fits_and_can_be_read_to_its_end(window: &MainWindow) {
         .map(|i| format!("line {i}: {}\n", "x".repeat(300)))
         .collect();
     window.set_diagnostic_report(report.as_str().into());
+    window.set_diagnostic_as_text(true);
     window.set_popup(Popup::Diagnostic);
 
     let inside = |what: &str, element: &ElementHandle| {
@@ -401,6 +406,142 @@ fn the_long_diagnostic_fits_and_can_be_read_to_its_end(window: &MainWindow) {
     inside("report box", report_box);
     inside("Close button", &only(window, "Close"));
     window.set_popup(Popup::None);
+    window.set_diagnostic_as_text(false);
+}
+
+fn report_row(kind: ReportRowKind, ok: bool, text: &str) -> DiagnosticRow {
+    DiagnosticRow {
+        kind,
+        ok,
+        text: text.into(),
+    }
+}
+
+/// The report as a list: a drawn icon per check (green "OK", red "Failed", named for screen
+/// readers), the toggle to the selectable text and back, and a 200-line report that still
+/// leaves the list and Close inside the window.
+fn the_diagnostic_list_draws_its_icons_and_switches_to_text(window: &MainWindow) {
+    let rows = vec![
+        report_row(ReportRowKind::Plain, false, "Superview build: dev"),
+        report_row(ReportRowKind::Status, false, "UNHEALTHY"),
+        report_row(ReportRowKind::Check, true, "FFMPEG: ok"),
+        report_row(ReportRowKind::Value, false, "Value: /usr/bin/ffmpeg"),
+        report_row(ReportRowKind::Check, false, "DISK: low"),
+        report_row(ReportRowKind::Check, false, "h264_nvenc: no device"),
+    ];
+    window.set_diagnostic_rows(ModelRc::new(VecModel::from(rows)));
+    window.set_diagnostic_report("[FAIL] DISK: low".into());
+    window.set_popup(Popup::Diagnostic);
+
+    assert_eq!(find(window, "OK").len(), 1, "one green icon expected");
+    assert_eq!(find(window, "Failed").len(), 3, "three red icons expected");
+    for text in [
+        "FFMPEG: ok",
+        "DISK: low",
+        "UNHEALTHY",
+        "Value: /usr/bin/ffmpeg",
+    ] {
+        assert!(is_shown(window, text), "{text:?} is not in the list");
+    }
+    assert_eq!(
+        ElementHandle::find_by_element_type_name(window, "TextEdit").count(),
+        0,
+        "the list is the default view"
+    );
+    assert!(is_shown(window, "Show as text"));
+
+    // To the text: no icon, the report in a read-only box, and the button offers the way back.
+    only(window, "Show as text").invoke_accessible_default_action();
+    assert!(window.get_diagnostic_as_text());
+    assert!(find(window, "OK").is_empty() && find(window, "Failed").is_empty());
+    let boxes: Vec<ElementHandle> =
+        ElementHandle::find_by_element_type_name(window, "TextEdit").collect();
+    assert_eq!(boxes.len(), 1);
+    assert_eq!(
+        boxes[0].accessible_value().as_deref(),
+        Some("[FAIL] DISK: low")
+    );
+    only(window, "Show as list").invoke_accessible_default_action();
+    assert!(!window.get_diagnostic_as_text());
+    assert_eq!(
+        find(window, "Failed").len(),
+        3,
+        "the icons did not come back"
+    );
+
+    long_lines_wrap_and_the_list_is_tall_enough_for_them(window);
+
+    // A long report: the list scrolls inside the card, Close stays in the window.
+    let many: Vec<DiagnosticRow> = (0..200)
+        .map(|i| report_row(ReportRowKind::Check, i % 2 == 0, &format!("line {i}")))
+        .collect();
+    window.set_diagnostic_rows(ModelRc::new(VecModel::from(many)));
+    for (what, element) in [
+        (
+            "list",
+            ElementHandle::find_by_element_type_name(window, "ScrollView")
+                .next()
+                .expect("the list is a ScrollView"),
+        ),
+        ("Close button", only(window, "Close")),
+        ("toggle button", only(window, "Show as text")),
+    ] {
+        let (position, size) = (element.absolute_position(), element.size());
+        assert!(
+            position.x >= 0.0
+                && position.y >= 0.0
+                && position.x + size.width <= WINDOW_WIDTH
+                && position.y + size.height <= WINDOW_HEIGHT,
+            "the diagnostic's {what} leaves the window: {position:?} {size:?}"
+        );
+        if what == "list" {
+            assert!(
+                size.height >= 100.0 && size.width >= 600.0,
+                "the list is too small to read: {size:?}"
+            );
+        }
+    }
+    window.set_popup(Popup::None);
+}
+
+/// The lesson of #124 made automatic: a line that wraps is taller than a line that does not, and
+/// the list's content is at least as tall as its lines put together, or the end of the report
+/// cannot be scrolled to. The testing backend measures text (`monospace` included); where a
+/// system gives it no font at all, the wrapped line is not taller and the test says so.
+fn long_lines_wrap_and_the_list_is_tall_enough_for_them(window: &MainWindow) {
+    let long = "ffmpeg exited with status 1: Cannot load libcuda.so.1 ".repeat(6);
+    let rows = vec![
+        report_row(ReportRowKind::Check, true, "short"),
+        report_row(ReportRowKind::Check, false, &long),
+        report_row(ReportRowKind::Plain, false, "Log file: last"),
+    ];
+    window.set_diagnostic_rows(ModelRc::new(VecModel::from(rows)));
+    let lines: Vec<ElementHandle> =
+        ElementHandle::find_by_element_type_name(window, "ReportLine").collect();
+    assert_eq!(
+        lines.len(),
+        3,
+        "the list does not hold one ReportLine per row"
+    );
+    let heights: Vec<f32> = lines.iter().map(|l| l.size().height).collect();
+    assert!(
+        heights[0] >= 17.0 && heights[2] >= 17.0,
+        "a one-line row has no height: {heights:?}"
+    );
+    assert!(
+        heights[1] > heights[0] * 1.8,
+        "a 300-character line did not wrap to several lines ({heights:?}): the test backend has \
+         no font to measure with, or the line height no longer follows its text"
+    );
+    let content = ElementHandle::find_by_element_id(window, "MainWindow::rows")
+        .next()
+        .expect("the list's content")
+        .size()
+        .height;
+    assert!(
+        content >= heights.iter().sum::<f32>(),
+        "the list is {content} px tall for lines that add up to {heights:?}: its end cannot be reached"
+    );
 }
 
 fn the_popups_open_close_and_say_what_they_should() {
@@ -493,6 +634,7 @@ fn the_popups_open_close_and_say_what_they_should() {
     );
     // The report is the value of a `TextEdit`, not a label: it is read from there.
     window.set_diagnostic_report("ffmpeg: ok\nffprobe: ok".into());
+    window.set_diagnostic_as_text(true);
     window.set_popup(Popup::Diagnostic);
     let report_box = ElementHandle::find_by_element_type_name(&window, "TextEdit")
         .next()
@@ -502,6 +644,7 @@ fn the_popups_open_close_and_say_what_they_should() {
         Some("ffmpeg: ok\nffprobe: ok")
     );
     window.set_popup(Popup::None);
+    window.set_diagnostic_as_text(false);
     check_popup(
         &window,
         Popup::Diagnostic,
@@ -510,6 +653,7 @@ fn the_popups_open_close_and_say_what_they_should() {
         &fired,
     );
     the_long_diagnostic_fits_and_can_be_read_to_its_end(&window);
+    the_diagnostic_list_draws_its_icons_and_switches_to_text(&window);
 
     // The text field: the title follows the file asked for, the reason shows only when there
     // is one, and both buttons report. "Cancel" also names the toolbar's (greyed out).

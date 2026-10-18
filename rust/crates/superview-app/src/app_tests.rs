@@ -134,7 +134,7 @@ impl FakeEngine {
             jobs: Mutex::new(Vec::new()),
             health: Box::new(|temp_dir| {
                 format!(
-                    "=== Health ===\ntemp: {}\n✅ FFMPEG: ok\n❌ DISK: low\n",
+                    "=== Health ===\ntemp: {}\n✅ FFMPEG: ok\n❌ DISK: low\nnote: ✅ inside\n",
                     temp_dir.display()
                 )
             }),
@@ -446,7 +446,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 30] = [
+    let scenarios: [(&str, fn()); 31] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -488,6 +488,10 @@ pub fn run() {
             ffmpeg_missing_after_a_run_offers_no_retry,
         ),
         ("diagnostic", the_diagnostic_reports_and_restores_the_status),
+        (
+            "diagnostic queue",
+            a_dialog_queued_behind_the_report_leaves_it_alone,
+        ),
         (
             "verification",
             a_slow_verification_cannot_overwrite_a_newer_line,
@@ -1018,7 +1022,39 @@ fn the_diagnostic_reports_and_restores_the_status() {
         "{report}"
     );
     assert!(!report.contains('✅') && !report.contains('❌'), "{report}");
+    // The same report, line by line, for the list with drawn icons.
+    let rows: Vec<crate::DiagnosticRow> = r.window.get_diagnostic_rows().iter().collect();
+    let verdict = |text: &str| {
+        let row = rows
+            .iter()
+            .find(|row| row.text == text)
+            .unwrap_or_else(|| panic!("no row {text:?} in {rows:?}"));
+        (row.kind, row.ok)
+    };
+    assert_eq!(verdict("FFMPEG: ok"), (crate::ReportRowKind::Check, true));
+    assert_eq!(verdict("DISK: low"), (crate::ReportRowKind::Check, false));
+    // An emoji inside a line, not in the mark's place, is made plain text too.
+    assert_eq!(verdict("note: [OK] inside").0, crate::ReportRowKind::Plain);
+    assert!(
+        rows.iter().all(|row| !row.text.contains(['✅', '❌'])),
+        "an emoji reached the list"
+    );
+    assert!(
+        !r.window.get_diagnostic_as_text(),
+        "the list is the default view"
+    );
     assert_eq!(r.status(), "Status: Ready", "the status is not restored");
+    // Left on the text view, a closed report does not make the next one open on the text.
+    r.click("Show as text");
+    assert!(r.window.get_diagnostic_as_text());
+    r.click("Close");
+    assert_eq!(r.popup(), Popup::None);
+    r.click("Diagnostic");
+    r.wait("the second report", |w| w.get_popup() == Popup::Diagnostic);
+    assert!(
+        !r.window.get_diagnostic_as_text(),
+        "a new report opened on the view the last one was left on"
+    );
     r.click("Close");
     assert_eq!(r.popup(), Popup::None);
 
@@ -1246,6 +1282,48 @@ fn a_quit_question_that_waited_is_dropped_when_nothing_runs() {
         Popup::Done,
         "a question about a conversion that has ended came back"
     );
+    r.click("OK");
+    assert_eq!(r.popup(), Popup::None);
+}
+
+/// A dialog that waits behind the report asks the window to apply the popup again: the list is
+/// not rebuilt (that would send it back to the top) and the view the user chose stays.
+fn a_dialog_queued_behind_the_report_leaves_it_alone() {
+    let encode_gate = Gate::default();
+    let for_encode = encode_gate.clone();
+    let engine = FakeEngine::new().encoding(move |_, _, _| {
+        for_encode.wait();
+        Ok(outcome("Hardware: the CPU did it"))
+    });
+    let r = Rig::loaded(engine, "result.mp4");
+    r.click("Start transformation");
+    r.click("Diagnostic");
+    r.wait("the report", |w| w.get_popup() == Popup::Diagnostic);
+    r.click("Show as text");
+    // A marker that a rebuild would wipe.
+    let marker = crate::DiagnosticRow {
+        kind: crate::ReportRowKind::Plain,
+        ok: false,
+        text: "marker".into(),
+    };
+    r.window
+        .set_diagnostic_rows(slint::ModelRc::new(slint::VecModel::from(vec![marker])));
+    r.window
+        .window()
+        .dispatch_event(WindowEvent::CloseRequested);
+    assert_eq!(r.popup(), Popup::Diagnostic);
+    assert_eq!(
+        r.window.get_diagnostic_rows().row_count(),
+        1,
+        "the list was rebuilt under the reader"
+    );
+    assert!(
+        r.window.get_diagnostic_as_text(),
+        "the view went back to the list"
+    );
+    encode_gate.open();
+    r.wait("the completion", |w| w.get_status() == "Status: Completed");
+    r.click("Close");
     r.click("OK");
     assert_eq!(r.popup(), Popup::None);
 }

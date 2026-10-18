@@ -53,11 +53,12 @@ use superview_core::video::VideoSpecs;
 use crate::dialogs::{Kind, Pick, parse_typed_path};
 use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_start_settings};
 use crate::prefs::Preferences;
+use crate::report::{Row, RowKind, parse_report};
 use crate::state::{
     AppState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink, ViewModel,
     run_encoding,
 };
-use crate::{MainWindow, Popup};
+use crate::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
 /// Where the prerequisite dialog sends the user (Go: `installURL`).
 pub const INSTALL_URL: &str =
@@ -72,6 +73,23 @@ const RUNNING_DIAGNOSTIC: &str = "Status: Running diagnostic...";
 /// parity test pins; only what is shown changes.
 fn plain_marks(report: &str) -> String {
     report.replace('✅', "[OK]").replace('❌', "[FAIL]")
+}
+
+/// One parsed line, as the window's list takes it. The text goes through `plain_marks` too: an
+/// emoji inside a line (a reason quoting one) would draw as nothing.
+fn window_row(row: &Row) -> DiagnosticRow {
+    DiagnosticRow {
+        kind: match row.kind {
+            RowKind::Blank => ReportRowKind::Blank,
+            RowKind::Section => ReportRowKind::Section,
+            RowKind::Check => ReportRowKind::Check,
+            RowKind::Value => ReportRowKind::Value,
+            RowKind::Status => ReportRowKind::Status,
+            RowKind::Plain => ReportRowKind::Plain,
+        },
+        ok: row.ok,
+        text: plain_marks(&row.text).into(),
+    }
 }
 
 /// Everything one conversion needs, captured on the UI thread when Start is pressed.
@@ -159,6 +177,8 @@ enum PopupKind {
     Quit,
     NoInput,
     NoOutput,
+    /// The report as the core wrote it, emoji marks included: the window draws icons from the
+    /// marks and shows the plain-text form beside them.
     Diagnostic(String),
     /// The text field that stands in for a picker the system cannot open.
     PathEntry(Kind),
@@ -330,7 +350,21 @@ fn apply_popup(window: &MainWindow, current: Option<&PopupKind>) {
         Some(PopupKind::NoInput) => Popup::NoInput,
         Some(PopupKind::NoOutput) => Popup::NoOutput,
         Some(PopupKind::Diagnostic(report)) => {
-            window.set_diagnostic_report(report.as_str().into());
+            let text = plain_marks(report);
+            // Called again while the report is on screen (a dialog queued behind it): the list
+            // is left as it is, so the scroll position and the chosen view are kept.
+            let on_screen = window.get_popup() == Popup::Diagnostic
+                && window.get_diagnostic_report() == text.as_str();
+            if !on_screen {
+                // A report opens on the list, whichever view the last one was left on.
+                if window.get_popup() != Popup::Diagnostic {
+                    window.set_diagnostic_as_text(false);
+                }
+                window.set_diagnostic_report(text.into());
+                let rows: Vec<DiagnosticRow> =
+                    parse_report(report).iter().map(window_row).collect();
+                window.set_diagnostic_rows(ModelRc::new(VecModel::from(rows)));
+            }
             Popup::Diagnostic
         }
         Some(PopupKind::PathEntry(kind)) => {
@@ -1039,8 +1073,7 @@ fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
         };
         let report = format!(
             "Superview build: {}\n\n{}{log_line}",
-            thread_core.identity,
-            plain_marks(&health)
+            thread_core.identity, health
         );
         post(&thread_core, move |core, window| {
             {
