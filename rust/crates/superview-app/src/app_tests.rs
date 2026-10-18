@@ -132,7 +132,12 @@ impl FakeEngine {
             verify: Box::new(|_| "Hardware: verified".to_string()),
             encode: Box::new(|_, _, _| Ok(outcome("Hardware: the CPU did it"))),
             jobs: Mutex::new(Vec::new()),
-            health: Box::new(|temp_dir| format!("=== Health ===\ntemp: {}\n", temp_dir.display())),
+            health: Box::new(|temp_dir| {
+                format!(
+                    "=== Health ===\ntemp: {}\n✅ FFMPEG: ok\n❌ DISK: low\n",
+                    temp_dir.display()
+                )
+            }),
         }
     }
 
@@ -1008,6 +1013,11 @@ fn the_diagnostic_reports_and_restores_the_status() {
         )),
         "{report}"
     );
+    assert!(
+        report.contains("[OK] FFMPEG: ok\n[FAIL] DISK: low\n"),
+        "{report}"
+    );
+    assert!(!report.contains('✅') && !report.contains('❌'), "{report}");
     assert_eq!(r.status(), "Status: Ready", "the status is not restored");
     r.click("Close");
     assert_eq!(r.popup(), Popup::None);
