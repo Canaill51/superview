@@ -1,4 +1,4 @@
-//! The glue between the Slint window and everything else (phase 6, PR 6.3 of DEC-43): it turns
+//! The glue between the Slint window and everything else (phase 6, PR 6.3 and 6.4 of DEC-43): it turns
 //! the window's callbacks into calls on [`AppState`], runs the slow work (pickers, ffprobe,
 //! probes, the conversion, the diagnostic) on threads of its own, and brings every result back
 //! to the event loop with `upgrade_in_event_loop` before a property is touched. It ports the
@@ -17,6 +17,9 @@
 //!   window is never left locked. Go let a panic take the process down.
 //! * The video check (ffprobe) runs on the picker's thread, after the pick, with the button
 //!   still held down; Go ran `CheckVideo` on the UI thread.
+//! * No file picker at all (no portal, no zenity, no kdialog): a text field in a dialog of the
+//!   window asks for the path (`dialogs.rs` decides when). What is typed goes through the same
+//!   checks as a picked file.
 //! * The choice of the output file is applied as it is picked and the overwrite question is
 //!   asked at Start, as in Go (the native picker may ask it too).
 //! * The install link opens through `xdg-open` / `explorer.exe`, never a shell string, and only
@@ -47,6 +50,7 @@ use superview_core::pipeline::{EncodeOutcome, PipelineUi};
 use superview_core::probe::EncoderProbeReport;
 use superview_core::video::VideoSpecs;
 
+use crate::dialogs::{Kind, Pick, parse_typed_path};
 use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_start_settings};
 use crate::prefs::Preferences;
 use crate::state::{
@@ -109,10 +113,10 @@ pub trait Engine: Send + Sync + 'static {
 
 /// What the window asks of the desktop.
 pub trait Host: Send + Sync + 'static {
-    /// The input picker; `None` is a cancel. May block: called off the UI thread.
-    fn pick_input(&self) -> Option<PathBuf>;
-    /// The output picker; `None` is a cancel. May block: called off the UI thread.
-    fn pick_output(&self) -> Option<PathBuf>;
+    /// The input picker. May block: called off the UI thread.
+    fn pick_input(&self) -> Pick;
+    /// The output picker. May block: called off the UI thread.
+    fn pick_output(&self) -> Pick;
     /// Opens an address in the browser.
     fn open_link(&self, url: &str);
     /// Ends the event loop; callable from any thread.
@@ -148,6 +152,8 @@ enum PopupKind {
     NoInput,
     NoOutput,
     Diagnostic(String),
+    /// The text field that stands in for a picker the system cannot open.
+    PathEntry(Kind),
 }
 
 /// The dialogs waiting to be answered; the first one is on screen.
@@ -166,6 +172,14 @@ impl Popups {
 
     fn current(&self) -> Option<&PopupKind> {
         self.queue.front()
+    }
+
+    /// The picker the text field on screen stands for, if it is the one on screen.
+    fn path_entry(&self) -> Option<Kind> {
+        match self.current() {
+            Some(PopupKind::PathEntry(kind)) => Some(*kind),
+            _ => None,
+        }
     }
 
     /// The answered dialog goes; the next one, if any, is now the current one. A "Cancel and
@@ -311,6 +325,18 @@ fn apply_popup(window: &MainWindow, current: Option<&PopupKind>) {
             window.set_diagnostic_report(report.as_str().into());
             Popup::Diagnostic
         }
+        Some(PopupKind::PathEntry(kind)) => {
+            // A field already on screen, for the same file, keeps what is typed in it; another
+            // file's field (the input's after the output's) starts empty.
+            let same = window.get_popup() == Popup::PathEntry
+                && window.get_path_entry_output() == (*kind == Kind::Output);
+            if !same {
+                window.set_path_entry_text("".into());
+                window.set_path_entry_error("".into());
+            }
+            window.set_path_entry_output(*kind == Kind::Output);
+            Popup::PathEntry
+        }
     };
     window.set_popup(popup);
 }
@@ -449,6 +475,8 @@ fn register(core: &Arc<Core>, window: &MainWindow) {
     window.on_diagnostic_close(bind(core, |core, window| core.close_popup(window)));
     window.on_overwrite_no(bind(core, |core, window| core.close_popup(window)));
     window.on_quit_no(bind(core, |core, window| core.close_popup(window)));
+    window.on_path_entry_ok(bind(core, path_entry_ok));
+    window.on_path_entry_cancel(bind(core, path_entry_cancel));
     window.on_prerequisite_retry_clicked(bind(core, retry_prerequisite));
     window.on_overwrite_yes(bind(core, |core, window| {
         core.close_popup(window);
@@ -624,48 +652,104 @@ fn verify_in_background(core: &Arc<Core>, request: crate::state::VerificationReq
     }
 }
 
-/// The input picker. The button is held down from the click to the end of the ffprobe check, so
-/// that a second click cannot open a second picker.
-fn choose_input(core: &Arc<Core>, window: &MainWindow) {
-    if !core.state().begin_pick(Control::Open) {
+/// Reads the chosen input with ffprobe (off the UI thread) and applies it on the UI thread;
+/// `None` is a cancel. Releases the button either way.
+fn finish_input_pick(core: &Arc<Core>, chosen: Option<PathBuf>) {
+    // The file is read here, off the UI thread. A path that is not UTF-8 is not read at
+    // all: `apply_chosen_input` refuses it with a message of its own.
+    let checked = chosen.as_deref().and_then(Path::to_str).map(|text| {
+        catch_unwind(AssertUnwindSafe(|| core.engine.check_video(text)))
+            .unwrap_or_else(|payload| Err(panic_error("reading the video", payload.as_ref())))
+    });
+    post(core, move |core, window| {
+        let outcome = {
+            let mut state = core.state();
+            state.finish_pick(Control::Open);
+            chosen.map(|path| {
+                state.apply_chosen_input(&path, |_| {
+                    checked.unwrap_or_else(|| {
+                        Err(Error::Plain(
+                            "the input file path is not valid UTF-8".to_string(),
+                        ))
+                    })
+                })
+            })
+        };
+        core.refresh(window);
+        if let Some(ChosenOutcome::Rejected(message)) = outcome {
+            core.show(window, PopupKind::Error(message));
+        }
+    });
+}
+
+/// Applies the chosen output on the UI thread (`.mp4` enforced by the state); `None` is a
+/// cancel. Releases the button either way.
+fn finish_output_pick(core: &Arc<Core>, chosen: Option<PathBuf>) {
+    post(core, move |core, window| {
+        let outcome = {
+            let mut state = core.state();
+            state.finish_pick(Control::SelectOutput);
+            chosen.map(|path| state.apply_chosen_output(&path))
+        };
+        core.refresh(window);
+        if let Some(ChosenOutcome::Rejected(message)) = outcome {
+            core.show(window, PopupKind::Error(message));
+        }
+    });
+}
+
+/// What a picker's answer leads to: the file (or the cancel) is applied, or the window asks for
+/// the path itself. The button stays held while the text field is open.
+fn after_pick(core: &Arc<Core>, kind: Kind, pick: Pick) {
+    let chosen = match pick {
+        Pick::Chosen(path) => Some(path),
+        Pick::Cancelled => None,
+        Pick::NoPicker => {
+            post(core, move |core, window| {
+                core.show(window, PopupKind::PathEntry(kind));
+            });
+            return;
+        }
+    };
+    match kind {
+        Kind::Input => finish_input_pick(core, chosen),
+        Kind::Output => finish_output_pick(core, chosen),
+    }
+}
+
+/// The button a picker of this kind holds down.
+fn pick_control(kind: Kind) -> Control {
+    match kind {
+        Kind::Input => Control::Open,
+        Kind::Output => Control::SelectOutput,
+    }
+}
+
+/// The input and output pickers. The button is held down from the click to the end of the
+/// ffprobe check (or of the text field), so that a second click cannot open a second picker.
+fn choose(core: &Arc<Core>, window: &MainWindow, kind: Kind) {
+    let control = pick_control(kind);
+    if !core.state().begin_pick(control) {
         return;
     }
     core.refresh(window);
     let thread_core = Arc::clone(core);
-    let spawned = spawn("pick-input", move || {
+    let name = match kind {
+        Kind::Input => "pick-input",
+        Kind::Output => "pick-output",
+    };
+    let spawned = spawn(name, move || {
         // A picker that panics counts as a cancel: the button must never stay greyed out.
-        let chosen = catch_unwind(AssertUnwindSafe(|| thread_core.host.pick_input()))
-            .ok()
-            .flatten();
-        // The file is read here, off the UI thread. A path that is not UTF-8 is not read at
-        // all: `apply_chosen_input` refuses it with a message of its own.
-        let checked = chosen.as_deref().and_then(Path::to_str).map(|text| {
-            catch_unwind(AssertUnwindSafe(|| thread_core.engine.check_video(text)))
-                .unwrap_or_else(|payload| Err(panic_error("reading the video", payload.as_ref())))
-        });
-        post(&thread_core, move |core, window| {
-            let outcome = {
-                let mut state = core.state();
-                state.finish_pick(Control::Open);
-                chosen.map(|path| {
-                    state.apply_chosen_input(&path, |_| {
-                        checked.unwrap_or_else(|| {
-                            Err(Error::Plain(
-                                "the input file path is not valid UTF-8".to_string(),
-                            ))
-                        })
-                    })
-                })
-            };
-            core.refresh(window);
-            if let Some(ChosenOutcome::Rejected(message)) = outcome {
-                core.show(window, PopupKind::Error(message));
-            }
-        });
+        let pick = catch_unwind(AssertUnwindSafe(|| match kind {
+            Kind::Input => thread_core.host.pick_input(),
+            Kind::Output => thread_core.host.pick_output(),
+        }))
+        .unwrap_or(Pick::Cancelled);
+        after_pick(&thread_core, kind, pick);
     });
     if let Err(e) = spawned {
-        log::error!("Cannot start the input picker: error={e}");
-        core.state().finish_pick(Control::Open);
+        log::error!("Cannot start the file picker: error={e}");
+        core.state().finish_pick(control);
         core.refresh(window);
         core.show(
             window,
@@ -674,38 +758,58 @@ fn choose_input(core: &Arc<Core>, window: &MainWindow) {
     }
 }
 
-/// The output picker.
+fn choose_input(core: &Arc<Core>, window: &MainWindow) {
+    choose(core, window, Kind::Input);
+}
+
 fn choose_output(core: &Arc<Core>, window: &MainWindow) {
-    if !core.state().begin_pick(Control::SelectOutput) {
+    choose(core, window, Kind::Output);
+}
+
+/// OK in the text field: an empty or relative path keeps the field open with the reason; a path
+/// goes through the same checks as a picked file.
+fn path_entry_ok(core: &Arc<Core>, window: &MainWindow) {
+    let Some(kind) = lock(&core.popups).path_entry() else {
         return;
-    }
-    core.refresh(window);
-    let thread_core = Arc::clone(core);
-    let spawned = spawn("pick-output", move || {
-        let chosen = catch_unwind(AssertUnwindSafe(|| thread_core.host.pick_output()))
-            .ok()
-            .flatten();
-        post(&thread_core, move |core, window| {
-            let outcome = {
-                let mut state = core.state();
-                state.finish_pick(Control::SelectOutput);
-                chosen.map(|path| state.apply_chosen_output(&path))
-            };
-            core.refresh(window);
-            if let Some(ChosenOutcome::Rejected(message)) = outcome {
-                core.show(window, PopupKind::Error(message));
+    };
+    let path = match parse_typed_path(&window.get_path_entry_text()) {
+        Ok(path) => path,
+        Err(reason) => {
+            window.set_path_entry_error(reason.into());
+            return;
+        }
+    };
+    core.close_popup(window);
+    match kind {
+        Kind::Output => finish_output_pick(core, Some(path)),
+        Kind::Input => {
+            // ffprobe off the UI thread, as for a picked file.
+            let thread_core = Arc::clone(core);
+            let chosen = path.clone();
+            let spawned = spawn("check-input", move || {
+                finish_input_pick(&thread_core, Some(chosen));
+            });
+            if let Err(e) = spawned {
+                log::error!("Cannot start the video check: error={e}");
+                core.state().finish_pick(Control::Open);
+                core.refresh(window);
+                core.show(
+                    window,
+                    PopupKind::Error(format!("cannot read the video: {e}")),
+                );
             }
-        });
-    });
-    if let Err(e) = spawned {
-        log::error!("Cannot start the output picker: error={e}");
-        core.state().finish_pick(Control::SelectOutput);
-        core.refresh(window);
-        core.show(
-            window,
-            PopupKind::Error(format!("cannot open the file picker: {e}")),
-        );
+        }
     }
+}
+
+/// Cancel in the text field: nothing changes, the button is free again.
+fn path_entry_cancel(core: &Arc<Core>, window: &MainWindow) {
+    let Some(kind) = lock(&core.popups).path_entry() else {
+        return;
+    };
+    core.close_popup(window);
+    core.state().finish_pick(pick_control(kind));
+    core.refresh(window);
 }
 
 /// The Start button.

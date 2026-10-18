@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-18] Phase 6, PR 6.4 : de vrais sélecteurs de fichiers, l'icône de la fenêtre et la checklist manuelle
+
+| | |
+| --- | --- |
+| **Constat** | les sélecteurs de la fenêtre Rust étaient ceux d'essai (rfd seul) : sans portail ni zenity, sous KDE avec kdialog seulement, le bouton ne faisait rien ; la fenêtre n'avait pas d'icône |
+| **Cause** | rfd renvoie `None` pour une annulation comme pour l'absence de tout sélecteur, et ne connaît pas kdialog |
+| **Fichiers** | `rust/crates/superview-app/{src/dialogs.rs (neuf),src/app.rs,src/host.rs,src/app_tests.rs,src/window_tests.rs,ui/main.slint,build.rs}`, `docs/TESTS-MANUELS.md` (neuf), DEC-43 |
+| **PR** | feat/rust-pickers |
+| **Vérification** | tests unitaires de `dialogs.rs` (seuil 299/300 ms, ordre, arguments, code 1 = annulé, recherche dans `PATH`) et 4 scénarios de fenêtre (champ texte entrée, sortie, annulation, file de popups) ; contre-épreuve de 27 défauts réintroduits, tous rougis. Icône vérifiée sous Xvfb (`_NET_WM_ICON` 1024x1024), sans test automatique. Non vérifié : portail réel, kdialog réel, Windows réel (voir la checklist) |
+
 ### [2026-10-17] Phase 6, PR 6.2 : la vraie fenêtre Slint, sans câblage
 
 | | |

@@ -1,7 +1,7 @@
 // The application window, laid out as the Go one (`cmd/superview/gui_main.go`) and with its
 // labels word for word. Nothing is computed here: the window shows properties it is given and
 // reports clicks through callbacks, and `app.rs` owns every decision (phase 6 of DEC-43).
-import { Palette, Button, CheckBox, ComboBox, ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView } from "std-widgets.slint";
 
 // The popup that is open: one at a time, `none` when the window is free.
 export enum Popup {
@@ -14,6 +14,7 @@ export enum Popup {
     no-input,
     no-output,
     diagnostic,
+    path-entry,
 }
 
 // A modal card. `if open` at the use site builds it only while it is shown; the full-window
@@ -22,12 +23,18 @@ export enum Popup {
 // answer).
 component Modal inherits Rectangle {
     in property <string> title;
+    // False for a card that has a field of its own to focus.
+    in property <bool> take-focus: true;
 
     background: #000000a0;
     TouchArea { }
     // Takes the keyboard focus, so keys do not reach the window behind the card.
     FocusScope {
-        init => { self.focus(); }
+        init => {
+            if (root.take-focus) {
+                self.focus();
+            }
+        }
     }
     Rectangle {
         width: min(parent.width - 40px, 600px);
@@ -54,6 +61,8 @@ component ModalButtons inherits HorizontalLayout {
 
 export component MainWindow inherits Window {
     title: "Superview";
+    // The Go build's icon, read where it is: no second copy of the file (`build.rs` embeds it).
+    icon: @image-url("../../../../cmd/superview/Icon.png");
     // Fixed size: minimum and maximum are the same, so the window cannot be resized.
     min-width: 980px;
     max-width: 980px;
@@ -96,6 +105,11 @@ export component MainWindow inherits Window {
     // False when there is nothing to retry: the dialog then only offers to close.
     in property <bool> prerequisite-retry: true;
     in property <string> diagnostic-report;
+    // The text field that stands in for a file picker the system cannot open: whether it asks
+    // for the output file (else the input), what is typed, and what is wrong with it.
+    in property <bool> path-entry-output: false;
+    in-out property <string> path-entry-text;
+    in property <string> path-entry-error;
 
     // False while a popup is open: the controls behind it cannot be used, by mouse or key.
     private property <bool> free: root.popup == Popup.none;
@@ -122,6 +136,8 @@ export component MainWindow inherits Window {
     callback no-input-ok();
     callback no-output-ok();
     callback diagnostic-close();
+    callback path-entry-ok();
+    callback path-entry-cancel();
 
     VerticalLayout {
         padding: 12px;
@@ -322,6 +338,31 @@ export component MainWindow inherits Window {
         }
         ModalButtons {
             Button { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
+        }
+    }
+
+    if root.popup == Popup.path-entry: Modal {
+        title: root.path-entry-output ? "Save output video" : "Select input video";
+        take-focus: false;
+        Text {
+            text: "No file picker could be opened. Type the full path of the file:";
+            wrap: word-wrap;
+        }
+        LineEdit {
+            width: 520px;
+            text <=> root.path-entry-text;
+            accessible-label: "Path";
+            init => { self.focus(); }
+            accepted => { root.path-entry-ok(); }
+        }
+        if root.path-entry-error != "": Text {
+            text: root.path-entry-error;
+            color: #ff7070;
+            wrap: word-wrap;
+        }
+        ModalButtons {
+            Button { text: "OK"; primary: true; clicked => { root.path-entry-ok(); } }
+            Button { text: "Cancel"; clicked => { root.path-entry-cancel(); } }
         }
     }
 }
