@@ -64,6 +64,7 @@ use std::time::{Duration, Instant};
 
 use crate::config::Config;
 use crate::disk::{check_temp_space_for_maps, free_disk_gb};
+use crate::encode::args::RateControl;
 use crate::encode::args::{effective_encoder_threads, validate_bitrate};
 use crate::encode::cascade::{EncodeSummary, encode_video_with_memory};
 use crate::encode::run::{StopControl, stop_requested};
@@ -388,6 +389,11 @@ fn run(
     if bitrate == 0 {
         bitrate = stream.bitrate_int;
     }
+    // In constant quality (DEC-48) the bit rate is not sent to ffmpeg, and these two checks
+    // keep using it as the estimate of the file: the real size follows the content and
+    // can differ from it either way. Which mode applies is only known after the probe,
+    // further down, and the checks must run before the (slower) probe and the encoder
+    // selection they precede.
     validate_bitrate(bitrate, cfg.min_bitrate, cfg.max_bitrate).map_err(|e| {
         let message = format!("bitrate validation failed: {e}");
         fail(metrics, "bitrate_validation", &message, e)
@@ -420,7 +426,11 @@ fn run(
     // step back to the CPU here if it will not. Here rather than inside the encode, because
     // everything downstream is entitled to know which encoder will really run. The reason
     // for a refusal is dropped, as in Go (`encoder, _ =`); the probe logs it.
-    let (encoder, _refusal) = services.prober.verify_encoder_for_output(
+    //
+    // The same answer says how the encoder it keeps must be asked to spend bits: a VAAPI
+    // driver that knows CQP only is used in constant quality instead of being refused
+    // (DEC-48), and a CPU encoder stepped back to is asked for a bit rate again.
+    let (encoder, _refusal, rate_control) = services.prober.verify_encoder_with_rate_control(
         &encoder,
         Some(&video),
         squeeze,
@@ -428,6 +438,12 @@ fn run(
         &cfg.video_preset,
         None,
     );
+
+    if rate_control == RateControl::ConstantQuality {
+        log::info!(
+            "The driver of {encoder} only knows constant quality; the requested bit rate is not used: bitrate_bits_sec={bitrate}"
+        );
+    }
 
     let profile = analyze_machine_profile(
         c.ffmpeg,
@@ -468,6 +484,8 @@ fn run(
 
     // The probe above cannot be cancelled: a stop asked meanwhile ends the run here, before
     // the session and the maps (large frames make those expensive) rather than after them.
+    // The verification at the output size has no cancellation either: in constant quality it
+    // may ask twice, so the wait before the stop is seen can reach two probe timeouts.
     if let Some(stop) = stop_requested(c.stop) {
         let message = stop.to_string();
         return Err(fail(metrics, "stop", &message, stop));
@@ -517,6 +535,7 @@ fn run(
         Some(cfg),
         &video,
         &encoder,
+        rate_control,
         bitrate,
         &partial.path,
         c.ffmpeg,

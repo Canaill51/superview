@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::Value;
-use superview_core::encode::args::build_encode_base_args;
+use superview_core::encode::args::{RateControl, build_encode_base_args};
 use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
@@ -57,6 +57,7 @@ fn encode_args_match_the_go_oracle() {
             "x.pgm",
             "y.pgm",
             encoder,
+            RateControl::Bitrate,
             bitrate,
             audio,
             threads,

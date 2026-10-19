@@ -11,6 +11,10 @@
 //! drift (E-01); `tests/parity_probe_args.rs` pins it against Go.
 //!
 //! Deliberate differences from the Go code (exhaustive):
+//! - A VAAPI driver that answers "supported modes: CQP" is asked again in constant quality
+//!   (DEC-48) and, if that works, reported usable with [`EncoderProbe::rate_control`] set:
+//!   Go reports it unusable. The second question goes through the same
+//!   `encoder_facing_args` as every other (DEC-05).
 //! - No global. The cache of verdicts per frame size (`sizeProbeCache`) is the
 //!   [`ProbeCache`] a [`Prober`] owns, `resetSizeProbeCache` is [`ProbeCache::reset`], and
 //!   the probe's own timeout (Go's `var probeTimeout`) is a field of the [`Prober`]
@@ -43,7 +47,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::encode::args::{encoder_facing_args, pixel_format_chain};
+use crate::encode::args::{RateControl, encoder_facing_args, pixel_format_chain};
 use crate::hardware::{
     HardwarePlan, analyze_machine_profile, build_hardware_plan, describe_codec_family_switch,
     describe_planned_hardware_path, hw_device_args, is_hardware_encoder,
@@ -84,6 +88,10 @@ pub struct EncoderProbe {
     /// ffmpeg's own words; empty when the probe succeeded.
     pub reason: String,
     pub took: Duration,
+    /// The rate control the encoder was found usable with. Only ever
+    /// [`RateControl::ConstantQuality`] for a VAAPI driver that refused a bit rate and
+    /// accepted CQP (DEC-48); meaningless while `usable` is false.
+    pub rate_control: RateControl,
 }
 
 /// The verdict for every encoder that was probed. An encoder absent from `results` was
@@ -119,15 +127,35 @@ pub struct ProbeSpec {
     pub bitrate: i64,
     /// x264-style, mapped per encoder exactly as the conversion does.
     pub preset: String,
+    /// How the encoder is asked to spend bits; part of the question, so of the key.
+    pub rate_control: RateControl,
 }
 
 impl ProbeSpec {
     pub fn cache_key(&self) -> String {
         format!(
-            "{}@{}/{}/{}/{}",
-            self.encoder, self.size, self.pix_fmt, self.bitrate, self.preset
+            "{}@{}/{}/{}/{}/{}",
+            self.encoder,
+            self.size,
+            self.pix_fmt,
+            self.bitrate,
+            self.preset,
+            self.rate_control.label()
         )
     }
+}
+
+/// What a VAAPI driver says when it knows no rate control but CQP. ffmpeg's
+/// `vaapi_encode.c` prints each mode after a space and closes the list: measured on
+/// 2026-10-19, "... (supported modes: CQP)." A driver with several modes says
+/// "supported modes: CQP CBR VBR)", which must not match.
+const CQP_ONLY_MARKER: &str = "supported modes: CQP)";
+
+/// Whether this refusal is the "CQP only" one of a VAAPI driver, the only case where a
+/// second question in constant quality is worth asking (DEC-48). Not for QSV, whose
+/// failure on such machines is a missing firmware, nor for any other reason.
+fn is_cqp_only_refusal(encoder: &str, reason: &str) -> bool {
+    matches!(encoder, "h264_vaapi" | "hevc_vaapi") && reason.contains(CQP_ONLY_MARKER)
 }
 
 /// The question the startup sweep asks: a small 8-bit frame, the nominal bitrate, no
@@ -162,6 +190,7 @@ pub fn probe_args(spec: &ProbeSpec) -> Vec<String> {
     args.push(pixel_format_chain(&spec.pix_fmt, &spec.encoder));
     args.extend(encoder_facing_args(
         &spec.encoder,
+        spec.rate_control,
         spec.bitrate,
         &spec.preset,
     ));
@@ -286,8 +315,15 @@ pub fn describe_encoder_probe(report: Option<&EncoderProbeReport>) -> String {
     );
     for probe in &report.results {
         if probe.usable {
+            // The Diagnostic's reader (`report.rs`) takes this line for a pass: the mark
+            // and the colon are what it looks for, not the words after them.
+            let note = if probe.rate_control == RateControl::ConstantQuality {
+                "works, constant quality only"
+            } else {
+                "works"
+            };
             text.push_str(&format!(
-                "✅ {}: works ({})\n",
+                "✅ {}: {note} ({})\n",
                 probe.encoder,
                 format_duration(probe.took)
             ));
@@ -393,11 +429,63 @@ impl<'a> Prober<'a> {
     /// Measured: a probe that succeeds costs about 0.30 s and the size does not move it
     /// (0.29 s at 256x256, 0.33 s at 7082x3984 on h264_nvenc): it is the process start and
     /// the device handshake being paid for. A refusal comes back in 0.02 s.
+    ///
+    /// A VAAPI driver that refuses the bit rate with "supported modes: CQP" is asked a
+    /// second time, the same frame in constant quality (DEC-48); the refusal stays in the
+    /// log and the returned verdict carries the mode that worked.
     pub fn probe_encoder_at_size(
         &self,
         spec: &ProbeSpec,
         cancel: Option<&AtomicBool>,
     ) -> EncoderProbe {
+        let first = self.probe_once(spec, cancel);
+        if first.usable
+            || spec.rate_control != RateControl::Bitrate
+            || is_cancelled(cancel)
+            || !is_cqp_only_refusal(&spec.encoder, &first.reason)
+        {
+            return first;
+        }
+        log::warn!(
+            "The driver only knows constant quality; asking again in that mode: encoder={} reason={}",
+            spec.encoder,
+            first.reason
+        );
+        let second = self.probe_once(
+            &ProbeSpec {
+                rate_control: RateControl::ConstantQuality,
+                ..spec.clone()
+            },
+            cancel,
+        );
+        if second.usable {
+            return EncoderProbe {
+                took: first.took + second.took,
+                ..second
+            };
+        }
+        // A cancelled second question answered nothing: the first refusal stands alone.
+        if is_cancelled(cancel) {
+            return first;
+        }
+        // Neither mode works. Both reasons are kept: "supported modes: CQP" alone would
+        // send the user after a firmware when the constant-quality attempt failed for
+        // another reason (a frame size, a timeout).
+        log::warn!(
+            "The encoder refused constant quality too: encoder={} bitrate_reason={} constant_quality_reason={}",
+            spec.encoder,
+            first.reason,
+            second.reason
+        );
+        EncoderProbe {
+            reason: format!("{}; in constant quality: {}", first.reason, second.reason),
+            took: first.took + second.took,
+            ..first
+        }
+    }
+
+    /// One question, one process.
+    fn probe_once(&self, spec: &ProbeSpec, cancel: Option<&AtomicBool>) -> EncoderProbe {
         let started = Instant::now();
         let cmd = self.resolver.ffmpeg_command(probe_args(spec));
         let outcome = run_with_deadline(cmd, self.timeout, cancel);
@@ -408,6 +496,7 @@ impl<'a> Prober<'a> {
             usable: false,
             reason: String::new(),
             took,
+            rate_control: spec.rate_control,
         };
         let (output, run_err, timed_out) = match outcome {
             Ok(done)
@@ -520,12 +609,36 @@ impl<'a> Prober<'a> {
         video_preset: &str,
         cancel: Option<&AtomicBool>,
     ) -> (String, String) {
+        let (encoder, refusal, _) = self.verify_encoder_with_rate_control(
+            encoder,
+            video,
+            squeeze,
+            ffmpeg,
+            video_preset,
+            cancel,
+        );
+        (encoder, refusal)
+    }
+
+    /// [`Self::verify_encoder_for_output`], plus the rate control the returned encoder must
+    /// be given: [`RateControl::ConstantQuality`] only when a VAAPI driver refused a bit
+    /// rate and took a fixed quantiser (DEC-48), otherwise [`RateControl::Bitrate`] -- which
+    /// is also what a CPU encoder stepped back to gets, since x264 and x265 honour a rate.
+    pub fn verify_encoder_with_rate_control(
+        &self,
+        encoder: &str,
+        video: Option<&VideoSpecs>,
+        squeeze: bool,
+        ffmpeg: &HashMap<String, String>,
+        video_preset: &str,
+        cancel: Option<&AtomicBool>,
+    ) -> (String, String, RateControl) {
         if encoder.is_empty() || !is_hardware_encoder(encoder) {
-            return (encoder.to_string(), String::new());
+            return (encoder.to_string(), String::new(), RateControl::Bitrate);
         }
         let size = output_frame_size(video, squeeze);
         if size.is_empty() {
-            return (encoder.to_string(), String::new());
+            return (encoder.to_string(), String::new(), RateControl::Bitrate);
         }
 
         let probe = self.probe_encoder_for_size_cached(
@@ -535,11 +648,12 @@ impl<'a> Prober<'a> {
                 pix_fmt: source_pixel_format(video).to_string(),
                 bitrate: PROBE_BITRATE,
                 preset: video_preset.to_string(),
+                rate_control: RateControl::Bitrate,
             },
             cancel,
         );
         if probe.usable {
-            return (encoder.to_string(), String::new());
+            return (encoder.to_string(), String::new(), probe.rate_control);
         }
 
         let reason = format!(
@@ -555,13 +669,13 @@ impl<'a> Prober<'a> {
                 "The hardware encoder refuses this frame and there is no CPU encoder to fall back to: encoder={encoder} output_size={size} reason={}",
                 probe.reason
             );
-            return (encoder.to_string(), reason);
+            return (encoder.to_string(), reason, RateControl::Bitrate);
         }
         log::warn!(
             "The hardware encoder refuses this frame; using the CPU encoder instead: encoder={encoder} output_size={size} reason={} using={fallback}",
             probe.reason
         );
-        (fallback, reason)
+        (fallback, reason, RateControl::Bitrate)
     }
 
     /// `describe_hardware_acceleration_plan` with the hardware encoder actually asked
@@ -583,10 +697,21 @@ impl<'a> Prober<'a> {
             Err(err) => return format!("Hardware: {err}"),
         };
 
-        let (verified, refusal) =
-            self.verify_encoder_for_output(&plan.encoder, video, squeeze, ffmpeg, "", cancel);
+        let (verified, refusal, rate_control) = self.verify_encoder_with_rate_control(
+            &plan.encoder,
+            video,
+            squeeze,
+            ffmpeg,
+            "",
+            cancel,
+        );
         if refusal.is_empty() {
-            return describe_planned_hardware_path(&plan);
+            let line = describe_planned_hardware_path(&plan);
+            return if rate_control == RateControl::ConstantQuality {
+                format!("{line} (constant quality)")
+            } else {
+                line
+            };
         }
 
         // Rebuild the plan around the encoder that will really run, so the decode path
@@ -662,6 +787,7 @@ pub(crate) mod tests {
                 pix_fmt: pix_fmt.into(),
                 bitrate: PROBE_BITRATE,
                 preset: String::new(),
+                rate_control: RateControl::Bitrate,
             };
             prober.cache().insert(
                 spec.cache_key(),
@@ -670,6 +796,7 @@ pub(crate) mod tests {
                     usable,
                     reason: reason.into(),
                     took: Duration::ZERO,
+                    rate_control: RateControl::Bitrate,
                 },
             );
         }
@@ -872,9 +999,23 @@ pub(crate) mod tests {
             "libx264",
             "libx265",
         ] {
-            for preset in ["", "fast", "veryslow"] {
+            // Both modes are one question asked twice (DEC-05, DEC-48): constant quality
+            // goes through `encoder_facing_args` like the bit rate does.
+            for (rate_control, preset) in [RateControl::Bitrate, RateControl::ConstantQuality]
+                .into_iter()
+                .flat_map(|mode| ["", "fast", "veryslow"].map(move |preset| (mode, preset)))
+            {
                 let conversion = build_encode_base_args(
-                    &video, "x.pgm", "y.pgm", encoder, 8_000_000, "aac", 4, 0, preset,
+                    &video,
+                    "x.pgm",
+                    "y.pgm",
+                    encoder,
+                    rate_control,
+                    8_000_000,
+                    "aac",
+                    4,
+                    0,
+                    preset,
                 );
                 let probe = probe_args(&ProbeSpec {
                     encoder: encoder.into(),
@@ -882,6 +1023,7 @@ pub(crate) mod tests {
                     pix_fmt: source_pixel_format(Some(&video)).into(),
                     bitrate: 8_000_000,
                     preset: preset.into(),
+                    rate_control,
                 });
                 let (got, want) = (
                     joined(&strip(&probe, &probe_only)),
@@ -889,7 +1031,7 @@ pub(crate) mod tests {
                 );
                 assert_eq!(
                     got, want,
-                    "{encoder} preset={preset:?}: the probe and the conversion ask the encoder different questions"
+                    "{encoder} {rate_control:?} preset={preset:?}: the probe and the conversion ask the encoder different questions"
                 );
 
                 // And the pixel-format steps: everything after remap in the conversion
@@ -959,7 +1101,7 @@ pub(crate) mod tests {
     #[test]
     fn cache_key_tells_every_field_apart() {
         let base = sweep_spec("libx264");
-        assert_eq!(base.cache_key(), "libx264@256x256//2000000/");
+        assert_eq!(base.cache_key(), "libx264@256x256//2000000//bitrate");
         let mut keys = vec![base.cache_key()];
         for changed in [
             ProbeSpec {
@@ -980,6 +1122,10 @@ pub(crate) mod tests {
             },
             ProbeSpec {
                 preset: "slow".into(),
+                ..base.clone()
+            },
+            ProbeSpec {
+                rate_control: RateControl::ConstantQuality,
                 ..base.clone()
             },
         ] {
@@ -1793,5 +1939,329 @@ pub(crate) mod tests {
                 probe.encoder
             );
         }
+    }
+
+    // ---- constant quality (DEC-48) ----
+
+    #[cfg(unix)]
+    const CQP_ONLY: &str = "[h264_vaapi @ 0x55] Driver does not support any RC mode compatible with selected options (supported modes: CQP).";
+
+    /// An ffmpeg that records each call, takes `-rc_mode` and refuses everything else with
+    /// `refusal`, the way an Intel VAAPI driver that only knows CQP does.
+    #[cfg(unix)]
+    fn cqp_only_ffmpeg(ledger: &std::path::Path, refusal: &str) -> FakeTools {
+        fake_tools(&[(
+            "ffmpeg",
+            &format!(
+                "echo \"call $*\" >> '{}'\ncase \"$*\" in *-rc_mode\\ CQP*) exit 0;; esac\necho '{refusal}' 1>&2\nexit 1",
+                ledger.display()
+            ),
+        )])
+    }
+
+    #[cfg(unix)]
+    fn calls(ledger: &std::path::Path) -> Vec<String> {
+        std::fs::read_to_string(ledger)
+            .unwrap_or_default()
+            .lines()
+            .map(String::from)
+            .collect()
+    }
+
+    fn seed_constant_quality(prober: &Prober, encoder: &str, size: &str) {
+        let spec = ProbeSpec {
+            encoder: encoder.into(),
+            size: size.into(),
+            pix_fmt: "yuv420p10le".into(),
+            bitrate: PROBE_BITRATE,
+            ..ProbeSpec::default()
+        };
+        prober.cache().insert(
+            spec.cache_key(),
+            EncoderProbe {
+                encoder: encoder.into(),
+                usable: true,
+                rate_control: RateControl::ConstantQuality,
+                ..EncoderProbe::default()
+            },
+        );
+    }
+
+    // DEC-05 and DEC-48: the second question is the first with only the rate control
+    // changed, built by the same function.
+    #[cfg(unix)]
+    #[test]
+    fn a_cqp_only_driver_is_asked_again_in_constant_quality_and_used() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("calls");
+        let fake = cqp_only_ffmpeg(&ledger, CQP_ONLY);
+        let prober = Prober::new(&fake.resolver);
+        for (encoder, qp) in [("h264_vaapi", 23), ("hevc_vaapi", 25)] {
+            let _ = std::fs::remove_file(&ledger);
+            let probe = prober.probe_encoder(encoder, None);
+            assert!(probe.usable, "{encoder}: {}", probe.reason);
+            assert_eq!(probe.rate_control, RateControl::ConstantQuality);
+            let calls = calls(&ledger);
+            assert_eq!(calls.len(), 2, "{calls:?}");
+            assert!(calls[0].contains("-b:v"), "{calls:?}");
+            assert!(
+                calls[1].contains(&format!("-rc_mode CQP -qp {qp}")) && !calls[1].contains("-b:v"),
+                "{calls:?}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn any_other_refusal_is_not_asked_again() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("calls");
+        let fake = cqp_only_ffmpeg(&ledger, HD620_REFUSAL);
+        let probe = Prober::new(&fake.resolver).probe_encoder("h264_vaapi", None);
+        assert!(!probe.usable);
+        assert_eq!(probe.rate_control, RateControl::Bitrate);
+        assert_eq!(calls(&ledger).len(), 1, "{:?}", calls(&ledger));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_the_vaapi_family_is_asked_again() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("calls");
+        let fake = cqp_only_ffmpeg(&ledger, CQP_ONLY);
+        let prober = Prober::new(&fake.resolver);
+        for encoder in ["h264_qsv", "hevc_qsv", "h264_nvenc", "libx264"] {
+            let _ = std::fs::remove_file(&ledger);
+            let probe = prober.probe_encoder(encoder, None);
+            assert!(!probe.usable, "{encoder} must stay refused");
+            assert_eq!(calls(&ledger).len(), 1, "{encoder}: {:?}", calls(&ledger));
+        }
+    }
+
+    // The verdict of the conversion's own probe, at the output size, carries the mode.
+    #[cfg(unix)]
+    #[test]
+    fn the_conversion_probe_returns_the_mode_the_encoder_works_in() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let fake = cqp_only_ffmpeg(&dir.path().join("calls"), CQP_ONLY);
+        let prober = Prober::new(&fake.resolver);
+        let (encoder, refusal, mode) = prober.verify_encoder_with_rate_control(
+            "h264_vaapi",
+            Some(&hevc_source("yuv420p10le")),
+            false,
+            &vaapi_machine(),
+            "",
+            None,
+        );
+        assert_eq!(
+            (encoder.as_str(), refusal.as_str(), mode),
+            ("h264_vaapi", "", RateControl::ConstantQuality)
+        );
+    }
+
+    // Stepping back to the CPU leaves constant quality behind: x264 and x265 keep a rate.
+    #[test]
+    fn a_cpu_encoder_stepped_back_to_is_asked_for_a_bitrate() {
+        let resolver = no_tools();
+        let prober = Prober::new(&resolver);
+        seed(&prober, "h264_vaapi", "5120x2880", false, HD620_REFUSAL);
+        let (encoder, _, mode) = prober.verify_encoder_with_rate_control(
+            "h264_vaapi",
+            Some(&hevc_source("yuv420p10le")),
+            false,
+            &vaapi_machine(),
+            "",
+            None,
+        );
+        assert_eq!(encoder, "libx265");
+        assert_eq!(mode, RateControl::Bitrate);
+    }
+
+    #[test]
+    fn the_plan_line_says_when_the_hardware_works_in_constant_quality_only() {
+        let resolver = no_tools();
+        let prober = Prober::new(&resolver);
+        seed_constant_quality(&prober, "h264_vaapi", "5120x2880");
+        let line = prober.describe_verified_hardware_plan(
+            &vaapi_machine(),
+            Some(&hevc_source("yuv420p10le")),
+            false,
+            "",
+            None,
+        );
+        assert!(line.contains("h264_vaapi"), "{line}");
+        assert!(line.ends_with(" (constant quality)"), "{line}");
+        // And the ordinary case says nothing of it.
+        let ordinary = Prober::new(&resolver);
+        seed(&ordinary, "h264_vaapi", "5120x2880", true, "");
+        let line = ordinary.describe_verified_hardware_plan(
+            &vaapi_machine(),
+            Some(&hevc_source("yuv420p10le")),
+            false,
+            "",
+            None,
+        );
+        assert!(!line.contains("constant quality"), "{line}");
+    }
+
+    #[test]
+    fn the_diagnostic_says_constant_quality_only() {
+        let report = EncoderProbeReport {
+            results: vec![
+                EncoderProbe {
+                    encoder: "h264_vaapi".into(),
+                    usable: true,
+                    rate_control: RateControl::ConstantQuality,
+                    took: Duration::from_millis(300),
+                    ..EncoderProbe::default()
+                },
+                EncoderProbe {
+                    encoder: "libx264".into(),
+                    usable: true,
+                    took: Duration::from_millis(300),
+                    ..EncoderProbe::default()
+                },
+            ],
+            took: Duration::from_millis(600),
+        };
+        let text = describe_encoder_probe(Some(&report));
+        assert!(
+            text.contains("✅ h264_vaapi: works, constant quality only (300ms)\n"),
+            "{text}"
+        );
+        assert!(text.contains("✅ libx264: works (300ms)\n"), "{text}");
+    }
+
+    // The exact text measured on 2026-10-19; vaapi_encode.c prints each mode after a space,
+    // so a driver with several modes closes the list later.
+    #[test]
+    fn only_a_list_of_cqp_alone_is_the_cqp_only_refusal() {
+        let text = |modes: &str| {
+            format!(
+                "[h264_vaapi @ 0x55] Driver does not support any RC mode compatible with selected options (supported modes:{modes})."
+            )
+        };
+        assert!(is_cqp_only_refusal("h264_vaapi", &text(" CQP")));
+        assert!(is_cqp_only_refusal("hevc_vaapi", &text(" CQP")));
+        assert!(!is_cqp_only_refusal("h264_vaapi", &text(" CQP CBR VBR")));
+        assert!(!is_cqp_only_refusal("h264_vaapi", &text(" CBR CQP")));
+        assert!(!is_cqp_only_refusal("h264_qsv", &text(" CQP")));
+    }
+
+    /// Bit rate: the CQP-only message. Constant quality: `cqp_answer` (a shell snippet).
+    #[cfg(unix)]
+    fn cqp_then(ledger: &std::path::Path, cqp_answer: &str) -> FakeTools {
+        fake_tools(&[(
+            "ffmpeg",
+            &format!(
+                "echo \"call $*\" >> '{}'\ncase \"$*\" in *-rc_mode\\ CQP*) {cqp_answer};; esac\necho '{CQP_ONLY}' 1>&2\nexit 1",
+                ledger.display()
+            ),
+        )])
+    }
+
+    #[cfg(unix)]
+    const REFUSE_BIG_FRAME: &str = "case \"$*\" in *s=256x256*) exit 0;; esac; echo 'Hardware does not support encoding at size 5120x2880' 1>&2; exit 1";
+
+    #[cfg(unix)]
+    #[test]
+    fn a_driver_that_refuses_both_modes_is_asked_twice_and_says_both() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("calls");
+        let fake = cqp_then(
+            &ledger,
+            "echo 'Hardware does not support encoding at size' 1>&2; exit 1",
+        );
+        let probe = Prober::new(&fake.resolver).probe_encoder("h264_vaapi", None);
+        assert!(!probe.usable);
+        assert_eq!(calls(&ledger).len(), 2, "{:?}", calls(&ledger));
+        assert!(probe.reason.starts_with(CQP_ONLY), "{}", probe.reason);
+        assert!(
+            probe
+                .reason
+                .contains("in constant quality: Hardware does not support encoding"),
+            "{}",
+            probe.reason
+        );
+    }
+
+    // CQP is accepted by the sweep's small frame and refused at the real size: the window
+    // must not read "supported modes: CQP" alone, which would send the user to the firmware.
+    #[cfg(unix)]
+    #[test]
+    fn constant_quality_accepted_small_and_refused_at_the_real_size_says_so() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let fake = cqp_then(&dir.path().join("calls"), REFUSE_BIG_FRAME);
+        let prober = Prober::new(&fake.resolver);
+        assert!(prober.probe_encoder("h264_vaapi", None).usable);
+        let (encoder, refusal, mode) = prober.verify_encoder_with_rate_control(
+            "h264_vaapi",
+            Some(&hevc_source("yuv420p10le")),
+            false,
+            &vaapi_machine(),
+            "",
+            None,
+        );
+        assert_eq!((encoder.as_str(), mode), ("libx265", RateControl::Bitrate));
+        assert!(
+            refusal.contains("supported modes: CQP).")
+                && refusal.contains(
+                    "in constant quality: Hardware does not support encoding at size 5120x2880"
+                ),
+            "{refusal}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_second_probe_that_times_out_is_a_verdict_with_both_reasons() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let fake = cqp_then(&dir.path().join("calls"), "exec sleep 30");
+        let prober = Prober::new(&fake.resolver).with_timeout(Duration::from_millis(400));
+        let spec = sweep_spec("h264_vaapi");
+        let probe = prober.probe_encoder_for_size_cached(&spec, None);
+        assert!(!probe.usable);
+        assert!(probe.reason.starts_with(CQP_ONLY), "{}", probe.reason);
+        assert!(
+            probe
+                .reason
+                .contains("in constant quality: gave no answer in "),
+            "{}",
+            probe.reason
+        );
+        assert_eq!(prober.cache().get(&spec.cache_key()), Some(probe));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_second_probe_that_is_cancelled_is_not_cached() {
+        let _guard = spawn_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let fake = cqp_then(&dir.path().join("calls"), "exec sleep 30");
+        let prober = Prober::new(&fake.resolver);
+        let cancel = AtomicBool::new(false);
+        let spec = sweep_spec("h264_vaapi");
+        let probe = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(500));
+                cancel.store(true, Ordering::Release);
+            });
+            prober.probe_encoder_for_size_cached(&spec, Some(&cancel))
+        });
+        assert!(!probe.usable);
+        assert!(probe.reason.starts_with(CQP_ONLY), "{}", probe.reason);
+        assert!(
+            !probe.reason.contains("in constant quality"),
+            "a cancelled question answered nothing: {}",
+            probe.reason
+        );
+        assert!(prober.cache().is_empty());
     }
 }

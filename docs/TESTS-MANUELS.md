@@ -57,6 +57,11 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       l'utilise (`nvidia-smi` montre le processus) ; une source que NVENC refuse retombe sur le
       processeur.
 - [ ] **VAAPI** (portable Intel) : idem avec VAAPI.
+- [ ] **GPU Intel seul** (DEC-48 ; Nvidia masquée ou absente, pilote VAAPI sans firmware HuC qui
+      répond `supported modes: CQP`) : le Diagnostic dit `✅ h264_vaapi: works, constant quality
+      only` ; « Hardware: » finit par « (constant quality) » ; la conversion produit un MP4 16:9
+      lisible (`ffprobe` : codec h264, pas de débit demandé respecté, taille qui suit le contenu) ;
+      le journal garde le refus en débit et dit que le débit demandé n'est pas utilisé.
 - [ ] **Test « device frame »** : sur le portable Intel VAAPI, passer
       `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test -p superview-core --test real_ffmpeg -- device_frame`
       (`rust/crates/superview-core/tests/real_ffmpeg.rs`). Il saute en silence sans GPU : un

@@ -25,6 +25,9 @@
 //! - `map_video_preset_for_encoder` lowercases with Rust's `to_lowercase`, which applies
 //!   the final-sigma rule that Go's `strings.ToLower` does not (`"ΟΣ"`); ffmpeg refuses
 //!   such a preset either way.
+//! - [`RateControl`] is new (DEC-48): the default, [`RateControl::Bitrate`], builds the
+//!   argv the oracle pins, byte for byte; [`RateControl::ConstantQuality`] exists only for
+//!   a VAAPI driver that answers "supported modes: CQP", and Go has no equivalent.
 //! - Left out: `classifyFfmpegFailure` and `EncodeVideo` (the run, PR 6) and `FindEncoder`
 //!   (already in `hardware.rs`).
 
@@ -45,6 +48,60 @@ use crate::video::VideoSpecs;
 /// libx265 is a CPU encoder, so the hardware-to-CPU fallback never fires for it. Verified
 /// against ffmpeg 8.0.1: 16 works, 17 does not.
 pub const X265_MAX_FRAME_THREADS: i64 = 16;
+
+/// How the encoder is asked to spend bits (DEC-48).
+///
+/// [`Bitrate`](Self::Bitrate) is what every encode and probe has always asked for. Some
+/// Intel VAAPI drivers accept no rate-control mode but CQP ("Driver does not support any
+/// RC mode compatible with selected options (supported modes: CQP)"): there a bit rate is
+/// refused outright and a fixed quantiser is the only thing that works.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum RateControl {
+    /// `-b:v` with a `-maxrate` ceiling; the default, and the only mode Go knows.
+    #[default]
+    Bitrate,
+    /// `-rc_mode CQP -qp N`: a constant quality, the file size follows the content.
+    ConstantQuality,
+}
+
+impl RateControl {
+    /// A stable word for cache keys and logs.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Bitrate => "bitrate",
+            Self::ConstantQuality => "cqp",
+        }
+    }
+}
+
+/// The CQP quantiser for H.264 at the Balanced profile (preset `medium` or none).
+/// Measured on 2026-10-19 with the bundled FFmpeg on a Tiger Lake: `h264_vaapi -rc_mode CQP
+/// -qp 23` writes a valid MP4. 23 is x264's own default CRF, a visually transparent
+/// middle for a 16:9 stretch of a camera clip.
+pub const CQP_H264_BALANCED: i64 = 23;
+
+/// The CQP quantiser for HEVC at the Balanced profile. Measured on the same machine
+/// (`hevc_vaapi -qp 25`). Two above H.264's: HEVC reaches the same look at a higher
+/// quantiser, which is why x265's default CRF is 28 against x264's 23.
+pub const CQP_HEVC_BALANCED: i64 = 25;
+
+/// Added to the quantiser when the configured preset is `fast`: a coarser quality, the
+/// same direction the Fast profile takes on every other path (a smaller file sooner).
+pub const CQP_FAST_OFFSET: i64 = 2;
+
+/// The `-qp` for an encoder and the configured preset (x264-style name; "" is Balanced).
+pub fn constant_quality_qp(encoder: &str, video_preset: &str) -> i64 {
+    let base = if is_hevc_encoder(encoder) {
+        CQP_HEVC_BALANCED
+    } else {
+        CQP_H264_BALANCED
+    };
+    if video_preset.trim().eq_ignore_ascii_case("fast") {
+        base + CQP_FAST_OFFSET
+    } else {
+        base
+    }
+}
 
 /// Checks that the bitrate is within the acceptable constraints. `min_bitrate` and
 /// `max_bitrate` are in bits per second; a constraint of 0 is not applied.
@@ -169,6 +226,7 @@ pub fn build_encode_base_args(
     x_path: &str,
     y_path: &str,
     encoder: &str,
+    rate_control: RateControl,
     bitrate: i64,
     audio_codec: &str,
     encoder_threads: i64,
@@ -223,7 +281,12 @@ pub fn build_encode_base_args(
 
     // Everything the encoder itself is asked for comes from one function the probe
     // shares, so the two cannot drift apart again (E-01).
-    args.extend(encoder_facing_args(encoder, bitrate, video_preset));
+    args.extend(encoder_facing_args(
+        encoder,
+        rate_control,
+        bitrate,
+        video_preset,
+    ));
 
     // After -c:v so it applies to the encoder. Placed before -i it would have configured
     // the input decoder instead, which is not the intent.
@@ -250,9 +313,22 @@ pub fn build_encode_base_args(
 /// pass an encoder that the conversion then fails on. It used to: the probe passed none
 /// of this, and an Intel driver that only knows the CQP rate-control mode accepted the
 /// probe and refused every conversion, silently, onto the CPU (E-01).
-pub fn encoder_facing_args(encoder: &str, bitrate: i64, video_preset: &str) -> Vec<String> {
+///
+/// `rate_control` is part of the question, so it travels through here for the probe and
+/// the conversion alike (DEC-05, DEC-48).
+pub fn encoder_facing_args(
+    encoder: &str,
+    rate_control: RateControl,
+    bitrate: i64,
+    video_preset: &str,
+) -> Vec<String> {
     let mut args = vec!["-c:v".to_string(), encoder.to_string()];
-    args.extend(encoder_rate_args(bitrate));
+    args.extend(encoder_rate_args(
+        encoder,
+        rate_control,
+        bitrate,
+        video_preset,
+    ));
     let mapped_preset = map_video_preset_for_encoder(encoder, video_preset);
     if !mapped_preset.is_empty() {
         args.push("-preset".to_string());
@@ -276,7 +352,23 @@ pub fn encoder_facing_args(encoder: &str, bitrate: i64, video_preset: &str) -> V
 /// maxrate equal to the target with a buffer of twice it measured better than the usual
 /// 1.5x headroom (+24% against +29%) and keeps the resulting file size predictable, which
 /// is the point: the quality profile already builds its own headroom into the request.
-pub fn encoder_rate_args(bitrate: i64) -> Vec<String> {
+///
+/// In [`RateControl::ConstantQuality`] there is no bit rate at all: `-rc_mode CQP -qp N`,
+/// and none of `-b:v`, `-maxrate`, `-bufsize`, which the CQP-only drivers reject.
+pub fn encoder_rate_args(
+    encoder: &str,
+    rate_control: RateControl,
+    bitrate: i64,
+    video_preset: &str,
+) -> Vec<String> {
+    if rate_control == RateControl::ConstantQuality {
+        return vec![
+            "-rc_mode".to_string(),
+            "CQP".to_string(),
+            "-qp".to_string(),
+            constant_quality_qp(encoder, video_preset).to_string(),
+        ];
+    }
     vec![
         "-b:v".to_string(),
         bitrate.to_string(),
@@ -371,6 +463,7 @@ mod tests {
             "x.pgm",
             "y.pgm",
             encoder,
+            RateControl::Bitrate,
             bitrate,
             audio,
             threads,
@@ -825,13 +918,72 @@ mod tests {
     #[test]
     fn hevc_is_tagged_for_apple_players() {
         for encoder in ["libx265", "hevc_nvenc", "hevc_vaapi"] {
-            let j = joined(&encoder_facing_args(encoder, 1_000_000, ""));
+            let j = joined(&encoder_facing_args(
+                encoder,
+                RateControl::Bitrate,
+                1_000_000,
+                "",
+            ));
             assert!(j.contains("-tag:v hvc1"), "{encoder}: {j}");
         }
         for encoder in ["libx264", "h264_nvenc"] {
-            let j = joined(&encoder_facing_args(encoder, 1_000_000, ""));
+            let j = joined(&encoder_facing_args(
+                encoder,
+                RateControl::Bitrate,
+                1_000_000,
+                "",
+            ));
             assert!(!j.contains("-tag:v"), "{encoder}: {j}");
         }
+    }
+
+    // DEC-48: constant quality asks for a quantiser and for no bit rate at all.
+    #[test]
+    fn constant_quality_asks_for_a_quantiser_and_no_bitrate() {
+        for (encoder, qp) in [("h264_vaapi", "23"), ("hevc_vaapi", "25")] {
+            let args = encoder_facing_args(encoder, RateControl::ConstantQuality, 8_000_000, "");
+            let j = joined(&args);
+            assert!(
+                j.contains(&format!("-rc_mode CQP -qp {qp}")),
+                "{encoder}: {j}"
+            );
+            for flag in ["-b:v", "-maxrate", "-bufsize"] {
+                assert!(!j.contains(flag), "{encoder} must not carry {flag}: {j}");
+            }
+        }
+    }
+
+    #[test]
+    fn constant_quality_is_two_coarser_in_the_fast_profile() {
+        for (encoder, medium, fast) in [("h264_vaapi", 23, 25), ("hevc_vaapi", 25, 27)] {
+            assert_eq!(constant_quality_qp(encoder, "medium"), medium);
+            assert_eq!(constant_quality_qp(encoder, ""), medium);
+            assert_eq!(constant_quality_qp(encoder, "fast"), fast);
+            assert_eq!(constant_quality_qp(encoder, " Fast "), fast);
+            let j = joined(&encoder_facing_args(
+                encoder,
+                RateControl::ConstantQuality,
+                1,
+                "fast",
+            ));
+            assert!(j.contains(&format!("-qp {fast}")), "{encoder}: {j}");
+        }
+    }
+
+    #[test]
+    fn bitrate_mode_is_untouched_by_the_constant_quality_option() {
+        let j = joined(&encoder_facing_args(
+            "h264_vaapi",
+            RateControl::Bitrate,
+            4_000_000,
+            "fast",
+        ));
+        assert!(
+            j.contains("-b:v 4000000 -maxrate 4000000 -bufsize 8000000"),
+            "{j}"
+        );
+        assert!(!j.contains("-rc_mode") && !j.contains("-qp"), "{j}");
+        assert_eq!(RateControl::default(), RateControl::Bitrate);
     }
 
     // Go: TestBuildEncodeBaseArgs's ten-bit rule, which encodesInTenBits names.

@@ -162,6 +162,33 @@ mod tests {
         assert_eq!(rows[2].text, format!("h264_nvenc: {reason}"));
     }
 
+    // DEC-48: the line the core prints for a driver that only does constant quality is a pass,
+    // read from the core's own text so the two cannot drift apart.
+    #[test]
+    fn a_constant_quality_only_encoder_reads_as_a_pass() {
+        use std::time::Duration;
+        use superview_core::encode::args::RateControl;
+        use superview_core::probe::{EncoderProbe, EncoderProbeReport, describe_encoder_probe};
+
+        let report = EncoderProbeReport {
+            results: vec![EncoderProbe {
+                encoder: "h264_vaapi".into(),
+                usable: true,
+                rate_control: RateControl::ConstantQuality,
+                took: Duration::from_millis(300),
+                ..EncoderProbe::default()
+            }],
+            took: Duration::from_millis(300),
+        };
+        let rows = parse_report(&describe_encoder_probe(Some(&report)));
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        assert!(rows[1].ok, "{rows:?}");
+        assert_eq!(
+            rows[1].text,
+            "h264_vaapi: works, constant quality only (300ms)"
+        );
+    }
+
     #[test]
     fn what_is_not_recognised_stays_a_plain_line() {
         let rows = parse_report(

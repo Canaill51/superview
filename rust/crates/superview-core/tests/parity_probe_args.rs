@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::Value;
+use superview_core::encode::args::RateControl;
 use superview_core::probe::{PROBE_BITRATE, ProbeSpec, probe_args, sweep_spec};
 
 fn load() -> serde_json::Map<String, Value> {
@@ -56,6 +57,7 @@ fn probe_args_match_the_go_oracle() {
                     pix_fmt: pf.into(),
                     bitrate: 8_000_000,
                     preset: "slow".into(),
+                    rate_control: RateControl::Bitrate,
                 },
             );
         }
@@ -77,6 +79,7 @@ fn probe_args_match_the_go_oracle() {
             pix_fmt: "yuv420p".into(),
             bitrate: 1,
             preset: "bogus".into(),
+            rate_control: RateControl::Bitrate,
         },
     );
     add(
