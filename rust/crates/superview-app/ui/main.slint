@@ -150,7 +150,9 @@ component ModalButtons inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: "Superview";
+    // "Superview " + the build identity, set by `App::wire` (the Go window did the same).
+    in property <string> window-title: "Superview";
+    title: window-title;
     // The Go build's icon, read where it is: no second copy of the file (`build.rs` embeds it).
     icon: @image-url("../../../../cmd/superview/Icon.png");
     // Fixed size: minimum and maximum are the same, so the window cannot be resized.
