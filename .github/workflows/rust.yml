@@ -1,7 +1,7 @@
 name: Rust
 
-# Rust port in progress (DEC-43). These jobs are not required checks of the ruleset:
-# they become so at the switchover (phase 7), by a setting the user changes.
+# Rust port in progress (DEC-43). These three jobs are required checks of the `master`
+# ruleset (added 2026-10-19), next to the Go ones.
 # No path filter, like the other workflows: a required check that never starts
 # blocks the merge.
 
