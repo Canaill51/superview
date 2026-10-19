@@ -5,23 +5,36 @@
 > construit comme celui qui sera livré, avant d'annoncer la pré-version (phase 7). Cocher et
 > dater ; noter la machine. Une case non cochée n'est pas un échec : c'est une inconnue.
 
+## Passe du 2026-10-19 (AppImage de l'essai à blanc, master à 9a39121)
+
+Portable de l'utilisateur : KDE, Intel Tiger Lake UHD (VAAPI en CQP seul, HuC absent) + RTX 3050 Ti.
+Cochées : celles que l'utilisateur a passées à la main dans la fenêtre (clips 4:3 de 20 s et de 5 min).
+**Source 10 bits** et **Plusieurs pistes audio** ont été mesurées avec `superview-harness` (sortie HEVC
+`yuv420p10le` ; vidéo + deux pistes AAC), pas dans la fenêtre. L'annulation par SIGINT/SIGTERM a aussi
+été mesurée avec le banc : aucun `ffmpeg`, sortie partielle ou dossier `superview-*` ne reste.
+**Non faites, donc non cochées** : tout ce qui touche Windows (installateur, sélecteur natif, icône),
+portail lent ou sans backend, « Linux sans rien » (champ texte), VAAPI et « GPU Intel seul » dans la
+fenêtre (Diagnostic et conversion par le banc vérifiés : `h264_vaapi` et `hevc_vaapi` produisent un
+MP4 1920x1080 ; la sortie de 4 Mb/s demandés pèse ~9,8 Mb/s sur une mire, le débit n'est pas suivi),
+lecture complète du Diagnostic, lien d'installation, encodeurs AMD et QSV.
+
 Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi -i sine -t 10 -c:v libx264 -c:a aac clip.mp4`
 
 ## Conversion
 
-- [ ] **Seconde conversion** : convertir un clip, puis, sans fermer la fenêtre, en choisir un
+- [x] **Seconde conversion** : convertir un clip, puis, sans fermer la fenêtre, en choisir un
       autre et convertir encore. Le bouton Start revient, la barre repart de zéro, la
       ligne « Hardware » est celle du nouveau fichier.
-- [ ] **Annulation immédiate** : appuyer sur Cancel dès que Start est pris en compte. Aucun
+- [x] **Annulation immédiate** : appuyer sur Cancel dès que Start est pris en compte. Aucun
       processus `ffmpeg` ne reste (`pgrep ffmpeg`), aucun fichier de sortie partiel, aucun
       dossier `superview-*` dans le dossier temporaire du système.
-- [ ] **Source 10 bits** : `-pix_fmt yuv420p10le -c:v libx265` ; la conversion réussit et la
+- [x] **Source 10 bits** : `-pix_fmt yuv420p10le -c:v libx265` ; la conversion réussit et la
       sortie garde le 10 bits (`ffprobe`).
-- [ ] **Plusieurs pistes audio** : un clip avec deux pistes ; les deux sont dans la sortie.
-- [ ] **Fermeture pendant l'encodage** : croix de la fenêtre (et Quit) pendant une conversion :
+- [x] **Plusieurs pistes audio** : un clip avec deux pistes ; les deux sont dans la sortie.
+- [x] **Fermeture pendant l'encodage** : croix de la fenêtre (et Quit) pendant une conversion :
       la question « Cancel and quit » s'affiche ; Yes arrête tout sans rien laisser derrière
       (mêmes vérifications que l'annulation) ; No laisse la conversion continuer.
-- [ ] **SIGINT / SIGTERM sur la fenêtre** : lancer la conversion, puis `kill -INT <pid>` et
+- [x] **SIGINT / SIGTERM sur la fenêtre** : lancer la conversion, puis `kill -INT <pid>` et
       `kill -TERM <pid>` (deux essais) : la fenêtre se ferme, la conversion se déroule, rien ne
       reste. Le trajet signal → fin de boucle n'est pas couvert par un test de fenêtre.
 
@@ -30,10 +43,10 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 - [ ] **Windows** : « Choose input file » et « Choose output file » ouvrent la boîte native ;
       le filtre n'offre que les MP4 ; la sortie propose `output.mp4` ; un nom sans `.mp4`
       reçoit `.mp4` ; annuler ne change rien. Aucun repli n'existe sous Windows (DEC-43).
-- [ ] **Linux avec portail** (GNOME, ou KDE avec `xdg-desktop-portal-kde`) : mêmes vérifications.
+- [x] **Linux avec portail** (GNOME, ou KDE avec `xdg-desktop-portal-kde`) : mêmes vérifications.
       Annuler vite (Échap tout de suite) ouvre peut-être le sélecteur de repli : c'est le prix
       du seuil de 300 ms, noter si cela gêne.
-- [ ] **Linux sans portail, avec kdialog** (la machine KDE de l'utilisateur) : lancer avec
+- [x] **Linux sans portail, avec kdialog** (la machine KDE de l'utilisateur) : lancer avec
       `DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent` et sans `zenity` dans le `PATH` : la boîte
       de kdialog s'ouvre, avec le filtre MP4 et `output.mp4`.
 - [ ] **Portail sans backend ou lent à démarrer** : sur une session où `xdg-desktop-portal` tourne
@@ -45,7 +58,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       `ffmpeg` et `ffprobe` : le champ texte s'ouvre dans la fenêtre. Vide : « Please type the path
       of a file. » ; relatif : le message sur le chemin complet ; un chemin complet valide
       s'applique ; Cancel ne change rien et rend le bouton.
-- [ ] **Version dans la barre de titre** : « Superview » suivi de la version du tag et de la révision
+- [x] **Version dans la barre de titre** : « Superview » suivi de la version du tag et de la révision
       (« Superview 0.3.0 (abc1234) »), « Superview dev » pour une compilation locale.
 - [ ] **Icône de la fenêtre** : visible dans la barre de titre et dans la barre des tâches (Windows
       et Linux avec gestionnaire de fenêtres). Sous Xvfb sans gestionnaire, seule la propriété
@@ -53,7 +66,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Matériel
 
-- [ ] **NVENC** (carte NVIDIA, pilote au moins 570) : « Hardware: » annonce NVENC ; la conversion
+- [x] **NVENC** (carte NVIDIA, pilote au moins 570) : « Hardware: » annonce NVENC ; la conversion
       l'utilise (`nvidia-smi` montre le processus) ; une source que NVENC refuse retombe sur le
       processeur.
 - [ ] **VAAPI** (portable Intel) : idem avec VAAPI.
