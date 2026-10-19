@@ -12,11 +12,17 @@ Cochées : celles que l'utilisateur a passées à la main dans la fenêtre (clip
 **Source 10 bits** et **Plusieurs pistes audio** ont été mesurées avec `superview-harness` (sortie HEVC
 `yuv420p10le` ; vidéo + deux pistes AAC), pas dans la fenêtre. L'annulation par SIGINT/SIGTERM a aussi
 été mesurée avec le banc : aucun `ffmpeg`, sortie partielle ou dossier `superview-*` ne reste.
-**Non faites, donc non cochées** : tout ce qui touche Windows (installateur, sélecteur natif, icône),
-portail lent ou sans backend, « Linux sans rien » (champ texte), VAAPI et « GPU Intel seul » dans la
+**Non faites, donc non cochées** : portail lent ou sans backend, « Linux sans rien » (champ texte), VAAPI et « GPU Intel seul » dans la
 fenêtre (Diagnostic et conversion par le banc vérifiés : `h264_vaapi` et `hevc_vaapi` produisent un
 MP4 1920x1080 ; la sortie de 4 Mb/s demandés pèse ~9,8 Mb/s sur une mire, le débit n'est pas suivi),
 lecture complète du Diagnostic, lien d'installation, encodeurs AMD et QSV.
+
+**Windows (même jour, double démarrage du même portable, installateur de l'essai à blanc, empreinte
+SHA-256 vérifiée)** : installation (SmartScreen puis « Exécuter quand même »), lancement, titre avec la
+version, icône dans la barre de titre et la barre des tâches, sélecteur natif, Diagnostic, conversion,
+Cancel et fermeture avec la croix (aucun `ffmpeg.exe`, sortie partielle ou dossier `superview-*` ne reste),
+désinstallation : tout conforme, d'après l'utilisateur. Seul le sélecteur natif a une case propre ; la case
+**Icône de la fenêtre** reste ouverte parce que la partie Linux (KDE) n'a pas été dite vue.
 
 Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi -i sine -t 10 -c:v libx264 -c:a aac clip.mp4`
 
@@ -40,7 +46,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Sélecteurs de fichiers (PR 6.4)
 
-- [ ] **Windows** : « Choose input file » et « Choose output file » ouvrent la boîte native ;
+- [x] **Windows** : « Choose input file » et « Choose output file » ouvrent la boîte native ;
       le filtre n'offre que les MP4 ; la sortie propose `output.mp4` ; un nom sans `.mp4`
       reçoit `.mp4` ; annuler ne change rien. Aucun repli n'existe sous Windows (DEC-43).
 - [x] **Linux avec portail** (GNOME, ou KDE avec `xdg-desktop-portal-kde`) : mêmes vérifications.
