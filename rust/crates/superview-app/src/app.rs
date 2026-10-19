@@ -420,6 +420,7 @@ impl App {
     /// Connects `window` to the state and the injected services, runs the startup (ffmpeg
     /// check, probe in the background) and registers every callback.
     pub fn wire(window: &MainWindow, setup: Setup) -> Self {
+        window.set_window_title(format!("Superview {}", setup.identity).into());
         let state = AppState::new(setup.prefs, setup.prefs_path);
         let lifecycle = state.lifecycle();
         let core = Arc::new(Core {

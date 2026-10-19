@@ -446,7 +446,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 31] = [
+    let scenarios: [(&str, fn()); 32] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -488,6 +488,7 @@ pub fn run() {
             ffmpeg_missing_after_a_run_offers_no_retry,
         ),
         ("diagnostic", the_diagnostic_reports_and_restores_the_status),
+        ("title", the_title_bar_carries_the_build_identity),
         (
             "diagnostic queue",
             a_dialog_queued_behind_the_report_leaves_it_alone,
@@ -534,6 +535,13 @@ pub fn run() {
 fn window_scenarios() {
     i_slint_backend_testing::init_integration_test_with_system_time();
     run();
+}
+
+/// The Go window was titled "Superview " + the build identity; a user reporting a bug reads the
+/// version off the title bar.
+fn the_title_bar_carries_the_build_identity() {
+    let r = rig(FakeEngine::new(), FakeHost::new());
+    assert_eq!(r.window.get_window_title(), "Superview dev-test");
 }
 
 fn startup_fills_the_codec_list() {

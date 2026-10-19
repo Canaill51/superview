@@ -45,6 +45,8 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       `ffmpeg` et `ffprobe` : le champ texte s'ouvre dans la fenêtre. Vide : « Please type the path
       of a file. » ; relatif : le message sur le chemin complet ; un chemin complet valide
       s'applique ; Cancel ne change rien et rend le bouton.
+- [ ] **Version dans la barre de titre** : « Superview » suivi de la version du tag et de la révision
+      (« Superview 0.3.0 (abc1234) »), « Superview dev » pour une compilation locale.
 - [ ] **Icône de la fenêtre** : visible dans la barre de titre et dans la barre des tâches (Windows
       et Linux avec gestionnaire de fenêtres). Sous Xvfb sans gestionnaire, seule la propriété
       `_NET_WM_ICON` se mesure (1024x1024).
