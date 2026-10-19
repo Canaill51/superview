@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-19] DEC-48 : un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante (Rust)
+
+| | |
+| --- | --- |
+| **Constat** | E-01, option (b) : un Intel VAAPI sans firmware HuC (`supported modes: CQP`) était refusé par la sonde et la conversion retombait sur le processeur, alors que `-rc_mode CQP -qp N` produit un MP4 valide (mesuré le 2026-10-19) |
+| **Cause** | la sonde et la conversion ne savaient demander qu'un débit |
+| **Fichiers** | `rust/crates/superview-core/src/{encode/args.rs,encode/cascade.rs,probe.rs,pipeline.rs}`, `rust/crates/superview-core/tests/{parity_encode_args.rs,parity_probe_args.rs,cascade_logs.rs,pipeline_constant_quality.rs (neuf)}`, `rust/crates/superview-app/src/report.rs`, DEC-48, `docs/{CONTRATS,hardware-support,ANALYSE,TESTS-MANUELS}.md` |
+| **PR** | feat/rust-vaapi-constant-quality |
+| **Vérification** | oracles Go `encode_args.json` (237 cas) et `probe_args.json` verts sans régénération ; tests d'argv, de question identique (rejoué en CQP), de détection (VAAPI seulement, raison exacte), de pipeline (CQP puis repli CPU en débit), du Diagnostic ; contre-épreuve de 13 défauts réintroduits |
+
 ### [2026-10-18] Phase 6, PR 6.4 : de vrais sélecteurs de fichiers, l'icône de la fenêtre et la checklist manuelle
 
 | | |

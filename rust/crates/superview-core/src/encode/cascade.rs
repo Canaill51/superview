@@ -46,7 +46,7 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::encode::args::{
-    build_encode_base_args, effective_encoder_threads, requested_encoder_threads,
+    RateControl, build_encode_base_args, effective_encoder_threads, requested_encoder_threads,
 };
 use crate::encode::run::{StopControl, run_ffmpeg, stop_requested};
 use crate::error::{Error, InvalidVideoError, SessionError};
@@ -68,7 +68,8 @@ pub struct EncodeSummary {
 
 /// Encodes `video` into `output` with the remap maps of `session`, falling back to safer
 /// paths as described in the module header. `on_progress` receives the percentage (0 to
-/// 100). Reads the real available memory for the guard of the CPU-encoder fallback.
+/// 100). `rate_control` is how the chosen encoder must be asked to spend bits; the CPU
+/// fallback always goes back to a bit rate. Reads the real available memory for the guard of the CPU-encoder fallback.
 #[allow(
     clippy::too_many_arguments,
     reason = "a 1:1 port of the Go signature; each parameter replaces a global or a channel of the Go code"
@@ -77,6 +78,7 @@ pub fn encode_video(
     cfg: Option<&Config>,
     video: &VideoSpecs,
     encoder: &str,
+    rate_control: RateControl,
     bitrate: i64,
     output: &Path,
     ffmpeg: &HashMap<String, String>,
@@ -90,6 +92,7 @@ pub fn encode_video(
         cfg,
         video,
         encoder,
+        rate_control,
         bitrate,
         output,
         ffmpeg,
@@ -111,6 +114,7 @@ pub fn encode_video_with_memory(
     cfg: Option<&Config>,
     video: &VideoSpecs,
     encoder: &str,
+    rate_control: RateControl,
     bitrate: i64,
     output: &Path,
     ffmpeg: &HashMap<String, String>,
@@ -150,6 +154,7 @@ pub fn encode_video_with_memory(
             &x_path,
             &y_path,
             encoder,
+            rate_control,
             bitrate,
             audio_codec,
             encoder_threads,
@@ -251,6 +256,8 @@ pub fn encode_video_with_memory(
                 Some(cfg),
                 video,
                 &fallback_encoder,
+                // x264 and x265 honour a bit rate whatever the GPU driver could not (DEC-48).
+                RateControl::Bitrate,
                 bitrate,
                 output,
                 ffmpeg,
@@ -473,11 +480,38 @@ mod tests {
         resolver: &ToolResolver,
         available: &dyn Fn() -> Option<u64>,
     ) -> Result<EncodeSummary, Error> {
+        encode_at(
+            RateControl::Bitrate,
+            video,
+            encoder,
+            machine,
+            cfg,
+            session,
+            resolver,
+            available,
+        )
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "`encode` plus the mode under test"
+    )]
+    fn encode_at(
+        rate_control: RateControl,
+        video: &VideoSpecs,
+        encoder: &str,
+        machine: &HashMap<String, String>,
+        cfg: &Config,
+        session: &EncodingSession,
+        resolver: &ToolResolver,
+        available: &dyn Fn() -> Option<u64>,
+    ) -> Result<EncodeSummary, Error> {
         let (cancel, signal) = stop_flags();
         encode_video_with_memory(
             Some(cfg),
             video,
             encoder,
+            rate_control,
             2_000_000,
             &session.dir().join("output.mp4"),
             machine,
@@ -647,6 +681,7 @@ mod tests {
                     Some(&cfg),
                     &video,
                     &encoder,
+                    RateControl::Bitrate,
                     2_000_000,
                     &session.dir().join("output.mp4"),
                     &machine,
@@ -774,6 +809,52 @@ mod tests {
         );
         assert!(
             !has(&calls[2], "-hwaccel") && has(&calls[2], "-c:v libx264"),
+            "{}",
+            calls[2]
+        );
+    }
+
+    // DEC-48: a driver that only knows CQP is asked for a quantiser on every pass that uses
+    // it, and the CPU encoder that replaces it is asked for a bit rate again.
+    #[cfg(unix)]
+    #[test]
+    fn constant_quality_follows_the_hardware_encoder_and_stops_at_the_cpu_one() {
+        let _guard = spawn_lock();
+        let fake = scripted(&[("-c:v h264_vaapi", act::REFUSE)], act::OK);
+        let summary = encode_at(
+            RateControl::ConstantQuality,
+            &h264_video(),
+            "h264_vaapi",
+            &vaapi_machine(),
+            &safe_config(),
+            &bare_session(),
+            &fake.tools.resolver,
+            &plenty,
+        )
+        .unwrap();
+        assert!(
+            summary.hardware_acceleration.contains("libx264"),
+            "{summary:?}"
+        );
+        let calls = fake.calls();
+        assert_eq!(calls.len(), 3, "{calls:?}");
+        for call in &calls[..2] {
+            assert!(
+                has(call, "-c:v h264_vaapi") && has(call, "-rc_mode CQP") && has(call, "-qp 23"),
+                "{call}"
+            );
+            assert!(
+                !has(call, "-b:v"),
+                "no bit rate in constant quality: {call}"
+            );
+        }
+        assert!(
+            has(&calls[2], "-c:v libx264") && has(&calls[2], "-b:v 2000000"),
+            "{}",
+            calls[2]
+        );
+        assert!(
+            !has(&calls[2], "-rc_mode") && !has(&calls[2], "-qp"),
             "{}",
             calls[2]
         );
@@ -974,6 +1055,7 @@ mod tests {
             Some(&safe_performance_config()),
             &h264_video(),
             "libx264",
+            RateControl::Bitrate,
             2_000_000,
             &session.dir().join("output.mp4"),
             &cpu_machine("libx264"),
@@ -1172,6 +1254,7 @@ mod tests {
             Some(&safe_performance_config()),
             &h264_video(),
             "h264_nvenc",
+            RateControl::Bitrate,
             2_000_000,
             &session.dir().join("output.mp4"),
             &nvenc_machine(),
@@ -1252,6 +1335,7 @@ mod tests {
                 Some(&safe_performance_config()),
                 &h264_video(),
                 "h264_nvenc",
+                RateControl::Bitrate,
                 2_000_000,
                 &session.dir().join("output.mp4"),
                 &nvenc_machine(),
@@ -1288,6 +1372,7 @@ mod tests {
                 None,
                 &h264_video(),
                 "h264_nvenc",
+                RateControl::Bitrate,
                 2_000_000,
                 &session.dir().join("output.mp4"),
                 &nvenc_machine(),
@@ -1653,6 +1738,7 @@ mod tests {
             }),
             &video,
             "libx264",
+            RateControl::Bitrate,
             1_000_000,
             &output,
             &ffmpeg,
@@ -1726,6 +1812,7 @@ mod tests {
             Some(&cfg),
             &video,
             "libx264",
+            RateControl::Bitrate,
             1_000_000,
             &output,
             &ffmpeg,

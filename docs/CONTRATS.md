@@ -210,6 +210,7 @@ encodeur refusé.
 | Le plancher pilote NVENC est fixé à la compilation par les `nv-codec-headers` | Deux binaires « FFmpeg 8.1.2 » peuvent exiger 570 et 610. Le numéro de version ne dit rien de la compatibilité. Table mesurée : [hardware-support.md](hardware-support.md). |
 | Le SDK 13.1 exige un pilote ≥ 610 et retire Maxwell/Pascal/Volta | La branche pilote RTX Enterprise plafonne à 597.06 : un tel build ne peut jamais utiliser NVENC sur une carte professionnelle. |
 | La sonde complète coûte ~0,95 s sur 10 encodeurs (243 ms pour un NVENC qui répond, ~35 ms pour un refus) | Elle tient dans une goroutine de démarrage ; elle n'a rien à faire sur le fil UI. |
+| Un pilote Intel VAAPI sans firmware HuC répond `Driver does not support any RC mode compatible with selected options (supported modes: CQP).` (chaque mode est précédé d'une espace : un pilote à plusieurs modes écrit `supported modes: CQP CBR VBR)`, ce qui ne déclenche pas la seconde question) à tout `-b:v`. Mesuré le 2026-10-19 (FFmpeg embarqué, Tiger Lake, `/dev/dri/renderD128`) : `-rc_mode CQP -qp 23` (`h264_vaapi`) et `-qp 25` (`hevc_vaapi`), avec `-vf format=nv12,hwupload`, produisent un MP4 valide | Le port Rust (DEC-48) utilise ce pilote en qualité constante : mode porté par `RateControl`, sonde et conversion identiques. Go le refuse toujours. QSV n'est pas concerné : son échec est le firmware. |
 
 Les sondes s'exécutent **en série**. Les encodeurs matériels ont un nombre limité de sessions
 simultanées, et deux sondes en parallèle sur le même GPU peuvent faire échouer un encodeur qui

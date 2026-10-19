@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 use log::{Log, Metadata, Record};
 use superview_core::config::Config;
+use superview_core::encode::args::RateControl;
 use superview_core::encode::cascade::encode_video_with_memory;
 use superview_core::encode::run::StopControl;
 use superview_core::error::Error;
@@ -105,6 +106,7 @@ fn run(action: &str, cancel_on_progress: bool) -> (Result<(), Error>, String) {
         }),
         &video(),
         "h264_nvenc",
+        RateControl::Bitrate,
         2_000_000,
         &session.dir().join("output.mp4"),
         &machine,
