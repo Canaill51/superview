@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Les tests inline des gros modules vivent dans `tests.rs` (F-01, session 1)
+
+| | |
+| --- | --- |
+| **Constat** | `state.rs` (2 387 lignes), `probe.rs`, `pipeline.rs`, `cascade.rs`… : les blocs `mod tests` faisaient de 60 à 97 % du fichier, lire le code coûtait la lecture des tests |
+| **Cause** | tout était né en ligne, sans seuil de taille |
+| **Fichiers** | 24 modules de `superview-core/src` et `superview-app/src` : le corps de `mod tests { … }` est devenu `<module>/tests.rs`, le fichier garde `#[cfg(test)] mod tests;` ; aucun code hors tests touché |
+| **PR** | Move the inline tests of the large modules into tests.rs files |
+| **Vérification** | `cargo test --workspace` : 443 (core) + 137 (app) avant et après, mêmes binaires d'intégration, zéro `ignored` de plus ; texte déplacé identique au blanc et à la virgule finale près (comparaison par empreinte) ; `scripts/check.sh` vert. Pas de contre-preuve rouge : refactor mécanique, le critère est l'égalité du compte |
+
 ### [2026-10-20] Retrait de Go (phase 8, DEC-49)
 
 | | |
