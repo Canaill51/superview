@@ -1,5 +1,5 @@
 //! Finding and invoking ffmpeg/ffprobe, and reading what the binary says about
-//! itself. Mirrors `internal/common/tools.go`.
+//! itself. Mirrors Go's `internal/common/tools.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! The search order is the contract (CONTRATS.md): `SUPERVIEW_FFMPEG_DIR`, the
 //! copy bundled next to the executable or under `../lib/superview`, `PATH`,

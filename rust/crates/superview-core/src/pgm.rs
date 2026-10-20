@@ -1,8 +1,8 @@
 //! The remap maps: output geometry, the distortion formula, and the PGM writer.
 //!
-//! Port of `internal/common/pgm.go`. Pinned byte for byte by the parity oracle
+//! Port of Go's `internal/common/pgm.go` (removed in phase 8; last release with it: v0.2.9). Pinned byte for byte by the parity oracle
 //! `tests/fixtures/parity/pgm.json` and the four golden fingerprints of
-//! `pgm_golden_test.go`.
+//! `pgm_golden_test.go` (Go, removed; now `tests/pgm_golden.rs`).
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};

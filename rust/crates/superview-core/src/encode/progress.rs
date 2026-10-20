@@ -1,5 +1,5 @@
 //! One line of ffmpeg's `-progress` output. Port of the read loop of `EncodeVideo` in
-//! `internal/common/encode.go` (the `out_time_ms=` branch).
+//! Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9) (the `out_time_ms=` branch).
 //!
 //! Deliberate differences from the Go code (exhaustive):
 //! - The line is a `&str`; Go reads bytes, and a line that is not UTF-8 never reaches here.

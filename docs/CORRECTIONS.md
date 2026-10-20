@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Retrait de Go (phase 8, DEC-49)
+
+| | |
+| --- | --- |
+| **Constat** | depuis RC-0.3.0 le produit est le binaire Rust + Slint ; le code Go, ses CI et sa prose ne servaient plus qu'à tromper un lecteur (`go build`, `internal/common/`, Fyne) |
+| **Cause** | le portage (DEC-43) devait finir par le retrait de Go, après un dernier GO |
+| **Fichiers** | #136 (gardes Go portés en Rust, job *Rust coverage and audit*), #137 (code Go et jobs CI Go supprimés, icône sous `rust/crates/superview-app/ui/`), 8.3 : `AGENTS.md`, `docs/{ARCHITECTURE,CONTRATS,ENVIRONNEMENT,SUITE,PIEGES,DECISIONS}.md`, README, RELEASING, THIRD_PARTY_NOTICES |
+| **PR** | #136, #137, docs/phase8-prose |
+| **Vérification** | `scripts/check.sh` vert ; balayage `grep -rnE "go (build|test|vet)|gofmt|golangci|[Ff]yne|internal/common|cmd/superview"` : seules des mentions historiques explicites restent ; les journaux (`CORRECTIONS.md`, `LECONS.md`, `ANALYSE.md`, `archives/`) sont inchangés. Dernière version Go : v0.2.9 |
+
 ### [2026-10-20] Le Diagnostic ne montre plus les lignes `libva info:` à la place de l'erreur (Rust)
 
 **Constaté** — Essai de `RC-0.3.0` sur un portable Tiger Lake : le refus de `h264_qsv` s'affichait « libva info: VA-API version 1.23.0; libva info: Trying to open …; libva info: Found init function … », la vraie erreur coupée par la limite de trois lignes de `summarize_probe_failure`.

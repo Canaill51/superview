@@ -1,5 +1,5 @@
 //! The per-conversion temporary directory and the remap maps it holds. Port of
-//! `internal/common/session.go`.
+//! Go's `internal/common/session.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! Deliberate differences from the Go code:
 //! - The session is a value the caller owns, not a package global behind a mutex. The Go

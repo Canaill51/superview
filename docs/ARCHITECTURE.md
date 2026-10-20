@@ -5,65 +5,96 @@
 
 ## But du projet
 Convertir une vidéo MP4 en 4:3 vers du 16:9 par distorsion dynamique : les bords sont étirés, le
-centre garde son ratio. Une interface graphique (Go + Fyne, Windows et Linux, **pas de CLI**) qui
+centre garde son ratio. Une interface graphique (Rust + Slint, Windows et Linux, **pas de CLI**) qui
 génère deux cartes de remappage PGM et les confie au filtre `remap` de FFmpeg. MP4 en entrée, MP4 en
-sortie : contrainte produit, pas un oubli.
+sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + Fyne jusqu'à la v0.2.9
+(dernière version Go, toujours dans l'historique) ; Go a été retiré après la RC-0.3.0 (DEC-49).
 
 ## Vue d'ensemble
-- **`cmd/superview/`** — l'interface : fenêtre, sélecteurs de fichiers, état (`appState`), boîtes de
-  dialogue natives (zenity/kdialog, PowerShell). L'encodage tourne dans une goroutine ; tout widget
-  touché depuis elle passe par `fyne.Do`.
-- **`internal/common/`** — toute la logique, sans dépendance à Fyne. Un fichier par responsabilité :
+Un workspace Cargo sous `rust/`, trois crates :
 
+- **`superview-core`** — toute la logique, sans interface. Un module par responsabilité (voir le tableau).
+- **`superview-app`** — la fenêtre Slint. Seul le fil de l'interface touche un widget ; les autres
+  fils passent par `upgrade_in_event_loop`. La logique de la fenêtre (`AppState`, `ViewModel`) ne
+  contient aucun type Slint, donc se teste sans écran.
+- **`superview-harness`** — banc d'essai jamais livré, pas une CLI (DEC-44) : `convert` et `probe`
+  (sortie JSON) et SIGINT/SIGTERM, pour les tests qui lancent une vraie conversion dans un processus
+  séparé.
+
+### `superview-core`
+| Module | Rôle |
+|--------|------|
+| `error` | erreurs typées (`InvalidVideoError`, `EncoderError`, `SessionError`) et variantes `Cancelled`, `StoppedBySignal`, `FailedAfterOutput` que lit la cascade |
+| `config`, `security` | YAML par `serde-saphyr` ; validation des chemins et des noms d'encodeur |
+| `video` | lecture et validation d'ffprobe (`check_video`, `parse_video_specs`) |
+| `pgm` | géométrie de sortie, formule de distorsion, écriture des cartes PGM (`powi(2)`, jamais `powf`) |
+| `tools`, `process` | recherche d'ffmpeg/ffprobe par un `ToolResolver` à environnement injecté ; commandes sans fenêtre, `killed_by_signal`, `run_with_deadline` (un processus borné par un délai ou une annulation) |
+| `hardware` | choix de l'encodeur et du chemin matériel : fonctions pures, cœurs et profil injectés |
+| `probe` | sonde d'un encodeur sur une vraie trame (délai, annulation), cache d'un `Prober` durable |
+| `encode::args` | l'argv ffmpeg d'un encodage : chaîne de filtres, préréglages, fils, débits en bits/s, `RateControl` (DEC-48) |
+| `encode::run` | un passage ffmpeg : progression, annulation, signal, pas de zombie |
+| `encode::cascade` | `encode_video`, la cascade de repli à trois niveaux |
+| `encode::failure`, `encode::progress` | classement d'un échec (mort par signal = mémoire) ; lecture de `out_time_ms=` |
+| `pipeline` | `perform_encoding` : validations, fichier de travail, métriques ; le trait `PipelineUi` et les services sont injectés |
+| `session` | `EncodingSession` : dossier temporaire isolé, supprimé au `Drop` |
+| `output`, `disk`, `memory` | sortie ≠ entrée et fichier partiel, espace libre (`fs4`), garde-fou mémoire (lecture injectée) |
+| `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal plafonné à 5 Mio |
+
+### `superview-app`
 | Fichier | Rôle |
 |---------|------|
-| `pipeline.go` | `PerformEncoding` : validations, fichier de travail, métriques |
-| `encode.go` | un passage ffmpeg : arguments, chaîne de filtres, cascade de repli |
-| `pgm.go` | géométrie de sortie, formule de distorsion, écriture des cartes PGM |
-| `session.go` | dossier temporaire isolé par conversion (`InitEncodingSession` / `CleanUp`) |
-| `video.go`, `tools.go` | lecture et validation d'ffprobe ; recherche d'ffmpeg/ffprobe et de leurs capacités |
-| `hardware.go`, `probe.go` | classement des encodeurs, accélération matérielle, sonde d'une trame réelle |
-| `memory.go` | garde-fou mémoire, chiffré par pixel de sortie et par fil |
-| `security.go`, `errors.go` | validation des chemins ; erreurs typées (`InvalidVideoError`, `EncoderError`, `SessionError`) |
-| `config.go`, `health.go`, `metrics.go`, `observability.go` | configuration, bouton Diagnostic, métriques, journal |
+| `ui/main.slint` | la fenêtre (980×470), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
+| `state.rs`, `format.rs`, `report.rs`, `prefs.rs` | `AppState` + `ViewModel` ; textes et règles pures ; le rapport du Diagnostic lu ligne à ligne (aucun texte perdu) ; préférences JSON (DEC-46) |
+| `app.rs` | la colle : callbacks, fils de travail, popups en file ; tout widget touché par `upgrade_in_event_loop` |
+| `engine.rs`, `host.rs` | ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; le bureau derrière `Host` (navigateur sans shell, fin de la boucle) |
+| `dialogs.rs` | sélecteurs de fichiers : rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis un champ texte (horloge et outils injectés) |
+| `journal.rs`, `signals.rs`, `main.rs` | journal plafonné ; SIGINT/SIGTERM (`signal-hook` sous Unix, `ctrlc` sous Windows) ; démarrage |
+| `repo_guards.rs` | tests sur des fichiers que le compilateur ne lit pas (ancre du README, fichiers de workflow) |
+| `app_tests.rs`, `window_tests.rs` | scénarios de fenêtre avec une conversion simulée ; rendu sans écran (`i-slint-backend-testing`) |
+| `build.rs` | version (`SUPERVIEW_VERSION`), marqueur de build, icône du `.exe`, `DT_RPATH` de l'AppImage |
 
 ## Arborescence
 | Dossier | Rôle |
 |---------|------|
-| `cmd/superview/` | point d'entrée GUI, `FyneApp.toml`, `Icon.png` (lus par `fyne package` en local ; la release ne l'utilise plus, DEC-47) |
-| `internal/common/` | la logique ; `testdata/ffprobe/` = sorties ffprobe enregistrées |
-| `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/go.sh` |
-| `.github/` | CI, release, `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
-| `rust/` | **port en cours (DEC-43)** : workspace Cargo `superview-core` (logique : `error`, `video`, `pgm`, `config`, `security`, `tools` = recherche d'ffmpeg/ffprobe par un `ToolResolver` à environnement injecté, `process` = commandes sans fenêtre et `killed_by_signal`, `hardware` = choix de l'encodeur et du chemin matériel (fonctions pures, `find_encoder` compris ; cœurs et profil injectés) ; `encode::args` = l'argv ffmpeg d'un encodage (`build_encode_base_args`, chaîne de filtres, préréglages, fils, débits en bits/s ; cœurs injectés) ; `encode::failure` = classement d'un échec ffmpeg (mort par signal = mémoire), `encode::progress` = lecture de `out_time_ms=` ; `encode::run` = un passage ffmpeg (progression, annulation, signal, sans zombie) ; `encode::cascade` = `encode_video`, la cascade de repli à trois niveaux ; `logfile` = journal plafonné, `metrics` = tailles, durées et temps restant, `output` = sortie = entrée, fichier partiel, espace de sortie, `video::check_video` = ffprobe, et `pipeline` = `perform_encoding`, la conversion de bout en bout (phase 4 terminée) ; `error` porte aussi les trois raisons d'arrêt (`Cancelled`, `StoppedBySignal`, `FailedAfterOutput`) ; `session` = dossier temporaire possédé dont le `Drop` fait le ménage, `memory` = garde-fou mémoire (lecture injectée), `disk` = espace libre (`fs4`) et garde des cartes, `probe` = sonde d'un encodeur sur une vraie trame (délai, annulation, cache d'un `Prober`), `health` = Diagnostic (ffmpeg, ffprobe, disque, encodeurs), `process::run_with_deadline` = un processus borné par un délai ou une annulation ; YAML par `serde-saphyr`), `superview-harness` (banc d'essai jamais livré, DEC-44), `superview-app` (la fenêtre Slint : `ui/main.slint`, `state.rs` = `AppState` + `ViewModel`, la logique de la fenêtre sans type Slint, `format.rs` = textes et règles pures, `report.rs` = le rapport du Diagnostic lu ligne à ligne (verdict de chaque contrôle, pour dessiner l'icône ; aucun texte perdu), `prefs.rs` = préférences JSON, `app.rs` = la colle : callbacks, fils de travail, popups en file, tout widget touché par `upgrade_in_event_loop` ; `engine.rs` = ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; `host.rs` = le bureau derrière `Host` (navigateur sans shell, fin de la boucle, sélecteurs qui passent par `dialogs.rs`) ; `dialogs.rs` = les sélecteurs de fichiers : rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis un champ texte dans la fenêtre (horloge et outils injectés) ; `journal.rs` = le journal plafonné ; `signals.rs` = SIGINT/SIGTERM ; `main.rs` = démarrage ; les tests de fenêtre simulent la conversion : `app_tests.rs`). Go reste la référence |
-| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` (AppImage) : DEC-41 |
+| `rust/` | le workspace Cargo ci-dessus ; `rust-toolchain.toml` épingle la version |
+| `rust/crates/superview-core/tests/fixtures/` | fixtures de parité (`parity/*.json`, `ffprobe/`) : enregistrées sur le code Go, **gelées**, ce sont la spécification que le Rust doit reproduire |
+| `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/rust.sh` |
+| `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
+| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
+| `superview.yaml` | configuration livrée |
 
 ## Flux de données
 ```
-Démarrage : CheckFfmpeg → ProbeHardwareSupport → ApplyEncoderProbe
-Fichier   : CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo → CleanUp → MP4
+Démarrage : check_ffmpeg → probe_hardware_support → apply_encoder_probe
+Fichier   : check_video → EncodingSession::new → generate_pgm → encode_video → fermeture de la session → MP4
 ```
-Les cartes PGM vont dans le dossier de session ; ffmpeg lit l'entrée, applique `remap`, encode.
-Repli à trois niveaux (décodage matériel → CPU, encodeur matériel → CPU, copie audio → AAC). L'annulation ne laisse rien : ni
-processus ffmpeg, ni sortie partielle, ni dossier temporaire.
+Les cartes PGM vont dans le dossier de session ; ffmpeg lit l'entrée, applique `remap`, encode dans un
+fichier de travail renommé au succès. Repli à trois niveaux (décodage matériel → CPU, encodeur matériel →
+CPU, copie audio → AAC). L'annulation ne laisse rien : ni processus ffmpeg, ni sortie partielle, ni
+dossier temporaire.
 
 ## Dépendances externes
 | Service / lib | Pourquoi | Doc locale |
 |---------------|----------|------------|
-| Fyne v2 (2.8) | interface graphique (cgo : en-têtes GL/X11/Wayland requis) | `docs/ENVIRONNEMENT.md` |
 | FFmpeg / ffprobe | l'encodage ; livré dans l'installateur et l'AppImage, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
-| `fyne.io/tools` | `fyne package` : n'est plus utilisé par la release depuis DEC-47 (qui livre le binaire Rust, version tirée du tag par `SUPERVIEW_VERSION`) | `RELEASING.md` |
-| Rust (rustup, `rust/rust-toolchain.toml`), Slint | le port en cours ; Slint (rendu logiciel, backend winit) et rfd (portail xdg, sans GTK) pour la fenêtre d'essai (phase 3b) | `docs/ENVIRONNEMENT.md`, DEC-43 |
+| Slint 1.18 (rendu logiciel, backend winit) | la fenêtre ; sans OpenGL ni Qt. winit charge `libxkbcommon-x11` à l'exécution (embarquée dans l'AppImage) | `docs/ENVIRONNEMENT.md`, DEC-43, DEC-47 |
+| rfd (portail xdg, sans GTK) | sélecteurs de fichiers ; charge `libdbus` à l'exécution | DEC-43 |
+| `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
+| `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
+| Rust (rustup, `rust/rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov` et `cargo audit` pour le contrôle de couverture | `docs/ENVIRONNEMENT.md` |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)
-- Configuration passée explicitement (`CheckFfmpeg(cfg)`, …) : pas de global de configuration.
+- Configuration passée explicitement (`check_ffmpeg(cfg, resolver)`, …) : pas de global ; horloge,
+  environnement et mémoire sont injectés.
 - Débits en **bits par seconde**, partout.
-- `exec.Command` avec arguments, jamais une chaîne shell ; chemins des sélecteurs = non fiables.
-- Cartes PGM : `pgm_golden_test.go` fige la géométrie octet par octet.
+- `Command` avec arguments, jamais une chaîne shell ; chemins des sélecteurs = non fiables.
+- Cartes PGM : `tests/pgm_golden.rs` fige la géométrie octet par octet.
+- L'annulation ne laisse rien derrière elle.
 - Toute PR passe par la CI ; les notes de version viennent des PR fusionnées.
 
 ## Où lire quoi
-[CONTRATS.md](CONTRATS.md) (faits mesurés, à lire avant d'éditer un `.go`) · [DECISIONS.md](DECISIONS.md)
+[CONTRATS.md](CONTRATS.md) (faits mesurés, à lire avant d'éditer un fichier Rust) · [DECISIONS.md](DECISIONS.md)
 (ce qui ressemble à un défaut) · [PIEGES.md](PIEGES.md) (index des leçons) ·
 [CORRECTIONS.md](CORRECTIONS.md) (historique des corrections) · [SUITE.md](SUITE.md) (où on en est).

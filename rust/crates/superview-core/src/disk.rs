@@ -1,6 +1,6 @@
 //! Free space of the temporary filesystem, and the check that the remap maps fit in it.
 //! Port of `health_disk_unix.go`, `health_disk_windows.go` and `checkTempSpaceForMaps`
-//! (`pgm.go`).
+//! (`pgm.go`), all in Go's `internal/common/` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! The system call comes from the `fs4` crate. `rustix` alone would give a safe `statvfs`
 //! on Unix, but Windows has no safe equivalent short of calling `GetDiskFreeSpaceExW`

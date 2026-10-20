@@ -1,5 +1,6 @@
 # Superview Configuration File
-# All values can be overridden with environment variables prefixed with SUPERVIEW_
+# Superview reads this file and the built-in defaults, nothing else: no SUPERVIEW_* variable
+# overrides a value here (SUPERVIEW_FFMPEG_DIR, which names the ffmpeg folder, is not a setting).
 
 # Bitrate constraints in BITS per second, the unit ffprobe reports and ffmpeg's
 # -b:v expects. The values below have always been bits; only the wording was

@@ -1,4 +1,4 @@
-//! One whole conversion: `PerformEncoding` in `internal/common/pipeline.go` (and the
+//! One whole conversion: `PerformEncoding` in Go's `internal/common/pipeline.go` (removed in phase 8; last release with it: v0.2.9) (and the
 //! `UIHandler` / `ProgressDetailHandler` interfaces at the top of that file).
 //!
 //! The order of the steps is Go's, and it is the contract: the cheap refusals come first, so

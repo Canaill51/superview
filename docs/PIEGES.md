@@ -10,16 +10,19 @@
 > Ce fichier n'est volontairement **pas** importé dans `CLAUDE.md` : 114 lignes à chaque
 > session pour un index qu'on consulte par mot-clé (DEC-40).
 
+> Les lignes marquées *(historique, Go retiré)* parlent de Go, de Fyne ou de leurs outils (DEC-49) : la leçon est gardée
+> pour l'histoire et ne s'applique plus telle quelle ; son principe a souvent un équivalent Rust (ex. L-50 : voir L-60).
+
 | Date | Leçon | Règle |
 |------|-------|-------|
 | 2026-09-04 | L-01 | Aucune modification n'est validée sans toolchain |
-| 2026-09-04 | L-02 | La CI de qualité ne couvre pas le paquet `main` |
+| 2026-09-04 | L-02 | La CI de qualité ne couvre pas le paquet `main` *(historique, Go retiré)* |
 | 2026-09-04 | L-03 | L'ordre des arguments FFmpeg change leur sens |
 | 2026-09-04 | L-04 | La documentation du dépôt n'est pas une source fiable |
 | 2026-09-04 | L-05 | Vérifier qu'un symbole est vivant avant de le corriger |
-| 2026-09-04 | L-06 | Toute mise à jour d'UI depuis une goroutine passe par `fyne.Do` |
-| 2026-09-04 | L-07 | Ne pas écrire le profil de couverture à la racine |
-| 2026-09-04 | L-08 | `strings.Split("", sep)` retourne `[""]`, pas une tranche vide |
+| 2026-09-04 | L-06 | Toute mise à jour d'UI depuis une goroutine passe par `fyne.Do` *(historique, Go retiré)* |
+| 2026-09-04 | L-07 | Ne pas écrire le profil de couverture à la racine *(exemple Go, principe actif)* |
+| 2026-09-04 | L-08 | `strings.Split("", sep)` retourne `[""]`, pas une tranche vide *(historique, Go retiré)* |
 | 2026-09-04 | L-09 | Les mathématiques de `GeneratePGM` ont une source de vérité externe |
 | 2026-09-04 | L-10 | Lire le code d'une bibliothèque, pas la forme canonique du standard |
 | 2026-09-04 | L-11 | Exécuter l'outil plutôt que présumer son état |
@@ -29,12 +32,12 @@
 | 2026-09-04 | L-15 | Traiter le cas d'erreur générique avant le cas particulier |
 | 2026-09-04 | L-16 | Aucun chemin relatif dans une application graphique |
 | 2026-09-04 | L-17 | Prouver l'équivalence d'un parsing sur une entrée réelle |
-| 2026-09-04 | L-18 | Un canal ne se ferme qu'à un seul endroit |
+| 2026-09-04 | L-18 | Un canal ne se ferme qu'à un seul endroit *(historique, Go retiré)* |
 | 2026-09-04 | L-19 | Une validation qui rejette du légitime coûte sans rien acheter |
 | 2026-09-04 | L-20 | Dans une fenêtre à taille fixe, ajouter un widget est un changement de mise en page |
 | 2026-09-04 | L-21 | Un test qui contredit une décision produit se réécrit, ne se contourne pas |
 | 2026-09-04 | L-22 | Ne pas introduire d'API en prévision d'un usage futur |
-| 2026-09-04 | L-23 | Un test de concurrence se conçoit pour échouer sous `-race` |
+| 2026-09-04 | L-23 | Un test de concurrence se conçoit pour échouer sous `-race` *(historique, Go retiré)* |
 | 2026-09-04 | L-24 | Supprimer du code mort testé fait baisser la couverture |
 | 2026-09-04 | L-25 | Mesurer sur le mauvais échantillon mène à la conclusion inverse |
 | 2026-09-04 | L-26 | Demander le domaine métier avant de calibrer une sévérité |
@@ -61,7 +64,7 @@
 | 2026-09-04 | L-47 | Une convention non écrite n'est pas une convention |
 | 2026-09-04 | L-48 | Une empreinte fige des octets ; elle ne dit rien des propriétés |
 | 2026-09-04 | L-49 | Une contre-épreuve peut être fausse par contamination de l'environnement |
-| 2026-09-04 | L-50 | Un `t.Skip` est une plateforme entière qui ne teste rien |
+| 2026-09-04 | L-50 | Un `t.Skip` est une plateforme entière qui ne teste rien *(exemple Go, principe actif)* |
 | 2026-09-04 | L-51 | Un renommage « partout » se vérifie par `grep`, pas par relecture |
 | 2026-09-04 | L-52 | Quand l'intention est mesurable, la mesurer bat toute relecture |
 | 2026-09-05 | L-53 | Un script enfermé dans un YAML s'extrait pour être essayé |
@@ -81,7 +84,7 @@
 | 2026-09-06 | L-67 | Une catégorisation qui n'attrape pas tout supprime le reste |
 | 2026-09-06 | L-68 | `gh` vise le dépôt parent quand on travaille dans un fork |
 | 2026-09-06 | L-69 | Mesurer le conteneur ne mesure pas ce qu'il contient |
-| 2026-09-06 | L-70 | Un test de mise en page s'écrit sur le rendu, pas sur l'arbre de widgets |
+| 2026-09-06 | L-70 | Un test de mise en page s'écrit sur le rendu, pas sur l'arbre de widgets *(historique, Go retiré)* |
 | 2026-09-06 | L-71 | Une liste de capacités décrit le binaire, pas la machine |
 | 2026-09-06 | L-72 | Un numéro de version n'est pas un contrat de compatibilité |
 | 2026-09-06 | L-73 | Une sonde mal formée accuse ce qu'elle mesure |
@@ -110,7 +113,7 @@
 | 2026-09-11 | L-96 | Un garde-fou que la CI seule applique n'en est pas un |
 | 2026-09-11 | L-97 | Une règle qu'il faut se rappeler au moment de cliquer finit par être mal appliquée |
 | 2026-09-11 | L-98 | Un document ne compile pas : ce qu'il compte vieillit sans rien casser |
-| 2026-10-14 | L-99 | Un motif de version n'est pas une version : `1.26.x` veut dire « ce qui est déjà là » |
+| 2026-10-14 | L-99 | Un motif de version n'est pas une version : `1.26.x` veut dire « ce qui est déjà là » *(historique, Go retiré)* |
 | 2026-10-14 | L-100 | Un réglage du dépôt ne vaut pas pour ce que fait le jeton d'un workflow |
 | 2026-10-14 | L-101 | Une sentinelle créée pour distinguer deux causes doit être relue partout où la première est testée |
 | 2026-10-14 | L-102 | Un bouton qui fait la même chose qu'un geste du système doit passer par le même chemin |

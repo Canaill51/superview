@@ -1,5 +1,5 @@
 //! Runtime probing of the encoders ffmpeg claims to have. Port of
-//! `internal/common/probe.go` and, from `hardware.go`, `outputFrameSize`,
+//! Go's `internal/common/probe.go` (removed in phase 8; last release with it: v0.2.9) and, from `hardware.go`, `outputFrameSize`,
 //! `probeEncoderForSizeCached`, `verifyEncoderForOutput` and
 //! `DescribeVerifiedHardwarePlan`.
 //!

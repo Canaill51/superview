@@ -1,6 +1,6 @@
 //! What ffprobe says about the input, and its validation.
 //!
-//! Port of `internal/common/video.go` (`VideoSpecs`, `parseFrameRate`,
+//! Port of Go's `internal/common/video.go` (removed in phase 8; last release with it: v0.2.9) (`VideoSpecs`, `parseFrameRate`,
 //! `Validate`, `parseVideoSpecs`, `CheckVideo`). Verdicts are pinned by the parity oracle
 //! `tests/fixtures/parity/specs.json`.
 //!

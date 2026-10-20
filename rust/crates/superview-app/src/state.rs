@@ -1,7 +1,7 @@
 //! The state of the window, with no dependency on Slint: what the user has chosen, whether a
 //! conversion runs, and the view of all that (`ViewModel`) that the window copies into its
-//! properties. Port of Go's `appState` (`cmd/superview/gui_main.go`), method for method; the
-//! Go test that guards each transition is named beside its Rust test.
+//! properties. Port of Go's `appState` (`cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9)), method for method; the
+//! Go test that guarded each transition is named beside its Rust test.
 //!
 //! What differs from Go, on purpose:
 //!

@@ -1,7 +1,9 @@
 //! Reproduces the frozen parity fixtures (`tests/fixtures/parity/*.json`) field by field.
 //! The JSON files were generated once by the Go tests `TestParity_PGM` and
 //! `TestParity_Specs` (`parity_test.go`, removed with Go in phase 8); they are now plain
-//! regression fixtures, no longer regenerated.
+//! regression fixtures, no longer regenerated. The `// Go: TestXxx` comments in the test
+//! files name Go tests that no longer exist; they stay as the port's genealogy (history up to
+//! v0.2.9).
 
 mod common;
 

@@ -33,7 +33,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | ID | Décision | Statut |
 | --- | --- | --- |
 | [DEC-01](#dec-01) | MP4 en entrée, MP4 en sortie, rien d'autre | Acceptée |
-| [DEC-02](#dec-02) | Application graphique seulement, Windows et Linux, Go + Fyne | Acceptée |
+| [DEC-02](#dec-02) | Application graphique seulement, Windows et Linux, Go + Fyne | Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49*) |
 | [DEC-03](#dec-03) | La configuration se passe en paramètre, jamais par un global | Acceptée |
 | [DEC-04](#dec-04) | L'archive embarque un FFmpeg épinglé sur son plancher pilote NVENC, préféré à celui du système | Acceptée |
 | [DEC-05](#dec-05) | Les capacités matérielles se mesurent par une sonde d'exécution, en série, puis à la taille réelle | Acceptée |
@@ -49,37 +49,38 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-15](#dec-15) | L'encodage écrit dans un fichier de travail renommé en place ; l'entrée ne peut pas être la sortie | Acceptée |
 | [DEC-16](#dec-16) | L'annulation et l'arrêt système sont deux erreurs typées distinctes | Acceptée |
 | [DEC-17](#dec-17) | Le garde-fou mémoire est chiffré au banc et ne chiffre pas les encodeurs matériels | Remplacée par DEC-37 |
-| [DEC-18](#dec-18) | Le journal va dans un fichier plafonné sous le cache utilisateur ; la progression y est en `debug` | Acceptée |
+| [DEC-18](#dec-18) | Le journal va dans un fichier plafonné sous le cache utilisateur ; la progression y est en `debug` | Acceptée, amendée par DEC-49 |
 | [DEC-19](#dec-19) | Les liens symboliques sont résolus puis validés, pas rejetés | Acceptée |
 | [DEC-20](#dec-20) | Une option sans effet se retire ; une fonctionnalité inatteignable s'expose | Acceptée |
-| [DEC-21](#dec-21) | staticcheck est cadré sur `SA*` + `S1*` ; aucun second linter | Acceptée |
-| [DEC-22](#dec-22) | La version vient du tag, jamais d'un fichier commité | Acceptée |
-| [DEC-23](#dec-23) | `main()` reste long ; l'état est dans `appState` | Acceptée |
+| [DEC-21](#dec-21) | staticcheck est cadré sur `SA*` + `S1*` ; aucun second linter | Remplacée par DEC-49 |
+| [DEC-22](#dec-22) | La version vient du tag, jamais d'un fichier commité | Acceptée, amendée par DEC-47 et DEC-49 |
+| [DEC-23](#dec-23) | `main()` reste long ; l'état est dans `appState` | Remplacée par DEC-49 |
 | [DEC-24](#dec-24) | Toute modification passe par une PR fusionnée sur label `merge` ; le workflow choisit la méthode | Acceptée |
 | [DEC-25](#dec-25) | La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné | Acceptée (partie `Makefile` : *Remplacée* par DEC-41) |
 | [DEC-26](#dec-26) | Journaux internes en français, tout ce qu'un tiers lit en anglais ; README en deux langues à parité | Acceptée |
-| [DEC-27](#dec-27) | La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier | Acceptée |
+| [DEC-27](#dec-27) | La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier | Acceptée, amendée par DEC-47 et DEC-49 |
 | [DEC-28](#dec-28) | Tout test est prouvé par contre-épreuve | Acceptée |
 | [DEC-29](#dec-29) | Les fichiers temporaires vivent dans un répertoire de session isolé sous `os.TempDir()` | Acceptée |
 | [DEC-30](#dec-30) | `-threads` = `NumCPU()` plafonné à 16 pour `libx265`, jamais émis pour un encodeur matériel | Acceptée |
 | [DEC-31](#dec-31) | Pas de `-re` : l'encodage n'est pas bridé au temps réel | Acceptée |
 | [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée |
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README | Acceptée |
-| [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée |
+| [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée, amendée par DEC-43 (6.4) et DEC-49 |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
-| [DEC-36](#dec-36) | `internal/common/` est découpé par responsabilité ; aucun fichier fourre-tout | Acceptée |
+| [DEC-36](#dec-36) | `internal/common/` est découpé par responsabilité ; aucun fichier fourre-tout | Remplacée par DEC-49 (le principe vaut pour les modules Rust) |
 | [DEC-37](#dec-37) | Le garde-fou mémoire chiffre au nombre de fils réellement passé à ffmpeg : +4 % par fil au-delà de 4 | Acceptée |
 | [DEC-38](#dec-38) | La télémétrie GoPro (piste `gpmd`) n'est pas conservée | Acceptée |
-| [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Acceptée |
+| [DEC-39](#dec-39) | Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/` | Remplacée par DEC-49 |
 | [DEC-40](#dec-40) | Les docs suivent le gabarit par passerelles ; les journaux sont allégés, pas convertis | Acceptée |
 | [DEC-41](#dec-41) | La release livre un installateur Windows et une AppImage Linux, pas des archives | Acceptée |
 | [DEC-42](#dec-42) | Un agent peut déclencher la release, sur demande explicite, par `/publier` | Acceptée |
-| [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée, GO donné le 2026-10-15 |
-| [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée |
+| [DEC-43](#dec-43) | Portage vers Rust + Slint : Go reste la référence, `rust/` cohabite jusqu'à la parité | Acceptée, GO le 2026-10-15 ; port terminé le 2026-10-20 (DEC-49) |
+| [DEC-44](#dec-44) | `superview-harness` est un banc d'essai jamais livré, pas une CLI | Acceptée, amendée par DEC-49 |
 | [DEC-45](#dec-45) | Sous Windows, la recherche d'ffmpeg/ffprobe sur `PATH` refuse `.bat` et `.cmd` (Rust) | Acceptée |
 | [DEC-46](#dec-46) | Interface Rust : préférences neuves, aucune reprise des choix Fyne | Acceptée |
 | [DEC-47](#dec-47) | La release livre le binaire Rust ; AppImage sans `LD_LIBRARY_PATH` (DT_RPATH) | Acceptée |
 | [DEC-48](#dec-48) | Un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante, automatiquement (Rust seulement) | Acceptée |
+| [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée |
 
 ---
 
@@ -94,12 +95,13 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 
 ### DEC-02
 **Application graphique seulement, Windows et Linux, Go + Fyne.**
-origine du dépôt · Acceptée
+origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49*)
 
 **Contexte** — Le destinataire est un utilisateur de caméra d'action qui double-clique ; la CLI a été retirée.
 **Décision** — Un seul binaire, Fyne, pas de mode ligne de commande, pas de macOS (aucun runner, aucun signataire).
 **Conséquences** — Toute vérification de la GUI exige les en-têtes GL/X11/Wayland ([ENVIRONNEMENT.md](ENVIRONNEMENT.md)). La CLI n'est pas « à remettre ».
 **À rouvrir si** — Un besoin de traitement par lots apparaît ; il se traiterait par un bouton « dossier », pas par une CLI.
+**Amendée par [DEC-49](#dec-49)** : la partie « Go + Fyne » est *Remplacée* ; l'application est en Rust + Slint (DEC-43), toujours graphique seulement, sans CLI, sans macOS. Les en-têtes GL/X11/Wayland de la Conséquence ne sont plus nécessaires (`ENVIRONNEMENT.md`).
 
 ### DEC-03
 **La configuration se passe en paramètre, jamais par un global.**
@@ -221,9 +223,10 @@ origine du dépôt · Acceptée
 
 ### DEC-18
 **Le journal va dans un fichier plafonné sous le cache utilisateur ; la progression y est en `debug`.**
-2026-09-04 / 2026-09-08 · Acceptée · O-02, U-12, L-90
+2026-09-04 / 2026-09-08 · Acceptée, amendée par DEC-49 · O-02, U-12, L-90
 
 **Décision** — `~/.cache/superview/superview.log`, tronqué au-delà de 5 Mio à l'ouverture ; les événements de progression tirent plusieurs fois par seconde et restent en `debug`. Le chemin est affiché dans le dialogue *Diagnostic*.
+**Amendée par [DEC-49](#dec-49)** : le Rust (`logfile.rs`, `journal.rs`) tient la même règle (même chemin, plafond 5 Mio, progression en `debug`) ; seule l'implémentation a changé (crate `log` à la place de `slog`).
 
 ### DEC-19
 **Les liens symboliques sont résolus puis validés, pas rejetés.**
@@ -241,20 +244,21 @@ origine du dépôt · Acceptée
 
 ### DEC-21
 **staticcheck est cadré sur `SA*` + `S1*` ; aucun second linter.**
-2026-09-04 · Acceptée · X-04, L-09, L-12, L-62
+2026-09-04 · Remplacée par [DEC-49](#dec-49) · X-04, L-09, L-12, L-62
 
 **Décision** — `.golangci.yml` est le seul endroit qui décide. Un job `staticcheck` séparé a appliqué ce que la config désactive ; il a été retiré.
 
 ### DEC-22
 **La version vient du tag, jamais d'un fichier commité.**
-2026-09-05 · Acceptée · R-05, L-65
+2026-09-05 · Acceptée, amendée par DEC-47 et DEC-49 · R-05, L-65
 
 **Décision** — `FyneApp.toml` n'a pas de `Version` ; `fyne package --app-version` la prend du tag. Un `go build` dit `dev`, avec la révision VCS si elle existe.
 **Amendée par [DEC-47](#dec-47)** : pour le binaire Rust, la version vient de la variable d'environnement `SUPERVIEW_VERSION` lue par `build.rs` (tirée du tag par `prepare`), `dev` si elle est absente.
+**Amendée par [DEC-49](#dec-49)** : `FyneApp.toml` n'existe plus ; seule la voie `SUPERVIEW_VERSION` reste. Le principe — jamais de numéro dans un fichier commité — tient.
 
 ### DEC-23
 **`main()` reste long ; l'état est dans `appState`.**
-2026-09-04 · Acceptée · P-10, L-45
+2026-09-04 · Remplacée par [DEC-49](#dec-49) · P-10, L-45
 
 **Décision** — Le défaut était l'état inatteignable, pas la longueur. Les transitions sont des méthodes testées à 100 % ; la construction des widgets ne gagne rien à être découpée.
 
@@ -278,10 +282,11 @@ origine du dépôt · Acceptée
 
 ### DEC-27
 **La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier.**
-2026-09-04 / 2026-09-11 · Acceptée · T-02, M-01, L-50, L-60, L-96
+2026-09-04 / 2026-09-11 · Acceptée, amendée par DEC-47 et DEC-49 · T-02, M-01, L-50, L-60, L-96
 
 **Décision** — Sans la variable, quinze tests sautent en silence, dont tout ce qui encode. `make test` et la CI la posent. Le seuil mesure `./...`, pas `./internal/common`.
 **Amendée par [DEC-47](#dec-47)** : le job `test` de la release exécute la suite Rust avec la variable et un seuil de 50 % de lignes (`cargo llvm-cov`) ; `-race` n'a pas d'équivalent.
+**Amendée par [DEC-49](#dec-49)** : seule la partie Rust vit. `SUPERVIEW_REQUIRE_FFMPEG=1` est posée par `scripts/checks/rust.sh`, `make test` et la CI ; le seuil de 50 % de lignes est contrôlé à **chaque PR** par le job *Rust coverage and audit* (et plus seulement à la release).
 
 ### DEC-28
 **Tout test est prouvé par contre-épreuve.**
@@ -323,11 +328,12 @@ origine du dépôt · Acceptée
 
 ### DEC-34
 **Les dialogues de fichiers sont natifs d'abord, Fyne en repli.**
-origine · Acceptée · B-03 (invalidé)
+origine · Acceptée, amendée par DEC-43 (6.4) et DEC-49 · B-03 (invalidé)
 
 **Décision** — zenity puis kdialog sous Linux, PowerShell/WinForms sous Windows ; le dialogue Fyne si rien n'est disponible. ~~Les codes de sortie 1 et 255 valent « annulé », pas « erreur ».~~
 **Amendée 2026-10-14 (E-20)** — Seul le code 1 vaut « annulé ». 255 est le −1 de zenity, « unexpected error » (zenity(1), *EXIT CODES*) : le prendre pour une annulation empêchait le repli Fyne, qui existe pour ce cas, de s'ouvrir. Le sélecteur tourne dans une goroutine et livre son résultat par `fyne.Do`.
 **À rouvrir si** — Fyne livre un dialogue natif portable (suivi : `fyne.io/fyne/v2/dialog`).
+**Amendée par [DEC-43](#dec-43) (phase 6.4) puis [DEC-49](#dec-49)** : en Rust, rfd (portail xdg sous Linux, sélecteur natif sous Windows) passe d'abord ; sous Linux, si rfd rend « rien » en moins de 300 ms, `zenity` puis `kdialog` (code de sortie 1 = annulé, tout autre = échec) ; enfin un champ texte dans la fenêtre remplace le dialogue Fyne. PowerShell/WinForms n'existe plus : sous Windows, rfd natif seul. La condition « à rouvrir » est sans objet.
 
 ### DEC-35
 **La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict.**
@@ -340,7 +346,7 @@ origine · Acceptée · B-03 (invalidé)
 
 ### DEC-36
 **`internal/common/` est découpé par responsabilité ; aucun fichier fourre-tout.**
-2026-10-14 · Acceptée · 13ᵉ passe, à la demande de l'utilisateur (« optimise la structure »)
+2026-10-14 · Remplacée par [DEC-49](#dec-49) · 13ᵉ passe, à la demande de l'utilisateur (« optimise la structure »)
 
 **Contexte** — `common.go` avait 2 023 lignes et portait huit responsabilités : erreurs, outils,
 session, lecture ffprobe, cartes PGM, garde-fou mémoire, un passage ffmpeg, orchestration.
@@ -379,7 +385,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-39
 **Le code suit l'arborescence du gabarit : `cmd/superview/` et `internal/common/`.**
-2026-10-14 · Acceptée · à la demande de l'utilisateur (alignement sur `claude-gabarit`)
+2026-10-14 · Remplacée par [DEC-49](#dec-49) · à la demande de l'utilisateur (alignement sur `claude-gabarit`)
 
 **Contexte** — Le gabarit range le point d'entrée dans `cmd/<binaire>/` et la logique dans `internal/`. Superview avait `main` à la racine et `common/` exporté, donc importable par n'importe quel module alors qu'aucune autre interface n'existe.
 **Décision** — Déplacements purs (`git mv`) : `common/` → `internal/common/` (le **nom de paquet `common` ne change pas**, donc `common.CleanUp`, etc. restent vrais partout), et les fichiers `gui_*.go`, `readme_link_test.go`, `FyneApp.toml`, `Icon.png` → `cmd/superview/`. `fyne package` lit `FyneApp.toml` et `Icon.png` dans son dossier de travail et y écrit l'archive (vérifié dans le source de `fyne.io/tools` v1.7.2, `package.go`) : `release.yml` l'exécute donc dans `cmd/superview` puis ramène l'archive à la racine, ce qui laisse les étapes suivantes intactes. Le dossier s'appelle `superview` et non `app` : l'exécutable intermédiaire de `fyne package` prend le nom du module.
@@ -416,7 +422,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-43
 **Superview est porté vers Rust + Slint ; la version Go reste la référence et continue d'être livrée jusqu'à la parité ; `rust/` cohabite avec le code Go.**
-2026-10-14 · Acceptée, GO donné le 2026-10-15 · à la demande de l'utilisateur
+2026-10-14 · Acceptée, GO donné le 2026-10-15, port terminé le 2026-10-20 · à la demande de l'utilisateur
 
 **Contexte** — Le code Go pèse 7 200 lignes de code et 11 100 de tests, et l'utilisateur le trouve difficile à maintenir. Les paquets de release (DEC-41) sont en place. FFmpeg et ffprobe ne changent pas : mêmes binaires embarqués, mêmes pins, mêmes arguments (DEC-04, plancher NVENC).
 **Décision** — Un workspace Cargo sous `rust/` (edition 2024) : `superview-core` (logique, sans GUI), `superview-harness` (banc d'essai, DEC-44) et `superview-app` (Slint, licence GPLv3 compatible avec celle de Superview). Une PR par étape, `scripts/check.sh` vert sur Go **et** Rust tant qu'ils cohabitent, `scripts/checks/rust.sh` en est la moitié Rust. Un oracle de parité (`testdata/parity/*.json`, écrit côté Go) fixe ce que Rust doit reproduire. La phase 3 est un essai (cartes PGM aux empreintes dorées sur les deux OS, fenêtre Slint, AppImage d'essai) suivi d'une porte GO/NO-GO.
@@ -436,16 +442,19 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 **Phase 6, icônes du Diagnostic (2026-10-18)** — L'utilisateur voulait retrouver de vraies icônes. Le rapport s'affiche par défaut en **liste de lignes** : `report.rs` (pur, testé) lit le texte du cœur, emoji compris, et en tire des lignes typées (titre, contrôle avec verdict, valeur, statut global, simple, vide) ; une ligne inconnue reste une ligne simple, et un test recompose le rapport à l'identique pour garantir qu'aucun texte n'est perdu. `main.slint` dessine l'icône (disque vert à coche, disque rouge à croix, `accessible-label` « OK » / « Failed ») : aucun emoji, aucune police. Slint n'a pas d'API presse-papiers : le bouton « Show as text » bascule vers le `TextEdit` en lecture seule (`[OK]` / `[FAIL]`, Ctrl+C), « Show as list » revient. Piège de mise en page, vu sous Xvfb : une ligne faite de layouts (`HorizontalLayout` + `Text` qui passe à la ligne) annonce la hauteur d'une seule ligne, et le `ScrollView` s'arrêtait quelques lignes avant la fin du rapport (« Log file » inatteignable) ; un `ListView` fait pire (lignes qui se chevauchent, hauteurs supposées uniformes). `ReportLine` place donc ses éléments à la main et prend la `preferred-height` du `Text` à la largeur donnée. `plain_marks` s'applique au rapport entier (y compris « Superview build » et « Log file »), pas au seul bloc du cœur : plus simple, et ces deux lignes ne contiennent jamais d'emoji (un chemin de journal avec ✅ serait le seul cas). Le rapport est reposé dans la fenêtre seulement s'il a changé : un dialogue mis en file derrière lui ne reconstruit pas la liste. La liste ne défile pas au clavier (molette et ascenseur). Le texte du cœur ne change toujours pas.
 
+**Port terminé (2026-10-20)** — Phase 7 faite (RC-0.3.0 livre le binaire Rust, DEC-47) et phase 8 : Go est retiré (DEC-49, #136 et #137), la prose suit en 8.3. Les DEC liées à Go/Fyne annoncées ci-dessus (21, 23, 36, 39, partie « Go + Fyne » de DEC-02) sont *Remplacées* ; 18, 22, 27, 34 et 44 sont amendées. Les fixtures de parité (`testdata/parity/*.json`) ont été déplacées sous `rust/crates/superview-core/tests/fixtures/` et sont gelées ; le « croisement Go↔Rust » (phase 5) a disparu avec Go. Les en-têtes de modules Rust qui disent « écart voulu avec Go » restent des faits historiques sur le code retiré.
+
 **À rouvrir si** — Une PR de la phase 4 rend la parité impossible à tenir (oracle ou empreintes divergents), ou si les PR restent jugées illisibles.
 
 ### DEC-44
 **`superview-harness` est un banc d'essai, jamais livré ; ce n'est pas une CLI et DEC-02 tient.**
-2026-10-14 · Acceptée · conséquence de DEC-43
+2026-10-14 · Acceptée, amendée par DEC-49 · conséquence de DEC-43
 
 **Contexte** — Les tests croisés Go↔Rust et les tests FFmpeg réels ont besoin d'un exécutable sans fenêtre (`convert`, `probe`, sortie JSON). DEC-02 interdit un mode ligne de commande pour l'utilisateur.
 **Décision** — Le binaire `superview-harness` (`publish = false`) n'est ni empaqueté ni mentionné dans les README, ni installé par l'installateur ou l'AppImage. Il sert aux tests et à la comparaison avec Go, rien d'autre.
 **Conséquences** — Le produit reste une application graphique seule. Aucun argument de `superview-harness` n'est un contrat public.
 **À rouvrir si** — Le harnais est référencé dans un README ou un paquet : c'est alors une CLI, et DEC-02 doit être rouverte explicitement.
+**Amendée par [DEC-49](#dec-49)** : il ne sert plus à comparer avec Go (le croisement et le job `cross-check` ont disparu). Il reste un banc d'essai pour les tests qui lancent une vraie conversion dans un processus séparé : sortie JSON de `convert` et `probe`, et les tests de signal (SIGINT/SIGTERM, Unix) qui vérifient aussi qu'aucun dossier temporaire ne reste. Rien d'autre n'a changé : jamais livré, jamais documenté pour l'utilisateur.
 
 ### DEC-45
 **Le cœur Rust cherche ffmpeg et ffprobe sur `PATH` parmi les seuls `.com` et `.exe` ; Go, lui, accepte aussi `.bat` et `.cmd`.**
@@ -486,3 +495,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **À rouvrir si** — Un pilote CQP-only donne des fichiers aberrants (trop lourds, ou d'une qualité visiblement trop basse) avec ces QP ; ou si un réglage « qualité constante » explicite que l'utilisateur choisit devient demandé.
 
 **Amendement du 2026-10-20** — Le résumé d'un refus (`summarize_probe_failure`) ignore les lignes `libva info:` (trois lignes d'information que libva imprime avant toute session VAAPI ou QSV) : elles remplissaient les trois lignes gardées et chassaient la vraie erreur (RC-0.3.0 : un refus QSV s'affichait « libva info: … ; libva info: … ; libva info: Found init function »). Une ligne `libva error:` reste, c'est une cause. Écart voulu avec Go, qui les garde. Le marqueur du pilote CQP seul survit ainsi à ce bruit placé devant lui.
+
+### DEC-49
+**Go est retiré du dépôt ; le Rust (Slint) est la seule base de code.**
+2026-10-20 · Acceptée · phase 8 du port, #136 et #137 · remplace DEC-21, DEC-23, DEC-36, DEC-39 et la partie « Go + Fyne » de DEC-02
+
+**Contexte** — Depuis RC-0.3.0 (2026-10-20, DEC-47) la release livre le binaire Rust ; Go ne servait plus qu'à la CI, aux oracles de parité et de référence. Deux chaînes d'outils coûtaient chaque commit (le pre-commit exigeait Go **et** cargo) et la prose décrivait un produit qui n'était plus celui livré. Le plan DEC-43 prévoyait ce retrait comme dernière phase.
+**Décision** — (1) Le code Go (`cmd/superview/`, `internal/common/`, `go.mod`, `.golangci.yml`, `FyneApp.toml`) et ses jobs CI sont supprimés (#137), après que #136 a porté en Rust ce qu'ils protégeaient : les gardes de géométrie des cartes PGM, la source portrait refusée avant tout, l'annulation avant démarrage, l'ancre `#download-and-install` du README et l'interdiction d'un `| head` qui coupe la sortie d'un outil dans les workflows (`superview-app/src/repo_guards.rs`, L-115). (2) Les fixtures de parité (`parity/*.json`, `ffprobe/`) sont **gelées** sous `rust/crates/superview-core/tests/fixtures/` : enregistrées sur Go, elles sont désormais la spécification, on ne les régénère pas. (3) Le contrôle de couverture (50 % de lignes, `cargo llvm-cov`) et l'audit (`cargo audit`) tournent à **chaque PR** dans le job *Rust coverage and audit* de `rust.yml`, avec les versions épinglées de la release. (4) Les checks requis du ruleset de `master` sont les checks Rust (*Rust on ubuntu-latest*, *Rust on windows-latest*, *Rust coverage and audit*) et *README parity (EN/FR)* ; plus aucun check Go n'y figure (ruleset modifié avant la fusion de #137 et vérifié le 2026-10-20 par `gh api repos/Canaill51/superview/rulesets/22935151`). (5) La dernière version Go, **v0.2.9**, reste publiée et dans l'historique git. (6) La prose est réécrite pour Rust seul (`AGENTS.md`, `ARCHITECTURE.md`, `CONTRATS.md`, `ENVIRONNEMENT.md`, READMEs, `RELEASING.md`) ; les journaux (`CORRECTIONS.md`, `LECONS.md`, `ANALYSE.md`, `archives/`) et le texte des DEC antérieures ne sont pas réécrits : ils décrivent l'état d'avant.
+**Conséquences** — Un seul `scripts/check.sh` (format, clippy, tests Rust). Les noms de fonctions Go cités dans les DEC et les journaux (`GeneratePGM`, `PerformEncoding`…) sont ceux du code retiré ; leur équivalent Rust est en `snake_case` (même nom) dans `superview-core`. Les « écarts voulus avec Go » écrits dans les en-têtes de modules Rust deviennent de l'histoire : on n'« aligne » plus rien sur Go. `go.sum`, `govulncheck` et `golangci-lint` n'existent plus ; `cargo audit` les remplace pour les dépendances. Pour relire le comportement Go : `git show v0.2.9:<chemin>`.
+**À rouvrir si** — Jamais vers une seconde chaîne d'outils dans le même dépôt ; si une régression exige de comparer au Go, on ouvre le tag `v0.2.9` dans un répertoire jetable, pas le dépôt courant.

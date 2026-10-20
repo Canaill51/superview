@@ -1,4 +1,4 @@
-//! Path and encoder validation, mirroring `internal/common/security.go`.
+//! Path and encoder validation, mirroring Go's `internal/common/security.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! Paths from the file pickers are untrusted until they pass here. Verdicts
 //! and message texts follow Go's; the I/O causes inside a message come from

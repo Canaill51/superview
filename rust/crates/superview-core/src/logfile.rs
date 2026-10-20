@@ -1,5 +1,5 @@
 //! The application log file: where it lives, how it is capped, and the level it logs at.
-//! Port of `OpenLogFile`, `cappedLogWriter` and `ParseLogLevel` (`observability.go`).
+//! Port of `OpenLogFile`, `cappedLogWriter` and `ParseLogLevel` (Go's `observability.go` (removed in phase 8; last release with it: v0.2.9)).
 //!
 //! Deliberate differences from the Go code:
 //! - The user cache directory is a parameter of [`open_log_file`] (Go calls

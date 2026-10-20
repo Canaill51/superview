@@ -1,4 +1,4 @@
-# Workspace of the Rust port (DEC-43). Go stays the reference until parity.
+# Workspace of the Rust port (DEC-43). Go was the reference until parity; it was removed in phase 8 (last release with it: v0.2.9).
 [workspace]
 resolver = "3"
 members = ["crates/*"]

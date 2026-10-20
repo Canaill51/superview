@@ -1,14 +1,24 @@
 # Où on en est
-- État (2026-10-20) : **pré-release `RC-0.3.0` publiée** (première version qui livre le binaire Rust, DEC-47 ; commit
-  `db7b47b`, installateur Windows + AppImage + `checksums.txt`, sommes vérifiées, marqueur `version=0.3.0`). Dernière
-  version stable : **v0.2.9** (Go). Aucune PR ouverte. Tests manuels passés sur Linux (KDE, Wayland) et Windows
-  (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV (matériel), portail lent, champ texte de repli, lien d'installation.
-  **Reste** : phase 8 (retrait de Go ; déplacer l'icône `cmd/superview/Icon.png` sous `rust/`), puis une version stable.
-- Le dépôt suit le gabarit `claude-gabarit` : `scripts/check.sh` (point d'entrée unique), hooks git
-  et Claude, code sous `cmd/superview/` + `internal/common/` (DEC-39), docs sous `docs/` (DEC-40).
-- Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), puis `scripts/check.sh`.
+- État (2026-10-20) : **Go est retiré** (#136 : gardes portés en Rust + job *Rust coverage and audit* ; #137 : code Go et jobs
+  CI Go supprimés, DEC-49). Le produit est le binaire Rust + Slint ; pré-version **`RC-0.3.0`** publiée (installateur Windows,
+  AppImage, `checksums.txt`). Dernière version stable : **v0.2.9** (Go, reste dans l'historique). Aucune décision en suspens.
+  **En cours** : phase 8.3 (prose et décisions : AGENTS, docs, README, RELEASING, DEC-49). **Ensuite** : une version stable
+  via `/publier`, sur demande de l'utilisateur et son oui au numéro.
+- Tests manuels passés sur Linux (KDE, Wayland) et Windows (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV (matériel),
+  portail lent, champ texte de repli, lien d'installation.
+- Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), Rust par rustup (`docs/ENVIRONNEMENT.md`),
+  puis `scripts/check.sh`. Le contrôle de couverture (50 %) et `cargo audit` : `make coverage-audit`, ou le job de la CI.
 - Toute modification de `.github/workflows/release.yml` : essai à blanc AVANT fusion (L-114,
   `gh workflow run release.yml --ref <branche>`, sans version).
+- À savoir : un chemin d'entrée non UTF-8 est refusé (`check_video` prend un `&str`) ; l'interface vide l'étiquette « Hardware: … »
+  sur erreur ; un `Prober` doit être durable ; le `temp_dir` passé à `check_health` doit être nettoyé ; winit charge
+  `libxkbcommon-x11` à l'exécution sous X11 (embarquée dans l'AppImage, DEC-47) ; `rfd` a besoin de libdbus (portail) ou de zenity.
+- Publier une version : demander « publie la version x.y.z » ; l'agent passe par `/publier` (DEC-42), confirme le numéro, lance le workflow Release et vérifie les fichiers.
+- Mettre ce fichier à jour à la clôture d'une session (`/cloture`).
+
+## Historique du portage Go → Rust (DEC-43)
+> Journal des phases 1 à 7, gardé tel quel : les noms de fichiers Go (`hardware.go`, `crosscheck_test.go`…) et les
+> crochets « Go » y désignent le code retiré en phase 8.
 - Portage Rust + Slint (DEC-43) : **phases 1 à 3 faites** (#99 #100, oracle de parité #101, port `video`/`pgm`/`error` #102, fenêtre Slint + `rfd` #103).
   **GO donné le 2026-10-15** (JSON et 4 empreintes PGM identiques, cartes ~2 fois plus rapides que Go, fenêtre OK sous xvfb, Windows et AppImage d'essai).
   **Phase 4 faite (cœur `superview-core`, 7 PR dont trois coupées en deux ou trois : #105 à #115)** : PR 1/7 `config.rs` + `security.rs` (YAML par `serde-saphyr`, sans migration des clés retirées ni variables `SUPERVIEW_*`) ;
@@ -25,7 +35,7 @@
   **Phase 6, PR 6.1 faite (#120)** : `state.rs` (`AppState` + `ViewModel`), `format.rs`, `prefs.rs` (DEC-46), sans fenêtre ; `selection.rs` supprimé. 
   **PR 6.2 faite (2026-10-17, #121)** : `ui/main.slint` (fenêtre 980×470, 6 boutons centrés, popups = enum `Popup`, composant `Modal`), `window_tests.rs`, sans câblage. Pas de contrôle visuel (ni Xvfb ici) : à regarder en 6.3 ; `font-family: "monospace"` et `char-wrap` non vérifiés. Restent 6.3 (câblage), 6.4 (sélecteurs).
   **PR 6.3 faite (2026-10-18)** : `app.rs` (colle fenêtre↔`AppState`↔cœur, traits injectables `Engine`/`Host`), `engine.rs`, `host.rs`, `journal.rs`, `signals.rs` ; 21 scénarios de fenêtre simulés (`app_tests.rs`). Jamais vu : la vraie fenêtre (pas de Xvfb), rfd, navigateur, `ctrlc`/`explorer.exe` à l'exécution, ComboBox des codecs à l'œil. Reste 6.4 (sélecteurs + `docs/TESTS-MANUELS.md`).
-  **PR 6.4 faite (2026-10-18)** : `dialogs.rs` (rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis champ texte), popup `PathEntry`, icône de la fenêtre, `docs/TESTS-MANUELS.md` (voir DEC-43). Phase 7 : icône du `.exe` et du `.desktop`. Phase 8 (retrait de Go) : déplacer `cmd/superview/Icon.png` sous `rust/` et corriger `@image-url` dans `ui/main.slint` (le build casse sinon).
+  **PR 6.4 faite (2026-10-18)** : `dialogs.rs` (rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis champ texte), popup `PathEntry`, icône de la fenêtre, `docs/TESTS-MANUELS.md` (voir DEC-43). Phase 7 : icône du `.exe` et du `.desktop`. Phase 8 (retrait de Go) : l'icône est passée sous `rust/crates/superview-app/ui/` avec le correctif de `@image-url` (fait avec #137).
   **PR 7.2 faite en local, essai à blanc à venir (DEC-47)** : `release.yml` livre le binaire Rust (test = Rust + `cargo llvm-cov` 50 % + `cargo audit`, builds Windows/Linux, marqueur « non modifié »), AppImage avec `libxkbcommon-x11` et `libxcb-xkb` embarquées sans `LD_LIBRARY_PATH` (rpath), prouvé par `LD_DEBUG=libs` ; `rust.yml` suit. À faire : `gh workflow run release.yml --ref feat/rust-release-workflow` (L-114), puis ajouter les jobs Rust aux checks requis du ruleset, puis 7.3.
   Reste à porter : phase 8 (la 7 est faite : RC-0.3.0). Décisions du 2026-10-17 : AppImage à compléter avec `libxkbcommon-x11` (phase 6/7), ARM64 hors périmètre, tests manuels à définir (checklist `docs/TESTS-MANUELS.md` avant la phase 7).
   À savoir pour la suite : un chemin d'entrée non UTF-8 est refusé (régression de capacité par rapport à Go, tant que `check_video` prend un `&str`) ; l'interface devra vider l'étiquette « Hardware: … » sur erreur ; un `Prober` doit être durable ; le `temp_dir` passé à `check_health` doit être nettoyé (barre finale sous Windows).
@@ -33,6 +43,3 @@
   le sélecteur n'a pas de champ texte de secours (phase 6, étape 4).
   Plan approuvé : `~/.claude/plans/distributed-kindling-alpaca.md`. Rust s'installe par rustup dans `~/.cargo` (`docs/ENVIRONNEMENT.md`) ;
   le pre-commit l'exige. Les jobs `rust.yml` ne sont pas des checks requis.
-- Publier une version : demander « publie la version x.y.z » ; l'agent passe par `/publier` (DEC-42), confirme le numéro, lance le workflow Release et vérifie les fichiers.
-- `fyne package` lancé en local réécrit `cmd/superview/FyneApp.toml` : `git checkout cmd/superview/FyneApp.toml`.
-- Mettre ce fichier à jour à la clôture d'une session (`/cloture`).

@@ -156,11 +156,11 @@ Important limitations:
 - BIOS settings can disable the iGPU and therefore remove hardware video support entirely
 - a driver that reports `supported modes: CQP` only (the iHD driver without its HuC
   firmware loaded, typically `i915.enable_guc=2` missing from the kernel command line)
-  cannot honour a bitrate at all. The Rust application (DEC-48) notices this on the probe
+  cannot honour a bitrate at all. Superview (DEC-48) notices this on the probe
   and uses `h264_vaapi` / `hevc_vaapi` in constant quality instead (`-rc_mode CQP -qp N`):
   the file size then follows the content rather than the requested bitrate, the Diagnostic
   window says "works, constant quality only" and the Hardware line ends with "(constant
-  quality)". The Go version still refuses the encoder. Quick Sync (`*_qsv`) is not
+  quality)". Quick Sync (`*_qsv`) is not
   helped by this: it still needs the HuC firmware, and loading it brings full bitrate
   control back
 

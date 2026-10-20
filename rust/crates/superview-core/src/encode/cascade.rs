@@ -1,4 +1,4 @@
-//! The fallback cascade of an encode: `EncodeVideo` in `internal/common/encode.go` (the part
+//! The fallback cascade of an encode: `EncodeVideo` in Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9) (the part
 //! after the `run` closure, which is [`run_ffmpeg`]).
 //!
 //! The paths are tried in this order, and each level is given up on only for an error that
