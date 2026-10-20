@@ -68,8 +68,28 @@ fn validate_duration_limits() {
         assert_eq!(reason(&with(bad)), "invalid or missing duration");
     }
     assert_eq!(with(f64::MIN_POSITIVE).validate(), Ok(()));
-    // As in Go, NaN is not `<= 0` and passes.
-    assert_eq!(with(f64::NAN).validate(), Ok(()));
+    // DEC-53: a duration that is not a finite number is refused, where Go let NaN through
+    // (`NaN <= 0` is false) and inf became a demand for 8 TB of free space.
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(reason(&with(bad)), "invalid or missing duration", "{bad}");
+    }
+}
+
+// DEC-53 from the other end: what ffprobe prints reaches the same refusal.
+#[test]
+fn a_duration_of_inf_or_nan_in_ffprobes_json_is_refused() {
+    for text in ["inf", "Inf", "+inf", "nan", "NaN"] {
+        let json = format!(
+            r#"{{"streams":[{{"codec_name":"h264","width":1440,"height":1080,"duration":"{text}","bit_rate":"8000000","pix_fmt":"yuv420p","r_frame_rate":"30/1"}}]}}"#
+        );
+        let err = parse_video_specs("clip.mp4", json.as_bytes())
+            .and_then(|specs| specs.validate().map(|()| specs).map_err(Error::from))
+            .unwrap_err();
+        assert!(
+            matches!(&err, Error::InvalidVideo(v) if v.reason == "invalid or missing duration"),
+            "{text}: {err:?}"
+        );
+    }
 }
 
 // Go: TestVideoSpecs_ValidateInvalidBitrate
@@ -331,6 +351,9 @@ fn check_video_asks_ffprobe_for_the_first_video_stream_as_json() {
     assert_eq!(
         args,
         [
+            // DEC-52: the demuxer is named, not guessed from the content.
+            "-f",
+            "mov",
             "-i",
             "-weird name.mp4",
             "-v",
@@ -416,6 +439,49 @@ fn check_video_reads_a_real_clip() {
     assert!(
         stream.duration_float > 1.0 && stream.bitrate_int > 0,
         "{stream:?}"
+    );
+}
+
+// DEC-52: a text file named .mp4 that ffprobe would read as a concat script, and so follow to
+// another file, is refused; the real clip beside it is still read.
+#[test]
+fn check_video_refuses_a_concat_script_named_mp4() {
+    let _guard = spawn_lock();
+    let Some(resolver) = real_ffprobe() else {
+        return;
+    };
+    let dir = tempfile::TempDir::new().unwrap();
+    let clip = dir.path().join("clip.mp4");
+    let mut make = resolver.ffmpeg_command([
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=320x240:rate=10:duration=1",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-y",
+    ]);
+    make.arg(&clip);
+    let (status, output) = combined_output(make).unwrap();
+    if !status.success() {
+        assert!(
+            std::env::var("SUPERVIEW_REQUIRE_FFMPEG").as_deref() != Ok("1"),
+            "cannot make a test clip although SUPERVIEW_REQUIRE_FFMPEG=1: {output}"
+        );
+        return;
+    }
+    let script = dir.path().join("script.mp4");
+    std::fs::write(&script, "ffconcat version 1.0\nfile clip.mp4\n").unwrap();
+    // Without the forced demuxer this is the very file the test would otherwise pass on.
+    assert!(check_video(&resolver, &clip.to_string_lossy()).is_ok());
+    let err = check_video(&resolver, &script.to_string_lossy()).unwrap_err();
+    assert!(
+        matches!(&err, Error::Plain(m) if m.starts_with("ffprobe failed, output:\n")),
+        "{err:?}"
     );
 }
 
