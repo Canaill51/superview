@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Profil release et cartes PGM non forcées sur le disque (F-02, F-03, session 2)
+
+| | |
+| --- | --- |
+| **Constat** | pas de `[profile.release]` (binaire de 28,9 Mo) ; `generate_pgm` appelait `sync_all` sur 66 à 113 Mo de fichiers que seul le ffmpeg suivant lit |
+| **Cause** | réglages par défaut de cargo jamais revus ; `sync_all` posé pour « voir » l'erreur de fermeture, que `BufWriter::into_inner` (qui vide le tampon) rapporte déjà |
+| **Fichiers** | `rust/Cargo.toml`, `superview-core/src/pgm.rs`, `RELEASING.md`, DEC-50 |
+| **PR** | Shrink the release binary with LTO and symbol stripping |
+| **Vérification** | `cargo build --release` : 18 391 752 octets (28,9 Mo avant), marqueur `SUPERVIEW-BUILD` lisible ; `tests/pgm_golden.rs` inchangé et vert. Pas de test de contre-preuve : l'effet est une taille et une latence, pas un comportement |
+
 ### [2026-10-20] Les tests inline des gros modules vivent dans `tests.rs` (F-01, session 1)
 
 | | |

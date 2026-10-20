@@ -131,7 +131,9 @@ downloaded. Each built binary is inspected and rejected if its readable marker
 (`SUPERVIEW-BUILD version=… revision=… modified=…`) says `modified=true` or
 carries another version than the one being released, which is what stops a
 release from announcing itself as a modified build. The build jobs use no cargo
-cache, so that marker describes this build and no earlier one.
+cache, so that marker describes this build and no earlier one. The release profile
+(`lto = "fat"`, `codegen-units = 1`, DEC-50) makes each build job several minutes
+longer than a plain release build; that is the price of a binary a third smaller.
 
 **What the release builds** (DEC-47): the Rust binary, `cargo build --release
 --locked -p superview-app`, nothing from Go. Before anything is built, the

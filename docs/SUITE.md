@@ -5,7 +5,7 @@
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Ensuite** : les sessions 1 à 8 du plan
   `~/.claude/plans/declarative-beaming-lobster.md`, une par session (`/clear`, `opusplan`, test de contre-preuve
-  d'abord, une PR par session) ; session 1 faite (F-01, tests inline → `tests.rs`) ; prochaine : **session 2** (profil release, `sync_all` PGM). Une v0.3.1 seulement sur
+  d'abord, une PR par session) ; sessions 1 et 2 faites (F-01 tests inline → `tests.rs` ; F-02 et F-03 profil release, `sync_all` PGM, DEC-50) ; prochaine : **session 3** (I/O bornée). Une v0.3.1 seulement sur
   demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
   encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
