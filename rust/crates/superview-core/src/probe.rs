@@ -198,6 +198,12 @@ pub fn probe_args(spec: &ProbeSpec) -> Vec<String> {
     args
 }
 
+/// libva announces its driver search with three `libva info:` lines before any VAAPI or QSV
+/// session. They say nothing went wrong, and left in they filled the three lines kept and
+/// pushed the real error out of the reason. A `libva error:` line is a cause and stays.
+/// Rust only: Go keeps them (DEC-48).
+const LIBVA_INFO_PREFIX: &str = "libva info:";
+
 /// Turns ffmpeg's output into one line a user can act on.
 ///
 /// `timed_out` is the probe's own deadline; the message reports what was actually waited
@@ -217,7 +223,7 @@ pub fn summarize_probe_failure(
         .replace("\r\n", "\n")
         .split('\n')
         .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
+        .filter(|line| !line.is_empty() && !line.starts_with(LIBVA_INFO_PREFIX))
         .take(PROBE_REASON_LINES)
         .collect();
     if lines.is_empty() {
@@ -1136,6 +1142,38 @@ pub(crate) mod tests {
     }
 
     // ---- the reason ----
+
+    // Rust only (DEC-48). libva prints three informational lines before any VAAPI or QSV
+    // session, and they filled the whole three-line reason: a QSV refusal read
+    // "libva info: VA-API version 1.23.0; libva info: Trying to open ...; libva info: Found init
+    // function" and the actual error was cut off (RC-0.3.0, Tiger Lake). They are not a cause.
+    #[test]
+    fn libva_information_lines_do_not_crowd_out_the_error() {
+        let ms = Duration::from_millis;
+        let qsv = "libva info: VA-API version 1.23.0\n\
+                   libva info: Trying to open /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so\n\
+                   libva info: Found init function __vaDriverInit_1_22\n\
+                   [h264_qsv @ 0x59] Error creating a MFX session: -9.\n\
+                   [vost#0:0/h264_qsv @ 0x59] Error while opening encoder\n";
+        let got = summarize_probe_failure(qsv, "exit status: 218", false, ms(0));
+        assert!(!got.contains("libva info"), "{got}");
+        assert!(got.contains("Error creating a MFX session: -9."), "{got}");
+
+        // The CQP-only marker must survive the same noise in front of it.
+        let vaapi = "libva info: VA-API version 1.23.0\nlibva info: Trying to open x\nlibva info: Found init function y\n\
+             [h264_vaapi @ 0x59] Driver does not support any RC mode compatible with selected options (supported modes: CQP).\n";
+        let got = summarize_probe_failure(vaapi, "exit status: 234", false, ms(0));
+        assert!(is_cqp_only_refusal("h264_vaapi", &got), "{got}");
+
+        // Only the information lines go: a libva *error* is a cause and stays; and a probe
+        // whose whole output is noise still says something.
+        let err = "libva error: vaGetDriverNames() failed with unknown libva error\n";
+        assert!(summarize_probe_failure(err, "x", false, ms(0)).contains("libva error"));
+        assert_eq!(
+            summarize_probe_failure("libva info: only noise\n", "exit status: 1", false, ms(0)),
+            "exit status: 1"
+        );
+    }
 
     // Go: TestSummarizeProbeFailure
     #[test]

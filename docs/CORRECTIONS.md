@@ -9,6 +9,11 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Le Diagnostic ne montre plus les lignes `libva info:` à la place de l'erreur (Rust)
+
+**Constaté** — Essai de `RC-0.3.0` sur un portable Tiger Lake : le refus de `h264_qsv` s'affichait « libva info: VA-API version 1.23.0; libva info: Trying to open …; libva info: Found init function … », la vraie erreur coupée par la limite de trois lignes de `summarize_probe_failure`.
+**Correction** — Les lignes qui commencent par `libva info:` sont ignorées avant de garder les trois premières ; `libva error:` reste. Écart voulu avec Go (DEC-48, amendement). Test `libva_information_lines_do_not_crowd_out_the_error` (le refus QSV réel, le marqueur CQP derrière trois lignes de bruit, une ligne `libva error:` conservée, une sortie entièrement faite de bruit) ; contre-preuves : sans le filtre le test est rouge sur le message ci-dessus, un filtre trop large (`libva `) l'est sur la ligne d'erreur conservée.
+
 ### [2026-10-19] DEC-48 : un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante (Rust)
 
 | | |
