@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Petites corrections du cœur : limite cgroup, bitrates négatifs, recherche d'outils, permissions du journal (F-19 à F-22, session 6, PR B)
+
+| | |
+| --- | --- |
+| **Constat** | la limite mémoire d'un cgroup n'était lue qu'à la racine (un `MemoryMax` d'unité ou de slice systemd était ignoré) ; `min_bitrate`/`max_bitrate` négatifs étaient acceptés sans avertissement ; l'override, la copie embarquée et les chemins Windows acceptaient un fichier sans bit exécutable et un `SUPERVIEW_FFMPEG_DIR` relatif ; un journal ou son dossier déjà existants gardaient leur mode large ; un échec de création du fichier de travail était étiqueté `encoding` |
+| **Cause** | `available_memory_bytes` ne lisait que `/sys/fs/cgroup/memory.max` ; pas de normalisation des bitrates ; `usable_tool_file` n'exigeait que « pas un dossier » ; `mode()` ne s'applique qu'à la création |
+| **Fichiers** | `superview-core/src/memory.rs` (`cgroup_limit_files` lit `/proc/self/cgroup`, `available_memory_bytes_under` prend le minimum de la racine à l'unité), `config.rs` (`normalize_bitrate`), `tools.rs` (`usable_tool_file` = `is_executable_file`, override relatif ignoré avec avertissement), `logfile.rs` (`tighten_permissions`), `pipeline.rs` (étiquette `partial_output`) |
+| **PR** | Small core fixes: cgroup limits of parent units, negative bitrates, tool lookup and log permissions |
+| **Vérification** | contre-preuve rouge pour chacun : `a_limit_on_a_parent_cgroup_caps_the_available_memory`, `negative_bitrates_are_treated_as_unset`, `a_tool_file_without_the_execute_bit_is_not_used`, `a_relative_override_directory_is_ignored`, `an_existing_loose_log_is_made_private` ; verts après. Les stand-ins Windows de `write_tool` (tests de la recherche winget/scoop, exécutés aussi sous Unix) reçoivent le bit exécutable : l'objet des tests (le raccourci `Links` l'emporte, etc.) est inchangé. **Non fait, par décision** : retirer `#[source]` de `SessionError` et `FailedAfterOutput` — `creation_failure_is_a_session_error_with_its_cause` et `the_stop_messages_match_the_go_text` épinglent `source().is_some()` (contrat `Unwrap` de Go), et le seul parcours de la chaîne du produit (`is_missing_ffmpeg_error`) cherche, il n'affiche pas ; aucun double affichage réel. **Sans test** : l'étiquette `partial_output` (l'échec de `new_partial_output_path` après une validation réussie ne se provoque pas sans root ni injection) |
+
 ### [2026-10-20] Sécurité et robustesse : chemin résolu transmis, `/dev` protégé, délai sur ffprobe et `ffmpeg -version`, attente bornée après la fin d'un processus (F-15 à F-18, session 6, PR A)
 
 | | |

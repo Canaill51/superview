@@ -90,6 +90,8 @@ pub fn open_log_file(
         )
     })?;
     let path = dir.join(format!("{app_name}.log"));
+    // The modes given at creation do not touch a directory or file that already exists (F-22).
+    tighten_permissions(&dir, 0o700);
 
     // Simple size cap: start over rather than carry an unbounded file around.
     if let Ok(meta) = fs::metadata(&path)
@@ -109,6 +111,7 @@ pub fn open_log_file(
             format!("cannot open log file {}: {e}", path.display()),
         )
     })?;
+    tighten_permissions(&path, 0o600);
     let size = file
         .metadata()
         .map_or(0, |m| i64::try_from(m.len()).unwrap_or(i64::MAX));
@@ -118,6 +121,23 @@ pub fn open_log_file(
         max: max_bytes,
     };
     Ok((writer, path))
+}
+
+/// Sets the owner-only mode on something that may have been created with a looser one.
+/// Unix only; a failure is logged, not fatal (the log is a diagnostic).
+fn tighten_permissions(path: &Path, mode: u32) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = fs::set_permissions(path, fs::Permissions::from_mode(mode)) {
+            log::warn!(
+                "Could not restrict the permissions of {}: {e}",
+                path.display()
+            );
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
 }
 
 /// Empties an existing file through a handle of its own.

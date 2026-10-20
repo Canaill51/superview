@@ -392,6 +392,12 @@ impl Winget {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(format!("{tool}.exe"));
         fs::write(&path, "stand-in").unwrap();
+        // The lookup asks for the execute bit on Unix too (F-21); Windows has none.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
         path
     }
 }
@@ -790,4 +796,42 @@ fn an_ffmpeg_query_that_never_answers_is_an_error() {
     let err = query_ffmpeg(&resolver, &["-version"]).unwrap_err();
     assert!(err.contains("timed out"), "{err}");
     assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}
+
+// F-21: every place a tool is looked for asks for the execute bit, as the PATH search does.
+#[cfg(unix)]
+#[test]
+fn a_tool_file_without_the_execute_bit_is_not_used() {
+    use std::os::unix::fs::PermissionsExt;
+    let (bundled, over) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    for dir in [bundled.path(), over.path()] {
+        let path = write_fake_tool(dir, "ffmpeg");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    let resolver = resolver_in(
+        &bundled.path().join("bin"),
+        &[("SUPERVIEW_FFMPEG_DIR", over.path().to_str().unwrap())],
+    );
+    assert_eq!(resolver.find_bundled("ffmpeg"), None);
+    assert_eq!(resolver.resolve("ffmpeg"), PathBuf::from("ffmpeg"));
+}
+
+// F-21 (E-22, L-16): a relative override would be the working directory.
+#[test]
+fn a_relative_override_directory_is_ignored() {
+    let dir = TempDir::new().unwrap();
+    let empty = TempDir::new().unwrap();
+    write_fake_tool(dir.path(), "ffmpeg");
+    let relative = pathdiff_relative(dir.path());
+    let resolver = resolver_in(empty.path(), &[("SUPERVIEW_FFMPEG_DIR", &relative)]);
+    assert_eq!(resolver.resolve("ffmpeg"), PathBuf::from("ffmpeg"));
+}
+
+/// A relative spelling of `dir` from the working directory, which exists whatever it is.
+fn pathdiff_relative(dir: &Path) -> String {
+    let cwd = std::env::current_dir().unwrap();
+    let up = cwd.components().count() - 1;
+    let mut text = "../".repeat(up);
+    text.push_str(&dir.strip_prefix("/").unwrap_or(dir).to_string_lossy());
+    text
 }

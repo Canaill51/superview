@@ -167,15 +167,22 @@ impl ToolResolver {
             .filter(|d| !d.as_os_str().is_empty())
         {
             let path = dir.join(tool_file_name(tool));
-            if (self.usable)(&path) {
+            if !dir.is_absolute() {
+                // A relative directory would mean the working directory, the lookup L-16 refuses.
+                log::warn!(
+                    "ignoring {TOOL_DIR_ENV}: it must be an absolute path (dir={}, tool={tool})",
+                    dir.display()
+                );
+            } else if (self.usable)(&path) {
                 return self.remember(tool, path);
+            } else {
+                // Not cached and not fatal: an override pointing at nothing is a
+                // mistake worth reporting, not a reason to refuse to work.
+                log::warn!(
+                    "ignoring {TOOL_DIR_ENV}: it does not contain the tool (dir={}, tool={tool})",
+                    dir.display()
+                );
             }
-            // Not cached and not fatal: an override pointing at nothing is a
-            // mistake worth reporting, not a reason to refuse to work.
-            log::warn!(
-                "ignoring {TOOL_DIR_ENV}: it does not contain the tool (dir={}, tool={tool})",
-                dir.display()
-            );
         }
 
         if let Some(path) = self.find_bundled(tool) {
@@ -247,13 +254,15 @@ pub fn tool_file_name(tool: &str) -> String {
     }
 }
 
-/// Whether `path` names a regular file (anything but a directory).
+/// Whether `path` names a regular file the system would run.
 ///
-/// Not ceremony: a directory called "ffmpeg" next to the executable would
-/// otherwise be handed to the spawner, which fails at encoding time with a
-/// permission error rather than here with a fallback.
+/// Not ceremony: a directory called "ffmpeg", or a file without the execute bit, next to
+/// the executable would otherwise be handed to the spawner, which fails at encoding time
+/// with a permission error rather than here with a fallback. The `PATH` search has always
+/// asked for the bit; the override, the bundled copy and the Windows locations now do too
+/// (F-21).
 pub fn usable_tool_file(path: &Path) -> bool {
-    fs::metadata(path).is_ok_and(|m| !m.is_dir())
+    is_executable_file(path)
 }
 
 /// A regular file the system would run (the execute bit, on Unix).

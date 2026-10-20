@@ -329,3 +329,12 @@ fn resolve_ignores_directories_and_missing_files() {
     assert_eq!(resolve_config_path(&candidates), None);
     assert_eq!(resolve_config_path(&[]), None);
 }
+
+// F-20: a negative bitrate is "unset", with a warning, like a negative thread count.
+#[test]
+fn negative_bitrates_are_treated_as_unset() {
+    let cfg = load_str("min_bitrate: -5\nmax_bitrate: -1\n").unwrap();
+    assert_eq!((cfg.min_bitrate, cfg.max_bitrate), (0, 0));
+    let cfg = load_str("min_bitrate: 1000\nmax_bitrate: 2000\n").unwrap();
+    assert_eq!((cfg.min_bitrate, cfg.max_bitrate), (1000, 2000));
+}
