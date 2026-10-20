@@ -684,7 +684,7 @@ Hérité de `CombinedOutput` en Go. Lire stdout seul pour le JSON, garder stderr
 fil peut s'intercaler, et le plafond peut vider le fichier entre les deux. Une ligne = un `write_all`.
 
 ### F-07 — L'aperçu matériel et la conversion ne posent pas la même question à la sonde
-
+✅ — CORRIGÉ (session 4) 
 🟠 `rust/crates/superview-core/src/probe.rs:706-713`, `pipeline.rs:438`, `superview-app/src/app.rs:935`
 
 `describe_verified_hardware_plan` sonde avec un preset vide, la conversion avec `cfg.video_preset`,
@@ -693,7 +693,7 @@ et le preset fait partie de `ProbeSpec::cache_key`. Chaque conversion relance do
 conversion refusera avant de basculer vers le CPU sans bruit. C'est l'écart qu'E-01 voulait fermer.
 
 ### F-08 — La sonde de vérification n'est pas annulable alors que l'API le permet
-
+✅ — CORRIGÉ (session 4) 
 🟡 `rust/crates/superview-core/src/pipeline.rs:433-440, 485-488`
 
 `None` est passé pour le drapeau ; le commentaire admet jusqu'à deux `PROBE_TIMEOUT` (30 s) avant
@@ -701,7 +701,7 @@ que Cancel soit vu. « Comme en Go » n'est plus une contrainte, et une sonde an
 mise en cache (E-23).
 
 ### F-09 — La cause d'un repli n'est jamais journalisée
-
+✅ — CORRIGÉ (session 4) 
 🟡 `rust/crates/superview-core/src/encode/cascade.rs:216, 252`
 
 `Err(_) => log::warn!(...)` jette l'erreur ; celle du passage CPU est perdue si le repli réussit.
@@ -709,7 +709,7 @@ Le journal joint aux rapports de bug dit « fallback » sans dire pourquoi. Ajou
 fin des lignes existantes, que `tests/cascade_logs.rs` fige par leur préfixe.
 
 ### F-10 — Un échec de lancement de la sonde est mis en cache comme un refus définitif
-
+✅ — CORRIGÉ (session 4) 
 🟢 `rust/crates/superview-core/src/probe.rs:520, 592`
 
 Une erreur passagère de `spawn` (EAGAIN, ffmpeg remplacé pendant une mise à jour) rétrograde
@@ -905,7 +905,7 @@ et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 fa
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
-| ⏸️ **Ouvert — 14ᵉ passe** (24) | F-07 à F-30 (F-01 à F-06 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
+| ⏸️ **Ouvert — 14ᵉ passe** (20) | F-11 à F-30 (F-01 à F-10 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
 | ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
 | ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
 | ❓ **Ouvertes** (2) | Q-04 — forcer le démuxeur MP4 (`-f mov` ou `format_whitelist`) sur l'entrée, § 5. Q-05 — refuser une durée `inf`/`nan`, § 5 |

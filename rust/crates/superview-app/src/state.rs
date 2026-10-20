@@ -336,6 +336,8 @@ pub struct VerificationRequest {
     pub squeeze: bool,
     /// The encoder name ("" = the source's codec).
     pub selection: String,
+    /// The quality profile; the preset the conversion will pass comes from it.
+    pub quality: String,
 }
 
 /// What a file the picker returned came to.
@@ -665,6 +667,7 @@ impl AppState {
             video,
             squeeze: self.view.squeeze,
             selection: parse_encoder_selection(&self.view.encoder_selected),
+            quality: self.view.quality.clone(),
         };
         if let Some(hook) = self.on_verify.as_mut() {
             hook(request);
@@ -873,6 +876,8 @@ impl AppState {
         self.view.quality = profile.to_string();
         self.prefs.quality_profile = profile.to_string();
         self.save_prefs();
+        // The profile picks the preset, and the driver is asked with the conversion's own.
+        self.verify_hardware_in_background();
     }
 
     /// The "source already stretched" box changed. The output frame changes width with it, and

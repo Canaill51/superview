@@ -1343,3 +1343,38 @@ fn the_memory_guard_in_front_of_a_real_ffmpeg() {
     let clip = lavfi_clip(&resolver, work.path(), 640, 480, 1);
     memory_wiring(&resolver, &caps, &clip);
 }
+
+// F-08: the verification of the encoder at the output size used to run with no cancellation, so
+// Cancel waited for the driver's answer (up to two probe timeouts) before it was seen.
+#[cfg(unix)]
+#[test]
+fn cancel_reaches_the_verification_of_the_hardware_encoder() {
+    let _guard = spawn_lock();
+    let tools = fake(act::PROBE_OK, "exec sleep 20");
+    let rig = Rig::new();
+    let scn = rig.scenario(
+        tools.resolver(),
+        caps("h264_vaapi,libx264,libx265", "vaapi"),
+    );
+    let ui = TestUi::quiet("h264_vaapi", 2_000_000);
+    let started = Instant::now();
+
+    let err = std::thread::scope(|scope| {
+        let cancel = &scn.cancel;
+        scope.spawn(move || {
+            std::thread::sleep(Duration::from_millis(400));
+            cancel.store(true, Ordering::Release);
+        });
+        scn.run(&ui)
+            .expect_err("cancelled while the driver was asked")
+    });
+
+    assert!(matches!(err, Error::Cancelled), "{err:?}");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "Cancel waited for the driver: {:?}",
+        started.elapsed()
+    );
+    tools.assert_no_process_left();
+    rig.assert_clean();
+}

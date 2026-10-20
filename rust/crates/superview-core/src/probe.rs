@@ -444,20 +444,28 @@ impl<'a> Prober<'a> {
         spec: &ProbeSpec,
         cancel: Option<&AtomicBool>,
     ) -> EncoderProbe {
-        let first = self.probe_once(spec, cancel);
-        if first.usable
+        self.probe_asked(spec, cancel).0
+    }
+
+    /// [`Self::probe_encoder_at_size`], and whether ffmpeg was started every time it was
+    /// asked: `false` means the verdict is about the machine, not the driver, and must not
+    /// be remembered.
+    fn probe_asked(&self, spec: &ProbeSpec, cancel: Option<&AtomicBool>) -> (EncoderProbe, bool) {
+        let (first, started) = self.probe_once(spec, cancel);
+        if !started
+            || first.usable
             || spec.rate_control != RateControl::Bitrate
             || is_cancelled(cancel)
             || !is_cqp_only_refusal(&spec.encoder, &first.reason)
         {
-            return first;
+            return (first, started);
         }
         log::warn!(
             "The driver only knows constant quality; asking again in that mode: encoder={} reason={}",
             spec.encoder,
             first.reason
         );
-        let second = self.probe_once(
+        let (second, started) = self.probe_once(
             &ProbeSpec {
                 rate_control: RateControl::ConstantQuality,
                 ..spec.clone()
@@ -465,14 +473,12 @@ impl<'a> Prober<'a> {
             cancel,
         );
         if second.usable {
-            return EncoderProbe {
-                took: first.took + second.took,
-                ..second
-            };
+            let took = first.took + second.took;
+            return (EncoderProbe { took, ..second }, true);
         }
         // A cancelled second question answered nothing: the first refusal stands alone.
-        if is_cancelled(cancel) {
-            return first;
+        if is_cancelled(cancel) || !started {
+            return (first, started);
         }
         // Neither mode works. Both reasons are kept: "supported modes: CQP" alone would
         // send the user after a firmware when the constant-quality attempt failed for
@@ -483,15 +489,16 @@ impl<'a> Prober<'a> {
             first.reason,
             second.reason
         );
-        EncoderProbe {
+        let verdict = EncoderProbe {
             reason: format!("{}; in constant quality: {}", first.reason, second.reason),
             took: first.took + second.took,
             ..first
-        }
+        };
+        (verdict, true)
     }
 
-    /// One question, one process.
-    fn probe_once(&self, spec: &ProbeSpec, cancel: Option<&AtomicBool>) -> EncoderProbe {
+    /// One question, one process. The flag is `false` when the process could not be started.
+    fn probe_once(&self, spec: &ProbeSpec, cancel: Option<&AtomicBool>) -> (EncoderProbe, bool) {
         let started = Instant::now();
         let cmd = self.resolver.ffmpeg_command(probe_args(spec));
         let outcome = run_with_deadline(cmd, self.timeout, cancel);
@@ -504,12 +511,13 @@ impl<'a> Prober<'a> {
             took,
             rate_control: spec.rate_control,
         };
+        let launched = outcome.is_ok();
         let (output, run_err, timed_out) = match outcome {
             Ok(done)
                 if done.end == RunEnd::Finished && done.status.is_some_and(|s| s.success()) =>
             {
                 probe.usable = true;
-                return probe;
+                return (probe, true);
             }
             Ok(done) => {
                 let run_err = done
@@ -520,7 +528,7 @@ impl<'a> Prober<'a> {
             Err(e) => (String::new(), e.to_string(), false),
         };
         probe.reason = summarize_probe_failure(&output, &run_err, timed_out, took);
-        probe
+        (probe, launched)
     }
 
     /// Asks each encoder in turn, and stops when `cancel` is raised.
@@ -582,11 +590,12 @@ impl<'a> Prober<'a> {
         if let Some(cached) = self.cache.get(&key) {
             return cached;
         }
-        let probe = self.probe_encoder_at_size(spec, cancel);
+        let (probe, launched) = self.probe_asked(spec, cancel);
         // A probe cut short by its caller answered nothing about the driver, and
         // remembering it would demote a working encoder for the whole session (E-23).
-        // Only the probe's own timeout is a verdict.
-        if is_cancelled(cancel) {
+        // Neither did an ffmpeg that could not be started. Only the probe's own timeout
+        // is a verdict.
+        if is_cancelled(cancel) || !launched {
             return probe;
         }
         self.cache.insert(key, probe.clone());
@@ -686,13 +695,16 @@ impl<'a> Prober<'a> {
 
     /// `describe_hardware_acceleration_plan` with the hardware encoder actually asked
     /// about the frame it would be given. It can spend a probe, so it belongs off the UI
-    /// thread; the cache makes every repeat of the same question free.
+    /// thread; the cache makes every repeat of the same question free. `preset` is the one the
+    /// conversion will pass: asked with another, the preview and the conversion would put two
+    /// questions to the driver where one answers both.
     pub fn describe_verified_hardware_plan(
         &self,
         ffmpeg: &HashMap<String, String>,
         video: Option<&VideoSpecs>,
         squeeze: bool,
         requested_encoder: &str,
+        preset: &str,
         cancel: Option<&AtomicBool>,
     ) -> String {
         if video.is_none() {
@@ -708,7 +720,7 @@ impl<'a> Prober<'a> {
             video,
             squeeze,
             ffmpeg,
-            "",
+            preset,
             cancel,
         );
         if refusal.is_empty() {

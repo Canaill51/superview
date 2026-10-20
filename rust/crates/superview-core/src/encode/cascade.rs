@@ -213,8 +213,8 @@ pub fn encode_video_with_memory(
             // is a failure that came after frames were written: the next path would fail
             // the same way, one full encode later.
             Err(err) if err.should_not_retry() => return Err(err),
-            Err(_) => log::warn!(
-                "Hardware decode path failed, falling back to CPU decode: encoder={encoder} hwaccel={hwaccel}"
+            Err(err) => log::warn!(
+                "Hardware decode path failed, falling back to CPU decode: encoder={encoder} hwaccel={hwaccel} error={err}"
             ),
         }
     }
@@ -250,7 +250,7 @@ pub fn encode_video_with_memory(
             )?;
 
             log::warn!(
-                "Hardware encoder failed, retrying with CPU encoder: failed_encoder={encoder} fallback_encoder={fallback_encoder}"
+                "Hardware encoder failed, retrying with CPU encoder: failed_encoder={encoder} fallback_encoder={fallback_encoder} error={err}"
             );
             encode_video_with_memory(
                 Some(cfg),
