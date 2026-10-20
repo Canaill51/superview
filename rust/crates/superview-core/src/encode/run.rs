@@ -60,7 +60,6 @@ use std::io::{self, BufRead, BufReader, Read};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -68,7 +67,7 @@ use crate::encode::failure::classify_ffmpeg_failure_now;
 use crate::encode::progress::{ProgressLine, log_progress_line, parse_progress_line, percent};
 use crate::error::{Error, signal_description};
 use crate::memory::format_available_memory;
-use crate::process::{READER_GRACE, killed_by_signal};
+use crate::process::{CAPTURE_CAP, READER_GRACE, collected, killed_by_signal, spawn_collector};
 
 /// How often the loop looks at the process and at the two flags when nothing arrives.
 const POLL: Duration = Duration::from_millis(20);
@@ -184,7 +183,7 @@ fn handle_line(
 }
 
 /// Waits for `done` until `deadline`; a reader that is not done by then is abandoned.
-fn wait_until(done: &Receiver<()>, deadline: Instant) {
+fn wait_until(done: &Receiver<io::Result<()>>, deadline: Instant) {
     let _ = done.recv_timeout(deadline.saturating_duration_since(Instant::now()));
 }
 
@@ -241,30 +240,11 @@ pub fn run_ffmpeg(
         )
         .map_err(start_failure)?;
 
-    // Stderr: read while the process runs, or a full pipe would block it for good. The
-    // bytes go to a shared buffer as they come, so a reader abandoned after the grace
-    // still leaves what it had read.
-    let stderr_bytes = Arc::new(Mutex::new(Vec::new()));
-    let (stderr_done_tx, stderr_done) = mpsc::channel::<()>();
-    let sink = Arc::clone(&stderr_bytes);
-    thread::Builder::new()
-        .spawn(move || {
-            let mut stderr = stderr;
-            let mut chunk = [0u8; 8192];
-            loop {
-                match stderr.read(&mut chunk) {
-                    Ok(0) => break,
-                    Ok(n) => sink
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .extend_from_slice(&chunk[..n]),
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
-                    Err(_) => break,
-                }
-            }
-            let _ = stderr_done_tx.send(());
-        })
-        .map_err(start_failure)?;
+    // Stderr: read while the process runs, or a full pipe would block it for good. Only
+    // the two ends are kept (F-04), and a reader abandoned after the grace still leaves
+    // what it had read.
+    let (stderr_bytes, stderr_done) =
+        spawn_collector(stderr, CAPTURE_CAP).map_err(start_failure)?;
 
     // Set once ffmpeg has reported a frame leaving the filter graph.
     let mut produced = false;
@@ -316,9 +296,7 @@ pub fn run_ffmpeg(
     if status.success() {
         return Ok(());
     }
-    let stderr_text =
-        String::from_utf8_lossy(&stderr_bytes.lock().unwrap_or_else(|e| e.into_inner()))
-            .into_owned();
+    let stderr_text = collected(&stderr_bytes);
     let failure = classify_ffmpeg_failure_now(&status, &stderr_text);
     if killed_by_signal(&status).is_none()
         && let Some(reason) = stop_requested(stop)

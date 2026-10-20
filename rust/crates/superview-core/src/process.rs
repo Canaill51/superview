@@ -13,7 +13,8 @@
 //!   `exec.ExitError` to unwrap. The signal names are Linux's (the table Go
 //!   uses on Linux); an unknown number reads `signal N`.
 //! - [`combined_output`] interleaves stdout and stderr in the one pipe, as
-//!   `CombinedOutput` does, and decodes lossily (Go keeps raw bytes).
+//!   `CombinedOutput` does, and decodes lossily (Go keeps raw bytes). Captured output is
+//!   capped at [`CAPTURE_CAP`] bytes at each end (F-04); Go keeps everything.
 //! - `isStopRequest` / `shouldNotRetry` are not here: they classify the
 //!   cancellation sentinels of the fallback cascade, not a process, and arrive
 //!   with it (phase 4, PR 6).
@@ -30,10 +31,12 @@
 //!   Where Go would then wait on the pipe for as long as a child holds it, the run here
 //!   gives the reader [`READER_GRACE`] after a kill and returns the partial output.
 
+use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::io::{self, Read};
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -58,12 +61,108 @@ where
     cmd
 }
 
+/// How much of a captured stream is kept at each end (F-04). ffmpeg at `-loglevel` verbose
+/// can write megabytes of stderr; the first lines say what it was doing and the last ones why
+/// it stopped, and the middle is not worth the memory nor a window the size of a screen.
+pub const CAPTURE_CAP: usize = 64 * 1024;
+
+/// The first and the last `cap` bytes of a stream, with a count of what fell between.
+#[derive(Debug)]
+pub struct CappedBuffer {
+    cap: usize,
+    head: Vec<u8>,
+    tail: VecDeque<u8>,
+    dropped: u64,
+}
+
+impl CappedBuffer {
+    pub fn new(cap: usize) -> Self {
+        Self {
+            cap,
+            head: Vec::new(),
+            tail: VecDeque::new(),
+            dropped: 0,
+        }
+    }
+
+    pub fn push(&mut self, bytes: &[u8]) {
+        let room = self.cap - self.head.len();
+        let (first, rest) = bytes.split_at(room.min(bytes.len()));
+        self.head.extend_from_slice(first);
+        self.tail.extend(rest);
+        if self.tail.len() > self.cap {
+            let excess = self.tail.len() - self.cap;
+            self.tail.drain(..excess);
+            self.dropped += excess as u64;
+        }
+    }
+
+    /// What was kept, decoded lossily (a cut can fall inside a character), with a marker
+    /// where bytes were dropped.
+    pub fn render(&self) -> String {
+        let mut bytes = self.head.clone();
+        if self.dropped > 0 {
+            bytes.extend_from_slice(
+                format!("\n[... {} bytes dropped ...]\n", self.dropped).as_bytes(),
+            );
+        }
+        bytes.extend(self.tail.iter());
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+}
+
+/// A [`CappedBuffer`] being filled by a reader thread, and the channel that says it is done.
+pub type Collector = (Arc<Mutex<CappedBuffer>>, Receiver<io::Result<()>>);
+
+/// Reads `reader` to its end on a thread of its own, into a shared [`CappedBuffer`]. The
+/// bytes go to the buffer as they come, so a reader abandoned after a kill still leaves what
+/// it had read. The receiver gets one message when the stream ends: `Ok` at end-of-file,
+/// the error that stopped the read otherwise.
+pub fn spawn_collector<R: Read + Send + 'static>(reader: R, cap: usize) -> io::Result<Collector> {
+    let buffer = Arc::new(Mutex::new(CappedBuffer::new(cap)));
+    let mut reader = reader;
+    let (done_tx, done_rx) = mpsc::channel::<io::Result<()>>();
+    let sink = Arc::clone(&buffer);
+    thread::Builder::new().spawn(move || {
+        let mut chunk = [0u8; 8192];
+        let result = loop {
+            match reader.read(&mut chunk) {
+                Ok(0) => break Ok(()),
+                Ok(n) => sink
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push(&chunk[..n]),
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                Err(e) => break Err(e),
+            }
+        };
+        let _ = done_tx.send(result);
+    })?;
+    Ok((buffer, done_rx))
+}
+
+/// `child.wait()`, killing and reaping the child if the wait itself fails, so that no
+/// process or reader is left behind.
+fn wait_or_kill(child: &mut Child) -> io::Result<ExitStatus> {
+    child.wait().inspect_err(|_| {
+        let _ = child.kill();
+        let _ = child.wait();
+    })
+}
+
+/// The text a collector has kept so far.
+pub fn collected(buffer: &Mutex<CappedBuffer>) -> String {
+    buffer.lock().unwrap_or_else(|e| e.into_inner()).render()
+}
+
 /// Runs `cmd` to completion and returns its status with stdout and stderr
-/// interleaved in the order written (Go's `CombinedOutput`).
+/// interleaved in the order written (Go's `CombinedOutput`), each end capped at
+/// [`CAPTURE_CAP`]. The cap suits text for a person; data to parse should not go through
+/// here once it can pass 128 KiB (use [`split_output`] and read stdout).
 ///
 /// `Err` only when the process cannot be started or read.
 pub fn combined_output(mut cmd: Command) -> io::Result<(ExitStatus, String)> {
-    let (mut reader, writer) = io::pipe()?;
+    let (reader, writer) = io::pipe()?;
     // Like Go's nil Stdin: the child reads end-of-file, never our terminal.
     cmd.stdin(Stdio::null());
     cmd.stdout(writer.try_clone()?);
@@ -72,11 +171,50 @@ pub fn combined_output(mut cmd: Command) -> io::Result<(ExitStatus, String)> {
     // The command still holds the write ends; the read below only ends once
     // every one of them is closed.
     drop(cmd);
-    let mut bytes = Vec::new();
-    let read = reader.read_to_end(&mut bytes);
-    let status = child.wait()?;
-    read?;
-    Ok((status, String::from_utf8_lossy(&bytes).into_owned()))
+    let collector = spawn_collector(reader, CAPTURE_CAP);
+    let (buffer, done) = match collector {
+        Ok(pair) => pair,
+        Err(e) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(e);
+        }
+    };
+    let status = wait_or_kill(&mut child)?;
+    done.recv().unwrap_or(Ok(()))?;
+    Ok((status, collected(&buffer)))
+}
+
+/// Runs `cmd` to completion and returns its status with stdout and stderr apart, each
+/// capped at [`CAPTURE_CAP`]. For a tool whose stdout is data to parse: a warning on stderr
+/// must not end up inside it (F-05).
+///
+/// `Err` only when the process cannot be started or read.
+pub fn split_output(mut cmd: Command) -> io::Result<(ExitStatus, String, String)> {
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd.spawn()?;
+    drop(cmd);
+    let (Some(out), Some(err)) = (child.stdout.take(), child.stderr.take()) else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(io::Error::other("the output pipes are not available"));
+    };
+    let collectors =
+        spawn_collector(out, CAPTURE_CAP).and_then(|o| Ok((o, spawn_collector(err, CAPTURE_CAP)?)));
+    let ((stdout, out_done), (stderr, err_done)) = match collectors {
+        Ok(pair) => pair,
+        Err(e) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(e);
+        }
+    };
+    let status = wait_or_kill(&mut child)?;
+    out_done.recv().unwrap_or(Ok(()))?;
+    err_done.recv().unwrap_or(Ok(()))?;
+    Ok((status, collected(&stdout), collected(&stderr)))
 }
 
 /// How often [`run_with_deadline`] looks at the process, the deadline and the cancel flag.
@@ -129,7 +267,7 @@ pub fn run_with_deadline(
         });
     }
     let started = Instant::now();
-    let (mut reader, writer) = io::pipe()?;
+    let (reader, writer) = io::pipe()?;
     cmd.stdin(Stdio::null());
     cmd.stdout(writer.try_clone()?);
     cmd.stderr(writer);
@@ -137,32 +275,15 @@ pub fn run_with_deadline(
     // As in combined_output: the read only ends once every write end is closed.
     drop(cmd);
     // Read while the process runs: a full pipe (about 64 KiB) would block it for good.
-    // The bytes go to a shared buffer as they come, so that a reader abandoned after a
-    // kill (see below) still leaves what it had read.
-    let collected = Arc::new(Mutex::new(Vec::new()));
-    let (done_tx, done_rx) = mpsc::channel::<io::Result<()>>();
-    let sink = Arc::clone(&collected);
-    let spawned = thread::Builder::new().spawn(move || {
-        let mut chunk = [0u8; 8192];
-        let result = loop {
-            match reader.read(&mut chunk) {
-                Ok(0) => break Ok(()),
-                Ok(n) => sink
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .extend_from_slice(&chunk[..n]),
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(e) => break Err(e),
-            }
-        };
-        let _ = done_tx.send(result);
-    });
-    if let Err(e) = spawned {
-        // No thread to read with: do not leave the child running unattended.
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(e);
-    }
+    let (collected_output, done_rx) = match spawn_collector(reader, CAPTURE_CAP) {
+        Ok(pair) => pair,
+        Err(e) => {
+            // No thread to read with: do not leave the child running unattended.
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(e);
+        }
+    };
 
     let waited = loop {
         match child.try_wait() {
@@ -198,10 +319,9 @@ pub fn run_with_deadline(
     };
     let (status, end, _) = waited?;
     read?;
-    let bytes = collected.lock().unwrap_or_else(|e| e.into_inner()).clone();
     Ok(RunOutcome {
         status: Some(status),
-        output: String::from_utf8_lossy(&bytes).into_owned(),
+        output: collected(&collected_output),
         end,
     })
 }

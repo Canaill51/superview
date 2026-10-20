@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] I/O capturée bornée : stderr de ffmpeg, stdout d'ffprobe à part, lignes de journal entières (F-04, F-05, F-06, session 3)
+
+| | |
+| --- | --- |
+| **Constat** | le stderr de ffmpeg s'accumulait sans plafond puis partait en entier dans l'erreur, le journal et la popup ; `check_video` analysait stdout et stderr mélangés comme du JSON (un avertissement d'ffprobe cassait l'analyse) ; `writeln!` faisait deux `write`, et deux fils pouvaient coller leurs lignes |
+| **Cause** | deux fils lecteurs dupliqués (`run.rs`, `process.rs`) qui poussaient dans un `Vec` ; `combined_output` hérité de `CombinedOutput` en Go ; verrou pris à chaque `write` du `writeln!` |
+| **Fichiers** | `superview-core/src/process.rs` (`CappedBuffer`, `spawn_collector`, `split_output`, `CAPTURE_CAP` = 64 Kio à chaque bout, marqueur `[... n bytes dropped ...]`), `encode/run.rs`, `video.rs`, `logfile.rs` (`write_line`), `superview-app/src/journal.rs` |
+| **PR** | Bound ffmpeg's captured stderr, parse ffprobe's stdout alone and keep log lines whole |
+| **Vérification** | contre-preuve rouge avant le correctif : `cargo test -p superview-core --lib -- a_large_stderr check_video_parses` (2 rouges), `cargo test -p superview-app lines_logged` (« torn line: "" », 3 fois sur 3) ; verts après. **Deux tests existants changent de contrat, volontairement** : `run_with_deadline_reads_more_output_than_a_pipe_holds` exigeait 4 000 000 octets, il exige maintenant les deux bouts et le décompte exact des octets perdus ; `a_large_stderr_does_not_block_ffmpeg` (≥ 4 Mo) devient `…_and_is_bounded` (10 Mo en entrée, < 200 Kio en sortie, début et fin présents). Les deux gardent « ne bloque pas le processus ». `check_video_reports_a_failing_ffprobe_with_its_output` inchangé et vert |
+
 ### [2026-10-20] Profil release et cartes PGM non forcées sur le disque (F-02, F-03, session 2)
 
 | | |

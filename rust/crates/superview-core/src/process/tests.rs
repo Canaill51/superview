@@ -224,7 +224,7 @@ fn run_with_deadline_reports_a_process_that_finishes() {
 }
 
 // No Go test (CombinedOutput reads while it waits too): more than a pipe holds must
-// not block the child, nor lose bytes. 4 MB, not just over 64 KiB: a Linux pipe is
+// not block the child, . 4 MB, not just over 64 KiB: a Linux pipe is
 // 64 KiB by default but grows (up to 1 MiB, `pipe-max-size`), and 300 KB was
 // measured to fit without a reader.
 #[cfg(unix)]
@@ -238,7 +238,18 @@ fn run_with_deadline_reads_more_output_than_a_pipe_holds() {
     )
     .unwrap();
     assert_eq!(out.end, RunEnd::Finished);
-    assert_eq!(out.output.len(), 4_000_000);
+    // Read to the end without blocking the process, but kept bounded (F-04): the two ends
+    // and the count of what fell between.
+    let dropped = 4_000_000 - 2 * CAPTURE_CAP;
+    assert!(
+        out.output
+            .contains(&format!("[... {dropped} bytes dropped ...]")),
+        "dropped marker missing"
+    );
+    assert_eq!(
+        out.output.len(),
+        2 * CAPTURE_CAP + format!("\n[... {dropped} bytes dropped ...]\n").len()
+    );
 }
 
 #[test]
@@ -348,4 +359,32 @@ fn run_with_deadline_cancels_a_running_exe() {
     });
     assert_eq!(out.end, RunEnd::Cancelled);
     assert!(started.elapsed() < Duration::from_secs(10));
+}
+
+#[test]
+fn a_capped_buffer_keeps_everything_under_the_cap() {
+    let mut buffer = CappedBuffer::new(8);
+    buffer.push(b"abc");
+    buffer.push(b"defgh");
+    assert_eq!(buffer.render(), "abcdefgh");
+}
+
+#[test]
+fn a_capped_buffer_keeps_both_ends_and_counts_the_middle() {
+    let mut buffer = CappedBuffer::new(4);
+    // In pieces that straddle the head, the tail and the trimming.
+    for piece in ["01", "2345", "6789", "abcdef"] {
+        buffer.push(piece.as_bytes());
+    }
+    assert_eq!(buffer.render(), "0123\n[... 8 bytes dropped ...]\ncdef");
+}
+
+#[cfg(unix)]
+#[test]
+fn split_output_keeps_stdout_and_stderr_apart() {
+    let _guard = spawn_lock();
+    let cmd = background_command("sh", ["-c", "echo out; echo err 1>&2; exit 3"]);
+    let (status, stdout, stderr) = split_output(cmd).unwrap();
+    assert_eq!(status.code(), Some(3));
+    assert_eq!((stdout.as_str(), stderr.as_str()), ("out\n", "err\n"));
 }
