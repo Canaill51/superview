@@ -20,7 +20,7 @@
 //!   `meminfo` and in the cgroup files. The kernel never writes one.
 //! - Left out: `checkMemoryHealth`, the Diagnostic button's own memory line.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::encode::args::encodes_in_ten_bits;
 use crate::error::EncoderError;
@@ -219,11 +219,9 @@ pub fn check_memory_for_frame(
 /// an allocation can actually get.
 #[cfg(not(windows))]
 pub fn available_memory_bytes() -> Option<u64> {
-    available_memory_bytes_from(
-        Path::new("/proc/meminfo"),
-        Path::new("/sys/fs/cgroup/memory.max"),
-        Path::new("/sys/fs/cgroup/memory.current"),
-    )
+    let root = Path::new("/sys/fs/cgroup");
+    let own = std::fs::read_to_string("/proc/self/cgroup").unwrap_or_default();
+    available_memory_bytes_under(Path::new("/proc/meminfo"), &cgroup_limit_files(&own, root))
 }
 
 /// See the Unix version: Windows has no such reading.
@@ -238,16 +236,46 @@ pub fn available_memory_bytes_from(
     cgroup_max: &Path,
     cgroup_current: &Path,
 ) -> Option<u64> {
+    available_memory_bytes_under(
+        meminfo,
+        &[(cgroup_max.to_path_buf(), cgroup_current.to_path_buf())],
+    )
+}
+
+/// [`available_memory_bytes_from`] under several cgroup levels, each a `(memory.max,
+/// memory.current)` pair. A limit set on the unit or the slice (`MemoryMax=` of a systemd
+/// service) lives on the process's own cgroup or one of its parents, not on the root (F-19).
+pub fn available_memory_bytes_under(meminfo: &Path, cgroups: &[(PathBuf, PathBuf)]) -> Option<u64> {
     let available = parse_mem_available(&std::fs::read(meminfo).ok()?)?;
 
     // In a container the kernel's figure describes the host, not the budget the process
-    // may use: a cgroup limit of 1 GiB on a 64 GiB machine reads as 60 GiB free. When the
-    // cgroup v2 limit is a number, what is left of it is the other ceiling, and the
-    // smaller of the two is the honest answer.
-    match cgroup_memory_left(cgroup_max, cgroup_current) {
-        Some(left) if left < available => Some(left),
-        _ => Some(available),
+    // may use: a cgroup limit of 1 GiB on a 64 GiB machine reads as 60 GiB free. What is
+    // left under each cgroup v2 limit is another ceiling, and the smallest of all is the
+    // honest answer.
+    let smallest = cgroups
+        .iter()
+        .filter_map(|(max, current)| cgroup_memory_left(max, current))
+        .fold(available, u64::min);
+    Some(smallest)
+}
+
+/// The `memory.max` / `memory.current` pairs from the process's own cgroup up to `root`,
+/// read from the contents of `/proc/self/cgroup` (the v2 line is `0::/path`). A system
+/// without that line yields the root alone.
+pub fn cgroup_limit_files(proc_self_cgroup: &str, root: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let own = proc_self_cgroup
+        .lines()
+        .find_map(|line| line.strip_prefix("0::"))
+        .unwrap_or("/");
+    let mut dirs = vec![root.to_path_buf()];
+    let mut dir = root.to_path_buf();
+    for part in own.split('/').filter(|p| !p.is_empty() && *p != "..") {
+        dir.push(part);
+        dirs.push(dir.clone());
     }
+    dirs.into_iter()
+        .map(|d| (d.join("memory.max"), d.join("memory.current")))
+        .collect()
 }
 
 /// The memory left under the cgroup v2 limit, or `None` when there is no limit to speak

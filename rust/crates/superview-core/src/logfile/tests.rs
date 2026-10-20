@@ -230,3 +230,22 @@ fn an_impossible_directory_is_reported() {
         "{err}"
     );
 }
+
+// F-22: the modes given at creation do not tighten what already exists.
+#[cfg(unix)]
+#[test]
+fn an_existing_loose_log_is_made_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let cache = cache();
+    let dir = cache.path().join("superview-test");
+    fs::create_dir_all(&dir).unwrap();
+    let log = dir.join("superview-test.log");
+    fs::write(&log, b"old\n").unwrap();
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&log, fs::Permissions::from_mode(0o644)).unwrap();
+    let (writer, path) = open_log_file("superview-test", 1 << 20, cache.path()).unwrap();
+    let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&path), 0o600, "log file mode");
+    assert_eq!(mode(&dir), 0o700, "log directory mode");
+    drop(writer);
+}

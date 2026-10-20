@@ -334,3 +334,31 @@ fn a_cgroup_limit_caps_the_available_memory() {
     );
     assert_eq!(available_memory_bytes_from(&absent, &max, &current), None);
 }
+
+// F-19: a MemoryMax on the unit or the slice sits below the cgroup root.
+#[test]
+fn a_limit_on_a_parent_cgroup_caps_the_available_memory() {
+    let root = tempfile::tempdir().unwrap();
+    let unit = root.path().join("user.slice/app.service");
+    std::fs::create_dir_all(&unit).unwrap();
+    let slice = root.path().join("user.slice");
+    std::fs::write(slice.join("memory.max"), "2147483648\n").unwrap(); // 2 GiB
+    std::fs::write(slice.join("memory.current"), "1073741824\n").unwrap(); // 1 GiB
+    std::fs::write(unit.join("memory.max"), "max\n").unwrap();
+    std::fs::write(unit.join("memory.current"), "1\n").unwrap();
+    let meminfo = root.path().join("meminfo");
+    std::fs::write(&meminfo, "MemAvailable:   8388608 kB\n").unwrap(); // 8 GiB
+
+    let files = cgroup_limit_files("0::/user.slice/app.service\n", root.path());
+    assert_eq!(files.len(), 3, "root, slice, unit");
+    assert_eq!(
+        available_memory_bytes_under(&meminfo, &files),
+        Some(GIB),
+        "the slice's 2 GiB limit, 1 GiB used"
+    );
+    // No v2 line (a v1 machine): the root alone.
+    assert_eq!(cgroup_limit_files("4:memory:/x\n", root.path()).len(), 1);
+    // A hostile or odd path cannot climb out of the root.
+    let odd = cgroup_limit_files("0::/../../etc\n", root.path());
+    assert!(odd.iter().all(|(max, _)| max.starts_with(root.path())));
+}

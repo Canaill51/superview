@@ -517,7 +517,7 @@ fn run(
     // a finished one, nor destroy the file that was there before.
     let partial_path = new_partial_output_path(c.output).map_err(|e| {
         let message = e.to_string();
-        fail(metrics, "encoding", &message, e)
+        fail(metrics, "partial_output", &message, e)
     })?;
     let mut partial = PartialFile {
         path: partial_path,

@@ -152,6 +152,8 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, Error> {
     config.video_preset = normalize_video_preset(&config.video_preset);
     config.filter_threads = normalize_thread_count(config.filter_threads, "filter_threads");
     config.encoder_threads = normalize_thread_count(config.encoder_threads, "encoder_threads");
+    config.min_bitrate = normalize_bitrate(config.min_bitrate, "min_bitrate");
+    config.max_bitrate = normalize_bitrate(config.max_bitrate, "max_bitrate");
     Ok(config)
 }
 
@@ -240,6 +242,15 @@ fn normalize_video_preset(preset: &str) -> String {
 fn normalize_thread_count(value: i64, key: &str) -> i64 {
     if value < 0 {
         log::warn!("Invalid thread count, falling back to auto: key={key} value={value}");
+        return 0;
+    }
+    value
+}
+
+/// A negative bitrate means nothing; 0 is "no bound", as for the thread counts (F-20).
+fn normalize_bitrate(value: i64, key: &str) -> i64 {
+    if value < 0 {
+        log::warn!("Invalid bitrate, treating it as unset: key={key} value={value}");
         return 0;
     }
     value
