@@ -1,7 +1,9 @@
 # Où on en est
-- État : treizième passe d'analyse close, tout fusionné (#78 à #96). Dernière version publiée : **v0.2.9**
-  (2026-10-14), la première avec l'installateur Windows et l'AppImage Linux (DEC-41). Aucune PR ouverte.
-  Non vérifié sur de vraies machines : l'installateur sous Windows, les encodeurs GPU.
+- État (2026-10-20) : **pré-release `RC-0.3.0` publiée** (première version qui livre le binaire Rust, DEC-47 ; commit
+  `db7b47b`, installateur Windows + AppImage + `checksums.txt`, sommes vérifiées, marqueur `version=0.3.0`). Dernière
+  version stable : **v0.2.9** (Go). Aucune PR ouverte. Tests manuels passés sur Linux (KDE, Wayland) et Windows
+  (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV (matériel), portail lent, champ texte de repli, lien d'installation.
+  **Reste** : phase 8 (retrait de Go ; déplacer l'icône `cmd/superview/Icon.png` sous `rust/`), puis une version stable.
 - Le dépôt suit le gabarit `claude-gabarit` : `scripts/check.sh` (point d'entrée unique), hooks git
   et Claude, code sous `cmd/superview/` + `internal/common/` (DEC-39), docs sous `docs/` (DEC-40).
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), puis `scripts/check.sh`.
@@ -25,7 +27,7 @@
   **PR 6.3 faite (2026-10-18)** : `app.rs` (colle fenêtre↔`AppState`↔cœur, traits injectables `Engine`/`Host`), `engine.rs`, `host.rs`, `journal.rs`, `signals.rs` ; 21 scénarios de fenêtre simulés (`app_tests.rs`). Jamais vu : la vraie fenêtre (pas de Xvfb), rfd, navigateur, `ctrlc`/`explorer.exe` à l'exécution, ComboBox des codecs à l'œil. Reste 6.4 (sélecteurs + `docs/TESTS-MANUELS.md`).
   **PR 6.4 faite (2026-10-18)** : `dialogs.rs` (rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis champ texte), popup `PathEntry`, icône de la fenêtre, `docs/TESTS-MANUELS.md` (voir DEC-43). Phase 7 : icône du `.exe` et du `.desktop`. Phase 8 (retrait de Go) : déplacer `cmd/superview/Icon.png` sous `rust/` et corriger `@image-url` dans `ui/main.slint` (le build casse sinon).
   **PR 7.2 faite en local, essai à blanc à venir (DEC-47)** : `release.yml` livre le binaire Rust (test = Rust + `cargo llvm-cov` 50 % + `cargo audit`, builds Windows/Linux, marqueur « non modifié »), AppImage avec `libxkbcommon-x11` et `libxcb-xkb` embarquées sans `LD_LIBRARY_PATH` (rpath), prouvé par `LD_DEBUG=libs` ; `rust.yml` suit. À faire : `gh workflow run release.yml --ref feat/rust-release-workflow` (L-114), puis ajouter les jobs Rust aux checks requis du ruleset, puis 7.3.
-  Reste à porter : phases 7-8. Décisions du 2026-10-17 : AppImage à compléter avec `libxkbcommon-x11` (phase 6/7), ARM64 hors périmètre, tests manuels à définir (checklist `docs/TESTS-MANUELS.md` avant la phase 7).
+  Reste à porter : phase 8 (la 7 est faite : RC-0.3.0). Décisions du 2026-10-17 : AppImage à compléter avec `libxkbcommon-x11` (phase 6/7), ARM64 hors périmètre, tests manuels à définir (checklist `docs/TESTS-MANUELS.md` avant la phase 7).
   À savoir pour la suite : un chemin d'entrée non UTF-8 est refusé (régression de capacité par rapport à Go, tant que `check_video` prend un `&str`) ; l'interface devra vider l'étiquette « Hardware: … » sur erreur ; un `Prober` doit être durable ; le `temp_dir` passé à `check_health` doit être nettoyé (barre finale sous Windows).
   À savoir : winit charge `libxkbcommon-x11` à l'exécution sous X11 (embarquée dans l'AppImage depuis DEC-47) ; `rfd` a besoin de libdbus (portail) ou de zenity ;
   le sélecteur n'a pas de champ texte de secours (phase 6, étape 4).
