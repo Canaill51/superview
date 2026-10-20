@@ -24,6 +24,15 @@ Cancel et fermeture avec la croix (aucun `ffmpeg.exe`, sortie partielle ou dossi
 désinstallation : tout conforme, d'après l'utilisateur. Seul le sélecteur natif a une case propre ; la case
 **Icône de la fenêtre** reste ouverte parce que la partie Linux (KDE) n'a pas été dite vue.
 
+**Suite du 2026-10-20** (KDE sur Wayland) : **Icône de la fenêtre** cochée. Sous Wayland, KDE ne lit pas l'icône
+dans la fenêtre : il la cherche dans un `.desktop` nommé d'après l'identifiant `com.canaill51.superview`. Une
+AppImage lancée sans intégration au bureau montre donc une icône générique ; avec un `.desktop` pointant sur
+elle (ce que fait AppImageLauncher), barre de titre et barre des tâches montrent la bonne icône. Rien à changer
+dans le code. **Diagnostic : lire tout le rapport** cochée (la partie Diagnostic, d'après l'utilisateur).
+**En suspend, volontairement** : portail lent ou sans backend, et champ texte de repli (« Linux sans rien »),
+jugés peu probables sur un bureau ordinaire ; encodeurs AMD et QSV, en attente de matériel AMD et Intel
+récents ; lien d'installation (voir sa case).
+
 Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi -i sine -t 10 -c:v libx264 -c:a aac clip.mp4`
 
 ## Conversion
@@ -66,7 +75,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       s'applique ; Cancel ne change rien et rend le bouton.
 - [x] **Version dans la barre de titre** : « Superview » suivi de la version du tag et de la révision
       (« Superview 0.3.0 (abc1234) »), « Superview dev » pour une compilation locale.
-- [ ] **Icône de la fenêtre** : visible dans la barre de titre et dans la barre des tâches (Windows
+- [x] **Icône de la fenêtre** : visible dans la barre de titre et dans la barre des tâches (Windows
       et Linux avec gestionnaire de fenêtres). Sous Xvfb sans gestionnaire, seule la propriété
       `_NET_WM_ICON` se mesure (1024x1024).
 
@@ -88,7 +97,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Divers
 
-- [ ] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre le rapport en liste : une
+- [x] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre le rapport en liste : une
       icône ronde par contrôle, VERTE avec une coche (OK) ou ROUGE avec une croix (échec), la
       ligne « Status: » avec son icône, les « Value: » en retrait et plus ternes. L'ascenseur est
       visible à droite ; le début (« Superview build ») est visible, la molette et l'ascenseur
@@ -104,7 +113,8 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       quelques lignes). Les icônes sont dessinées, pas des emoji : le rendu logiciel de Slint ne
       dessine pas ✅/❌ (constaté à la main le 2026-10-18).
 
-- [ ] **Lien d'installation dans le navigateur** : sans ffmpeg dans le `PATH`, la popup « cannot find
+- [ ] **Lien d'installation dans le navigateur** (en suspend : filet de sécurité, la release embarque FFmpeg ; à passer
+      seulement si ce code change) : sans ffmpeg dans le `PATH`, la popup « cannot find
       ffmpeg/ffprobe » s'ouvre ; un clic sur l'adresse ouvre le navigateur (`xdg-open` ou
       `explorer.exe`) sur la page de téléchargement. Retry après installation relance la sonde.
 
