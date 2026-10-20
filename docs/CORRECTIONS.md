@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Sonde et cascade : preset de l'aperçu, annulation, cause du repli, échec de lancement (F-07 à F-10, session 4)
+
+| | |
+| --- | --- |
+| **Constat** | l'aperçu matériel sondait avec un preset vide quand la conversion sonde avec celui du profil : deux lancements d'ffmpeg là où un seul répond ; Annuler n'atteignait pas la vérification à la taille de sortie (jusqu'à deux délais de sonde) ; « falling back to CPU decode » et « retrying with CPU encoder » ne disaient pas pourquoi ; un ffmpeg impossible à lancer était mis en cache comme un refus définitif du pilote |
+| **Cause** | `describe_verified_hardware_plan` codait `""` ; `pipeline.rs` passait `None` comme annulation ; les `Err(_)` de la cascade jetaient l'erreur ; `probe_encoder_for_size_cached` ne distinguait pas « refusé » de « jamais lancé » |
+| **Fichiers** | `superview-core/src/probe.rs` (paramètre `preset`, `probe_asked` renvoie si ffmpeg a été lancé), `pipeline.rs`, `encode/cascade.rs`, `superview-app/src/state.rs` (`VerificationRequest.quality`, un changement de profil relance la vérification), `engine.rs` (preset via `resolve_start_settings`) |
+| **PR** | Verify the hardware preview with the conversion's preset, let Cancel reach the probe and log why a fallback happened |
+| **Vérification** | contre-preuve rouge avant le correctif : `the_preview_and_the_conversion_share_one_question_to_the_driver` (2 lancements au lieu de 1), `cancel_reaches_the_verification_of_the_hardware_encoder` (15 s au lieu de < 5 s), `an_ffmpeg_that_cannot_be_started_is_not_cached` (cache non vide), `cascade_logs` (« no cause on … ») ; verts après. Le test d'état `the_verification_is_requested_only_when_it_can_be_answered` couvre le profil. Signature de `describe_verified_hardware_plan` changée : aucune mention en Markdown à mettre à jour |
+
 ### [2026-10-20] I/O capturée bornée : stderr de ffmpeg, stdout d'ffprobe à part, lignes de journal entières (F-04, F-05, F-06, session 3)
 
 | | |

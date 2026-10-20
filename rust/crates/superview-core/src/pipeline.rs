@@ -25,10 +25,10 @@
 //!   and `record_error` and `record_stage_durations` work on metrics that are then thrown
 //!   away (the log line says the same thing). Go left the previous "Hardware: ..." summary
 //!   in place after an error, stale; the caller must clear that label itself on `Err`.
-//! - A stop requested while the validations ran (the encoder probe cannot be cancelled,
-//!   as in Go) is returned as it is just before the session is created: nothing is
-//!   created, no map is generated, no ffmpeg is started. Go goes on to create the session
-//!   and the maps, launches ffmpeg and kills it.
+//! - A stop requested while the validations ran (Cancel ends the encoder probe at once; a
+//!   system signal is only seen once it returns) is returned as it is just before the
+//!   session is created: nothing is created, no map is generated, no ffmpeg is started. Go
+//!   goes on to create the session and the maps, launches ffmpeg and kills it.
 //! - The event bus of `observability.go` (`RecordEncodingEvent`, `RecordEncodingError`,
 //!   `RecordEncodingProgress`, `RecordEncodingCompletion`) and `LogMetrics` are not ported.
 //!   Each failure is one `error` log record naming the stage (the `stage` attribute of Go's
@@ -436,7 +436,7 @@ fn run(
         squeeze,
         c.ffmpeg,
         &cfg.video_preset,
-        None,
+        Some(c.stop.cancel),
     );
 
     if rate_control == RateControl::ConstantQuality {
@@ -482,10 +482,10 @@ fn run(
         fail(metrics, "memory_check", &message, err)
     })?;
 
-    // The probe above cannot be cancelled: a stop asked meanwhile ends the run here, before
-    // the session and the maps (large frames make those expensive) rather than after them.
-    // The verification at the output size has no cancellation either: in constant quality it
-    // may ask twice, so the wait before the stop is seen can reach two probe timeouts.
+    // A stop asked while the validations ran ends the run here, before the session and the
+    // maps (large frames make those expensive) rather than after them. Cancel also ends the
+    // verification at the output size under way; a system signal does not, so it may wait for
+    // the probe's timeout (twice, in constant quality).
     if let Some(stop) = stop_requested(c.stop) {
         let message = stop.to_string();
         return Err(fail(metrics, "stop", &message, stop));

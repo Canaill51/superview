@@ -22,6 +22,7 @@ use superview_core::tools::{ToolResolver, check_ffmpeg};
 use superview_core::video::{VideoSpecs, check_video};
 
 use crate::app::{EncodeJob, Engine};
+use crate::format::resolve_start_settings;
 use crate::state::VerificationRequest;
 
 static RESOLVER: OnceLock<ToolResolver> = OnceLock::new();
@@ -104,6 +105,8 @@ impl Engine for SystemEngine {
             Some(&request.video),
             request.squeeze,
             &request.selection,
+            // The preset Start will pass, so the preview and the conversion share one answer.
+            &resolve_start_settings(&self.cfg, &request.quality, 0).1,
             Some(cancel),
         )
     }

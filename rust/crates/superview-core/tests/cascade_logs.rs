@@ -158,6 +158,18 @@ fn the_cascade_announces_no_fallback_it_does_not_take() {
             "the control run never said {word:?}:\n{log}"
         );
     }
+    // F-09: the announcement of a fallback says why it happens; the log is where a user
+    // looks for the cause of a slow conversion.
+    for prefix in [
+        "Hardware decode path failed, falling back to CPU decode",
+        "Hardware encoder failed, retrying with CPU encoder",
+    ] {
+        let line = log.lines().find(|l| l.starts_with(prefix)).unwrap();
+        assert!(
+            line.contains(" error=ffmpeg failed"),
+            "no cause on {line:?}"
+        );
+    }
 
     // A cancellation during the first (copy) run of the first pass.
     let (result, log) = run("echo out_time_ms=1000000; exec sleep 30", true);

@@ -694,9 +694,14 @@ fn the_verification_is_requested_only_when_it_can_be_answered() {
     assert_eq!(count(), 2, "the codec changes the plan");
     assert_eq!(requests.lock().unwrap()[1].selection, "libx264");
 
+    // F-07: the profile picks the preset the conversion asks the driver with.
+    state.quality_changed("Fast");
+    assert_eq!(count(), 3, "the preset changes the question to the driver");
+    assert_eq!(requests.lock().unwrap()[2].quality, "Fast");
+
     state.ffmpeg_available = false;
     state.encoder_changed("libx264 encoder");
-    assert_eq!(count(), 2, "without ffmpeg there is nothing to verify");
+    assert_eq!(count(), 3, "without ffmpeg there is nothing to verify");
 }
 
 // ---- the lifecycle of a conversion ----

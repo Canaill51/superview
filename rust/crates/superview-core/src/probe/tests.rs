@@ -872,6 +872,7 @@ fn the_plan_names_what_will_really_run() {
         Some(&hevc_source("yuv420p10le")),
         false,
         "",
+        "",
         None,
     );
     assert!(line.contains("libx265"), "{line}");
@@ -897,6 +898,7 @@ fn the_plan_is_unchanged_when_the_hardware_accepts() {
         Some(&hevc_source("yuv420p10le")),
         false,
         "",
+        "",
         None,
     );
     assert!(line.contains("h264_vaapi"), "{line}");
@@ -913,7 +915,7 @@ fn the_plan_without_a_video_or_an_encoder_says_so() {
     let resolver = no_tools();
     let prober = Prober::new(&resolver);
     assert_eq!(
-        prober.describe_verified_hardware_plan(&vaapi_machine(), None, false, "", None),
+        prober.describe_verified_hardware_plan(&vaapi_machine(), None, false, "", "", None),
         "Hardware: waiting for input video"
     );
     let no_streams = VideoSpecs {
@@ -925,6 +927,7 @@ fn the_plan_without_a_video_or_an_encoder_says_so() {
             &vaapi_machine(),
             Some(&no_streams),
             false,
+            "",
             "",
             None
         ),
@@ -1391,6 +1394,7 @@ fn the_plan_line_says_when_the_hardware_works_in_constant_quality_only() {
         Some(&hevc_source("yuv420p10le")),
         false,
         "",
+        "",
         None,
     );
     assert!(line.contains("h264_vaapi"), "{line}");
@@ -1402,6 +1406,7 @@ fn the_plan_line_says_when_the_hardware_works_in_constant_quality_only() {
         &vaapi_machine(),
         Some(&hevc_source("yuv420p10le")),
         false,
+        "",
         "",
         None,
     );
@@ -1563,4 +1568,53 @@ fn a_second_probe_that_is_cancelled_is_not_cached() {
         probe.reason
     );
     assert!(prober.cache().is_empty());
+}
+
+// F-07: the Hardware line used to ask with no preset while the conversion asks with the
+// profile's, so the two questions never shared a cache entry and the driver was asked twice.
+#[cfg(unix)]
+#[test]
+fn the_preview_and_the_conversion_share_one_question_to_the_driver() {
+    let _guard = spawn_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let calls = dir.path().join("calls");
+    let fake = fake_tools(&[(
+        "ffmpeg",
+        &format!("echo \"call $*\" >> '{}'\nexit 0", calls.display()),
+    )]);
+    let prober = Prober::new(&fake.resolver);
+    let video = hevc_source("yuv420p10le");
+    prober.describe_verified_hardware_plan(&vaapi_machine(), Some(&video), false, "", "fast", None);
+    let (_, refusal, _) = prober.verify_encoder_with_rate_control(
+        "h264_vaapi",
+        Some(&video),
+        false,
+        &vaapi_machine(),
+        "fast",
+        None,
+    );
+    assert_eq!(refusal, "");
+    let launches = std::fs::read_to_string(&calls).unwrap().lines().count();
+    assert_eq!(launches, 1, "the conversion asked the driver again");
+}
+
+// F-10: a failure to start ffmpeg says nothing about the driver; a later try must be able to
+// succeed, so the failure is not remembered.
+#[cfg(unix)]
+#[test]
+fn an_ffmpeg_that_cannot_be_started_is_not_cached() {
+    let _guard = spawn_lock();
+    // Executable, but its interpreter does not exist: the system refuses to start it.
+    let fake = install_tools(&[(
+        "ffmpeg".to_string(),
+        "#!/nonexistent/interpreter\n".to_string(),
+    )]);
+    let prober = Prober::new(&fake.resolver);
+    let spec = sweep_spec("h264_vaapi");
+    let probe = prober.probe_encoder_for_size_cached(&spec, None);
+    assert!(!probe.usable);
+    assert!(
+        prober.cache().is_empty(),
+        "a launch failure was cached as the driver's answer"
+    );
 }
