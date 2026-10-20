@@ -1,0 +1,42 @@
+# cargo-deny, run by the job "Rust coverage and audit" (.github/workflows/rust.yml) and by
+# `make coverage-audit`. Two checks: known advisories, and licences compatible with
+# GPL-3.0-or-later. Bans and sources are not checked (nothing here asks for them).
+
+[graph]
+# The shipped binaries are Linux and Windows only; build tools are not audited as dependencies.
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+
+[advisories]
+# A vulnerability fails the job. The way out is a reasoned, dated `ignore` below, never removing
+# the step. These four are crates flagged "unmaintained", not vulnerable, and none is ours to
+# replace: they come in through Slint's winit backend (zbus; sctk-adwaita -> ab_glyph ->
+# ttf-parser), whose latest releases (slint 1.18.1) still use them. Reopen on each Slint update:
+# zbus 6 absorbs zvariant, and skrifa replaces ttf-parser. (bincode, RUSTSEC-2025-0141, is in
+# Cargo.lock only through an inactive optional dependency; cargo-deny does not see it.)
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.25.1 unmaintained (2026-06-28); via winit -> sctk-adwaita -> ab_glyph, awaiting an upstream move to skrifa" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
+]
+
+[licenses]
+# Superview is GPL-3.0-or-later. Where a crate offers a choice, one permissive alternative must
+# be on this list; slint is used under GPL-3.0-only, one of the three licences it offers.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "BSL-1.0",
+    "0BSD",
+    "CC0-1.0",
+    "Unlicense",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+]

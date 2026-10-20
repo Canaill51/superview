@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Dépôt et CI : délais des jobs, `cargo-deny`, couverture publiée (F-28 à F-30, session 8)
+
+| | |
+| --- | --- |
+| **Constat** | aucun `timeout-minutes` (défaut GitHub : 360 min) ; les cinq crates non maintenus n'étaient acceptés nulle part ; les licences n'étaient pas vérifiées contre GPL-3.0-or-later ; `THIRD_PARTY_NOTICES.md` annonçait 471 crates ; le seuil de couverture ne laissait aucune trace |
+| **Cause** | jamais ajoutés ; `cargo audit` ne fait que des avertissements sur « non maintenu » et le commentaire de `rust.yml` renvoyait à un `audit.toml` absent |
+| **Fichiers** | `.github/workflows/rust.yml` (60 min par job, étape `cargo deny`, artefact `lcov` de 30 jours), `lint.yml` (15 min), `rust/deny.toml` (nouveau), `Makefile` (`coverage-audit`), `docs/ENVIRONNEMENT.md`, `AGENTS.md`, `THIRD_PARTY_NOTICES.md` (473 crates). `release.yml` n'est pas touché (essai à blanc obligatoire, L-114) |
+| **PR** | Bound the CI jobs in time, check advisories and licences with cargo-deny and keep the coverage report |
+| **Vérification** | contre-preuve rouge : sans l'`ignore` de `ttf-parser`, `advisories FAILED` (« `ttf-parser` is unmaintained ») ; sans `Zlib` dans `allow`, `licenses FAILED` ; verts après. **Quatre exceptions seulement** (`ttf-parser`, `zvariant`, `zbus_names`, `zvariant_derive`) : `bincode` n'est dans `Cargo.lock` que par une dépendance optionnelle inactive, `cargo-deny` ne la voit pas. Toutes viennent du backend `winit` de Slint (1.18.1, la dernière) ; à rouvrir à chaque mise à jour de Slint (zbus 6 absorbe zvariant, `skrifa` remplace `ttf-parser`). **Piège** : `cargo-deny` 0.18.4 ne lit pas les scores CVSS 4.0 de la base d'avis (« unsupported CVSS version: 4.0 »), d'où 0.20.2. **Limite** : l'étape `cargo llvm-cov report --lcov` et l'artefact ne tournent qu'en CI ; leur première exécution est celle de cette PR |
+
 ### [2026-10-20] Interface de confort : « Cancelling... » stable, question Quit périmée, menu de qualité, Échap et Entrée, fenêtre redimensionnable (F-23 à F-27, session 7)
 
 | | |
