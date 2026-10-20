@@ -63,7 +63,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-29](#dec-29) | Les fichiers temporaires vivent dans un répertoire de session isolé sous `os.TempDir()` | Acceptée |
 | [DEC-30](#dec-30) | `-threads` = `NumCPU()` plafonné à 16 pour `libx265`, jamais émis pour un encodeur matériel | Acceptée |
 | [DEC-31](#dec-31) | Pas de `-re` : l'encodage n'est pas bridé au temps réel | Acceptée |
-| [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée |
+| [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée ; la taille fixe est remplacée par DEC-51, le thème reste |
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README | Acceptée |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée, amendée par DEC-43 (6.4) et DEC-49 |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
@@ -81,6 +81,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-47](#dec-47) | La release livre le binaire Rust ; AppImage sans `LD_LIBRARY_PATH` (DT_RPATH) | Acceptée |
 | [DEC-48](#dec-48) | Un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante, automatiquement (Rust seulement) | Acceptée |
 | [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée |
+| [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | Acceptée (remplace la taille fixe de DEC-32) |
 
 ---
 
@@ -318,6 +319,8 @@ origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49
 
 **Décision** — `SetFixedSize(true)`, taille = max(constantes, `MinSize` du contenu) ; `forcedDarkTheme` plutôt que `theme.DarkTheme()` déprécié. Ajouter un widget est un changement de mise en page : `TestToolbarFitsWindow` mesure le rendu.
 
+**Amendée par [DEC-51](#dec-51)** : la taille fixe est *Remplacée* ; le thème sombre forcé reste.
+
 ### DEC-33
 **Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README.**
 2026-10-14 · **Acceptée** · CONTRATS.md § 1 ligne 6
@@ -514,3 +517,11 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Conséquences** — Les jobs de build de la release sont plus longs (2 min 20 s ici, contre une compilation courte avant) ; noté dans `RELEASING.md`. `release.yml` n'est pas modifié.
 **À rouvrir si** — Le temps de build devient un frein, ou si les panics des fils sont un jour traitées autrement que par `catch_unwind` (alors `panic = "abort"` redevient possible).
 
+### DEC-51
+**La fenêtre est redimensionnable : 980×470 à l'ouverture, 760×440 au minimum, pas de maximum.**
+2026-10-20 · Acceptée · session 7 de la 14ᵉ passe (F-27) · remplace la taille fixe de DEC-32
+
+**Contexte** — Fixe à 980×470 px logiques, la fenêtre dépassait un 1366×768 à 150 % (910×512) : coupée, non redimensionnable.
+**Décision** — `preferred-width/height` 980×470, `min-width/height` 760×440, plus de maximum. `the_window_fits_its_smallest_size` vérifie la barre d'outils et la dernière ligne au minimum ; les tests de la taille d'ouverture restent.
+**Conséquences** — Le test tourne sur le backend de test, sans police : le retour à la ligne des textes n'y est pas mesuré, et le minimum n'a pas été vu sous xvfb.
+**À rouvrir si** — Une capture réelle à 760×440 montre un texte coupé (remonter le minimum), ou si un widget ajouté ne tient plus dans ce minimum.

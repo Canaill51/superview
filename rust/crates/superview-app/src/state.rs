@@ -401,6 +401,9 @@ pub struct AppState {
     hardware_status_gen: u64,
 
     encoding: bool,
+    /// True from the Cancel of a running conversion until it ends: a progress
+    /// report still queued then must not rewrite "Cancelling...".
+    cancelling: bool,
     /// True while the Diagnostic report is being computed: it asks every hardware encoder to
     /// encode a frame, which a conversion must not do beside it (E-14), and the other way round.
     diagnosing: bool,
@@ -456,6 +459,7 @@ impl AppState {
             restoring_selection: false,
             hardware_status_gen: 0,
             encoding: false,
+            cancelling: false,
             diagnosing: false,
             lifecycle: Arc::new(Lifecycle::new()),
             quit: None,
@@ -501,6 +505,11 @@ impl AppState {
 
     pub fn is_encoding(&self) -> bool {
         self.encoding
+    }
+
+    /// Whether progress still means something: a conversion runs and nobody has stopped it.
+    pub fn shows_progress(&self) -> bool {
+        self.encoding && !self.cancelling
     }
 
     /// Enables or disables what needs ffmpeg according to whether the last probe found it: at
@@ -749,6 +758,7 @@ impl AppState {
     /// directions: two hand-written sequences had drifted apart (P-01).
     pub fn set_encoding(&mut self, in_progress: bool) {
         self.encoding = in_progress;
+        self.cancelling = false;
         self.view.set_enabled(locked(), !in_progress);
         if in_progress {
             self.view.progress = 0.0;
@@ -887,6 +897,7 @@ impl AppState {
         if !self.encoding || !self.lifecycle.cancel() {
             return false;
         }
+        self.cancelling = true;
         self.view.status = "Status: Cancelling...".into();
         true
     }

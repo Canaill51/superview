@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Interface de confort : « Cancelling... » stable, question Quit périmée, menu de qualité, Échap et Entrée, fenêtre redimensionnable (F-23 à F-27, session 7)
+
+| | |
+| --- | --- |
+| **Constat** | une progression déjà en file remettait « Transforming... » sur « Cancelling... » ; la question « Cancel and quit » restait à l'écran quand la conversion finissait et le Done passait derrière ; la liste des profils de qualité existait en double (Slint et `prefs::QUALITY_PROFILES`) ; les dialogues ne répondaient pas au clavier ; la fenêtre était fixe à 980×470 px logiques, plus large qu'un 1366×768 à 150 % (910×512) |
+| **Cause** | `WindowSink` ne regardait que `is_encoding()` ; `Popups::close` ne purgeait le `Quit` que derrière un autre popup ; modèle codé en dur dans `main.slint` ; le `FocusScope` de `Modal` n'avait pas de `key-pressed` ; `min-width == max-width` |
+| **Fichiers** | `superview-app/src/state.rs` (`cancelling`, `shows_progress`), `app.rs` (`Popups::drop_quit`, appelé par `complete`, `set_quality_profiles`), `ui/main.slint` (propriété `quality-profiles`, callbacks `confirmed`/`dismissed` de `Modal`, `preferred-*` 980×470 et minimum 760×440, plus de maximum ; DEC-51 remplace la taille fixe de DEC-32), le `FocusScope` de `Modal` est le parent de la carte (une touche refusée par un bouton ou un champ remonte), `path-entry` répond à Échap |
+| **PR** | Make the window resizable, answer dialogs to Escape and Enter and keep Cancelling and the quit question honest |
+| **Vérification** | contre-preuve rouge pour chacun : `a_late_progress_does_not_overwrite_cancelling` (« Transforming... 60% » à la place de « Cancelling... »), `the_quit_question_goes_when_the_conversion_ends` (le Done n'arrive jamais), `the_quality_menu_is_the_rust_list` (propriété vide, et la fenêtre nue perdait « Balanced » : un nouveau modèle sélectionne sa première entrée, d'où l'ordre profils puis choix dans `wire` et `shown()`), `modals_answer_to_escape_and_enter` (handler neutralisé : « Enter did not close the dialog ») ; verts après. **Test modifié, par décision de F-24** : `popups_wait_their_turn` épinglait « le Done attend derrière la question » ; il attend maintenant que le Done prenne sa place. Entrée ne répond jamais à Overwrite ni à Quit (questions destructives : seul Échap, qui vaut « No »). **Limite** : `the_window_fits_its_smallest_size` tourne sur le backend de test, sans police, donc sans vraie mesure des textes renvoyés à la ligne ; la fenêtre à 910×512 n'a pas été vue sous xvfb |
+
 ### [2026-10-20] Petites corrections du cœur : limite cgroup, bitrates négatifs, recherche d'outils, permissions du journal (F-19 à F-22, session 6, PR B)
 
 | | |
