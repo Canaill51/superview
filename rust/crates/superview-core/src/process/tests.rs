@@ -388,3 +388,67 @@ fn split_output_keeps_stdout_and_stderr_apart() {
     assert_eq!(status.code(), Some(3));
     assert_eq!((stdout.as_str(), stderr.as_str()), ("out\n", "err\n"));
 }
+
+// F-18: a process that ends by itself but leaves a child holding the pipe must not hold the
+// caller too -- the reader gets READER_GRACE here as well as after a kill.
+#[cfg(unix)]
+#[test]
+fn run_with_deadline_does_not_wait_for_a_child_that_keeps_the_pipe() {
+    let _guard = spawn_lock();
+    let started = Instant::now();
+    let out = run_with_deadline(
+        background_command("sh", ["-c", "sleep 6 & echo hello"]),
+        Duration::from_secs(30),
+        None,
+    )
+    .unwrap();
+    assert_eq!(out.end, RunEnd::Finished);
+    assert!(out.output.contains("hello"), "{:?}", out.output);
+    assert!(
+        started.elapsed() < Duration::from_secs(4),
+        "waited {:?} for the pipe",
+        started.elapsed()
+    );
+}
+
+// F-17: the bounded variants give up on a process that never ends, and reap it.
+#[cfg(unix)]
+#[test]
+fn combined_output_within_gives_up_at_the_deadline() {
+    let _guard = spawn_lock();
+    let started = Instant::now();
+    let err = combined_output_within(
+        background_command("sh", ["-c", SLEEPS_FOR_A_LONG_TIME]),
+        Duration::from_millis(500),
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+    assert!(started.elapsed() < Duration::from_secs(10));
+}
+
+#[cfg(unix)]
+#[test]
+fn split_output_within_gives_up_at_the_deadline_and_reaps() {
+    let _guard = spawn_lock();
+    let started = Instant::now();
+    let err = split_output_within(
+        background_command("sh", ["-c", SLEEPS_FOR_A_LONG_TIME]),
+        Duration::from_millis(500),
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+    assert!(started.elapsed() < Duration::from_secs(10));
+}
+
+#[cfg(unix)]
+#[test]
+fn split_output_within_keeps_the_streams_apart_when_the_process_is_in_time() {
+    let _guard = spawn_lock();
+    let (status, stdout, stderr) = split_output_within(
+        background_command("sh", ["-c", "echo out; echo err 1>&2"]),
+        Duration::from_secs(30),
+    )
+    .unwrap();
+    assert!(status.success());
+    assert_eq!((stdout.trim(), stderr.trim()), ("out", "err"));
+}

@@ -45,10 +45,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use crate::config::Config;
 use crate::error::Error;
-use crate::process::{background_command, combined_output};
+use crate::process::{background_command, combined_output_within};
 
 /// Names a directory holding ffmpeg and ffprobe, and wins over everything else.
 ///
@@ -60,6 +61,10 @@ pub const TOOL_DIR_ENV: &str = "SUPERVIEW_FFMPEG_DIR";
 /// are `OsString`, so a non-UTF-8 `PATH` or override does not blind the search.
 pub type EnvFn = dyn Fn(&str) -> Option<OsString> + Send + Sync;
 
+/// The default bound on a query to ffmpeg or ffprobe: generous for a file on a slow share,
+/// finite for one on a frozen share.
+pub const TOOL_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Finds ffmpeg and ffprobe and remembers what it found.
 pub struct ToolResolver {
     env: Box<EnvFn>,
@@ -67,6 +72,8 @@ pub struct ToolResolver {
     usable: fn(&Path) -> bool,
     /// Windows only: also accept `.bat`/`.cmd` on `PATH`. Off, except for test stand-ins.
     batch_files: bool,
+    /// How long `-version`, `-encoders`, `-hwaccels` and ffprobe may take (F-17).
+    query_timeout: Duration,
     cache: Mutex<HashMap<String, PathBuf>>,
 }
 
@@ -82,6 +89,7 @@ impl ToolResolver {
             exe_dir,
             usable: usable_tool_file,
             batch_files: false,
+            query_timeout: TOOL_QUERY_TIMEOUT,
             cache: Mutex::new(HashMap::new()),
         }
     }
@@ -108,6 +116,20 @@ impl ToolResolver {
     #[must_use]
     pub(crate) fn with_batch_stand_ins(mut self) -> Self {
         self.batch_files = true;
+        self
+    }
+
+    /// How long a query to ffmpeg or ffprobe (`-version`, `-encoders`, ffprobe on a file) may
+    /// take before it is killed (F-17).
+    pub fn query_timeout(&self) -> Duration {
+        self.query_timeout
+    }
+
+    /// Only the Unix tests shorten it (their stand-ins sleep).
+    #[cfg(all(test, unix))]
+    #[must_use]
+    pub(crate) fn with_query_timeout(mut self, timeout: Duration) -> Self {
+        self.query_timeout = timeout;
         self
     }
 
@@ -417,7 +439,8 @@ fn walk_for(root: &Path, lower_exe: &str) -> Option<PathBuf> {
 /// Runs `args` on the resolved ffmpeg; `Err` carries the cause's text.
 fn query_ffmpeg(resolver: &ToolResolver, args: &[&str]) -> Result<String, String> {
     let (status, output) =
-        combined_output(resolver.ffmpeg_command(args)).map_err(|e| e.to_string())?;
+        combined_output_within(resolver.ffmpeg_command(args), resolver.query_timeout())
+            .map_err(|e| e.to_string())?;
     if status.success() {
         Ok(output)
     } else {

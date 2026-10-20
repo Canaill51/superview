@@ -1,6 +1,6 @@
 use super::*;
 
-fn err_text(result: Result<(), Error>) -> String {
+fn err_text<T: std::fmt::Debug>(result: Result<T, Error>) -> String {
     result.expect_err("expected a refusal").to_string()
 }
 
@@ -307,4 +307,30 @@ fn symlinked_parent_into_a_system_directory_is_refused() {
     std::os::unix::fs::symlink("/usr", &link).unwrap();
     let result = is_valid_output_path(link.join("clip.mp4"));
     assert!(err_text(result).contains("protected system directory"));
+}
+
+// F-15: what the caller gets back is the file that was checked, not the link to it.
+#[test]
+fn a_valid_input_through_a_symlink_comes_back_resolved() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = write(dir.path(), "targetfile.mp4");
+    let link = dir.path().join("symlink.mp4");
+    if try_symlink(&target, &link).is_none() {
+        eprintln!("skipped: cannot create a symlink here");
+        return;
+    }
+    let resolved = is_valid_input_path(&link).unwrap();
+    assert_eq!(resolved, dunce::canonicalize(&target).unwrap());
+    assert_ne!(resolved, link);
+}
+
+// F-16: a device node is no destination, and the removable drives under /run/media are.
+#[cfg(unix)]
+#[test]
+fn dev_is_protected_and_run_media_is_not() {
+    let dirs = sensitive_system_directories(&|_| None);
+    assert!(is_sensitive_in("/dev/sda", &dirs));
+    assert!(is_sensitive_in("/dev/shm/x.mp4", &dirs));
+    assert!(!is_sensitive_in("/run/media/user/USB/x.mp4", &dirs));
+    assert!(!is_sensitive_in("/var/tmp/x.mp4", &dirs));
 }

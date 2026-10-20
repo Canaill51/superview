@@ -526,6 +526,29 @@ fn no_process_is_launched_before_the_paths_are_valid() {
     assert_eq!(tools.ffmpeg_calls(), Vec::<String>::new());
 }
 
+// F-15: ffprobe and ffmpeg are given the file that was validated, not the link that led to it.
+#[cfg(unix)]
+#[test]
+fn the_tools_get_the_resolved_input_not_the_symlink() {
+    let _guard = spawn_lock();
+    let tools = fake(act::PROBE_OK, act::OK);
+    let rig = Rig::new();
+    let links = TempDir::new().unwrap();
+    let link = links.path().join("link.mp4");
+    std::os::unix::fs::symlink(&rig.input, &link).unwrap();
+    let mut scn = rig.scenario(tools.resolver(), cpu_caps());
+    scn.input = link.clone();
+    let ui = TestUi::quiet("libx264", 2_000_000);
+    let _ = scn.run(&ui);
+    let real = dunce::canonicalize(&rig.input).unwrap();
+    let calls = [tools.probe_calls(), tools.ffmpeg_calls()].concat();
+    assert!(!calls.is_empty());
+    for call in calls {
+        assert!(call.contains(real.to_str().unwrap()), "{call}");
+        assert!(!call.contains(link.to_str().unwrap()), "{call}");
+    }
+}
+
 // The sequence Go follows, seen from the places the interface and the injected readings
 // can see it: encoder, bitrate, room at the destination, squeeze, room for the maps,
 // memory (and no session yet), and only then progress.

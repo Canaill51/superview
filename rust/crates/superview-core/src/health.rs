@@ -38,7 +38,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::config::Config;
 use crate::probe::{EncoderProbeReport, Prober, describe_encoder_probe, is_cancelled};
-use crate::process::combined_output;
+use crate::process::combined_output_within;
 use crate::tools::{ToolResolver, check_ffmpeg};
 
 /// The result of a single health check.
@@ -178,11 +178,19 @@ pub fn check_ffprobe_health(resolver: &ToolResolver, timestamp: i64) -> HealthCh
         timestamp,
         ..HealthCheckResult::default()
     };
-    match combined_output(resolver.ffprobe_command(["-version"])) {
+    match combined_output_within(
+        resolver.ffprobe_command(["-version"]),
+        resolver.query_timeout(),
+    ) {
         Ok((status, output)) if status.success() => {
             // The version is the first line.
             result.healthy = true;
-            result.value = output.split('\n').next().unwrap_or("").to_string();
+            result.value = output
+                .split('\n')
+                .next()
+                .unwrap_or("")
+                .trim_end()
+                .to_string();
             result.message = "FFprobe available".to_string();
         }
         _ => result.message = "FFprobe not found or failed".to_string(),
