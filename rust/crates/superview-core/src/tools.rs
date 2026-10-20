@@ -125,7 +125,8 @@ impl ToolResolver {
         self.query_timeout
     }
 
-    #[cfg(test)]
+    /// Only the Unix tests shorten it (their stand-ins sleep).
+    #[cfg(all(test, unix))]
     #[must_use]
     pub(crate) fn with_query_timeout(mut self, timeout: Duration) -> Self {
         self.query_timeout = timeout;
