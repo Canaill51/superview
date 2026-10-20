@@ -201,8 +201,8 @@ jobs:
         cargo install --locked --version 0.22.2 cargo-audit
 
     # One run, not two: the suite used to run once for the verdict and again for the profile
-    # (E-24), and cargo-llvm-cov runs `cargo test` itself. The floor is the Go gate's, 50 %
-    # of lines (test.yml, "Coverage Report & Gate"): a floor to raise as coverage grows.
+    # (E-24), and cargo-llvm-cov runs `cargo test` itself. The floor is 50 % of lines,
+    # the same as the "Rust coverage and audit" job of rust.yml: a floor to raise as coverage grows.
     - name: Run tests and the coverage gate
       working-directory: rust
       env:

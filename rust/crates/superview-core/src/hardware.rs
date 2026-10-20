@@ -2,7 +2,7 @@
 //! plus `FindEncoder` from `encode.go`.
 //!
 //! Every verdict and every string (shown to the user and written to the log) is the
-//! Go one; `testdata/parity/decisions.json` pins `find_encoder`,
+//! Go one; `tests/fixtures/parity/decisions.json` pins `find_encoder`,
 //! `software_encoder_for_fallback` and `select_hardware_decode_accel` over ~900 cases
 //! (`tests/parity_decisions.rs`).
 //!

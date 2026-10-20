@@ -5,17 +5,7 @@
 
 version: 2
 updates:
-  - package-ecosystem: "gomod" # See documentation for possible values
-    directory: "/" # Location of package manifests
-    schedule:
-      interval: "daily"
-    # Stated rather than left to Dependabot's default, because
-    # .github/release.yml sorts on this label: an unlabelled bump would land
-    # among the changes worth reading instead of in its own section.
-    labels:
-      - "dependencies"
-
-  # Port Rust (DEC-43). Même étiquette que gomod : .github/release.yml trie dessus.
+  # Port Rust (DEC-43). L'étiquette `dependencies` : .github/release.yml trie dessus.
   - package-ecosystem: "cargo"
     directory: "/rust"
     schedule:

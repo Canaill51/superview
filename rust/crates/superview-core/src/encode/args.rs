@@ -1,7 +1,7 @@
 //! The ffmpeg argument list of one encode, ported from `internal/common/encode.go`
 //! (`ValidateBitrate` to `mapVideoPresetForEncoder`).
 //!
-//! Every argument and its order are the Go ones: `testdata/parity/encode_args.json`
+//! Every argument and its order are the Go ones: `tests/fixtures/parity/encode_args.json`
 //! pins the full argv of `build_encode_base_args` over 237 cases
 //! (`tests/parity_encode_args.rs`), and a different argv is a defect.
 //!

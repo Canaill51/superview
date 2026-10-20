@@ -1,6 +1,7 @@
-//! Reproduces the Go parity oracle (`internal/common/testdata/parity/*.json`)
-//! field by field. The oracle is produced by `TestParity_PGM` and
-//! `TestParity_Specs` in `parity_test.go`.
+//! Reproduces the frozen parity fixtures (`tests/fixtures/parity/*.json`) field by field.
+//! The JSON files were generated once by the Go tests `TestParity_PGM` and
+//! `TestParity_Specs` (`parity_test.go`, removed with Go in phase 8); they are now plain
+//! regression fixtures, no longer regenerated.
 
 mod common;
 
@@ -11,14 +12,14 @@ use superview_core::error::Error;
 use superview_core::pgm::{check_geometry, generate_pgm_bytes, remap_map_bytes, remap_output_size};
 use superview_core::video::parse_video_specs;
 
-fn go_testdata(rel: &str) -> PathBuf {
+fn fixtures(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../internal/common/testdata")
+        .join("tests/fixtures")
         .join(rel)
 }
 
 fn load(rel: &str) -> serde_json::Map<String, Value> {
-    let text = std::fs::read_to_string(go_testdata(rel)).unwrap();
+    let text = std::fs::read_to_string(fixtures(rel)).unwrap();
     match serde_json::from_str(&text).unwrap() {
         Value::Object(map) => map,
         other => panic!("{rel}: not an object: {other}"),
@@ -127,7 +128,7 @@ fn pgm_matches_the_go_oracle() {
 #[test]
 fn specs_match_the_go_oracle() {
     let oracle = load("parity/specs.json");
-    let fixtures_dir = go_testdata("ffprobe");
+    let fixtures_dir = fixtures("ffprobe");
     let mut fixtures: Vec<String> = std::fs::read_dir(&fixtures_dir)
         .unwrap()
         .map(|e| e.unwrap().file_name().into_string().unwrap())

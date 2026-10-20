@@ -1,7 +1,8 @@
-//! Reproduces the Go parity oracle `testdata/parity/decisions.json` field by field:
+//! Reproduces the frozen parity fixture `tests/fixtures/parity/decisions.json` field by field:
 //! `find_encoder`, `software_encoder_for_fallback` and `select_hardware_decode_accel`
 //! over the matrix `TestParity_Decisions` records.
 //!
+//! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
 //! The matrix is rebuilt here from the same tables, and the set of case names must be
 //! the oracle's exactly, so a case cannot be skipped or invented without a failure.
 
@@ -16,8 +17,8 @@ use superview_core::hardware::{
 use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../internal/common/testdata/parity/decisions.json");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/decisions.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("decisions.json: not an object: {other}"),

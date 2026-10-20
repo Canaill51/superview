@@ -153,8 +153,8 @@ export component MainWindow inherits Window {
     // "Superview " + the build identity, set by `App::wire` (the Go window did the same).
     in property <string> window-title: "Superview";
     title: window-title;
-    // The Go build's icon, read where it is: no second copy of the file (`build.rs` embeds it).
-    icon: @image-url("../../../../cmd/superview/Icon.png");
+    // The window icon, next to this file (`build.rs` embeds it in the binary).
+    icon: @image-url("Icon.png");
     // Fixed size: minimum and maximum are the same, so the window cannot be resized.
     min-width: 980px;
     max-width: 980px;
