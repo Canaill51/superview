@@ -23,6 +23,7 @@ jobs:
   rust-linux:
     name: Rust on ubuntu-latest
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
     - name: Checkout code
@@ -145,6 +146,7 @@ jobs:
   rust-coverage-audit:
     name: Rust coverage and audit
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
     - name: Checkout code
@@ -168,6 +170,7 @@ jobs:
         rustup component add llvm-tools
         cargo install --locked --version 0.9.1 cargo-llvm-cov
         cargo install --locked --version 0.22.2 cargo-audit
+        cargo install --locked --version 0.20.2 cargo-deny
 
     # The floor is the former Go gate's, 50 % of lines: a floor to raise as coverage grows.
     # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip silently.
@@ -177,16 +180,34 @@ jobs:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo llvm-cov --workspace --locked --fail-under-lines 50
 
+    # The figure behind the gate, kept after the run (no external service, E-18).
+    - name: Write the coverage report
+      working-directory: rust
+      run: cargo llvm-cov report --lcov --output-path lcov.info
+
+    - name: Keep the coverage report
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: lcov
+        path: rust/lcov.info
+        retention-days: 30
+
     # Fails on a known vulnerability in Cargo.lock; the advisory database is not pinned.
-    # The way out is a reasoned, dated `ignore` in rust/.cargo/audit.toml (a file to create
-    # then; none exists today), not removing the step.
+    # The way out is a reasoned, dated `ignore` in rust/deny.toml, not removing the step.
     - name: Audit the dependencies
       working-directory: rust
       run: cargo audit
 
+    # Advisories again, through the dependency graph of the shipped targets, and the licences:
+    # every crate must offer one compatible with GPL-3.0-or-later (rust/deny.toml).
+    - name: Check advisories and licences
+      working-directory: rust
+      run: cargo deny --locked check advisories licenses
+
   rust-windows:
     name: Rust on windows-latest
     runs-on: windows-latest
+    timeout-minutes: 60
 
     env:
       # The same values as release.yml (build-gui-windows): the pinned FFmpeg archive

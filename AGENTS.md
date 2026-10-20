@@ -47,7 +47,7 @@ whole product. `scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`, 
 pre-commit hook needs cargo for every commit. Install with rustup into `~/.cargo` (no sudo,
 `docs/ENVIRONNEMENT.md`); the toolchain is pinned by `rust/rust-toolchain.toml`.
 `make coverage-audit` runs what the CI job *Rust coverage and audit* runs (a 50 % line floor
-with `cargo llvm-cov`, then `cargo audit`); it needs both tools installed.
+with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three tools installed.
 
 - **No test modifies the process environment.** Tests run in parallel in one process and
   `std::env::set_var` is `unsafe` in edition 2024; tool lookup takes the environment as a

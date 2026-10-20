@@ -83,10 +83,11 @@ avec les mêmes :
 rustup component add llvm-tools
 cargo install --locked --version 0.9.1 cargo-llvm-cov
 cargo install --locked --version 0.22.2 cargo-audit
+cargo install --locked --version 0.20.2 cargo-deny
 ```
 
 `cargo audit` lit la base d'avis la plus récente, qui n'est pas épinglée : un avis publié le matin
-peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans la configuration de `cargo audit` (`rust/.cargo/audit.toml`, à créer le cas échéant), pas le retrait de l'étape.
+peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans `rust/deny.toml` (`cargo deny` ; `cargo audit` n’a pas de fichier de configuration ici), pas le retrait de l'étape.
 
 ## Lancer la suite comme la CI la lance
 
