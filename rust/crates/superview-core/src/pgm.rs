@@ -234,6 +234,43 @@ mod tests {
         );
     }
 
+    // Go: TestCheckGeometry
+    #[test]
+    fn geometry_table() {
+        // (width, height, squeeze, refused)
+        let cases = [
+            (640, 480, false, false),
+            (1440, 1080, false, false),
+            (1000, 1000, false, false), // ratio 1, below 9:8
+            (800, 900, false, false),   // exactly 9:8, the limit itself
+            (2560, 1080, false, false), // wider than 16:9
+            (1080, 1920, false, true),
+            (1200, 1600, false, true),
+            (1080, 1920, true, false),
+            (1200, 1600, true, false),
+        ];
+        for (w, h, squeeze, refused) in cases {
+            let result = check_geometry(&video(w, h), squeeze);
+            let name = format!("{w}x{h} squeeze={squeeze}");
+            if !refused {
+                assert!(result.is_ok(), "{name}: refused a geometry the map handles");
+                continue;
+            }
+            // Go also asked GeneratePGM itself to refuse each of these.
+            assert!(
+                generate_pgm_bytes(&video(w, h), squeeze).is_err(),
+                "{name}: the map generator accepted a refused geometry"
+            );
+            let reason = result.expect_err(&name).reason;
+            assert!(
+                reason.contains(&format!("{w}x{h}"))
+                    && reason.contains("9:8")
+                    && reason.contains("fold"),
+                "{name}: reason {reason:?} should name the size, the 9:8 limit and the fold"
+            );
+        }
+    }
+
     // validate() runs before check_geometry(): 0x1440 is a dimension error.
     #[test]
     fn validation_comes_before_the_geometry_check() {

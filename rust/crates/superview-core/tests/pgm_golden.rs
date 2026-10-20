@@ -160,6 +160,59 @@ fn squeeze_map_stays_well_formed() {
     }
 }
 
+// Go: TestGeneratePGM_WidenMapStaysWellFormed
+#[test]
+fn widen_map_stays_well_formed() {
+    for (w, h) in [
+        (640, 480),
+        (641, 481),
+        (1440, 1080),
+        (1000, 1000),
+        (800, 900),
+        (2560, 1080),
+    ] {
+        let (x, _) = generate_pgm_bytes(&video(w, h), false).unwrap();
+        let (_, body, width, _) = parse_p5(&x);
+        for i in 0..width {
+            assert!(
+                sample(body, i) < w,
+                "{w}x{h}: x={i} samples outside the source row"
+            );
+            if i > 0 {
+                assert!(
+                    sample(body, i) >= sample(body, i - 1),
+                    "{w}x{h}: goes backwards at x={i}"
+                );
+            }
+        }
+        assert_eq!(sample(body, 0), 0, "{w}x{h}: left edge");
+        assert!(sample(body, width - 1) >= w - 2, "{w}x{h}: right edge");
+        assert!(
+            (sample(body, width / 2) - w / 2).abs() <= 1,
+            "{w}x{h}: the centre must stay put"
+        );
+    }
+}
+
+// Go: TestGeneratePGM_YMapIsIdentity
+#[test]
+fn y_map_is_identity() {
+    for squeeze in [false, true] {
+        let (_, y) = generate_pgm_bytes(&video(641, 481), squeeze).unwrap();
+        let (_, body, width, height) = parse_p5(&y);
+        assert_eq!(height, 481, "squeeze={squeeze}");
+        for row in 0..height {
+            for col in 0..width {
+                assert_eq!(
+                    sample(body, row * width + col),
+                    row as i64,
+                    "squeeze={squeeze}: Y map at ({col},{row})"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn refused_video_writes_no_file() {
     let dir = std::env::temp_dir().join(format!("superview-core-refused-{}", std::process::id()));

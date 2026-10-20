@@ -1274,6 +1274,68 @@ mod tests {
         }
     }
 
+    // Go: TestIntegration_PortraitSourceIsRefusedUpFront. The geometry check is wired into
+    // the pipeline ahead of the memory check, not merely left to the defensive copy in
+    // `generate_pgm`: the memory reading must never be taken.
+    #[cfg(unix)]
+    #[test]
+    fn a_portrait_source_is_refused_before_the_memory_check_and_ffmpeg() {
+        let _guard = spawn_lock();
+        let portrait = act::PROBE_OK.replace(
+            "\"width\":640,\"height\":480",
+            "\"width\":360,\"height\":640",
+        );
+        assert_ne!(portrait, act::PROBE_OK, "the portrait probe was not built");
+        let tools = fake(&portrait, act::OK);
+        let rig = Rig::new();
+        let mut scn = rig.scenario(tools.resolver(), cpu_caps());
+        let memory_read = Rc::new(Cell::new(false));
+        scn.mem = Box::new({
+            let memory_read = Rc::clone(&memory_read);
+            move || {
+                memory_read.set(true);
+                Some(64 * GIB)
+            }
+        });
+        let ui = TestUi::quiet("libx264", 2_000_000);
+
+        let err = scn.run(&ui).expect_err("a portrait frame folds");
+
+        let text = err.to_string();
+        assert!(
+            text.contains("360x640") && text.contains("9:8"),
+            "not refused for its geometry: {text}"
+        );
+        assert!(
+            !memory_read.get(),
+            "the memory check ran: the portrait frame was not refused before it"
+        );
+        assert_eq!(tools.ffmpeg_calls(), Vec::<String>::new());
+        assert_eq!(ui.progress.get(), 0);
+        rig.assert_clean();
+    }
+
+    // Go: TestIntegration_CancelDuringEncoding (already cancelled before the start)
+    #[cfg(unix)]
+    #[test]
+    fn a_conversion_cancelled_before_it_starts_is_interrupted_and_leaves_nothing() {
+        let _guard = spawn_lock();
+        let tools = fake(act::PROBE_OK, act::OK);
+        let rig = Rig::new();
+        let scn = rig.scenario(tools.resolver(), cpu_caps());
+        scn.cancel.store(true, Ordering::Release);
+        let ui = TestUi::quiet("libx264", 2_000_000);
+
+        let err = scn.run(&ui).expect_err("cancelled");
+
+        assert!(matches!(err, Error::Cancelled), "{err:?}");
+        assert!(err.to_string().contains("interrupted"), "{err}");
+        assert_eq!(tools.ffmpeg_calls(), Vec::<String>::new());
+        // The stop check itself is pinned by
+        // `a_stop_raised_during_the_validations_ends_the_run_before_the_session`.
+        rig.assert_clean();
+    }
+
     // ---- the bitrate ----
 
     // Go: PerformEncoding's `if bitrate == 0 { bitrate = source }`

@@ -66,6 +66,8 @@ fn build_identity() -> String {
 #[cfg(test)]
 mod app_tests;
 #[cfg(test)]
+mod repo_guards;
+#[cfg(test)]
 mod window_tests;
 
 fn main() -> Result<(), slint::PlatformError> {
