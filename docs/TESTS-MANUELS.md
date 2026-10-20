@@ -84,16 +84,26 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 - [x] **NVENC** (carte NVIDIA, pilote au moins 570) : « Hardware: » annonce NVENC ; la conversion
       l'utilise (`nvidia-smi` montre le processus) ; une source que NVENC refuse retombe sur le
       processeur.
-- [ ] **VAAPI** (portable Intel) : idem avec VAAPI.
-- [ ] **GPU Intel seul** (DEC-48 ; Nvidia masquée ou absente, pilote VAAPI sans firmware HuC qui
+- [x] **VAAPI** (portable Intel) : idem avec VAAPI. Passé le 2026-10-20 (AppImage RC-0.3.0, portable
+      Tiger Lake + RTX 3050 Ti, Nvidia masquée, voir le procédé ci-dessous).
+- [x] **GPU Intel seul** (DEC-48 ; Nvidia masquée ou absente, pilote VAAPI sans firmware HuC qui
       répond `supported modes: CQP`) : le Diagnostic dit `✅ h264_vaapi: works, constant quality
       only` ; « Hardware: » finit par « (constant quality) » ; la conversion produit un MP4 16:9
       lisible (`ffprobe` : codec h264, pas de débit demandé respecté, taille qui suit le contenu) ;
       le journal garde le refus en débit et dit que le débit demandé n'est pas utilisé.
-- [ ] **Test « device frame »** : sur le portable Intel VAAPI, passer
+      Passé le 2026-10-20 : Diagnostic `h264_vaapi` et `hevc_vaapi` « constant quality only » ;
+      « Hardware: planned hevc_vaapi encode + VAAPI decode (constant quality) » ; source HEVC de
+      DJI, donc sortie `hevc` 1920x1080 (et non h264), 64 Mb/s pour 93 Mb/s demandés, 118 s ; le
+      journal dit « the requested bit rate is not used ».
+      **Procédé** : la Nvidia se masque sans toucher au système avec `bwrap --dev-bind / /` et un
+      `--ro-bind /dev/null` sur chaque `/dev/nvidia*` et sur le `renderD` dont le pilote est
+      `nvidia` ; NVENC répond alors `CUDA_ERROR_NO_DEVICE` et la sonde retombe sur VAAPI. Une
+      AppImage ne se monte pas sous `bwrap` (FUSE) : lancer avec `APPIMAGE_EXTRACT_AND_RUN=1`.
+- [x] **Test « device frame »** : sur le portable Intel VAAPI, passer
       `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test -p superview-core --test real_ffmpeg -- device_frame`
       (`rust/crates/superview-core/tests/real_ffmpeg.rs`). Il saute en silence sans GPU : un
-      vert sans matériel ne prouve rien.
+      vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
+      ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
 ## Divers
 
