@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Entrée lue comme du MP4 et durée non finie refusée (Q-04 et Q-05, session 9)
+
+| | |
+| --- | --- |
+| **Constat** | ffprobe et ffmpeg devinaient le format de l'entrée d'après son contenu : un « .mp4 » contenant un script `ffconcat` était lu et menait à un autre fichier local. Une durée `inf` ou `nan` passait `validate` (le `<= 0` de Go ne les attrape pas) : `inf` demandait 8 TB d'espace libre, `NaN` annulait le contrôle d'espace |
+| **Cause** | pas de `-f` devant `-i` ; `duration_float <= 0.0` seul |
+| **Fichiers** | `superview-core/src/video.rs` (`-f mov` dans `check_video_command`, `is_finite` dans `validate`), `encode/args.rs` (`-f mov` avant l'entrée source seule), `tests/parity_encode_args.rs` (`with_forced_demuxer`), `probe/tests.rs` (`-f` propre à la conversion), `video/tests.rs` ; DEC-52, DEC-53, `CONTRATS.md`, `AGENTS.md` |
+| **PR** | Read the input as MP4 only and refuse a duration that is not a finite number |
+| **Vérification** | contre-preuve rouge, cinq tests avant le correctif : l'argv d'ffprobe, `check_video_refuses_a_concat_script_named_mp4` (le script était accepté), la parité des 237 cas (`-f mov` absent), `validate_duration_limits` et `a_duration_of_inf_or_nan_in_ffprobes_json_is_refused` ; verts après. À la main avec `superview-harness convert` : un vrai MP4 se convertit, le script concat est refusé sans fichier de sortie. **Tests modifiés par décision** : `validate_duration_limits` (« NaN passe » devient « NaN, inf, -inf refusés »), l'argv attendu d'ffprobe, la comparaison sonde/conversion (`-f` propre à la conversion). **Fixture gelée non touchée** : l'écart est dans `with_forced_demuxer`. **Limite** : un MKV renommé en .mp4, converti avant, est maintenant refusé |
+
 ### [2026-10-20] Dépôt et CI : délais des jobs, `cargo-deny`, couverture publiée (F-28 à F-30, session 8)
 
 | | |

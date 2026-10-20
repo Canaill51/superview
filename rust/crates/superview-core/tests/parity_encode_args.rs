@@ -41,6 +41,18 @@ fn parity_video(pix_fmt: &str) -> VideoSpecs {
     }
 }
 
+/// DEC-52: the one place where the argv is not the frozen oracle's. The input is read with
+/// `-f mov`, so a file that is not MP4 is refused instead of being followed (a concat script
+/// named .mp4 reads other files). Everything else, field by field, stays the oracle's.
+fn with_forced_demuxer(mut oracle: Vec<&str>) -> Vec<&str> {
+    let input = oracle
+        .iter()
+        .position(|arg| *arg == "-i")
+        .expect("an input");
+    oracle.splice(input..input, ["-f", "mov"]);
+    oracle
+}
+
 // Go: TestParity_EncodeArgs
 #[test]
 fn encode_args_match_the_go_oracle() {
@@ -238,6 +250,6 @@ fn encode_args_match_the_go_oracle() {
             })
             .collect();
         let got: Vec<&str> = got[name].iter().map(String::as_str).collect();
-        assert_eq!(got, want, "{name}");
+        assert_eq!(got, with_forced_demuxer(want), "{name}");
     }
 }

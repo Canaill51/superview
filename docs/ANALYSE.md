@@ -909,7 +909,8 @@ et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 fa
 | ⏸️ **Ouvert — 14ᵉ passe** (0) | *aucun* — F-01 à F-30 sont clos ; restent Q-04 et Q-05 (hors périmètre, à trancher par DEC) |
 | ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
 | ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
-| ❓ **Ouvertes** (2) | Q-04 — forcer le démuxeur MP4 (`-f mov` ou `format_whitelist`) sur l'entrée, § 5. Q-05 — refuser une durée `inf`/`nan`, § 5 |
+| ✅ **Tranchées** (2) | Q-04 — `-f mov` sur l'entrée (DEC-52). Q-05 — durée non finie refusée (DEC-53) |
+| ❓ **Ouvertes** (0) | *aucune* |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
 `go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
@@ -1111,15 +1112,16 @@ ffmpeg aux deux appelants (PR #90). Cinq contre-épreuves (une par défaut réin
 Pas de télémétrie GoPro dans la sortie. Aucune mesure nécessaire : la question était de produit,
 et la réponse est non. DEC-38.
 
-### Q-04 — Faut-il forcer le démuxeur MP4 sur l'entrée ?
+### Q-04 — Faut-il forcer le démuxeur MP4 sur l'entrée ? — **TRANCHÉE** (DEC-52, 2026-10-20)
 
 Ouverte le 2026-10-20 (14ᵉ passe). ffmpeg choisit le démuxeur d'après le contenu : un « .mp4 » qui
 est en fait une playlist (HLS, concat) pourrait faire lire d'autres fichiers locaux, incrustés dans la
 sortie. `-f mov` ou `-format_whitelist` sur ffprobe et ffmpeg fermerait la porte, cohérent avec
 « MP4 in ». Mais cela change l'argv figé par `tests/fixtures/parity/encode_args.json` : à trancher
-par une DEC, avec les fixtures régénérées et relues, pas par un correctif.
+par une DEC, pas par un correctif. **Tranchée par DEC-52 sans régénérer la fixture** : l'écart est écrit dans
+`with_forced_demuxer` (`parity_encode_args.rs`), la fixture reste celle de Go.
 
-### Q-05 — Faut-il refuser une durée `inf` ou `nan` dans `VideoSpecs::validate` ?
+### Q-05 — Faut-il refuser une durée `inf` ou `nan` dans `VideoSpecs::validate` ? — **TRANCHÉE** (DEC-53, 2026-10-20)
 
 Ouverte le 2026-10-20 (14ᵉ passe). `parse_go_float` accepte `inf` et `nan`, et ni `inf <= 0.0` ni
 `NaN <= 0.0` n'est vrai, « comme en Go ». En aval, `inf` fait refuser la sortie pour « needs about

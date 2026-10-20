@@ -149,8 +149,9 @@ impl VideoSpecs {
                 stream.width, stream.height
             ));
         }
-        // Written as in Go: a NaN duration is not `<= 0` and passes.
-        if stream.duration_float <= 0.0 {
+        // DEC-53: not finite is refused too. Go's bare `<= 0` let NaN through, and inf became
+        // a demand for 8 TB of free space.
+        if !stream.duration_float.is_finite() || stream.duration_float <= 0.0 {
             return invalid("invalid or missing duration".into());
         }
         if stream.bitrate_int <= 0 {
@@ -166,6 +167,10 @@ impl VideoSpecs {
 /// The ffprobe command that reads the first video stream of `file` as JSON.
 fn check_video_command(resolver: &ToolResolver, file: &str) -> std::process::Command {
     resolver.ffprobe_command([
+        // DEC-52: MP4 in. Without this ffprobe guesses the format from the content, and a
+        // text file named .mp4 read as a concat script sends it to other files.
+        "-f",
+        "mov",
         "-i",
         file,
         "-v",

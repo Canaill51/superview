@@ -82,6 +82,8 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-48](#dec-48) | Un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante, automatiquement (Rust seulement) | Acceptée |
 | [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée |
 | [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | Acceptée (remplace la taille fixe de DEC-32) |
+| [DEC-52](#dec-52) | L'entrée est lue avec `-f mov` (ffprobe et ffmpeg), jamais devinée d'après le contenu | Acceptée |
+| [DEC-53](#dec-53) | Une durée qui n'est pas un nombre fini (`inf`, `nan`) est refusée | Acceptée |
 
 ---
 
@@ -525,3 +527,21 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `preferred-width/height` 980×470, `min-width/height` 760×440, plus de maximum. `the_window_fits_its_smallest_size` vérifie la barre d'outils et la dernière ligne au minimum ; les tests de la taille d'ouverture restent.
 **Conséquences** — Le test tourne sur le backend de test, sans police : le retour à la ligne des textes n'y est pas mesuré, et le minimum n'a pas été vu sous xvfb.
 **À rouvrir si** — Une capture réelle à 760×440 montre un texte coupé (remonter le minimum), ou si un widget ajouté ne tient plus dans ce minimum.
+
+### DEC-52
+**L'entrée est lue avec `-f mov`, par ffprobe et par ffmpeg : un fichier qui n'est pas du MP4 est refusé, quelle que soit son extension.**
+2026-10-20 · Acceptée · session 9 de la 14ᵉ passe (Q-04)
+
+**Contexte** — Sans `-f`, ffmpeg choisit le démuxeur d'après le contenu. Mesuré (ffmpeg 8.0.1) : un « .mp4 » contenant `ffconcat version 1.0` + `file clip.mp4` est lu comme un script `concat` et mène à un autre fichier local (chemin relatif ; les chemins absolus et `..` sont refusés par le mode sûr). Une playlist HLS portant l'extension `.mp4` est déjà refusée par ffmpeg 8 (« Not detecting m3u8/hls with non standard extension »). Avec `-f mov`, le script est refusé (« moov atom not found ») et un vrai MP4 passe.
+**Décision** — `"-f", "mov"` juste avant le `-i` du fichier source dans `check_video_command` (`video.rs`) et dans `build_encode_base_args` (`encode/args.rs`), pas devant les cartes PGM, qui sont les nôtres. Le démuxeur `mov` couvre MP4, MOV et 3GP. La fixture gelée `encode_args.json` n'est **pas** régénérée : `parity_encode_args.rs` attend la fixture plus `-f mov` avant le premier `-i` (`with_forced_demuxer`), de sorte que l'écart avec Go est écrit dans le code et que les 237 cas restent comparés champ par champ. La comparaison sonde/conversion de `probe/tests.rs` range `-f` parmi les options propres à la conversion.
+**Conséquences** — Un fichier qui n'est pas du MP4/MOV (MKV renommé, par exemple) échoue à la vérification avec l'erreur d'ffprobe, au lieu d'être converti : c'est la règle « MP4 en entrée » appliquée au contenu. `check_video_refuses_a_concat_script_named_mp4` est rouge sans l'option (mesuré). Le message d'ffprobe change pour un fichier invalide, pas la forme « ffprobe failed, output: … ».
+**À rouvrir si** — Un MP4 ou MOV légitime est refusé par `-f mov` (un conteneur que le démuxeur `mov` ne lit pas), ou si le produit accepte un jour d'autres conteneurs.
+
+### DEC-53
+**Une durée qui n'est pas un nombre fini est refusée : `VideoSpecs::validate` dit « invalid or missing duration ».**
+2026-10-20 · Acceptée · session 9 de la 14ᵉ passe (Q-05)
+
+**Contexte** — `parse_go_float` accepte `inf` et `nan` comme `strconv.ParseFloat`, et le `duration_float <= 0.0` hérité de Go ne les attrape pas : `inf` faisait refuser la sortie pour « needs about 8796093022207 MB », `NaN` faisait passer le contrôle d'espace disque à zéro.
+**Décision** — `!duration_float.is_finite() || duration_float <= 0.0`. Le message, déjà visible par l'utilisateur, ne change pas. `parse_go_float` et `parse_frame_rate` ne changent pas (le premier sert aussi à la progression ; la cadence n'est lue nulle part ensuite). Aucune fixture gelée n'est touchée : `specs.json` n'a aucun cas `inf` ou `nan`.
+**Conséquences** — `validate_duration_limits` attendait « NaN passe, comme en Go » : **test modifié par décision**. `a_duration_of_inf_or_nan_in_ffprobes_json_is_refused` le prouve de bout en bout sur le JSON d'ffprobe.
+**À rouvrir si** — ffprobe se met à rendre légitimement `inf` pour un flux sans fin (un MP4 n'en a pas).

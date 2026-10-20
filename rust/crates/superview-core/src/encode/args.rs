@@ -255,6 +255,11 @@ pub fn build_encode_base_args(
 
     args.extend(
         [
+            // DEC-52: the source is read as MP4, never as what its content looks like (a
+            // concat script named .mp4 would read other files). Only this input: the maps
+            // are ours.
+            "-f",
+            "mov",
             "-i",
             video.file.as_str(),
             "-i",

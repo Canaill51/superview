@@ -294,6 +294,14 @@ fn probe_and_conversion_ask_the_same_question() {
                 preset: preset.into(),
                 rate_control,
             });
+            // DEC-52: the one `-f` the conversion has, how the source file is read; the probe's
+            // input is lavfi. Only that pair goes, so another `-f` would still show.
+            let mut conversion = conversion;
+            let mov = conversion
+                .windows(2)
+                .position(|pair| pair == ["-f", "mov"])
+                .expect("the conversion reads its source with -f mov");
+            conversion.drain(mov..mov + 2);
             let (got, want) = (
                 joined(&strip(&probe, &probe_only)),
                 joined(&strip(&conversion, &conversion_only)),
