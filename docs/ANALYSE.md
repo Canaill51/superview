@@ -716,7 +716,7 @@ Une erreur passagère de `spawn` (EAGAIN, ffmpeg remplacé pendant une mise à j
 l'encodeur pour toute la session. Ne mettre en cache que les verdicts d'un processus terminé.
 
 ### F-11 — La sonde de démarrage peut finir pendant un encodage et lancer un essai GPU à côté
-
+✅ — CORRIGÉ (session 5) 
 🔴 `rust/crates/superview-app/src/state.rs:506, 655-672`, `app.rs:645-655`
 
 `can_start` ignore `encoder_probe` ; quand le rapport arrive, `verify_hardware_in_background` ne
@@ -726,7 +726,7 @@ sur le même GPU. Aucun test : `FakeEngine::probe_hardware` répond tout de suit
 jusqu'à la fin de l'encodage.
 
 ### F-12 — Le Diagnostic ne grise ni Start ni lui-même
-
+✅ — CORRIGÉ (session 5) 
 🟠 `rust/crates/superview-app/src/app.rs:1046-1106`, `ui/main.slint:282-285`
 
 `check_health` sonde tous les encodeurs avec un `Prober` neuf. Diagnostic puis Start : la sonde
@@ -734,7 +734,7 @@ complète tourne à côté d'un encodage matériel. Deux clics : deux balayages 
 rapports empilés. Un état « diagnostic en cours » sur le modèle de `begin_pick`.
 
 ### F-13 — Un sélecteur encore ouvert pendant la question « Overwrite » peut changer la sortie
-
+✅ — CORRIGÉ (session 5) 
 🟡 `rust/crates/superview-app/src/app.rs:524-527, 875-876`
 
 La question porte sur le chemin lu au clic sur Start, mais `begin_conversion` relit l'état au
@@ -742,7 +742,7 @@ La question porte sur le chemin lu au clic sur Start, mais `begin_conversion` re
 dans `PopupKind::Overwrite` et comparer au « Yes ».
 
 ### F-14 — Pas de hook de panic : un panic sur le fil UI disparaît sans trace
-
+✅ — CORRIGÉ (session 5) 
 🟡 `rust/crates/superview-app/src/main.rs`
 
 Les fils de travail sont sous `catch_unwind`, pas les callbacks Slint ni les closures `post`. Sous
@@ -905,7 +905,7 @@ et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 fa
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
-| ⏸️ **Ouvert — 14ᵉ passe** (20) | F-11 à F-30 (F-01 à F-10 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
+| ⏸️ **Ouvert — 14ᵉ passe** (16) | F-15 à F-30 (F-01 à F-14 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
 | ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
 | ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
 | ❓ **Ouvertes** (2) | Q-04 — forcer le démuxeur MP4 (`-f mov` ou `format_whitelist`) sur l'entrée, § 5. Q-05 — refuser une durée `inf`/`nan`, § 5 |

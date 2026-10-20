@@ -21,7 +21,7 @@ use superview_core::encode::cascade::EncodeSummary;
 use superview_core::error::Error;
 use superview_core::metrics::EncodingMetrics;
 use superview_core::pipeline::{EncodeOutcome, PipelineUi};
-use superview_core::probe::EncoderProbeReport;
+use superview_core::probe::{EncoderProbe, EncoderProbeReport};
 use superview_core::video::{VideoSpecs, VideoStream};
 
 use crate::app::{App, EncodeJob, Engine, Host, INSTALL_URL, Setup};
@@ -111,6 +111,7 @@ struct FakeEngine {
     check_video: Box<CheckVideoFn>,
     check_video_threads: Mutex<Vec<ThreadId>>,
     verify: Box<dyn Fn(&VerificationRequest) -> String + Send + Sync>,
+    probe: Box<dyn Fn() -> EncoderProbeReport + Send + Sync>,
     encode: Box<EncodeFn>,
     jobs: Mutex<Vec<EncodeJob>>,
     health: Box<dyn Fn(&Path) -> String + Send + Sync>,
@@ -130,6 +131,7 @@ impl FakeEngine {
             }),
             check_video_threads: Mutex::new(Vec::new()),
             verify: Box::new(|_| "Hardware: verified".to_string()),
+            probe: Box::new(EncoderProbeReport::default),
             encode: Box::new(|_, _, _| Ok(outcome("Hardware: the CPU did it"))),
             jobs: Mutex::new(Vec::new()),
             health: Box::new(|temp_dir| {
@@ -160,6 +162,11 @@ impl FakeEngine {
         self
     }
 
+    fn probing(mut self, probe: impl Fn() -> EncoderProbeReport + Send + Sync + 'static) -> Self {
+        self.probe = Box::new(probe);
+        self
+    }
+
     fn without_ffmpeg(self) -> Self {
         self.ffmpeg_present.store(false, Ordering::Release);
         self
@@ -184,7 +191,7 @@ impl Engine for FakeEngine {
     }
 
     fn probe_hardware(&self, _: &HashMap<String, String>, _: &AtomicBool) -> EncoderProbeReport {
-        EncoderProbeReport::default()
+        (self.probe)()
     }
 
     fn check_video(&self, path: &str) -> Result<VideoSpecs, Error> {
@@ -431,6 +438,15 @@ impl Rig {
 
     /// Input and output chosen, ready to start.
     fn loaded(engine: FakeEngine, output: &str) -> Self {
+        Self::loaded_with(engine, output, true)
+    }
+
+    /// The same, without waiting for the startup probe: the engine decides when it answers.
+    fn loaded_before_probe(engine: FakeEngine, output: &str) -> Self {
+        Self::loaded_with(engine, output, false)
+    }
+
+    fn loaded_with(engine: FakeEngine, output: &str, wait_for_probe: bool) -> Self {
         let dir_output = Arc::new(Mutex::new(PathBuf::new()));
         let shared = Arc::clone(&dir_output);
         let host = FakeHost::new()
@@ -438,7 +454,9 @@ impl Rig {
             .picking_output_with(move || Some(lock(&shared).clone()));
         let rig = rig(engine, host);
         *lock(&dir_output) = rig.output_path(output);
-        rig.ready();
+        if wait_for_probe {
+            rig.ready();
+        }
         rig.pick_input_and_wait("clip.mp4");
         rig.pick_output_and_wait(output);
         rig
@@ -446,7 +464,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 32] = [
+    let scenarios: [(&str, fn()); 35] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -520,6 +538,18 @@ pub fn run() {
         (
             "text field no thread",
             a_video_check_that_cannot_start_reports_and_frees_the_button,
+        ),
+        (
+            "probe during a run",
+            a_startup_probe_that_lands_during_a_conversion_waits_for_its_end,
+        ),
+        (
+            "diagnostic and start",
+            the_diagnostic_and_a_conversion_do_not_overlap,
+        ),
+        (
+            "overwrite frozen",
+            the_overwrite_question_is_about_the_files_it_was_asked_on,
         ),
     ];
     for (name, scenario) in scenarios {
@@ -1274,9 +1304,9 @@ fn a_quit_question_that_waited_is_dropped_when_nothing_runs() {
     });
     let r = Rig::loaded(engine, "result.mp4");
     r.click("Diagnostic");
-    r.click("Start transformation");
     health_gate.open();
     r.wait("the report", |w| w.get_popup() == Popup::Diagnostic);
+    r.click("Start transformation");
     // The cross asks, but the Diagnostic is on screen: the question waits.
     r.window
         .window()
@@ -1304,9 +1334,9 @@ fn a_dialog_queued_behind_the_report_leaves_it_alone() {
         Ok(outcome("Hardware: the CPU did it"))
     });
     let r = Rig::loaded(engine, "result.mp4");
-    r.click("Start transformation");
     r.click("Diagnostic");
     r.wait("the report", |w| w.get_popup() == Popup::Diagnostic);
+    r.click("Start transformation");
     r.click("Show as text");
     // A marker that a rebuild would wipe.
     let marker = crate::DiagnosticRow {
@@ -1544,4 +1574,170 @@ fn a_video_check_that_cannot_start_reports_and_frees_the_button() {
     assert!(r.window.get_open_enabled(), "the button stays held");
     assert_eq!(r.window.get_input_name(), "No file selected");
     assert!(lock(&r.engine.check_video_threads).is_empty());
+}
+
+/// The startup probe is a GPU session: one that lands while a conversion runs would start a
+/// verification beside a hardware encode (E-14) and rebuild the codec list under it. It waits
+/// for the end of the conversion, which does not lose it.
+fn a_startup_probe_that_lands_during_a_conversion_waits_for_its_end() {
+    let probe_gate = Gate::default();
+    let encode_gate = Gate::default();
+    let (for_probe, for_encode) = (probe_gate.clone(), encode_gate.clone());
+    let verifications = Arc::new(AtomicU32::new(0));
+    let counted = Arc::clone(&verifications);
+    let probed = Arc::new(AtomicU32::new(0));
+    let probe_done = Arc::clone(&probed);
+    let engine = FakeEngine::new()
+        .probing(move || {
+            for_probe.wait();
+            probe_done.fetch_add(1, Ordering::SeqCst);
+            // libx265 refuses: the list goes from three entries to two.
+            EncoderProbeReport {
+                results: vec![EncoderProbe {
+                    encoder: "libx265".into(),
+                    ..EncoderProbe::default()
+                }],
+                ..EncoderProbeReport::default()
+            }
+        })
+        .verifying(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            "Hardware: verified".to_string()
+        })
+        .encoding(move |_, _, _| {
+            for_encode.wait();
+            Ok(outcome("Hardware: the CPU did it"))
+        });
+    let r = Rig::loaded_before_probe(engine, "result.mp4");
+    r.click("Start transformation");
+    probe_gate.open();
+    wait_until("the probe to return", {
+        let probed = Arc::clone(&probed);
+        move || probed.load(Ordering::SeqCst) == 1
+    });
+    // The answer is posted to the window just after; give the loop time to take it.
+    pump(Duration::from_millis(300));
+    assert_eq!(
+        verifications.load(Ordering::SeqCst),
+        0,
+        "a hardware verification ran beside the conversion"
+    );
+    assert_eq!(
+        r.window.get_encoder_options().row_count(),
+        3,
+        "the codec list was rebuilt during the conversion"
+    );
+    encode_gate.open();
+    r.wait("the completion", |w| w.get_status() == "Status: Completed");
+    r.wait("the deferred probe", |w| {
+        w.get_encoder_options().row_count() == 2
+    });
+    assert_eq!(
+        r.window.get_hardware(),
+        "Hardware: the CPU did it",
+        "the late probe wrote over the summary of the run"
+    );
+    pump(Duration::from_millis(100));
+    assert_eq!(
+        verifications.load(Ordering::SeqCst),
+        0,
+        "the late probe started a verification when the conversion ended"
+    );
+    r.click("OK");
+}
+
+/// Diagnostic probes every hardware encoder, and a conversion does the same work: neither may
+/// start while the other runs. A second click on Diagnostic does not start a second report.
+fn the_diagnostic_and_a_conversion_do_not_overlap() {
+    let gate = Gate::default();
+    let for_health = gate.clone();
+    let reports = Arc::new(AtomicU32::new(0));
+    let counted = Arc::clone(&reports);
+    let mut engine = FakeEngine::new();
+    engine.health = Box::new(move |_| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        for_health.wait();
+        "report\n".to_string()
+    });
+    let r = Rig::loaded(engine, "result.mp4");
+    assert!(r.enabled("Start transformation"));
+    r.click("Diagnostic");
+    assert!(!r.enabled("Start transformation"), "Start stayed available");
+    assert!(!r.enabled("Diagnostic"), "Diagnostic stayed available");
+    r.click("Diagnostic");
+    r.click("Start transformation");
+    gate.open();
+    r.wait("the report", |w| w.get_popup() == Popup::Diagnostic);
+    pump(Duration::from_millis(100));
+    assert_eq!(reports.load(Ordering::SeqCst), 1, "two reports were run");
+    assert!(
+        lock(&r.engine.jobs).is_empty(),
+        "a conversion started beside the Diagnostic"
+    );
+    r.click("Close");
+    assert!(
+        r.enabled("Start transformation"),
+        "Start was not given back"
+    );
+    assert!(r.enabled("Diagnostic"), "Diagnostic was not given back");
+}
+
+/// "Overwrite?" is asked about one pair of files. A picker that was open meanwhile may change
+/// the destination under the question: "Yes" then answers a question nobody asked.
+fn the_overwrite_question_is_about_the_files_it_was_asked_on() {
+    overwrite_question_after_a_change(false);
+    overwrite_question_after_a_change(true);
+}
+
+fn overwrite_question_after_a_change(change_input: bool) {
+    let gate = Gate::default();
+    let (for_input, for_output) = (gate.clone(), gate.clone());
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (first, second) = (dir.path().join("a.mp4"), dir.path().join("b.mp4"));
+    std::fs::write(&first, b"precious").expect("write");
+    std::fs::write(&second, b"precious too").expect("write");
+    let (inputs, outputs) = (Arc::new(AtomicU32::new(0)), Arc::new(AtomicU32::new(0)));
+    let (kept, moved) = (first.clone(), second.clone());
+    let host = FakeHost::new()
+        .picking_input_with(move || {
+            if !change_input || inputs.fetch_add(1, Ordering::SeqCst) == 0 {
+                Some(PathBuf::from("/videos/trip/clip.mp4"))
+            } else {
+                for_input.wait();
+                Some(PathBuf::from("/videos/trip/other.mp4"))
+            }
+        })
+        .picking_output_with(move || {
+            if change_input || outputs.fetch_add(1, Ordering::SeqCst) == 0 {
+                Some(kept.clone())
+            } else {
+                for_output.wait();
+                Some(moved.clone())
+            }
+        });
+    let r = rig(FakeEngine::new(), host);
+    r.ready();
+    r.pick_input_and_wait("clip.mp4");
+    r.pick_output_and_wait("a.mp4");
+    r.click("Start transformation");
+    assert_eq!(r.popup(), Popup::Overwrite);
+    if change_input {
+        r.click("Choose input file");
+        gate.open();
+        r.wait("the other input", |w| w.get_input_name() == "other.mp4");
+    } else {
+        r.click("Choose output file");
+        gate.open();
+        r.wait("the other destination", |w| w.get_output_name() == "b.mp4");
+    }
+    assert_eq!(r.popup(), Popup::Overwrite, "the question went away");
+    r.click("Yes");
+    pump(Duration::from_millis(150));
+    assert!(
+        lock(&r.engine.jobs).is_empty(),
+        "the conversion started on files nobody was asked about"
+    );
+    assert_eq!(r.popup(), Popup::None);
+    assert_eq!(r.status(), "Status: The files changed, press Start again");
+    assert_eq!(std::fs::read(&second).expect("read"), b"precious too");
 }

@@ -173,7 +173,11 @@ enum PopupKind {
     Prerequisite {
         retry: bool,
     },
-    Overwrite,
+    /// The question is about this pair of files; an answer is only good for them.
+    Overwrite {
+        input: String,
+        output: String,
+    },
     Quit,
     NoInput,
     NoOutput,
@@ -345,7 +349,7 @@ fn apply_popup(window: &MainWindow, current: Option<&PopupKind>) {
             window.set_prerequisite_retry(*retry);
             Popup::Prerequisite
         }
-        Some(PopupKind::Overwrite) => Popup::Overwrite,
+        Some(PopupKind::Overwrite { .. }) => Popup::Overwrite,
         Some(PopupKind::Quit) => Popup::Quit,
         Some(PopupKind::NoInput) => Popup::NoInput,
         Some(PopupKind::NoOutput) => Popup::NoOutput,
@@ -521,10 +525,7 @@ fn register(core: &Arc<Core>, window: &MainWindow) {
     window.on_path_entry_ok(bind(core, path_entry_ok));
     window.on_path_entry_cancel(bind(core, path_entry_cancel));
     window.on_prerequisite_retry_clicked(bind(core, retry_prerequisite));
-    window.on_overwrite_yes(bind(core, |core, window| {
-        core.close_popup(window);
-        begin_conversion(core, window);
-    }));
+    window.on_overwrite_yes(bind(core, overwrite_yes));
     window.on_quit_yes(bind(core, |core, window| {
         core.close_popup(window);
         leave(core, window, "quit confirmed");
@@ -645,11 +646,13 @@ fn start_encoder_probe(core: &Arc<Core>) {
         post(&thread_core, move |core, window| {
             {
                 let mut state = core.state();
-                state.set_encoder_probe(report);
-                state.refresh_encoder_options();
-                state.refresh_hardware_status();
-                state.verify_hardware_in_background();
-                state.refresh_start();
+                // Kept for the end of a conversion that is running (see `finish_encoding`).
+                if state.set_encoder_probe(report) {
+                    state.refresh_encoder_options();
+                    state.refresh_hardware_status();
+                    state.verify_hardware_in_background();
+                    state.refresh_start();
+                }
             }
             core.refresh(window);
         });
@@ -857,14 +860,17 @@ fn path_entry_cancel(core: &Arc<Core>, window: &MainWindow) {
 
 /// The Start button.
 fn start(core: &Arc<Core>, window: &MainWindow) {
-    let (no_input, output) = {
+    let (input, output) = {
         let state = core.state();
-        (state.video().is_none(), state.output_path().to_string())
+        (
+            state.video().map(|video| video.file.clone()),
+            state.output_path().to_string(),
+        )
     };
-    if no_input {
+    let Some(input) = input else {
         core.show(window, PopupKind::NoInput);
         return;
-    }
+    };
     if output.is_empty() {
         core.show(window, PopupKind::NoOutput);
         return;
@@ -873,13 +879,39 @@ fn start(core: &Arc<Core>, window: &MainWindow) {
         return;
     }
     match std::fs::metadata(&output) {
-        Ok(_) => core.show(window, PopupKind::Overwrite),
+        Ok(_) => core.show(window, PopupKind::Overwrite { input, output }),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => begin_conversion(core, window),
         Err(e) => core.show(
             window,
             PopupKind::Error(format!("cannot access output file: {e}")),
         ),
     }
+}
+
+/// "Yes" to the overwrite question, if it still concerns the files on screen. A picker that was
+/// open when the question came up can change the input or the destination under it; the answer
+/// then belongs to a question about other files, and nothing is overwritten on its strength.
+fn overwrite_yes(core: &Arc<Core>, window: &MainWindow) {
+    let asked = match lock(&core.popups).current() {
+        Some(PopupKind::Overwrite { input, output }) => Some((input.clone(), output.clone())),
+        _ => None,
+    };
+    // Not the question on screen (a second click, a dialog that took its place): not ours.
+    let Some((input, output)) = asked else {
+        return;
+    };
+    core.close_popup(window);
+    let unchanged = {
+        let state = core.state();
+        state.video().is_some_and(|video| video.file == input) && state.output_path() == output
+    };
+    if unchanged {
+        begin_conversion(core, window);
+        return;
+    }
+    log::info!("Ignoring the overwrite answer: the files changed since the question");
+    core.state().view.status = "Status: The files changed, press Start again".into();
+    core.refresh(window);
 }
 
 /// Sends what the encoding thread reports to the window.
@@ -1046,6 +1078,10 @@ fn leave(core: &Arc<Core>, window: &MainWindow, reason: &str) {
 fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
     let before = {
         let mut state = core.state();
+        // Not beside a conversion or another report: both ask the GPU for the same thing.
+        if !state.begin_diagnostic() {
+            return;
+        }
         let before = state.view.status.clone();
         state.view.status = RUNNING_DIAGNOSTIC.into();
         before
@@ -1081,6 +1117,7 @@ fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
                 // The line goes back to what it said before, and only if nothing has written
                 // over "Running diagnostic..." since: a conversion started meanwhile owns it.
                 let mut state = core.state();
+                state.finish_diagnostic();
                 if state.view.status == RUNNING_DIAGNOSTIC {
                     state.view.status = restore;
                 }
@@ -1093,6 +1130,7 @@ fn diagnostic(core: &Arc<Core>, window: &MainWindow) {
         log::error!("Cannot start the diagnostic: error={e}");
         {
             let mut state = core.state();
+            state.finish_diagnostic();
             if state.view.status == RUNNING_DIAGNOSTIC {
                 state.view.status = before;
             }
