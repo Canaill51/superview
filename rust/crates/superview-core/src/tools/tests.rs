@@ -817,6 +817,7 @@ fn a_tool_file_without_the_execute_bit_is_not_used() {
 }
 
 // F-21 (E-22, L-16): a relative override would be the working directory.
+#[cfg(unix)]
 #[test]
 fn a_relative_override_directory_is_ignored() {
     let dir = TempDir::new().unwrap();
@@ -828,6 +829,7 @@ fn a_relative_override_directory_is_ignored() {
 }
 
 /// A relative spelling of `dir` from the working directory, which exists whatever it is.
+#[cfg(unix)]
 fn pathdiff_relative(dir: &Path) -> String {
     let cwd = std::env::current_dir().unwrap();
     let up = cwd.components().count() - 1;
