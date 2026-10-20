@@ -1,4 +1,5 @@
 use super::*;
+use crate::process::combined_output;
 
 fn stream() -> VideoStream {
     VideoStream {
@@ -279,6 +280,20 @@ fn check_video_reports_a_failing_ffprobe_with_its_output() {
         err.to_string().trim_end(),
         "ffprobe failed, output:\nbroken file"
     );
+}
+
+// F-05: a warning on stderr must not be read as JSON; only stdout is parsed.
+#[test]
+fn check_video_parses_stdout_alone_when_ffprobe_warns_on_stderr() {
+    let _guard = spawn_lock();
+    let json = r#"{"streams":[{"codec_name":"h264","width":1440,"height":1080,"duration":"10.0","bit_rate":"8000000","pix_fmt":"yuv420p","r_frame_rate":"30/1"}]}"#;
+    #[cfg(unix)]
+    let body = format!("echo 'deprecated pixel format used' 1>&2\necho '{json}'");
+    #[cfg(windows)]
+    let body = format!(">&2 echo deprecated pixel format used\r\necho {json}");
+    let tools = fake_tools(&[("ffprobe", &body)]);
+    let specs = check_video(&tools.resolver, "clip.mp4").expect("stdout holds valid JSON");
+    assert_eq!(specs.streams[0].codec, "h264");
 }
 
 // Unix only: on Windows a child that does not find its program in its own PATH is also

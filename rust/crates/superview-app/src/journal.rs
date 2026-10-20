@@ -71,7 +71,7 @@ impl Log for FileLogger {
             .map_or(0, |since| since.as_secs());
         let line = format_line(seconds, record.level(), &record.args().to_string());
         // A failing log write has nowhere to be reported.
-        let _ = writeln!(&self.writer, "{line}");
+        let _ = self.writer.write_line(&line);
     }
 
     fn flush(&self) {
@@ -130,5 +130,40 @@ mod tests {
             format_line(0, log::Level::Warn, "x=1 y=2"),
             "time=1970-01-01T00:00:00Z level=WARN msg=x=1 y=2"
         );
+    }
+
+    // F-06: `writeln!` writes the text and the newline apart, so two threads logging at
+    // once could glue their lines together.
+    #[test]
+    fn lines_logged_from_many_threads_stay_whole() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (writer, path) = open_log_file("superview", MAX_LOG_FILE_BYTES, dir.path()).unwrap();
+        let logger = FileLogger { writer };
+        log::set_max_level(LevelFilter::Info);
+        std::thread::scope(|scope| {
+            for t in 0..8 {
+                let logger = &logger;
+                scope.spawn(move || {
+                    for i in 0..200 {
+                        logger.log(
+                            &Record::builder()
+                                .level(log::Level::Info)
+                                .args(format_args!("thread={t} line={i} {}", "x".repeat(300)))
+                                .build(),
+                        );
+                    }
+                });
+            }
+        });
+        let text = std::fs::read_to_string(path).unwrap();
+        assert!(text.ends_with('\n'));
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 8 * 200);
+        for line in lines {
+            assert!(
+                line.starts_with("time=") && line.ends_with(&"x".repeat(300)),
+                "torn line: {line:?}"
+            );
+        }
     }
 }

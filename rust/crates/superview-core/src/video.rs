@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::error::{Error, InvalidVideoError};
-use crate::process::combined_output;
+use crate::process::split_output;
 use crate::tools::ToolResolver;
 
 /// Metadata about a video file extracted by ffprobe.
@@ -183,9 +183,19 @@ fn check_video_command(resolver: &ToolResolver, file: &str) -> std::process::Com
 /// of the first video stream (Go: `CheckVideo`). `InvalidVideo` if required metadata is
 /// missing or invalid; `Plain` "ffprobe failed, output:\n..." if ffprobe fails.
 pub fn check_video(resolver: &ToolResolver, file: &str) -> Result<VideoSpecs, Error> {
-    let output = match combined_output(check_video_command(resolver, file)) {
-        Ok((status, output)) if status.success() => output,
-        Ok((_, output)) => return Err(Error::Plain(format!("ffprobe failed, output:\n{output}"))),
+    // Only stdout is JSON: a warning ffprobe prints on stderr must not be parsed with it.
+    let output = match split_output(check_video_command(resolver, file)) {
+        Ok((status, stdout, _)) if status.success() => stdout,
+        Ok((_, stdout, stderr)) => {
+            let gap = if stderr.is_empty() || stderr.ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            return Err(Error::Plain(format!(
+                "ffprobe failed, output:\n{stderr}{gap}{stdout}"
+            )));
+        }
         Err(e) => return Err(Error::Plain(format!("ffprobe failed, output:\n{e}"))),
     };
     parse_video_specs(file, output.as_bytes())

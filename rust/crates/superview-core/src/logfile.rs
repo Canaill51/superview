@@ -175,6 +175,17 @@ impl CappedLogWriter {
     }
 }
 
+impl CappedLogWriter {
+    /// Writes `line` and its newline in one record: two writes would let another thread's
+    /// line slip in between (`writeln!` writes the text and the newline apart).
+    pub fn write_line(&self, line: &str) -> io::Result<()> {
+        let mut record = Vec::with_capacity(line.len() + 1);
+        record.extend_from_slice(line.as_bytes());
+        record.push(b'\n');
+        self.write_record(&record)
+    }
+}
+
 impl Write for &CappedLogWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.write_record(buf)?;

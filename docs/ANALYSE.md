@@ -661,7 +661,7 @@ les lit. `flush` + `into_inner()` voit toujours l'erreur d'écriture ; `tests/pg
 
 ### F-04 — Le stderr de ffmpeg est accumulé sans plafond, puis copié dans l'erreur
 
-🟠 `rust/crates/superview-core/src/encode/run.rs:247-260`, `encode/failure.rs:36`
+✅ — CORRIGÉ (session 3) 🟠 `rust/crates/superview-core/src/encode/run.rs:247-260`, `encode/failure.rs:36`
 
 `-loglevel error` ne borne rien : un H.264 abîmé écrit une ligne par trame. Le `Vec` grossit en
 mémoire, puis le texte entier part dans `Error::Plain`, le journal et la popup. Un collecteur
@@ -670,7 +670,7 @@ duplication du fil lecteur.
 
 ### F-05 — `check_video` analyse stdout et stderr mélangés comme du JSON
 
-🟠 `rust/crates/superview-core/src/video.rs:186`, `process.rs:65-70`
+✅ — CORRIGÉ (session 3) 🟠 `rust/crates/superview-core/src/video.rs:186`, `process.rs:65-70`
 
 `combined_output` entrelace les deux flux. Un avertissement d'ffprobe sur un fichier lisible
 (`partial file`) casse l'analyse avec « failed to parse video metadata », la vraie cause perdue.
@@ -678,7 +678,7 @@ Hérité de `CombinedOutput` en Go. Lire stdout seul pour le JSON, garder stderr
 
 ### F-06 — Le journal peut entrelacer deux messages sur une ligne
 
-🟡 `rust/crates/superview-core/src/logfile.rs:178-182`, `superview-app/src/journal.rs:74`
+✅ — CORRIGÉ (session 3) 🟡 `rust/crates/superview-core/src/logfile.rs:178-182`, `superview-app/src/journal.rs:74`
 
 `writeln!` fait deux `write` (la ligne, puis `\n`) et le verrou est pris à chaque `write` : un autre
 fil peut s'intercaler, et le plafond peut vider le fichier entre les deux. Une ligne = un `write_all`.
@@ -905,7 +905,7 @@ et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 fa
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
-| ⏸️ **Ouvert — 14ᵉ passe** (27) | F-04 à F-30 (F-01, F-02, F-03 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
+| ⏸️ **Ouvert — 14ᵉ passe** (24) | F-07 à F-30 (F-01 à F-06 ✅ corrigés), § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
 | ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
 | ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
 | ❓ **Ouvertes** (2) | Q-04 — forcer le démuxeur MP4 (`-f mov` ou `format_whitelist`) sur l'entrée, § 5. Q-05 — refuser une durée `inf`/`nan`, § 5 |

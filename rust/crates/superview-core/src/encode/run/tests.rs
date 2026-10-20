@@ -1,6 +1,7 @@
 use super::*;
 use crate::process::background_command;
 use crate::process::tests::spawn_lock;
+use std::sync::Arc;
 
 /// A worker's answer: the result and the percentages handed to the callback.
 type Outcome = (Result<(), Error>, Vec<f64>);
@@ -480,16 +481,25 @@ fn a_kill_from_outside_keeps_its_diagnosis_although_a_signal_is_raised() {
     assert!(err.to_string().contains("killed by the system"), "{err}");
 }
 
-// No Go test (cmd.StderrPipe deadlock): more than a pipe holds on stderr must neither
-// block ffmpeg nor lose bytes. 4 MB: a Linux pipe grows up to 1 MiB.
+// No Go test (cmd.StderrPipe deadlock): more than a pipe holds on stderr must not block
+// ffmpeg. 10 MB: a Linux pipe grows up to 1 MiB. The error keeps the start and the end of
+// what ffmpeg wrote (F-04): the first lines say what it was doing, the last say why it
+// stopped, and the middle is not worth a window the size of the screen.
 #[cfg(unix)]
 #[test]
-fn a_large_stderr_does_not_block_ffmpeg() {
+fn a_large_stderr_does_not_block_ffmpeg_and_is_bounded() {
     let _guard = spawn_lock();
-    let body = "yes e | head -c 4000000 1>&2; exit 1";
+    let body = "echo HEAD-MARK 1>&2; yes e | head -c 10000000 1>&2; echo TAIL-MARK 1>&2; exit 1";
     let (result, _) = run_plain(background_command("sh", ["-c", body]), 10.0);
-    let err = result.expect_err("exit 1 is a failure");
-    assert!(err.to_string().len() >= 4_000_000, "stderr was cut short");
+    let text = result.expect_err("exit 1 is a failure").to_string();
+    assert!(
+        text.len() < 200 * 1024,
+        "stderr kept whole: {} bytes",
+        text.len()
+    );
+    assert!(text.contains("HEAD-MARK"), "the start was lost");
+    assert!(text.contains("TAIL-MARK"), "the end was lost");
+    assert!(text.contains("bytes dropped"), "no marker for the cut");
 }
 
 // ---- a grandchild that keeps the pipes (lesson of #110) ----
