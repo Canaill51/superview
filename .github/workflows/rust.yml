@@ -1,7 +1,8 @@
 name: Rust
 
-# Rust port in progress (DEC-43). These three jobs are required checks of the `master`
-# ruleset (added 2026-10-19), next to the Go ones.
+# Rust port in progress (DEC-43). The Linux, Windows and cross-check jobs are required
+# checks of the `master` ruleset (added 2026-10-19), next to the Go ones;
+# `Rust coverage and audit` joins them when the Go checks leave (phase 8).
 # No path filter, like the other workflows: a required check that never starts
 # blocks the merge.
 
@@ -138,6 +139,50 @@ jobs:
           exit 1
         fi
         sh packaging/linux/check_appimage_libs.sh "${work}/trial.AppImage" 10
+
+  # The coverage floor and the advisory check of the release (release.yml), on every pull
+  # request: Go carried them in test.yml and goes away with phase 8. The tool versions are
+  # pinned there and here alike, so the figure does not move because a tool did.
+  rust-coverage-audit:
+    name: Rust coverage and audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: rust
+
+    - name: Install FFmpeg and the window's build libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
+
+    # llvm-tools is what cargo-llvm-cov reads the profiles with.
+    - name: Install the coverage and audit tools
+      working-directory: rust
+      run: |
+        set -euo pipefail
+        rustup component add llvm-tools
+        cargo install --locked --version 0.9.1 cargo-llvm-cov
+        cargo install --locked --version 0.22.2 cargo-audit
+
+    # The floor is the Go gate's, 50 % of lines: a floor to raise as coverage grows.
+    # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip silently.
+    - name: Run tests and the coverage gate
+      working-directory: rust
+      env:
+        SUPERVIEW_REQUIRE_FFMPEG: '1'
+      run: cargo llvm-cov --workspace --locked --fail-under-lines 50
+
+    # Fails on a known vulnerability in Cargo.lock; the advisory database is not pinned.
+    # The way out is a reasoned `ignore` in rust/.cargo/audit.toml, not removing the step.
+    - name: Audit the dependencies
+      working-directory: rust
+      run: cargo audit
 
   # Go/Rust cross-check (PR 5c): the same clip converted by Go's PerformEncoding and by the
   # Rust test bench, with the same encoder and rate; the decoded frames and the ffprobe
