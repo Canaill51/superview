@@ -54,7 +54,7 @@ pub fn sensitive_system_directories(env: &dyn Fn(&str) -> Option<String>) -> Vec
     }
     [
         "/etc", "/bin", "/sbin", "/usr", "/boot", "/root", "/sys", "/proc", "/lib", "/lib64",
-        "/var/lib",
+        "/var/lib", "/dev",
     ]
     .iter()
     .map(|d| (*d).to_string())
@@ -120,7 +120,7 @@ pub fn is_sensitive_system_path(clean_path: &str) -> bool {
 /// that must pass: the user picks the file through a native dialog, so
 /// rejecting links (a `~/Videos` pointing at another drive) only produced
 /// false positives.
-pub fn is_valid_input_path(path: impl AsRef<Path>) -> Result<(), Error> {
+pub fn is_valid_input_path(path: impl AsRef<Path>) -> Result<PathBuf, Error> {
     let path = path.as_ref();
     let shown = path.display();
     if path.as_os_str().is_empty() {
@@ -150,7 +150,7 @@ pub fn is_valid_input_path(path: impl AsRef<Path>) -> Result<(), Error> {
     if !meta.is_file() {
         return Err(plain(format!("not a regular file: {shown}")));
     }
-    Ok(())
+    Ok(resolved)
 }
 
 /// Validates a file path for writing: no `..`, absolute, outside the protected

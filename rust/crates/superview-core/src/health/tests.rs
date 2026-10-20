@@ -489,3 +489,32 @@ fn the_overall_status_is_logged_at_info() {
 fn logging_a_missing_health_does_nothing() {
     log_health(None);
 }
+
+// F-17: a hung `ffprobe -version` makes the check fail instead of blocking the Diagnostic.
+#[cfg(unix)]
+#[test]
+fn a_hung_ffprobe_makes_its_check_fail() {
+    let _guard = crate::process::tests::spawn_lock();
+    let tools = crate::probe::tests::fake_tools(&[("ffprobe", "exec sleep 30")]);
+    let resolver = tools
+        .resolver
+        .with_query_timeout(std::time::Duration::from_secs(1));
+    let started = std::time::Instant::now();
+    let result = check_ffprobe_health(&resolver, 0);
+    assert!(!result.healthy);
+    assert_eq!(result.message, "FFprobe not found or failed");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}
+
+// F-22: the first line of `ffprobe -version` loses the `\r` a Windows build prints.
+#[cfg(unix)]
+#[test]
+fn the_ffprobe_version_line_has_no_carriage_return() {
+    let _guard = crate::process::tests::spawn_lock();
+    let tools = crate::probe::tests::fake_tools(&[(
+        "ffprobe",
+        "printf 'ffprobe version 9.9\\r\\nbuilt with gcc\\r\\n'",
+    )]);
+    let result = check_ffprobe_health(&tools.resolver, 0);
+    assert_eq!(result.value, "ffprobe version 9.9");
+}

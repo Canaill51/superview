@@ -190,7 +190,17 @@ pub fn combined_output(mut cmd: Command) -> io::Result<(ExitStatus, String)> {
 /// must not end up inside it (F-05).
 ///
 /// `Err` only when the process cannot be started or read.
-pub fn split_output(mut cmd: Command) -> io::Result<(ExitStatus, String, String)> {
+pub fn split_output(cmd: Command) -> io::Result<(ExitStatus, String, String)> {
+    split_output_within(cmd, Duration::MAX)
+}
+
+/// [`split_output`] that gives up after `deadline` (F-17): the process is killed and reaped
+/// and the error is [`io::ErrorKind::TimedOut`]. After a normal end the readers get
+/// [`READER_GRACE`], as in [`run_with_deadline`]; after a kill they are abandoned.
+pub fn split_output_within(
+    mut cmd: Command,
+    deadline: Duration,
+) -> io::Result<(ExitStatus, String, String)> {
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -211,10 +221,51 @@ pub fn split_output(mut cmd: Command) -> io::Result<(ExitStatus, String, String)
             return Err(e);
         }
     };
-    let status = wait_or_kill(&mut child)?;
-    out_done.recv().unwrap_or(Ok(()))?;
-    err_done.recv().unwrap_or(Ok(()))?;
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(timed_out(deadline));
+            }
+            Ok(None) => {
+                thread::sleep(POLL_INTERVAL.min(deadline.saturating_sub(started.elapsed())))
+            }
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(e);
+            }
+        }
+    };
+    // A child that kept a pipe open must not hold the caller: READER_GRACE for both ends.
+    let grace_until = Instant::now() + READER_GRACE;
+    for done in [&out_done, &err_done] {
+        done.recv_timeout(grace_until.saturating_duration_since(Instant::now()))
+            .unwrap_or(Ok(()))?;
+    }
     Ok((status, collected(&stdout), collected(&stderr)))
+}
+
+fn timed_out(deadline: Duration) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::TimedOut,
+        format!("timed out after {}s", deadline.as_secs().max(1)),
+    )
+}
+
+/// [`combined_output`] that gives up after `deadline` (F-17), like [`split_output_within`].
+pub fn combined_output_within(
+    cmd: Command,
+    deadline: Duration,
+) -> io::Result<(ExitStatus, String)> {
+    let outcome = run_with_deadline(cmd, deadline, None)?;
+    match (outcome.end, outcome.status) {
+        (RunEnd::Finished, Some(status)) => Ok((status, outcome.output)),
+        _ => Err(timed_out(deadline)),
+    }
 }
 
 /// How often [`run_with_deadline`] looks at the process, the deadline and the cancel flag.
@@ -309,14 +360,11 @@ pub fn run_with_deadline(
         let _ = child.kill();
         let _ = child.wait();
     }
-    // A process that ended by itself closed its pipe; one that was killed may have left a
-    // grandchild holding it open (a shim, a `.bat`), and waiting for that would hang the
-    // caller. So after a kill the reader gets READER_GRACE and is then abandoned: it ends
-    // by itself whenever the pipe closes, and the output is what it had read so far.
-    let read = match &waited {
-        Ok((_, _, false)) => done_rx.recv().unwrap_or(Ok(())),
-        _ => done_rx.recv_timeout(READER_GRACE).unwrap_or(Ok(())),
-    };
+    // A process, killed or not, may have left a grandchild holding the pipe open (a shim, a
+    // `.bat`, a `sleep &`), and waiting for that would hang the caller (F-18). So the reader
+    // gets READER_GRACE and is then abandoned: it ends by itself whenever the pipe closes,
+    // and the output is what it had read so far.
+    let read = done_rx.recv_timeout(READER_GRACE).unwrap_or(Ok(()));
     let (status, end, _) = waited?;
     read?;
     Ok(RunOutcome {

@@ -418,3 +418,21 @@ fn check_video_reads_a_real_clip() {
         "{stream:?}"
     );
 }
+
+// F-17: an ffprobe stuck on a frozen share ends in an error, not a hung thread.
+#[cfg(unix)]
+#[test]
+fn check_video_gives_up_on_an_ffprobe_that_never_answers() {
+    let _guard = spawn_lock();
+    let tools = fake_tools(&[("ffprobe", "exec sleep 30")]);
+    let resolver = tools
+        .resolver
+        .with_query_timeout(std::time::Duration::from_secs(1));
+    let started = std::time::Instant::now();
+    let err = check_video(&resolver, "clip.mp4").unwrap_err();
+    assert!(
+        matches!(&err, Error::Plain(m) if m.starts_with("ffprobe failed, output:\n")),
+        "{err:?}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}

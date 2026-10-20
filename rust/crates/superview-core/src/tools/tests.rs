@@ -776,3 +776,18 @@ fn commands_carry_their_arguments_and_the_injected_path() {
         .and_then(|(_, v)| v);
     assert_eq!(path, Some(empty.path().as_os_str()));
 }
+
+// F-17: `ffmpeg -version`, `-encoders` and `-hwaccels` are bounded too.
+#[cfg(unix)]
+#[test]
+fn an_ffmpeg_query_that_never_answers_is_an_error() {
+    let _guard = crate::process::tests::spawn_lock();
+    let tools = crate::probe::tests::fake_tools(&[("ffmpeg", "exec sleep 30")]);
+    let resolver = tools
+        .resolver
+        .with_query_timeout(std::time::Duration::from_secs(1));
+    let started = std::time::Instant::now();
+    let err = query_ffmpeg(&resolver, &["-version"]).unwrap_err();
+    assert!(err.contains("timed out"), "{err}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}

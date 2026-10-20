@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Sécurité et robustesse : chemin résolu transmis, `/dev` protégé, délai sur ffprobe et `ffmpeg -version`, attente bornée après la fin d'un processus (F-15 à F-18, session 6, PR A)
+
+| | |
+| --- | --- |
+| **Constat** | ffprobe et ffmpeg recevaient le lien symbolique et non la cible validée ; une sortie `/dev/sda` passait en root ; ffprobe, `ffmpeg -version`, `-encoders` et `-hwaccels` n'avaient aucun délai (un partage réseau figé bloquait le fil) ; `run_with_deadline` attendait sans borne un processus terminé seul dont un petit-fils tenait le tube |
+| **Cause** | `is_valid_input_path` ne rendait rien ; `/dev` absent de la liste ; `combined_output` et `split_output` sans délai ; `done_rx.recv()` dans la branche « terminé seul » |
+| **Fichiers** | `superview-core/src/security.rs` (rend le `PathBuf` résolu, `/dev`), `pipeline.rs` (le chemin résolu va à `check_video` donc à l'argv), `process.rs` (`combined_output_within`, `split_output_within`, `READER_GRACE` dans les deux branches), `tools.rs` (`TOOL_QUERY_TIMEOUT` 30 s, `ToolResolver::query_timeout`), `video.rs`, `health.rs` (+ `trim_end` : le `\r` de `ffprobe -version`, part de F-22) |
+| **PR** | Pass the resolved input path to ffmpeg, protect /dev and time-box ffprobe and ffmpeg queries |
+| **Vérification** | contre-preuve rouge pour chacun : `the_tools_get_the_resolved_input_not_the_symlink` (pipeline remis sur `c.input`), `run_with_deadline_does_not_wait_for_a_child_that_keeps_the_pipe` (6 s au lieu de < 4 s), `check_video_gives_up_on_an_ffprobe_that_never_answers`, `a_hung_ffprobe_makes_its_check_fail`, `an_ffmpeg_query_that_never_answers_is_an_error` (30 s au lieu de ~1 s quand le délai est retiré), `dev_is_protected_and_run_media_is_not`, `the_ffprobe_version_line_has_no_carriage_return` ; verts après. Le délai est injecté (`with_query_timeout`, 1 s en test), aucun `sleep` long. **Écart au plan** : `/run` n'est pas protégé, il contient `/run/media/<user>/` (disques amovibles) ; `/proc` et `/sys` l'étaient déjà |
+
 ### [2026-10-20] Interface : sonde, Diagnostic et conversion sérialisés ; question Overwrite figée ; hook de panic (F-11 à F-14, session 5)
 
 | | |

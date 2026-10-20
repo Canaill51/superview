@@ -328,9 +328,10 @@ fn run(
     let services = c.services;
 
     // ==== SECURITY VALIDATION ====
-    is_valid_input_path(c.input)
+    // ffprobe and ffmpeg get the path that was validated, not the link that led to it (F-15).
+    let input = is_valid_input_path(c.input)
         .map_err(|e| fail_prefixed(metrics, "input_validation", "invalid input file", &e))?;
-    let Some(input_text) = c.input.to_str() else {
+    let Some(input_text) = input.to_str() else {
         let cause = Error::Plain("path is not valid UTF-8".into());
         return Err(fail_prefixed(
             metrics,
