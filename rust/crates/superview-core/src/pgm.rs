@@ -186,13 +186,13 @@ pub fn generate_pgm(
     let mut wx = create("x.pgm", &x_path)?;
     let mut wy = create("y.pgm", &y_path)?;
     write_maps(video, squeeze, &mut wx, &mut wy)?;
-    // `Drop` would swallow a final write error: take the files back and sync.
+    // `Drop` would swallow a final write error: `into_inner` flushes and reports it. No
+    // `sync_all`: only the ffmpeg that follows reads these files, and 66-113 MB forced to disk
+    // would only slow the start (F-03).
     for (name, writer) in [("x.pgm", wx), ("y.pgm", wy)] {
-        let file = writer
+        writer
             .into_inner()
             .map_err(|e| Error::Plain(format!("failed to flush {name}: {}", e.error())))?;
-        file.sync_all()
-            .map_err(|e| Error::Plain(format!("failed to close {name}: {e}")))?;
     }
     Ok((x_path, y_path))
 }

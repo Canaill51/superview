@@ -10,5 +10,12 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/Canaill51/superview"
 publish = false
 
+# DEC-50: smaller binary (28.9 -> 18.4 MB measured). No `panic = "abort"`: app.rs turns a worker
+# thread's panic into a displayed error with `catch_unwind`.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
