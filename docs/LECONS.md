@@ -44,7 +44,7 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 | **Constat** | ID-xx (lien vers ANALYSE.md) |
 | **Fichiers** | `chemin:lignes` |
 | **PR** | #NN |
-| **Vérification** | `go build` ✅/❌ · `go vet` ✅/❌ · `go test` ✅/❌ · test manuel ✅/❌/n.a. |
+| **Vérification** | `scripts/check.sh` ✅/❌ · contre-preuve (le test rougit sans le correctif) ✅/❌ · test manuel ✅/❌/n.a. |
 
 **Symptôme** — ce qui n'allait pas, observable.
 

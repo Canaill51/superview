@@ -3,18 +3,18 @@
 > **Chemins.** Ce journal date d'avant le 2026-10-14 (DEC-39) : `common/` y désigne
 > aujourd'hui `internal/common/`, et les fichiers `gui_*.go` de la racine sont dans `cmd/superview/`.
 >
-> **Journal d'audit, pas documentation de référence.** Ce fichier consigne treize
-> passes d'analyse et les 132 constats qu'elles ont produits, avec ce qui a été
+> **Journal d'audit, pas documentation de référence.** Ce fichier consigne quatorze
+> passes d'analyse et les 162 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
 > [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
 > [LECONS.md](LECONS.md) ; ce qu'il ne faut pas « corriger » est dans
 > [DECISIONS.md](DECISIONS.md).
 >
-> Dernière passe : 13ᵉ (E-01 à E-25), ouverte et close le 2026-10-14 — état des lieux
-> complet demandé par l'utilisateur, plan d'actions exécuté en dix PR (#78 à #87) ;
-> **aucun constat ouvert**. Restent deux questions, Q-02 et Q-03 (§ 5).
+> Dernière passe : 14ᵉ (F-01 à F-30), ouverte le 2026-10-20 — analyse complète du produit
+> Rust après v0.3.0, plan d'exécution en sessions ; **30 constats ouverts**, deux questions
+> ouvertes, Q-04 et Q-05 (§ 5). La 13ᵉ (E-01 à E-27) est close.
 > Les § 3 et § 3bis portaient sur `e3269e7`, le § 3ter sur `001d250`, le § 3duodecies
-> sur `f925ee5`.
+> sur `f925ee5`, le § 3terdecies sur `4efae3a`.
 >
 > **Ordre de lecture** : § 3 (1ʳᵉ passe, statique) → § 3bis (3ᵉ passe, empirique,
 > N-xx) → § 3ter (4ᵉ passe, P-xx) → § 3quater (5ᵉ passe, R-xx) → § 3quinquies
@@ -617,6 +617,263 @@ GitHub Ubuntu.
 
 > Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
 
+## 3terdecies. Quatorzième passe (2026-10-20) — analyse complète après v0.3.0, à `4efae3a`
+
+Première passe sur le produit Rust seul, à la demande de l'utilisateur : structure, code, sécurité,
+performances, organisation du dépôt. Quatre relectures parallèles (pipeline, modules de validation,
+interface, dépôt), chaque constat retenu vérifié ensuite dans le code. Mesures à `4efae3a` :
+environ 8 000 lignes de code pour 21 000 de tests (632 `#[test]`), un seul `expect` hors tests,
+aucun `unsafe`, `cargo audit` sans faille (cinq crates transitifs non maintenus via Slint et rfd),
+binaire Linux release de 28,9 Mo qui tombe à 18,4 Mo avec LTO et `strip`.
+
+**Verdict** : aucun défaut ne bloque une version. Les défauts réels sont des tâches de fond non
+sérialisées avec l'encodage, des héritages du port Go, et des flux non bornés. Plan d'exécution en
+sessions : `~/.claude/plans/declarative-beaming-lobster.md` (une PR par session, test de
+contre-preuve d'abord, fixtures de parité intouchées). Les constats sont numérotés dans l'ordre des
+sessions, **F-01 à F-30** ; les deux durcissements qui toucheraient une fixture gelée sont des
+questions, Q-04 et Q-05 (§ 5). **Aucune modification de code dans cette passe.**
+
+### F-01 — Les tests inline font des fichiers de 2 000 lignes
+
+🟢 `rust/crates/superview-app/src/state.rs`, `superview-core/src/probe.rs`, `pipeline.rs`, `encode/cascade.rs`, `tools.rs`…
+
+Les blocs `#[cfg(test)]` pèsent de 60 à 97 % des gros modules (`state.rs` : 2 387 lignes pour
+moins de 1 000 de code). Lire le code coûte la lecture des tests. Déplacement mécanique vers
+`src/<module>/tests.rs`, même nombre de tests avant et après.
+
+### F-02 — Pas de `[profile.release]` : binaire de 28,9 Mo, non `strip`
+
+🟡 `rust/Cargo.toml`
+
+Mesuré : `lto = "fat"`, `codegen-units = 1`, `strip = "symbols"` donnent 18,4 Mo, donc un
+installateur et une AppImage plus légers. Pas de `panic = "abort"` : `app.rs` transforme les panics
+des fils de travail en erreur affichée par `catch_unwind`.
+
+### F-03 — `sync_all` sur les cartes PGM
+
+🟢 `rust/crates/superview-core/src/pgm.rs:194`
+
+De 66 à 113 Mo de fichiers temporaires sont forcés sur le disque alors que seul le ffmpeg qui suit
+les lit. `flush` + `into_inner()` voit toujours l'erreur d'écriture ; `tests/pgm_golden.rs` fige les octets.
+
+### F-04 — Le stderr de ffmpeg est accumulé sans plafond, puis copié dans l'erreur
+
+🟠 `rust/crates/superview-core/src/encode/run.rs:247-260`, `encode/failure.rs:36`
+
+`-loglevel error` ne borne rien : un H.264 abîmé écrit une ligne par trame. Le `Vec` grossit en
+mémoire, puis le texte entier part dans `Error::Plain`, le journal et la popup. Un collecteur
+commun à `run.rs` et `process.rs` (début + fin, marqueur de troncature) supprime aussi la
+duplication du fil lecteur.
+
+### F-05 — `check_video` analyse stdout et stderr mélangés comme du JSON
+
+🟠 `rust/crates/superview-core/src/video.rs:186`, `process.rs:65-70`
+
+`combined_output` entrelace les deux flux. Un avertissement d'ffprobe sur un fichier lisible
+(`partial file`) casse l'analyse avec « failed to parse video metadata », la vraie cause perdue.
+Hérité de `CombinedOutput` en Go. Lire stdout seul pour le JSON, garder stderr pour le message.
+
+### F-06 — Le journal peut entrelacer deux messages sur une ligne
+
+🟡 `rust/crates/superview-core/src/logfile.rs:178-182`, `superview-app/src/journal.rs:74`
+
+`writeln!` fait deux `write` (la ligne, puis `\n`) et le verrou est pris à chaque `write` : un autre
+fil peut s'intercaler, et le plafond peut vider le fichier entre les deux. Une ligne = un `write_all`.
+
+### F-07 — L'aperçu matériel et la conversion ne posent pas la même question à la sonde
+
+🟠 `rust/crates/superview-core/src/probe.rs:706-713`, `pipeline.rs:438`, `superview-app/src/app.rs:935`
+
+`describe_verified_hardware_plan` sonde avec un preset vide, la conversion avec `cfg.video_preset`,
+et le preset fait partie de `ProbeSpec::cache_key`. Chaque conversion relance donc une sonde
+(0,3 s, jusqu'à 15 s sur un pilote bloqué), et l'aperçu peut dire « OK » pour un encodeur que la
+conversion refusera avant de basculer vers le CPU sans bruit. C'est l'écart qu'E-01 voulait fermer.
+
+### F-08 — La sonde de vérification n'est pas annulable alors que l'API le permet
+
+🟡 `rust/crates/superview-core/src/pipeline.rs:433-440, 485-488`
+
+`None` est passé pour le drapeau ; le commentaire admet jusqu'à deux `PROBE_TIMEOUT` (30 s) avant
+que Cancel soit vu. « Comme en Go » n'est plus une contrainte, et une sonde annulée n'est jamais
+mise en cache (E-23).
+
+### F-09 — La cause d'un repli n'est jamais journalisée
+
+🟡 `rust/crates/superview-core/src/encode/cascade.rs:216, 252`
+
+`Err(_) => log::warn!(...)` jette l'erreur ; celle du passage CPU est perdue si le repli réussit.
+Le journal joint aux rapports de bug dit « fallback » sans dire pourquoi. Ajouter `error={err}` en
+fin des lignes existantes, que `tests/cascade_logs.rs` fige par leur préfixe.
+
+### F-10 — Un échec de lancement de la sonde est mis en cache comme un refus définitif
+
+🟢 `rust/crates/superview-core/src/probe.rs:520, 592`
+
+Une erreur passagère de `spawn` (EAGAIN, ffmpeg remplacé pendant une mise à jour) rétrograde
+l'encodeur pour toute la session. Ne mettre en cache que les verdicts d'un processus terminé.
+
+### F-11 — La sonde de démarrage peut finir pendant un encodage et lancer un essai GPU à côté
+
+🔴 `rust/crates/superview-app/src/state.rs:506, 655-672`, `app.rs:645-655`
+
+`can_start` ignore `encoder_probe` ; quand le rapport arrive, `verify_hardware_in_background` ne
+regarde pas `is_encoding()`. Avec six encodeurs ou un pilote lent, l'utilisateur lance Start avant
+la fin de la sonde ; à son arrivée, la ligne Hardware est réécrite et un vrai encodage d'essai part
+sur le même GPU. Aucun test : `FakeEngine::probe_hardware` répond tout de suite. Différer le rapport
+jusqu'à la fin de l'encodage.
+
+### F-12 — Le Diagnostic ne grise ni Start ni lui-même
+
+🟠 `rust/crates/superview-app/src/app.rs:1046-1106`, `ui/main.slint:282-285`
+
+`check_health` sonde tous les encodeurs avec un `Prober` neuf. Diagnostic puis Start : la sonde
+complète tourne à côté d'un encodage matériel. Deux clics : deux balayages GPU en parallèle, deux
+rapports empilés. Un état « diagnostic en cours » sur le modèle de `begin_pick`.
+
+### F-13 — Un sélecteur encore ouvert pendant la question « Overwrite » peut changer la sortie
+
+🟡 `rust/crates/superview-app/src/app.rs:524-527, 875-876`
+
+La question porte sur le chemin lu au clic sur Start, mais `begin_conversion` relit l'état au
+« Yes », et `chosen_file_arrives_too_late` ne bloque qu'en cours d'encodage. Figer `(input, output)`
+dans `PopupKind::Overwrite` et comparer au « Yes ».
+
+### F-14 — Pas de hook de panic : un panic sur le fil UI disparaît sans trace
+
+🟡 `rust/crates/superview-app/src/main.rs`
+
+Les fils de travail sont sous `catch_unwind`, pas les callbacks Slint ni les closures `post`. Sous
+Windows en release (`windows_subsystem = "windows"`), stderr n'existe pas : le journal que le README
+demande de joindre ne dit rien. `set_hook` qui journalise puis `flush`, chaîné au hook par défaut.
+
+### F-15 — ffmpeg reçoit le lien symbolique, pas la cible validée
+
+🟢 `rust/crates/superview-core/src/security.rs:136-153`, `pipeline.rs:331-354`
+
+`is_valid_input_path` résout le lien et valide la cible, mais c'est le chemin non résolu qui part
+vers ffprobe et ffmpeg. Fenêtre TOCTOU, faible sur un bureau mono-utilisateur. Rendre le `PathBuf`
+résolu et le passer.
+
+### F-16 — Répertoires protégés incomplets sous Unix
+
+🟢 `rust/crates/superview-core/src/security.rs:55-58`
+
+`/dev`, `/run`, `/proc`, `/sys` manquent. Lancé en root (cas prévu par le commentaire), une sortie
+`/dev/sda` passe et le renommage final remplace le nœud. `/var` reste ouvert : `/var/tmp` est légitime.
+
+### F-17 — Aucun délai sur ffprobe ni sur `ffmpeg -version`, `-encoders`, `-hwaccels`
+
+🟢 `rust/crates/superview-core/src/video.rs:186`, `tools.rs:418-426`, `health.rs:181`
+
+Tous via `combined_output`, sans borne. Une entrée sur un partage réseau figé bloque le fil sans
+fin, et `shutdown` laisse un ffprobe orphelin. `run_with_deadline` existe déjà.
+
+### F-18 — `run_with_deadline` attend sans borne un processus terminé seul
+
+🟢 `rust/crates/superview-core/src/process.rs:196`
+
+`done_rx.recv()` sans délai : un petit-fils qui hérite du tube bloque l'appelant, ce que la branche
+« kill » évite avec `READER_GRACE`. `recv_timeout` dans les deux branches.
+
+### F-19 — La limite cgroup n'est lue qu'à la racine
+
+🟢 `rust/crates/superview-core/src/memory.rs:224-225`
+
+Sur un bureau systemd (cgroup v2), la racine n'a pas de `memory.max` ; un `MemoryMax` posé sur
+l'unité ou la slice est ignoré. Lire `/proc/self/cgroup` et prendre le minimum en remontant.
+
+### F-20 — `min_bitrate` et `max_bitrate` négatifs sont acceptés en silence
+
+🟢 `rust/crates/superview-core/src/config.rs:144`
+
+`max_bitrate: -1` vaut « pas de plafond » sans avertissement, alors que les nombres de fils sont
+normalisés avec un `warn`. Même traitement.
+
+### F-21 — Règles de recherche d'outils incohérentes
+
+🟢 `rust/crates/superview-core/src/tools.rs:140-148, 233-235`
+
+Override, copie embarquée et chemins winget/scoop acceptent un fichier sans bit exécutable, le
+`PATH` l'exige ; un `SUPERVIEW_FFMPEG_DIR` relatif n'est pas refusé (E-22, L-16). `is_executable_file`
+partout, override relatif ignoré avec avertissement.
+
+### F-22 — Petits défauts : cause affichée deux fois, étiquette d'étape, `\r`, permissions du journal
+
+🟢 `rust/crates/superview-core/src/error.rs:44-50, 77-80`, `pipeline.rs:517`, `health.rs:185`, `logfile.rs:55, 65`
+
+`SessionError` et `FailedAfterOutput` mettent la cause dans le `Display` et en `#[source]` : tout
+outil qui parcourt `source()` l'affiche deux fois (retirer `#[source]`, le texte vient de l'oracle).
+Un échec de `new_partial_output_path` est enregistré sous `stage "encoding"`. La première ligne de
+`ffprobe -version` garde son `\r` sous Windows. Les modes 0o700/0o600 ne s'appliquent qu'à la création.
+
+### F-23 — « Cancelling... » peut être écrasé par une progression en file
+
+🟢 `rust/crates/superview-app/src/app.rs:905-915`, `state.rs:826-832`
+
+`WindowSink::status` ne vérifie que `is_encoding()` : après Cancel, un `post` déjà en file remet
+« Transforming... 45% ». Ignorer statut et barre quand l'annulation est demandée.
+
+### F-24 — La question « Cancel and quit » reste à l'écran après la fin de la conversion
+
+🟢 `rust/crates/superview-app/src/app.rs:216-221`
+
+`close()` ne purge le `Quit` que s'il attend derrière un autre popup. Affiché, il continue de dire
+« An encoding is in progress » et le Done passe derrière.
+
+### F-25 — La liste des profils qualité existe en double entre Slint et Rust
+
+🟢 `rust/crates/superview-app/ui/main.slint:168-171, 311`, `src/prefs.rs` (`QUALITY_PROFILES`)
+
+Un profil ajouté côté Rust n'apparaît pas dans le menu, et `sanitized()` le rejette au chargement
+suivant. Passer la liste en propriété `in`.
+
+### F-26 — Les modaux ignorent Échap et Entrée
+
+🟢 `rust/crates/superview-app/ui/main.slint:122-128`
+
+Le `Modal` prend le focus mais n'a pas de `key-pressed` : rien ne se pilote au clavier, sauf le
+champ texte.
+
+### F-27 — Fenêtre fixe 980×470 en pixels logiques
+
+🟢 `rust/crates/superview-app/ui/main.slint:159-162`
+
+À 150 % sur un 1366×768, la fenêtre fait 1 470 px physiques de large, non redimensionnable, donc
+coupée. À valider par capture avant de toucher la disposition.
+
+### F-28 — Aucun `timeout-minutes` sur les jobs de `rust.yml` et `lint.yml`
+
+🟢 `.github/workflows/rust.yml`, `lint.yml`
+
+Défaut GitHub : 360 min. Un ffmpeg bloqué en CI occupe un runner six heures. `release.yml` n'est
+pas concerné par ce plan (essai à blanc obligatoire, L-114).
+
+### F-29 — Pas de `cargo-deny` ; `THIRD_PARTY_NOTICES.md` annonce 471 crates pour 548 dans `Cargo.lock`
+
+🟢 `THIRD_PARTY_NOTICES.md:57`, `rust/Cargo.lock`, job *Rust coverage and audit*
+
+Les cinq crates non maintenus (`bincode`, `ttf-parser`, `zbus_names`, `zvariant`, `zvariant_derive`)
+ne sont ignorés nulle part : le commentaire de `rust.yml` renvoyait à un `audit.toml` absent
+(corrigé dans cette passe). `cargo-deny` vérifierait aussi la compatibilité des licences avec
+GPL-3.0-or-later.
+
+### F-30 — La couverture est vérifiée mais jamais publiée
+
+🟢 `.github/workflows/rust.yml`, job *Rust coverage and audit*
+
+Le seuil de 50 % est un gate sans trace : pas d'artefact, pas de chiffre lisible après coup. Publier
+le `lcov` en artefact suffit (pas de service externe, E-18).
+
+**Consigné, hors périmètre** (bonne facture mais pas de gain fonctionnel, ou décision à part) :
+regroupement des treize paramètres de `encode_video_with_memory` (`#[allow(too_many_arguments)]`
+justifié par « port 1:1 », caduc depuis DEC-49) ; struct `FfmpegCapabilities` à la place du
+`HashMap<String, String>` de CSV ; découpage de `state.rs` en `lifecycle`/`view`/`handler` ;
+rotation du journal au lieu de la troncature ; préférences écrites sur le fil UI ; `version()` qui
+rend toujours `0.0.0` ; `remap_output_size` `pub` qui panique sur une vidéo sans flux ; aller-retour
+octets → Go → octets dans `disk.rs` ; fusion des trois journaux (`ANALYSE`, `LECONS`, `CORRECTIONS`)
+et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 face au
+`GPL-3.0-or-later` de Cargo ; `.github/sample.gif` de 5,3 Mo dans le dépôt.
+
 ## 4. État d'avancement
 
 | Statut | Constats |
@@ -645,9 +902,10 @@ GitHub Ubuntu.
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
+| ⏸️ **Ouvert — 14ᵉ passe** (30) | F-01 à F-30, § 3terdecies — plan en sessions `~/.claude/plans/declarative-beaming-lobster.md` ; aucune modification de code dans la passe |
 | ⏸️ **Ouvert — 13ᵉ passe** (0) | *aucun* — les 27 constats E-01 à E-27 sont clos par les lignes ✅ ci-dessus. Les questions Q-02 et Q-03, § 5, ont été tranchées ensuite (DEC-37, DEC-38) |
 | ✅ **Tranchées** (3) | Q-01 — mesurée : 1,6 → 4/3, § 5. Q-02 — mesurée : +4 % de mémoire par fil au-delà de 4, DEC-37. Q-03 — décision : pas de télémétrie GoPro, DEC-38 |
-| ❓ **Ouvertes** (0) | *aucune* |
+| ❓ **Ouvertes** (2) | Q-04 — forcer le démuxeur MP4 (`-f mov` ou `format_whitelist`) sur l'entrée, § 5. Q-05 — refuser une durée `inf`/`nan`, § 5 |
 
 Vérification, module entier, sysroot GUI reconstruit : `gofmt` · `go build ./...` ·
 `go vet ./...` · `golangci-lint run ./...` 0 alerte · `go test -race ./...` · GUI démarrée
@@ -849,6 +1107,21 @@ ffmpeg aux deux appelants (PR #90). Cinq contre-épreuves (une par défaut réin
 Pas de télémétrie GoPro dans la sortie. Aucune mesure nécessaire : la question était de produit,
 et la réponse est non. DEC-38.
 
+### Q-04 — Faut-il forcer le démuxeur MP4 sur l'entrée ?
+
+Ouverte le 2026-10-20 (14ᵉ passe). ffmpeg choisit le démuxeur d'après le contenu : un « .mp4 » qui
+est en fait une playlist (HLS, concat) pourrait faire lire d'autres fichiers locaux, incrustés dans la
+sortie. `-f mov` ou `-format_whitelist` sur ffprobe et ffmpeg fermerait la porte, cohérent avec
+« MP4 in ». Mais cela change l'argv figé par `tests/fixtures/parity/encode_args.json` : à trancher
+par une DEC, avec les fixtures régénérées et relues, pas par un correctif.
+
+### Q-05 — Faut-il refuser une durée `inf` ou `nan` dans `VideoSpecs::validate` ?
+
+Ouverte le 2026-10-20 (14ᵉ passe). `parse_go_float` accepte `inf` et `nan`, et ni `inf <= 0.0` ni
+`NaN <= 0.0` n'est vrai, « comme en Go ». En aval, `inf` fait refuser la sortie pour « needs about
+8796093022207 MB » et `NaN` fait passer le contrôle d'espace à zéro. Refuser `!is_finite()` touche
+les fixtures de specs gelées : même traitement que Q-04.
+
 ## 6. Journal des révisions de ce document
 
 | Date | Modification |
@@ -881,3 +1154,4 @@ et la réponse est non. DEC-38.
 | 2026-10-14 | **PR 2 du plan — E-03, E-14, E-15, E-20 corrigés, E-23 en partie.** Une seule méthode de sortie, `appState.shutdown`, attend la goroutine d'encodage depuis les trois chemins ; en l'écrivant, l'hypothèse d'E-03 « `SetOnClosed`, que `app.Quit` et `catchTerm` traversent tous deux » s'est révélée fausse pour `catchTerm` (il appelle `driver.Quit`, aucune fenêtre fermée) — d'où un second crochet après `ShowAndRun()` et L-109. `completeEncoding` est la branche de fin unique, testée aux quatre issues sur un vrai canvas. § 4 mis à jour ; DEC-34 amendée (255 n'est pas une annulation). |
 | 2026-10-14 | **E-26 et E-27**, trouvés après la clôture de la 13ᵉ passe : #85 à #87 avaient fusionné avec Windows rouge, le gate requis étant *sauté* — donc compté réussi — dès qu'un job de test échouait. Gate corrigé et prouvé ; les quatre défauts Windows qu'il cachait corrigés dans la même PR (#88). Leçons L-111, L-112. |
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée.** Q-02 : le garde-fou mémoire, chiffré à 4 fils, sous-estimait de ×1,47 à 16 fils ; pente de +4 % par fil mesurée sur 5120×2880 et 2560×1440, 8 et 10 bits, branchée sur les fils réels (DEC-37, DEC-17 remplacée). Q-03 : pas de télémétrie GoPro, sur décision de l'utilisateur (DEC-38). Leçon L-113. |
+| 2026-10-20 | **14ᵉ passe, à `4efae3a`**, à la demande de l'utilisateur : analyse complète du produit Rust seul après v0.3.0 (structure, code, sécurité, performances, dépôt), quatre relectures parallèles confrontées au code. § 3terdecies, **30 constats F-01 à F-30**, Q-04 et Q-05. Les plus lourds : sonde de démarrage et Diagnostic non sérialisés avec l'encodage (F-11, F-12), aperçu sondé sans le preset de la conversion (F-07), stderr ffmpeg et JSON d'ffprobe non bornés ou mélangés (F-04, F-05). Plan en sessions, une PR par session. **Aucune modification de code.** |

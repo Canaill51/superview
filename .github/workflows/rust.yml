@@ -178,7 +178,8 @@ jobs:
       run: cargo llvm-cov --workspace --locked --fail-under-lines 50
 
     # Fails on a known vulnerability in Cargo.lock; the advisory database is not pinned.
-    # The way out is a reasoned `ignore` in rust/.cargo/audit.toml, not removing the step.
+    # The way out is a reasoned, dated `ignore` in rust/.cargo/audit.toml (a file to create
+    # then; none exists today), not removing the step.
     - name: Audit the dependencies
       working-directory: rust
       run: cargo audit
