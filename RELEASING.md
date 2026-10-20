@@ -9,7 +9,7 @@ This file explains the parts that are not obvious from the button.
 ## Asking Claude to publish
 
 Instead of the button, you can ask Claude Code to publish ("publie la version
-0.2.9"). It runs the same workflow, through the `/publier` skill
+0.3.0"). It runs the same workflow, through the `/publier` skill
 (`.claude/skills/publier/SKILL.md`): it checks that `master` is current and green,
 that no pull request you are waiting for is still open, and that the release
 workflow has been tried since it last changed (L-114); it proposes the version
@@ -48,7 +48,7 @@ The body of a published release is:
 1. the download list and the `sha256sum -c checksums.txt` line, written by the run;
 2. **Changes** — one entry per pull request merged since the previous release;
 3. **Dependencies** — the Dependabot bumps, kept separate so a week of daily
-   `gomod` updates cannot bury the rest;
+   `cargo` updates cannot bury the rest;
 4. a **Full Changelog** compare link.
 
 Sections 2 and 3 come from `.github/release.yml`. That file's `"*"` catch-all is
