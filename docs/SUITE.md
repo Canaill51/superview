@@ -2,10 +2,11 @@
 - État (2026-10-20) : **Go est retiré** (#136 : gardes portés en Rust + job *Rust coverage and audit* ; #137 : code Go et jobs
   CI Go supprimés, DEC-49). Le produit est le binaire Rust + Slint ; pré-version **`RC-0.3.0`** publiée (installateur Windows,
   AppImage, `checksums.txt`). Dernière version stable : **v0.2.9** (Go, reste dans l'historique). Aucune décision en suspens.
-  **En cours** : phase 8.3 (prose et décisions : AGENTS, docs, README, RELEASING, DEC-49). **Ensuite** : une version stable
-  via `/publier`, sur demande de l'utilisateur et son oui au numéro.
-- Tests manuels passés sur Linux (KDE, Wayland) et Windows (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV (matériel),
-  portail lent, champ texte de repli, lien d'installation.
+  **Fait** : phase 8.3 (prose et décisions, #138) ; VAAPI, GPU Intel seul et « device frame » passés à la main le 2026-10-20
+  (#139) ; capture du README remplacée par la fenêtre Slint (l'ancienne montrait Fyne 0.2.6). **Ensuite** : la version stable
+  **0.3.0** via `/publier`, demandée par l'utilisateur le 2026-10-20 une fois la CI verte et un essai à blanc passé.
+- Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
+  (matériel), portail lent, champ texte de repli, lien d'installation.
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), Rust par rustup (`docs/ENVIRONNEMENT.md`),
   puis `scripts/check.sh`. Le contrôle de couverture (50 %) et `cargo audit` : `make coverage-audit`, ou le job de la CI.
 - Toute modification de `.github/workflows/release.yml` : essai à blanc AVANT fusion (L-114,
