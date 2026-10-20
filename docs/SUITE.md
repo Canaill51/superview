@@ -1,10 +1,10 @@
 # Où on en est
-- État (2026-10-20) : **Go est retiré** (#136 : gardes portés en Rust + job *Rust coverage and audit* ; #137 : code Go et jobs
-  CI Go supprimés, DEC-49). Le produit est le binaire Rust + Slint ; pré-version **`RC-0.3.0`** publiée (installateur Windows,
-  AppImage, `checksums.txt`). Dernière version stable : **v0.2.9** (Go, reste dans l'historique). Aucune décision en suspens.
-  **Fait** : phase 8.3 (prose et décisions, #138) ; VAAPI, GPU Intel seul et « device frame » passés à la main le 2026-10-20
-  (#139) ; capture du README remplacée par la fenêtre Slint (l'ancienne montrait Fyne 0.2.6). **Ensuite** : la version stable
-  **0.3.0** via `/publier`, demandée par l'utilisateur le 2026-10-20 une fois la CI verte et un essai à blanc passé.
+- État (2026-10-20) : **v0.3.0 publiée** (version stable, premier binaire Rust + Slint : installateur Windows, AppImage,
+  `checksums.txt`). Go est retiré (DEC-49) ; la dernière version Go, **v0.2.9**, reste dans l'historique. La pré-version
+  `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
+  (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **Ensuite** : rien d'engagé ; une v0.3.1
+  seulement sur demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
+  encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
   (matériel), portail lent, champ texte de repli, lien d'installation.
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), Rust par rustup (`docs/ENVIRONNEMENT.md`),
