@@ -2,11 +2,11 @@
 
 ## Supported Versions
 
-Security fixes are provided for the current `main` branch and the latest stable release line.
+Security fixes are provided for the current `master` branch and the latest stable release line.
 
 | Version / Branch | Supported          |
 | ---------------- | ------------------ |
-| main             | :white_check_mark: |
+| master           | :white_check_mark: |
 | latest release    | :white_check_mark: |
 | older releases    | :x:                |
 

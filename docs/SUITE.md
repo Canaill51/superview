@@ -2,8 +2,11 @@
 - État (2026-10-20) : **v0.3.0 publiée** (version stable, premier binaire Rust + Slint : installateur Windows, AppImage,
   `checksums.txt`). Go est retiré (DEC-49) ; la dernière version Go, **v0.2.9**, reste dans l'historique. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
-  (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **Ensuite** : rien d'engagé ; une v0.3.1
-  seulement sur demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
+  (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
+  (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Ensuite** : les sessions 1 à 8 du plan
+  `~/.claude/plans/declarative-beaming-lobster.md`, une par session (`/clear`, `opusplan`, test de contre-preuve
+  d'abord, une PR par session) ; prochaine : **session 1** (tests inline → `tests.rs`). Une v0.3.1 seulement sur
+  demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
   encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
   (matériel), portail lent, champ texte de repli, lien d'installation.

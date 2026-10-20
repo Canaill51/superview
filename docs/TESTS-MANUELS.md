@@ -1,8 +1,9 @@
-# Tests manuels avant la pré-version du port Rust
+# Tests manuels du binaire Rust
 
 > Journal interne (français). Ce que les tests automatiques ne peuvent pas voir : un vrai
 > bureau, un vrai GPU, un vrai sélecteur de fichiers. À passer à la main, sur un binaire
-> construit comme celui qui sera livré, avant d'annoncer la pré-version (phase 7). Cocher et
+> construit comme celui qui sera livré, avant chaque version (la première fut RC-0.3.0, puis
+> v0.3.0, publiée le 2026-10-20). Cocher et
 > dater ; noter la machine. Une case non cochée n'est pas un échec : c'est une inconnue.
 
 ## Passe du 2026-10-19 (AppImage de l'essai à blanc, master à 9a39121)
