@@ -2,7 +2,7 @@
 //!
 //! Port of `internal/common/video.go` (`VideoSpecs`, `parseFrameRate`,
 //! `Validate`, `parseVideoSpecs`, `CheckVideo`). Verdicts are pinned by the parity oracle
-//! `testdata/parity/specs.json`.
+//! `tests/fixtures/parity/specs.json`.
 //!
 //! `check_video` differs from `CheckVideo` in one respect: when ffprobe cannot even be
 //! started, Go's message ends at "output:\n" with nothing after it; here the cause (the
@@ -479,7 +479,7 @@ mod tests {
 
     fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../internal/common/testdata/ffprobe")
+            .join("tests/fixtures/ffprobe")
             .join(name)
     }
 

@@ -1,10 +1,5 @@
 * text=auto eol=lf
 
-# Go sources and module files
-*.go text eol=lf
-go.mod text eol=lf
-go.sum text eol=lf
-
 # CI and config
 *.yml text eol=lf
 *.yaml text eol=lf

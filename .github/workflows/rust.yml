@@ -1,8 +1,7 @@
 name: Rust
 
-# Rust port in progress (DEC-43). The Linux, Windows and cross-check jobs are required
-# checks of the `master` ruleset (added 2026-10-19), next to the Go ones;
-# `Rust coverage and audit` joins them when the Go checks leave (phase 8).
+# The required checks of the `master` ruleset are `README parity (EN/FR)` (lint.yml) and the
+# three jobs here: Rust on ubuntu-latest, Rust on windows-latest and Rust coverage and audit.
 # No path filter, like the other workflows: a required check that never starts
 # blocks the merge.
 
@@ -141,7 +140,7 @@ jobs:
         sh packaging/linux/check_appimage_libs.sh "${work}/trial.AppImage" 10
 
   # The coverage floor and the advisory check of the release (release.yml), on every pull
-  # request: Go carried them in test.yml and goes away with phase 8. The tool versions are
+  # request (Go carried them in test.yml, removed in phase 8). The tool versions are
   # pinned there and here alike, so the figure does not move because a tool did.
   rust-coverage-audit:
     name: Rust coverage and audit
@@ -184,67 +183,13 @@ jobs:
       working-directory: rust
       run: cargo audit
 
-  # Go/Rust cross-check (PR 5c): the same clip converted by Go's PerformEncoding and by the
-  # Rust test bench, with the same encoder and rate; the decoded frames and the ffprobe
-  # summaries must agree. Go has no windowless executable, hence a Go test that runs the
-  # bench. Ubuntu only. Not a required check; it goes away with Go (phase 8).
-  cross-check:
-    name: Go and Rust cross-check
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.26.x'
-        check-latest: true
-        # No cache saved: this job builds little Go and a shared key would be written
-        # by whichever job ends first (L-108).
-        cache: false
-
-    - name: Cache cargo
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      with:
-        workspaces: rust
-
-    # libfontconfig1-dev: the workspace build libraries, as in rust-linux.
-    - name: Install FFmpeg and the build libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
-
-    - name: Build the bench
-      working-directory: rust
-      run: cargo build -p superview-harness --locked
-
-    # SUPERVIEW_REQUIRE_RUST_HARNESS makes a missing bench a failure, not a skip. The grep
-    # then insists both tests really passed, so a renamed test cannot leave the job green
-    # having run nothing.
-    - name: Cross-check
-      env:
-        SUPERVIEW_REQUIRE_FFMPEG: '1'
-        SUPERVIEW_REQUIRE_RUST_HARNESS: '1'
-      run: |
-        set -euo pipefail
-        export SUPERVIEW_RUST_HARNESS="$GITHUB_WORKSPACE/rust/target/debug/superview-harness"
-        go test ./internal/common -run 'TestCrossCheck' -count=1 -v 2>&1 | tee "$RUNNER_TEMP/crosscheck.log"
-        for name in TestCrossCheck_GoAndRustProduceTheSameVideo TestCrossCheck_UsableEncodersAreTheSame; do
-          if ! grep -q -- "--- PASS: ${name}" "$RUNNER_TEMP/crosscheck.log"; then
-            echo "::error::${name} did not pass (renamed, skipped or missing)"
-            exit 1
-          fi
-        done
-
   rust-windows:
     name: Rust on windows-latest
     runs-on: windows-latest
 
     env:
-      # The same values as test.yml and release.yml: the pinned FFmpeg archive
-      # (NVENC floor 570.0, DEC-04). The three files must stay identical.
+      # The same values as release.yml (build-gui-windows): the pinned FFmpeg archive
+      # (NVENC floor 570.0, DEC-04). The two files must stay identical.
       FFMPEG_URL: https://github.com/GyanD/codexffmpeg/releases/download/8.1.1/ffmpeg-8.1.1-essentials_build.7z
       FFMPEG_SHA256: 23ad8969fbe701d44e6e7e2b97c5fae4a71224fc33a2560a9034e5110d029d15
 

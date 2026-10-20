@@ -99,8 +99,8 @@ Icon=$APP_ID
 Terminal=false
 Categories=AudioVideo;Video;
 EOF
-cp "$ROOT/cmd/superview/Icon.png" "$APPDIR/$APP_ID.png"
-cp "$ROOT/cmd/superview/Icon.png" "$APPDIR/.DirIcon"
+cp "$ROOT/rust/crates/superview-app/ui/Icon.png" "$APPDIR/$APP_ID.png"
+cp "$ROOT/rust/crates/superview-app/ui/Icon.png" "$APPDIR/.DirIcon"
 
 # APPIMAGE_EXTRACT_AND_RUN: appimagetool is itself an AppImage, run here without FUSE
 # (GitHub's runners do not allow it).

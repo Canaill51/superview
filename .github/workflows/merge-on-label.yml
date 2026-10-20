@@ -211,7 +211,7 @@ jobs:
     # the GITHUB_TOKEN, with the exception of workflow_dispatch and
     # repository_dispatch, will not create a new workflow run" (docs.github.com,
     # "Triggering a workflow"): the merge commit this job puts on master starts
-    # neither test.yml nor lint.yml, and from #73 to #77 master was not tested
+    # neither rust.yml nor lint.yml, and from #73 to #77 master was not tested
     # once (E-06). L-100 had said so -- "neither branch deletion nor workflow"
     # -- and only the first half was acted on.
     #
@@ -249,7 +249,7 @@ jobs:
           exit 0
         fi
 
-        for workflow in test.yml lint.yml; do
+        for workflow in rust.yml lint.yml; do
           if gh workflow run "$workflow" --repo "$REPO" --ref "$BASE_REF"; then
             echo "::notice::dispatched $workflow on $BASE_REF"
           else

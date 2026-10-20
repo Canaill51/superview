@@ -20,25 +20,20 @@ and `make check` call. Enable the git hook once per clone:
 `/verify` reports.
 
 ```bash
-. /tmp/guienv.sh                        # Linux without sudo: see docs/ENVIRONNEMENT.md
-gofmt -l .                              # must print nothing
-go build ./... && go vet ./...
-SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1
-golangci-lint run ./... --timeout=5m
+cd rust
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
 ```
 
-Three things about that:
+Two things about that:
 
-- **The `cmd/superview` package needs GUI headers to compile at all.** On a machine without
-  `sudo`, `docs/ENVIRONNEMENT.md` builds a sysroot in `/tmp` that does not
-  survive a reboot. Without it `./internal/common` compiles and `cmd/superview` does not — do not
-  report a GUI change as verified in that state.
 - **`SUPERVIEW_REQUIRE_FFMPEG=1` is not optional.** Without it, every test that
   needs ffmpeg skips silently: the integration tests and the remap
   equivalence test, which together are the whole of what checks a real
   conversion. A green suite can mean nothing was encoded. CI sets it.
-- **`./internal/common` alone is not the suite.** It skips the `cmd/superview` GUI tests
-  and is not what the 50% coverage gate measures.
+- **The workspace is the suite.** `cargo test -p superview-core` alone skips the
+  window tests of `superview-app`.
 
 **Every test is proved by counter-proof**: reintroduce the defect it guards and
 confirm the test reddens. Tests here have passed vacuously before. And check the

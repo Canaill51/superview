@@ -1,7 +1,8 @@
-//! Reproduces the Go parity oracle `testdata/parity/encode_args.json` field by field:
+//! Reproduces the frozen parity fixture `tests/fixtures/parity/encode_args.json` field by field:
 //! the full argv of `build_encode_base_args` over the matrix `TestParity_EncodeArgs`
 //! records.
 //!
+//! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
 //! The matrix is rebuilt here from the same tables, and the set of case names must be
 //! the oracle's exactly, so a case cannot be skipped or invented without a failure.
 //! `probe_args.json` belongs to the probe's port, not to this file.
@@ -14,8 +15,8 @@ use superview_core::encode::args::{RateControl, build_encode_base_args};
 use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../internal/common/testdata/parity/encode_args.json");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/encode_args.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("encode_args.json: not an object: {other}"),

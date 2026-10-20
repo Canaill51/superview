@@ -3,7 +3,7 @@
 //! (`availableMemoryBytes`, `cgroupMemoryLeft`, `parseMemAvailable`,
 //! `formatAvailableMemory`).
 //!
-//! `testdata/parity/memory.json` pins the estimate over ~1000 cases
+//! `tests/fixtures/parity/memory.json` pins the estimate over ~1000 cases
 //! (`tests/parity_memory.rs`); the refusal text is Go's, word for word.
 //!
 //! Deliberate differences from the Go code:

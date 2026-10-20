@@ -1,6 +1,7 @@
-//! Reproduces the Go parity oracle `testdata/parity/memory.json` case by case: the memory
+//! Reproduces the frozen parity fixture `tests/fixtures/parity/memory.json` case by case: the memory
 //! a software encode is estimated to need, over the matrix `TestParity_Memory` records.
 //!
+//! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
 //! The matrix is rebuilt here from the same tables, and the set of case names must be the
 //! oracle's exactly, so a case cannot be skipped or invented without a failure.
 
@@ -12,8 +13,7 @@ use superview_core::memory::{memory_needed_for_encode, memory_needed_for_frame};
 use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../internal/common/testdata/parity/memory.json");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/memory.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("memory.json: not an object: {other}"),

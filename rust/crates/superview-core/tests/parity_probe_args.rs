@@ -1,6 +1,7 @@
-//! Reproduces the Go parity oracle `testdata/parity/probe_args.json` field by field:
+//! Reproduces the frozen parity fixture `tests/fixtures/parity/probe_args.json` field by field:
 //! the full argv of `probe_args` over the matrix `TestParity_ProbeArgs` records.
 //!
+//! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
 //! The matrix is rebuilt here from the same tables, and the set of case names must be
 //! the oracle's exactly, so a case cannot be skipped or invented without a failure.
 
@@ -12,8 +13,8 @@ use superview_core::encode::args::RateControl;
 use superview_core::probe::{PROBE_BITRATE, ProbeSpec, probe_args, sweep_spec};
 
 fn load() -> serde_json::Map<String, Value> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../internal/common/testdata/parity/probe_args.json");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/probe_args.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("probe_args.json: not an object: {other}"),
