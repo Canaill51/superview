@@ -75,6 +75,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // Records go to the log file from the start, at the default level; the configured level
     // applies as soon as the configuration is read.
     let log_path = journal::install(log::LevelFilter::Info);
+    journal::install_panic_hook();
     let config_path = find_config_path();
     let cfg = format::load_startup_config(config_path.as_deref());
     log::set_max_level(parse_log_level(&cfg.log_level));

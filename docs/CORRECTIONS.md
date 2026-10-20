@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-20] Interface : sonde, Diagnostic et conversion sérialisés ; question Overwrite figée ; hook de panic (F-11 à F-14, session 5)
+
+| | |
+| --- | --- |
+| **Constat** | la sonde de démarrage pouvait finir pendant un encodage et lancer une vérification GPU à côté (E-14) ; le Diagnostic ne grisait ni Start ni lui-même (deux rapports au double clic, une conversion lancée pendant le rapport) ; un sélecteur de sortie encore ouvert pendant la question « Overwrite » changeait la cible, et « Yes » écrasait un fichier dont on n'avait pas parlé ; un panic non rattrapé disparaissait sans trace dans le journal |
+| **Cause** | `set_encoder_probe` et `verify_hardware_in_background` ne regardaient pas `encoding` ; `can_start` ignorait le Diagnostic ; `PopupKind::Overwrite` ne portait pas les fichiers de la question ; aucun `set_hook` |
+| **Fichiers** | `superview-app/src/state.rs` (`pending_probe` appliqué par `finish_encoding`, qui garde le résumé du run ; `diagnosing`, `begin_diagnostic`, `finish_diagnostic`), `app.rs` (`Overwrite { input, output }`, `overwrite_yes`), `journal.rs` + `main.rs` (`panic_line`, `install_panic_hook`) |
+| **PR** | Keep the start-up probe and the Diagnostic from running beside a conversion, freeze the Overwrite question on its files and log panics |
+| **Vérification** | contre-preuve rouge avant chaque correctif : `a_startup_probe_that_lands_during_a_conversion_waits_for_its_end` (2 vérifications pendant l'encodage), `the_diagnostic_and_a_conversion_do_not_overlap` (« Start stayed available » ; « two reports were run » quand on retire la garde `diagnosing` de `begin_diagnostic`), `the_overwrite_question_is_about_the_files_it_was_asked_on` (conversion lancée sur b.mp4), `a_panic_line_names_the_thread_the_place_and_the_message` (rouge par mutation du format) ; verts après. Deux scénarios existants (`a_quit_question_that_waited…`, `a_dialog_queued_behind_the_report…`) lançaient Diagnostic et Start ensemble : ils attendent maintenant le rapport avant Start, leur objet (la file de popups) est inchangé. L'installation du hook, globale au processus, n'est pas testée |
+
 ### [2026-10-20] Sonde et cascade : preset de l'aperçu, annulation, cause du repli, échec de lancement (F-07 à F-10, session 4)
 
 | | |

@@ -385,6 +385,8 @@ pub struct AppState {
     /// until the probe finishes; the hardware line says so rather than claiming a path it has
     /// not verified.
     encoder_probe: Option<EncoderProbeReport>,
+    /// A startup probe that landed while a conversion ran, applied when it ends.
+    pending_probe: Option<EncoderProbeReport>,
 
     prefs: Preferences,
     prefs_path: Option<PathBuf>,
@@ -399,6 +401,9 @@ pub struct AppState {
     hardware_status_gen: u64,
 
     encoding: bool,
+    /// True while the Diagnostic report is being computed: it asks every hardware encoder to
+    /// encode a frame, which a conversion must not do beside it (E-14), and the other way round.
+    diagnosing: bool,
     lifecycle: Arc<Lifecycle>,
 
     /// What ends the application; called when the system asked the process to stop.
@@ -445,11 +450,13 @@ impl AppState {
             ffmpeg: HashMap::new(),
             ffmpeg_available: true,
             encoder_probe: None,
+            pending_probe: None,
             prefs,
             prefs_path,
             restoring_selection: false,
             hardware_status_gen: 0,
             encoding: false,
+            diagnosing: false,
             lifecycle: Arc::new(Lifecycle::new()),
             quit: None,
             on_verify: None,
@@ -503,13 +510,38 @@ impl AppState {
             .set_enabled(requires_ffmpeg(), self.ffmpeg_available);
     }
 
-    /// Whether the Start button should be available. All four conditions matter: no input, no
-    /// destination, no ffmpeg, or a conversion already running each make starting meaningless.
+    /// Whether the Start button should be available. All five conditions matter: no input, no
+    /// destination, no ffmpeg, a conversion already running, or the Diagnostic running each
+    /// make starting meaningless.
     pub fn can_start(&self) -> bool {
         self.video.is_some()
             && !self.output_path.is_empty()
             && self.ffmpeg_available
             && !self.encoding
+            && !self.diagnosing
+    }
+
+    /// Marks the Diagnostic as running: Start and Diagnostic are held until
+    /// [`AppState::finish_diagnostic`]. False when a conversion or another report is running,
+    /// and nothing is changed.
+    pub fn begin_diagnostic(&mut self) -> bool {
+        if self.encoding || self.diagnosing {
+            return false;
+        }
+        self.diagnosing = true;
+        self.view.set_enabled(&[Control::Diagnostic], false);
+        self.refresh_start();
+        true
+    }
+
+    /// Gives Start and Diagnostic back once the report has been shown, or could not be made.
+    pub fn finish_diagnostic(&mut self) {
+        self.diagnosing = false;
+        self.view
+            .set_enabled(&[Control::Diagnostic], !self.encoding);
+        self.refresh_start();
+        // Changes made while the report ran asked for a verification that was held back.
+        self.verify_hardware_in_background();
     }
 
     pub fn refresh_start(&mut self) {
@@ -658,7 +690,13 @@ impl AppState {
         let Some(video) = self.video.clone() else {
             return;
         };
-        if !self.ffmpeg_available || self.encoder_probe.is_none() {
+        // A verification asks the GPU to encode a frame: not beside a conversion that uses it
+        // (E-14). The inputs are checked again at the end of the conversion by the next change.
+        if !self.ffmpeg_available
+            || self.encoder_probe.is_none()
+            || self.encoding
+            || self.diagnosing
+        {
             return;
         }
         let request = VerificationRequest {
@@ -694,9 +732,17 @@ impl AppState {
     /// Records the probe verdicts and drops the encoders that refused the work from the
     /// capability map. From here on every question asked of `ffmpeg` is answered from what this
     /// machine did, not from what the binary was compiled with.
-    pub fn set_encoder_probe(&mut self, report: EncoderProbeReport) {
+    ///
+    /// Returns false when a conversion is running: the verdicts are kept for its end, since
+    /// rebuilding the codec list and verifying the hardware path would run beside the encode.
+    pub fn set_encoder_probe(&mut self, report: EncoderProbeReport) -> bool {
+        if self.encoding {
+            self.pending_probe = Some(report);
+            return false;
+        }
         self.ffmpeg = apply_encoder_probe(&self.ffmpeg, Some(&report));
         self.encoder_probe = Some(report);
+        true
     }
 
     /// Moves the window between its idle and busy shapes. One list of controls, walked in both
@@ -738,6 +784,17 @@ impl AppState {
     /// Returns the window to its idle shape once a conversion ends, however it ended.
     pub fn finish_encoding(&mut self) {
         self.lifecycle.clear();
+        // Still "encoding" while the late probe is applied, so that the refresh below cannot
+        // start a verification: the one it would ask for is stale on arrival.
+        if let Some(report) = self.pending_probe.take() {
+            // The hardware line is the conversion's summary: it stays.
+            let summary = std::mem::take(&mut self.view.hardware);
+            self.ffmpeg = apply_encoder_probe(&self.ffmpeg, Some(&report));
+            self.encoder_probe = Some(report);
+            self.refresh_encoder_options();
+            self.hardware_status_gen += 1;
+            self.view.hardware = summary;
+        }
         self.set_encoding(false);
     }
 
