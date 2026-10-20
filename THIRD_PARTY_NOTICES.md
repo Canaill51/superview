@@ -298,9 +298,3 @@ otherwise to promote the sale, use or other dealings in this
 Software without prior written authorization from the
 authors.
 ```
-
-## Go modules (not shipped any more)
-
-The Go program is still in the repository as the reference implementation, but
-no release contains it any more. Its modules are listed in [`go.mod`](go.mod),
-with their exact versions and checksums in [`go.sum`](go.sum).

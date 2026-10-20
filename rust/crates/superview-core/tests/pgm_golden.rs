@@ -1,4 +1,4 @@
-//! Port of `pgm_golden_test.go`: golden fingerprints and map properties.
+//! Port of Go's `pgm_golden_test.go` (removed in phase 8; last release with it: v0.2.9): golden fingerprints and map properties.
 
 mod common;
 

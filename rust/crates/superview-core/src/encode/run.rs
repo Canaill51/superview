@@ -1,5 +1,5 @@
 //! One ffmpeg pass, from launch to its end: the `run` closure of `EncodeVideo` in
-//! `internal/common/encode.go`, with the stop reasons of `errors.go`.
+//! Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9), with the stop reasons of `errors.go`.
 //!
 //! The command arrives already built (the `-hwaccel` option, [`build_encode_base_args`] and the
 //! output path are assembled by the caller, the cascade); this module starts it, follows its

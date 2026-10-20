@@ -1,6 +1,6 @@
 //! Spawning ffmpeg and ffprobe, and reading how a process ended. Mirrors
 //! `command-other.go`, `command-windows.go`, `exitsignal_unix.go` and
-//! `exitsignal_windows.go` in `internal/common/`.
+//! `exitsignal_windows.go` in Go's `internal/common/` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! Deliberate differences from the Go code (exhaustive):
 //! - Windows hides the console with `CREATE_NO_WINDOW`, where Go sets

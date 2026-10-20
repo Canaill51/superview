@@ -1,6 +1,6 @@
 //! Guards on files of the repository that no compiler reads: the README anchor the
 //! application links to, and the workflow files. Ports of two Go tests that lived beside
-//! the Go window.
+//! the Go window (removed in phase 8; last release with it: v0.2.9).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

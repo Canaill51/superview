@@ -1,5 +1,5 @@
 //! Turning a failed ffmpeg run into an error that says what happened. Port of
-//! `classifyFfmpegFailure` in `internal/common/encode.go`.
+//! `classifyFfmpegFailure` in Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! The case worth naming is a kill signal nobody here sent. Everything this program sends
 //! ffmpeg is accounted for before the call gets here (a cancellation and a system signal

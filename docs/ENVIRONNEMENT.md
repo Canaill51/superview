@@ -1,126 +1,98 @@
 # Reconstruire l'environnement de vérification
 
 > **Ce fichier décrit un poste de travail, pas le projet.** Rien ici n'est un
-> prérequis pour utiliser Superview, ni pour le compiler sur une machine où
-> `sudo` fonctionne : là, `sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev
-> libwayland-dev libxkbcommon-dev` suffit et rend tout ce qui suit inutile.
+> prérequis pour utiliser Superview. Pour compiler et tester, il faut Rust (installé par
+> rustup, sans `sudo`), FFmpeg et ffprobe, et un seul paquet de développement.
 >
-> Le montage décrit ici existe pour un poste sans `sudo`. Il est consigné parce
-> que sans lui le paquet `main` ne compile pas, et qu'une modification de la GUI
-> annoncée sans avoir compilé n'est pas une modification vérifiée ([L-01](LECONS.md)).
+> Il y avait ici, du temps de Go et Fyne, un montage de « sysroot » d'en-têtes GL/X11/Wayland pour
+> compiler sans `sudo` (`/tmp/glue/sysroot`, `/tmp/guienv.sh`). Il est **inutile** depuis le retrait
+> de Go (DEC-49) : la fenêtre Slint ne lie que `libfontconfig`. Les journaux anciens le mentionnent
+> encore ; ne pas le reconstruire.
 
 ## Ce qui survit à un redémarrage, et ce qui n'y survit pas
 
 | Composant | Emplacement | Survit au redémarrage |
 | --- | --- | --- |
-| Toolchain Go | `~/.local/go` | oui |
-| Toolchain Rust (port, DEC-43) | `~/.cargo`, `~/.rustup` | oui |
-| Sysroot GUI (en-têtes GL/X11/Wayland) | `/tmp/glue/sysroot` | **non — à reconstruire** |
+| Toolchain Rust | `~/.cargo`, `~/.rustup` | oui |
 | `ffmpeg`, `ffprobe`, `zenity` | système | oui |
+| `libfontconfig1-dev` (le seul paquet de développement) | système | oui |
 
 > **Pourquoi FFmpeg reste nécessaire ici alors que les paquets de release (installateur, AppImage) en embarquent
-> un.** `resolveToolBinary` cherche d'abord la copie livrée à côté de l'exécutable ; un
-> `go build` n'en produit aucune, donc un poste de développement travaille avec celui du
+> un.** `ToolResolver::resolve` cherche d'abord la copie livrée à côté de l'exécutable ; un
+> `cargo build` n'en produit aucune, donc un poste de développement travaille avec celui du
 > `PATH`. Conséquence à garder en tête : **les sondes d'encodeurs et les tests
 > d'intégration mesurent le FFmpeg du système, pas celui que les utilisateurs
 > recevront.** Pour éprouver le binaire empaqueté, pointer `SUPERVIEW_FFMPEG_DIR`
 > dessus.
 
-Conséquence en début de session : `./internal/common` se compile, se teste sous `-race` et
-se lint immédiatement ; le paquet `main` échoue sur
-`wayland-client-core.h: No such file or directory` tant que le sysroot n'est pas
-refait.
-
 ```bash
 # Réflexe d'ouverture de session
-command -v go >/dev/null && go version || echo "toolchain à réinstaller"
-ls /tmp/glue/sysroot/usr/include/wayland-client-core.h 2>/dev/null || echo "sysroot à reconstruire"
+command -v cargo >/dev/null && cargo --version || echo "toolchain à réinstaller (voir ci-dessous)"
+command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || echo "ffmpeg/ffprobe manquent"
 ```
 
 ## Reconstruire depuis zéro
 
 ```bash
-# 1. Toolchain Go, sans sudo -- prendre la dernière 1.26.x, comme la CI
-cd /tmp && curl -sLO https://go.dev/dl/go1.26.9.linux-amd64.tar.gz
-rm -rf ~/.local/go && mkdir -p ~/.local && tar -C ~/.local -xzf go1.26.9.linux-amd64.tar.gz
-export PATH=$HOME/.local/go/bin:$PATH && go version
-
-# 1bis. Toolchain Rust, sans sudo -- la version exacte est épinglée par rust/rust-toolchain.toml
+# 1. Toolchain Rust, sans sudo -- la version exacte est épinglée par rust/rust-toolchain.toml
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
 sh /tmp/rustup-init.sh -y --profile minimal
 . "$HOME/.cargo/env" && rustup component add rustfmt clippy rust-docs && cargo --version
 
-# 2. En-têtes GUI sans sudo : télécharger les .deb et les extraire dans un sysroot.
-#
-#    Les quatre derniers paquets sont ceux de Wayland. Ils ne figuraient pas
-#    dans la liste d'origine, écrite avant le passage à Fyne 2.8 : celle-ci
-#    produisait un sysroot où GL et X11 étaient présents et où la compilation
-#    échouait quand même, sur wayland-client-core.h. Fyne 2.8 est passé à
-#    GLFW 3.4 et à son backend Wayland (cf. README, § *Linux build dependencies*).
-mkdir -p /tmp/glue/debs && cd /tmp/glue/debs
-apt-get download libgl-dev libgl1-mesa-dev libglx-dev libx11-dev libxcursor-dev \
-  libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxext-dev \
-  libxrender-dev libxfixes-dev x11proto-dev libglvnd-dev libegl-dev libopengl-dev \
-  libwayland-dev libwayland-client0 libxkbcommon-dev wayland-protocols libffi-dev
-cd /tmp/glue && rm -rf sysroot && for d in debs/*.deb; do dpkg -x "$d" sysroot; done
-
-# 3. Faire pointer les symlinks .so du sysroot vers les bibliothèques système
-cd /tmp/glue/sysroot/usr/lib/x86_64-linux-gnu
-for f in *.so; do t=$(readlink "$f"); [ -n "$t" ] && [ ! -e "$t" ] && \
-  [ -e "/usr/lib/x86_64-linux-gnu/$t" ] && ln -sf "/usr/lib/x86_64-linux-gnu/$t" "$f"; done
+# 2. Avec sudo : FFmpeg et le seul paquet de développement de la fenêtre
+sudo apt install -y ffmpeg libfontconfig1-dev
 ```
 
-## Le fichier à sourcer avant tout travail
+Les hooks (pre-commit, Claude) tournent dans un shell non interactif : `scripts/checks/rust.sh`
+ajoute `~/.cargo/bin` au `PATH` lui-même.
 
-`/tmp/guienv.sh` — **sans lui, `cmd/superview` ne compile pas** :
+Sans `sudo` : `libfontconfig1-dev` est souvent déjà là (c'est le cas de ce poste, qui a aussi
+`libxkbcommon-dev`, `libwayland-dev`, `libx11-dev` sans que le build les exige). FFmpeg se pose alors
+dans un dossier du `PATH` ou derrière `SUPERVIEW_FFMPEG_DIR`.
 
-```bash
-export PATH=$HOME/.local/go/bin:$PATH
-export SYSROOT=/tmp/glue/sysroot
-export PKG_CONFIG_PATH=$SYSROOT/usr/lib/x86_64-linux-gnu/pkgconfig:$SYSROOT/usr/share/pkgconfig
-export CGO_CFLAGS="-I$SYSROOT/usr/include"
-export CGO_LDFLAGS="-L$SYSROOT/usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu"
-```
-
-## Fenêtre Slint du port Rust (phase 3b)
+## Fenêtre Slint
 
 `superview-app` dépend de `slint` (features `std`, `backend-winit`, `renderer-software`, `compat-1-18`,
 sans les défauts : ni OpenGL/femtovg, ni Qt, ni accessibilité) et de `rfd` (feature `xdg-portal` seule : le
-sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 sur ce poste, sans `sudo` :
+sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 sur ce poste :
 
-- `cargo build --locked` réussit avec les seuls paquets déjà présents (`libfontconfig1-dev`,
-  `libxkbcommon-dev`, `libwayland-dev`, `libx11-dev`) : rien à installer, pas de sysroot. La seule
+- La CI Linux installe `ffmpeg` et `libfontconfig1-dev` pour compiler et tester
+  (`.github/workflows/rust.yml`, jobs *Rust on ubuntu-latest* et *Rust coverage and audit*) ; pour
+  lancer la fenêtre sous `xvfb`, elle ajoute `xvfb` et `libxkbcommon-x11-0`. La seule
   bibliothèque dynamique graphique liée par le binaire est `libfontconfig.so.1` ; X11, Wayland et xkbcommon
   sont chargés à l'exécution.
+- Pour **empaqueter** l'AppImage (`packaging/linux/build_appimage.sh`), le poste doit avoir
+  `libxkbcommon0`, `libxkbcommon-x11-0` et `libxcb-xkb1` : ils sont copiés dans l'image (DEC-47).
 - Build complet à froid (dépendances comprises) : environ 35 s en debug, 67 s en release (machine multicœur) ;
   binaire release : 24,8 Mo (non strippé).
 - Lancement : `timeout 5 cargo run -p superview-app --locked` sort avec le code 124 (fenêtre restée ouverte),
   sous Wayland comme sous X11 (`env -u WAYLAND_DISPLAY`). Sans session graphique, la CI utilise
   `xvfb-run -a timeout 10`.
 - `rfd` 0.17.2 charge `libdbus-1.so.3` par `dlopen` (rien n'est lié à la compilation) et se rabat sur
-  `zenity` si le portail échoue ; sans les deux, `pick_file` renvoie `None`, comme une annulation. Le Go a
-  un sélecteur Fyne de secours : à porter en phase 6, étape 4.
+  `zenity` si le portail échoue ; `dialogs.rs` essaie ensuite `zenity` et `kdialog` lui-même, puis offre
+  un champ texte dans la fenêtre (DEC-43, phase 6.4).
 - Les tests de la fenêtre utilisent `i-slint-backend-testing` : aucun écran requis.
 
 ## Outils d'analyse
 
-Mêmes versions que la CI — `.github/workflows/lint.yml` et le `Makefile` les
-épinglent tous deux, et `make install-tools` les installe :
+Le contrôle de couverture et l'audit de la CI (job *Rust coverage and audit*) se rejouent en local avec
+`make coverage-audit`. Les versions sont épinglées dans `.github/workflows/rust.yml` ; les installer
+avec les mêmes :
 
 ```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2  # noter le /v2
-go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+rustup component add llvm-tools
+cargo install --locked --version 0.9.1 cargo-llvm-cov
+cargo install --locked --version 0.22.2 cargo-audit
 ```
 
-> ⚠️ `.../golangci-lint/cmd/golangci-lint@latest`, **sans `/v2`**, installe
-> silencieusement la dernière v1, en fin de vie. C'était le piège du constat X-04.
+`cargo audit` lit la base d'avis la plus récente, qui n'est pas épinglée : un avis publié le matin
+peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans la configuration de `cargo audit` (`rust/.cargo/audit.toml`, à créer le cas échéant), pas le retrait de l'étape.
 
 ## Lancer la suite comme la CI la lance
 
 ```bash
-. /tmp/guienv.sh
-SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...
+cd rust && SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
 ```
 
-`SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les `t.Skip` liés à ffmpeg. Sans
+`SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les tests qui sautent faute d'ffmpeg. Sans
 elle, une suite verte peut n'avoir encodé aucune image.

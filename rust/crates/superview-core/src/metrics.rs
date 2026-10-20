@@ -1,5 +1,5 @@
 //! What an encode measures about itself, for the interface and the log.
-//! Port of the part of `metrics.go` the interface reads.
+//! Port of the part of Go's `internal/common/metrics.go` (removed in phase 8; last release with it: v0.2.9) the interface reads.
 //!
 //! Deliberate differences from the Go code:
 //! - Removed, as decided for phase 4: `Summary()`, `LogMetrics()` and `computeMetrics`

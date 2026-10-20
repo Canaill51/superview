@@ -188,7 +188,7 @@ the Diagnostic report and the log at startup. Quote it in any bug report.
 
 The algorithm is based on
 [Banelle's original Python implementation](https://intofpv.com/t-using-free-command-line-sorcery-to-fake-superview),
-adapted for Go and FFmpeg.
+adapted for Rust and FFmpeg.
 
 > It is an *approximation* of GoPro's SuperView, not a reproduction of it: the
 > distortion curve comes from
@@ -233,10 +233,9 @@ belongs to the FFmpeg build rather than to FFmpeg:
 
 Superview looks for `superview.yaml` in this order, and uses the first file it finds:
 
-1. `$SUPERVIEW_CONFIG` (explicit path, wins over everything)
-2. next to the executable
-3. `~/.config/superview/superview.yaml` (Linux) or `%AppData%\superview\superview.yaml` (Windows)
-4. the current working directory
+1. next to the executable
+2. `~/.config/superview/superview.yaml` (Linux) or `%AppData%\superview\superview.yaml` (Windows)
+3. the current working directory
 
 If none exists, built-in defaults apply. This is the `superview.yaml` shipped with
 the project:
@@ -260,29 +259,19 @@ encoder_threads: 0        # 0 = auto/default
 
 A key Superview does not know, or a `min_bitrate` above `max_bitrate`, makes the
 whole file ignored rather than half-applied: the log names the key or the two
-values, and the environment variables below still apply.
+values, and the built-in defaults apply instead.
 
-Override with environment variables:
+The configuration comes from the file and the built-in defaults only: there is no
+`SUPERVIEW_*` override of a setting.
 
-```bash
-export SUPERVIEW_MIN_BITRATE=262144
-export SUPERVIEW_MAX_BITRATE=209715200
-export SUPERVIEW_LOG_LEVEL=debug
-export SUPERVIEW_PERFORMANCE_MODE=safe_performance
-export SUPERVIEW_VIDEO_PRESET=fast
-export SUPERVIEW_FILTER_THREADS=4
-export SUPERVIEW_ENCODER_THREADS=8
-./superview-gui
-```
-
-`SUPERVIEW_FFMPEG_DIR` is the one that has no counterpart in the file: it names the
+The one environment variable Superview reads is `SUPERVIEW_FFMPEG_DIR`: it names the
 directory holding `ffmpeg` and `ffprobe`, and takes precedence over both the bundled
 copy and `PATH`. It exists because the bundled build is one decision applied to every
 machine, and a machine it suits badly needs a way out that does not involve waiting for
 a release.
 
 ```bash
-SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
+SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview
 ```
 
 ## Architecture
@@ -291,34 +280,19 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview-gui
 
 ```
 superview/
-├── cmd/superview/              # The GUI: entry point, native dialogs, Fyne metadata
-│   ├── gui_main.go                 # GUI entry point (Fyne)
-│   ├── gui_native_dialog_*.go      # Native file dialogs (zenity/kdialog, PowerShell)
-│   └── FyneApp.toml                # Fyne packaging metadata
-├── internal/common/            # Encoding logic, shared by any front end
-│   ├── pipeline.go             # PerformEncoding: validation, working file, metrics
-│   ├── encode.go               # One ffmpeg run: arguments, filter chain, fallback cascade
-│   ├── pgm.go                  # Output geometry, distortion formula, PGM writer
-│   ├── session.go              # Per-conversion temporary directory
-│   ├── video.go                # ffprobe output and its validation
-│   ├── tools.go                # Finding ffmpeg/ffprobe, reading their capabilities
-│   ├── memory.go               # Memory guard, measured per output pixel
-│   ├── errors.go               # Typed errors, sentinels, package logger
-│   ├── config.go               # Configuration loading and defaults
-│   ├── hardware.go             # Encoder classification, hardware device setup
-│   ├── probe.go                # Asks each encoder to encode a frame; the verdict rules
-│   ├── health.go               # System health checks (the Diagnostic button)
-│   ├── metrics.go              # Encoding metrics
-│   ├── observability.go        # Event recording and logging
-│   ├── security.go             # Path and input validation
-│   ├── command-*.go            # OS-specific process setup
-│   ├── health_disk_*.go        # Free-disk-space probe per platform
-│   ├── *_test.go               # Unit, golden and integration tests
-│   └── testdata/ffprobe/       # Recorded ffprobe output the parser is tested against
-├── docs/                       # Technical contracts, audit journal, hardware support
+├── rust/                       # The Cargo workspace (the shipped product)
+│   ├── crates/superview-core/      # Encoding logic, with no window code
+│   │   └── src/                    # pgm (distortion maps), encode/ (ffmpeg arguments, run, fallback
+│   │                               #   cascade), pipeline, video (ffprobe), tools (finding ffmpeg),
+│   │                               #   hardware + probe (encoder choice), memory, disk, session,
+│   │                               #   health (the Diagnostic), config, security, metrics, logfile
+│   ├── crates/superview-app/       # The window (Slint): state, dialogs, preferences, journal
+│   └── crates/superview-harness/   # A test bench, never shipped
 ├── packaging/                  # The Windows installer script and the Linux AppImage script
+├── scripts/                    # check.sh, the single entry point of verification
+├── docs/                       # Technical contracts, audit journal, hardware support
 ├── superview.yaml              # Default configuration
-├── Makefile                    # Local build and quality targets
+├── Makefile                    # Shortcuts for the checks and the release build
 ├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped with the releases, and its licence
 ├── .github/scripts/            # Release-time checks (the NVENC driver floor guard)
 └── RELEASING.md                # How a release is made
@@ -327,17 +301,17 @@ superview/
 ### Encoding Pipeline
 
 ```
-Startup → CheckFfmpeg → ProbeHardwareSupport → ApplyEncoderProbe
-Input → CheckVideo → InitEncodingSession → GeneratePGM → EncodeVideo → CleanUp → Output
+Startup → find ffmpeg/ffprobe → probe each encoder on a real frame
+Input → check_video (ffprobe) → session (temporary directory) → PGM maps → encode_video → clean-up → Output
                                ↓
-                ValidateBitrate + FindEncoder
-                VideoSpecs.Validate()
-                EncodingMetrics / Observability hooks
+                bitrate validation + encoder choice
+                video checks, metrics, log
 ```
 
 ## Development
 
-> The current codebase targets **Go 1.26+**.
+> Superview is written in **Rust**; the compiler version is pinned in
+> `rust/rust-toolchain.toml`, and [rustup](https://rustup.rs) provides it. The window is drawn by Slint's software renderer.
 
 A source build ships no FFmpeg, so a development machine needs one on `PATH`.
 
@@ -345,13 +319,15 @@ A source build ships no FFmpeg, so a development machine needs one on `PATH`.
 
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+sudo apt install -y ffmpeg libfontconfig1-dev
 ```
 
-> `libwayland-dev` and `libxkbcommon-dev` are needed since Fyne 2.8, which moved
-> to GLFW 3.4 and its Wayland backend. They are build-time requirements only.
+`libfontconfig1-dev` is what Slint's text layout is built against; the other
+graphics libraries are loaded at run time. This is the list the CI installs.
 
-Optional, for native file dialogs (falls back to the Fyne dialog otherwise):
+Optional, for native file dialogs: the file pickers go through the desktop portal
+first, then `zenity` or `kdialog`. With none of them the window asks for the path
+in a text field instead.
 
 ```bash
 sudo apt install -y zenity
@@ -360,10 +336,13 @@ sudo apt install -y zenity
 ### Windows toolchain
 
 ```powershell
+winget install -e --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements
 winget install -e --id Gyan.FFmpeg --version 8.1.1 --accept-package-agreements --accept-source-agreements
-winget install -e --id GoLang.Go --accept-package-agreements --accept-source-agreements
-winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreements --accept-source-agreements
 ```
+
+rustup's default Windows toolchain is the MSVC one, which needs the Visual Studio
+Build Tools: if they are missing, install them with the "Desktop development with
+C++" workload.
 
 > ⚠️ **The `--version 8.1.1` is load-bearing; do not drop it.** Plain
 > `winget install Gyan.FFmpeg` currently installs a build compiled against NVIDIA
@@ -379,41 +358,36 @@ winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-package-agreeme
 
 A source build produces no bundle, so it uses whatever FFmpeg is on `PATH`.
 
-Windows GUI:
-
-```powershell
-go build -ldflags="-H=windowsgui" -o superview-gui.exe ./cmd/superview
-.\superview-gui.exe
-```
-
-Linux:
-
 ```bash
-go build -o superview-gui ./cmd/superview
-./superview-gui
+cd rust
+cargo build --release --locked -p superview-app
+./target/release/superview        # superview.exe on Windows
 ```
+
+The binary reports its version from `SUPERVIEW_VERSION` (`x.y.z`), read at build
+time; without it a build calls itself `dev`. `make build` does the same build from
+the repository root.
 
 ### Build & Test
 
 ```bash
-make test        # go test -race ./... -- the whole module, as CI does
-make coverage    # coverage over ./..., which the 50% CI gate measures
-make check       # fmt, vet, lint, coverage and govulncheck
-make build       # GUI binary for the current platform
-make clean       # build, coverage and packaging leftovers
+make check             # every gate: format, clippy, tests (scripts/check.sh)
+make test              # the whole test suite
+make coverage-audit    # the 50 % line-coverage floor and cargo audit, as CI does
+make fmt               # cargo fmt --check
+make clippy            # clippy, warnings are errors
+make clean             # cargo clean
 ```
 
-`make test` and `make coverage` need **ffmpeg on your PATH** and fail without
-it, rather than quietly skipping the tests that use it -- the integration
-tests and the remap equivalence test, which are the whole of what checks a real
-conversion end to end.
+`make test` needs **ffmpeg on your PATH**. `make coverage-audit` also needs
+`cargo-llvm-cov` and `cargo-audit` (`cargo install --locked …`; the versions CI
+uses are in `.github/workflows/rust.yml`).
 
-`make build-gui-windows` is Windows-native: Fyne draws through cgo, so setting
-`GOOS=windows` from Linux gives no C toolchain and the link step fails. The release
-workflow builds each platform on its own runner for the same reason.
-
-Set `SUPERVIEW_REQUIRE_FFMPEG=1` to turn the ffmpeg-dependent skips into failures --
-this is what CI does, so that a green suite cannot mean "encoded nothing".
+Without `SUPERVIEW_REQUIRE_FFMPEG=1`, every test that needs ffmpeg skips silently
+-- the integration tests and the remap equivalence test, which are the whole of
+what checks a real conversion end to end. `make test` and CI set it, so that a
+green suite cannot mean "encoded nothing". Running `cargo test` by hand, set it
+yourself.
 
 Releases are made from the Actions tab and are documented in
 [RELEASING.md](RELEASING.md). There is no local release script.

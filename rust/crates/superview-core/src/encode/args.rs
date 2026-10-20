@@ -1,4 +1,4 @@
-//! The ffmpeg argument list of one encode, ported from `internal/common/encode.go`
+//! The ffmpeg argument list of one encode, ported from Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9)
 //! (`ValidateBitrate` to `mapVideoPresetForEncoder`).
 //!
 //! Every argument and its order are the Go ones: `tests/fixtures/parity/encode_args.json`

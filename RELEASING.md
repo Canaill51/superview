@@ -210,20 +210,18 @@ The two pins are not the same version: Windows ships gyan.dev 8.1.1, Linux ships
 BtbN's n8.1.2 autobuild of 2026-08-31. Both read back a 570.0 floor, which is
 the only property they are required to share. The Linux build job also runs the
 Rust test suite against the binary it has just verified, with it first on `PATH`
-(L-114), and `test.yml` runs the Windows suite against the same gyan.dev
+(L-114), and `rust.yml` runs the Windows suite against the same gyan.dev
 archive — so moving either pin is exercised before it ships.
 
 ## Manual pins
 
-Dependabot bumps the Go modules and the `uses:` SHAs of every action. It does
+Dependabot bumps the Cargo dependencies and the `uses:` SHAs of every action. It does
 not see these, which move only when someone edits the file:
 
 | Pin | Where |
 | --- | --- |
-| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2) | `test` job of `.github/workflows/release.yml`, `cargo install --locked --version` |
-| `GOLANGCI_LINT_VERSION` (v2.13.2) | `.github/workflows/lint.yml`, top-level `env:` |
-| `GOVULNCHECK_VERSION` (v1.7.0) | `.github/workflows/lint.yml`, top-level `env:` |
-| `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `test.yml`, `test-windows`, and in `rust.yml`, `rust-windows` — keep all three identical |
+| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2) | `test` job of `.github/workflows/release.yml` and `rust-coverage-audit` of `rust.yml`, `cargo install --locked --version` — keep both identical |
+| `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `rust.yml`, `rust-windows` — keep both identical |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Linux (BtbN n8.1.2) | `release.yml`, `build-gui-linux` |
 
 The release workflow's dry run (version left empty) is how a change to any of

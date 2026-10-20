@@ -8,7 +8,8 @@ the comment it leaves on every pull request it merges.
 generated from merged pull requests, so a direct push to `master` ships the
 change and loses the record of it. One commit did exactly that and appears in no
 release. A repository ruleset now refuses the direct push rather than trusting
-this paragraph, and holds the required checks in front of every merge.
+this paragraph, and holds the required checks in front of every merge: *README parity (EN/FR)*,
+*Rust on ubuntu-latest*, *Rust on windows-latest* and *Rust coverage and audit*.
 
 **The pull request title is what users read in the release.** Write it as a
 sentence about what changed — *Stop release binaries from announcing themselves
@@ -69,12 +70,12 @@ another open pull request is based on it, because deleting a base branch through
 the API closes the pull request above instead of retargeting it. It comments on
 the pull request when it keeps a branch for that reason.
 
-Nor does the merge commit start `test.yml` or `lint.yml` on `master`: a push
+Nor does the merge commit start `rust.yml` or `lint.yml` on `master`: a push
 made with the workflow's token triggers no workflow, `workflow_dispatch` being
 the documented exception. So, once the merge has landed on the default branch,
 the workflow dispatches both on it, and `master` is tested as a push would have
 tested it. If a run is missing — the dispatch is best effort and only warns —
-`gh workflow run test.yml --ref master` and the same for `lint.yml` do by hand
+`gh workflow run rust.yml --ref master` and the same for `lint.yml` do by hand
 what it does. The ruleset stays non-strict on purpose (DEC-35): requiring
 branches to be up to date would make every stacked pull request unmergeable
 until rebased by hand.

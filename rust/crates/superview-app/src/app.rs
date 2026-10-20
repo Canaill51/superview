@@ -2,7 +2,7 @@
 //! the window's callbacks into calls on [`AppState`], runs the slow work (pickers, ffprobe,
 //! probes, the conversion, the diagnostic) on threads of its own, and brings every result back
 //! to the event loop with `upgrade_in_event_loop` before a property is touched. It ports the
-//! body of Go's `main` (`cmd/superview/gui_main.go`).
+//! body of Go's `main` (`cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9)).
 //!
 //! Nothing here reaches ffmpeg or the desktop directly: [`Engine`] (tools, pipeline) and
 //! [`Host`] (pickers, browser, end of the loop) are injected, so the window's tests run the

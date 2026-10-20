@@ -1,7 +1,7 @@
 //! Where an encode writes: the guard against overwriting the source, the working file next
 //! to the destination, and the check that the destination volume has room.
 //! Port of `canonicalPath`, `sameOutputAsInput`, `newPartialOutputPath`, `checkOutputSpace`
-//! and `outputSpaceAllowance` (`pipeline.go`).
+//! and `outputSpaceAllowance` (Go's `pipeline.go` (removed in phase 8; last release with it: v0.2.9)).
 //!
 //! Deliberate differences from the Go code:
 //! - Same-file detection (`os.SameFile`) is device plus inode on Unix. std has no stable

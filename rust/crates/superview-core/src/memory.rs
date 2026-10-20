@@ -1,5 +1,5 @@
 //! The memory guard: what a software encode is measured to need, and the refusal. Port of
-//! `internal/common/memory.go`, plus the real reading of `health.go`
+//! Go's `internal/common/memory.go` (removed in phase 8; last release with it: v0.2.9), plus the real reading of `health.go`
 //! (`availableMemoryBytes`, `cgroupMemoryLeft`, `parseMemAvailable`,
 //! `formatAvailableMemory`).
 //!

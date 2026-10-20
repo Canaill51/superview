@@ -1,4 +1,4 @@
-//! Configuration, mirroring `internal/common/config.go`.
+//! Configuration, mirroring Go's `internal/common/config.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! # YAML crate: `serde-saphyr`
 //!

@@ -1,4 +1,4 @@
-//! Encoder and hardware-path selection, the pure half of `internal/common/hardware.go`
+//! Encoder and hardware-path selection, the pure half of Go's `internal/common/hardware.go` (removed in phase 8; last release with it: v0.2.9)
 //! plus `FindEncoder` from `encode.go`.
 //!
 //! Every verdict and every string (shown to the user and written to the log) is the

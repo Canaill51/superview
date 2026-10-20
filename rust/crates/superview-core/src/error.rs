@@ -1,4 +1,4 @@
-//! Typed errors, mirroring `internal/common/errors.go`.
+//! Typed errors, mirroring Go's `internal/common/errors.go` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! The Display text of each variant is the Go `Error()` text, so a message can
 //! be compared against the parity oracle as it stands.

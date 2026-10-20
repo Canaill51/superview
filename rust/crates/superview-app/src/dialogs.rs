@@ -6,7 +6,7 @@
 //!
 //! 1. rfd (the xdg portal, then zenity, both inside rfd);
 //! 2. if rfd answered "nothing" **in less than [`PORTAL_FAILURE_WINDOW`]**, our own `zenity`
-//!    then `kdialog` (ported from Go's `gui_native_dialog_linux.go`: same arguments, exit code 1
+//!    then `kdialog` (ported from Go's `gui_native_dialog_linux.go` (removed in phase 8; last release with it: v0.2.9): same arguments, exit code 1
 //!    is a cancel);
 //! 3. if neither exists or works, [`Pick::NoPicker`]: the window shows a text field instead.
 //!

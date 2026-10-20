@@ -1,6 +1,6 @@
 //! Pure functions of the window, with no dependency on Slint: the texts it shows and the
 //! rules that turn a choice into numbers. Port of the free functions of
-//! `cmd/superview/gui_main.go`; the Go test that guards each one is named beside it.
+//! Go's `cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9); the Go test that guarded each one is named beside it.
 
 use std::error::Error as StdError;
 use std::path::Path;

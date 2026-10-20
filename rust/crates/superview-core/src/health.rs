@@ -1,4 +1,4 @@
-//! The Diagnostic button's checks and report. Port of `internal/common/health.go`:
+//! The Diagnostic button's checks and report. Port of Go's `internal/common/health.go` (removed in phase 8; last release with it: v0.2.9):
 //! `CheckHealth`, `checkFFmpegHealth`, `checkFFprobeHealth`, `checkDiskSpaceHealth`,
 //! `LogHealth` and `GetHealthReport` (the disk reading is `disk::free_disk_gb`).
 //!

@@ -169,7 +169,7 @@ jobs:
         cargo install --locked --version 0.9.1 cargo-llvm-cov
         cargo install --locked --version 0.22.2 cargo-audit
 
-    # The floor is the Go gate's, 50 % of lines: a floor to raise as coverage grows.
+    # The floor is the former Go gate's, 50 % of lines: a floor to raise as coverage grows.
     # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip silently.
     - name: Run tests and the coverage gate
       working-directory: rust
