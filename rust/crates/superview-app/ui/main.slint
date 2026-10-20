@@ -115,29 +115,45 @@ component Modal inherits Rectangle {
     // buttons below it stay inside the window however long the text is.
     in property <bool> fill: false;
     in property <length> card-max-width: 600px;
+    // Enter and Escape. A card leaves the one it should not answer unwired: a destructive
+    // question is never confirmed by a stray Enter.
+    callback confirmed();
+    callback dismissed();
 
     background: #000000a0;
     TouchArea { }
-    // Takes the keyboard focus, so keys do not reach the window behind the card.
+    // Takes the keyboard focus, so keys do not reach the window behind the card. The card is
+    // its child: a key that a button or a field refuses rises to it.
     FocusScope {
         init => {
             if (root.take-focus) {
                 self.focus();
             }
         }
-    }
-    Rectangle {
-        width: min(parent.width - 40px, root.card-max-width);
-        height: root.fill ? parent.height - 24px : card.preferred-height + 32px;
-        background: Palette.background;
-        border-width: 1px;
-        border-color: Palette.border;
-        border-radius: 6px;
-        card := VerticalLayout {
-            padding: 16px;
-            spacing: 10px;
-            Text { text: root.title; font-size: 16px; font-weight: 700; }
-            @children
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.dismissed();
+                return accept;
+            }
+            if (event.text == Key.Return) {
+                root.confirmed();
+                return accept;
+            }
+            reject
+        }
+        Rectangle {
+            width: min(parent.width - 40px, root.card-max-width);
+            height: root.fill ? parent.height - 24px : card.preferred-height + 32px;
+            background: Palette.background;
+            border-width: 1px;
+            border-color: Palette.border;
+            border-radius: 6px;
+            card := VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+                Text { text: root.title; font-size: 16px; font-weight: 700; }
+                @children
+            }
         }
     }
 }
@@ -155,11 +171,12 @@ export component MainWindow inherits Window {
     title: window-title;
     // The window icon, next to this file (`build.rs` embeds it in the binary).
     icon: @image-url("Icon.png");
-    // Fixed size: minimum and maximum are the same, so the window cannot be resized.
-    min-width: 980px;
-    max-width: 980px;
-    min-height: 470px;
-    max-height: 470px;
+    // 980x470 to open with, and no larger than the layout needs at the least: a 1366x768 screen
+    // at 150 % is 910x512 logical pixels, which the former fixed size did not fit.
+    preferred-width: 980px;
+    preferred-height: 470px;
+    min-width: 760px;
+    min-height: 440px;
 
     // Dark theme, whatever the desktop uses.
     init => { Palette.color-scheme = ColorScheme.dark; }
@@ -172,6 +189,9 @@ export component MainWindow inherits Window {
     in property <string> output-name: "No file selected";
     // 0 to 1.
     in property <float> progress: 0;
+    // The profiles the menu offers: `prefs::QUALITY_PROFILES`, the list a saved choice is
+    // validated against.
+    in property <[string]> quality-profiles;
     // "Fast" or "Balanced".
     in-out property <string> quality: "Balanced";
     // The "source already stretched" box.
@@ -308,7 +328,7 @@ export component MainWindow inherits Window {
             Row {
                 Text { text: "Quality profile"; vertical-alignment: center; }
                 ComboBox {
-                    model: ["Fast", "Balanced"];
+                    model: root.quality-profiles;
                     current-value <=> root.quality;
                     enabled: root.free && root.quality-enabled;
                     selected(value) => { root.quality-changed(value); }
@@ -347,18 +367,30 @@ export component MainWindow inherits Window {
 
     if root.popup == Popup.done: Modal {
         title: "Done";
+        confirmed => { root.done-ok(); }
+        dismissed => { root.done-ok(); }
         Text { text: root.done-message; wrap: char-wrap; }
         ModalButtons { Button { text: "OK"; primary: true; clicked => { root.done-ok(); } } }
     }
 
     if root.popup == Popup.error: Modal {
         title: "Error";
+        confirmed => { root.error-ok(); }
+        dismissed => { root.error-ok(); }
         Text { text: root.error-message; wrap: char-wrap; }
         ModalButtons { Button { text: "OK"; primary: true; clicked => { root.error-ok(); } } }
     }
 
     if root.popup == Popup.prerequisite: Modal {
         title: "Error";
+        confirmed => {
+            if (root.prerequisite-retry) {
+                root.prerequisite-retry-clicked();
+            } else {
+                root.prerequisite-close();
+            }
+        }
+        dismissed => { root.prerequisite-close(); }
         Text { text: "cannot find ffmpeg/ffprobe on your system"; }
         Text { text: "make sure to install it first:"; }
         // The link: a click is reported with the address, the host opens the browser.
@@ -390,6 +422,7 @@ export component MainWindow inherits Window {
 
     if root.popup == Popup.overwrite: Modal {
         title: "Overwrite output file";
+        dismissed => { root.overwrite-no(); }
         Text { text: "The selected output file already exists. Overwrite it?"; wrap: word-wrap; }
         ModalButtons {
             Button { text: "Yes"; primary: true; clicked => { root.overwrite-yes(); } }
@@ -399,6 +432,7 @@ export component MainWindow inherits Window {
 
     if root.popup == Popup.quit: Modal {
         title: "Cancel and quit";
+        dismissed => { root.quit-no(); }
         Text {
             text: "An encoding is in progress. Do you want to cancel and quit?";
             wrap: word-wrap;
@@ -411,18 +445,24 @@ export component MainWindow inherits Window {
 
     if root.popup == Popup.no-input: Modal {
         title: "No input";
+        confirmed => { root.no-input-ok(); }
+        dismissed => { root.no-input-ok(); }
         Text { text: "Please open an input video first."; wrap: word-wrap; }
         ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-input-ok(); } } }
     }
 
     if root.popup == Popup.no-output: Modal {
         title: "No output";
+        confirmed => { root.no-output-ok(); }
+        dismissed => { root.no-output-ok(); }
         Text { text: "Please choose an output file first."; wrap: word-wrap; }
         ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-output-ok(); } } }
     }
 
     if root.popup == Popup.diagnostic: Modal {
         title: "System diagnostic";
+        confirmed => { root.diagnostic-close(); }
+        dismissed => { root.diagnostic-close(); }
         fill: true;
         card-max-width: 900px;
         // The list has drawn icons but no text selection (Slint has no clipboard API); the text
@@ -472,6 +512,7 @@ export component MainWindow inherits Window {
     if root.popup == Popup.path-entry: Modal {
         title: root.path-entry-output ? "Save output video" : "Select input video";
         take-focus: false;
+        dismissed => { root.path-entry-cancel(); }
         Text {
             text: "No file picker could be opened. Type the full path of the file:";
             wrap: word-wrap;

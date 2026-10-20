@@ -52,7 +52,7 @@ use superview_core::video::VideoSpecs;
 
 use crate::dialogs::{Kind, Pick, parse_typed_path};
 use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_start_settings};
-use crate::prefs::Preferences;
+use crate::prefs::{Preferences, QUALITY_PROFILES};
 use crate::report::{Row, RowKind, parse_report};
 use crate::state::{
     AppState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink, ViewModel,
@@ -220,8 +220,13 @@ impl Popups {
     fn close(&mut self, encoding: bool) {
         self.queue.pop_front();
         if !encoding {
-            self.queue.retain(|kind| *kind != PopupKind::Quit);
+            self.drop_quit();
         }
+    }
+
+    /// Takes the "Cancel and quit" question away, on screen or not.
+    fn drop_quit(&mut self) {
+        self.queue.retain(|kind| *kind != PopupKind::Quit);
     }
 }
 
@@ -295,6 +300,16 @@ impl Core {
         self.leaving.store(true, Ordering::Release);
         self.lifecycle.shutdown(reason)
     }
+}
+
+/// Gives the quality menu its profiles. Before the first `apply_view`: a menu with no entries
+/// empties the choice it is bound to.
+pub(crate) fn set_quality_profiles(window: &MainWindow) {
+    let profiles: Vec<SharedString> = QUALITY_PROFILES
+        .iter()
+        .map(|profile| SharedString::from(*profile))
+        .collect();
+    window.set_quality_profiles(ModelRc::new(VecModel::from(profiles)));
 }
 
 /// Writes the view into the window.
@@ -571,6 +586,8 @@ fn startup(core: &Arc<Core>, window: &MainWindow) {
             core.state().view.status = "Status: ffmpeg unavailable".into();
         }
     }
+    // The menu offers the profiles the saved choice is validated against.
+    set_quality_profiles(window);
     // Fills the options and restores the saved selection, under the flag that keeps a
     // fallback from being saved over it. Without ffmpeg it also writes "Hardware: ffmpeg
     // unavailable".
@@ -923,8 +940,8 @@ impl ProgressSink for WindowSink {
     fn bar(&self, fraction: f64) {
         post(&self.core, move |core, window| {
             let mut state = core.state();
-            // Nothing after the end: the completion has rewritten the bar.
-            if !state.is_encoding() {
+            // Nothing after the end (the completion has rewritten the bar) nor after a Cancel.
+            if !state.shows_progress() {
                 return;
             }
             state.set_progress(fraction);
@@ -938,7 +955,7 @@ impl ProgressSink for WindowSink {
         let text = text.to_string();
         post(&self.core, move |core, window| {
             let mut state = core.state();
-            if !state.is_encoding() {
+            if !state.shows_progress() {
                 return;
             }
             state.view.status.clone_from(&text);
@@ -1031,6 +1048,13 @@ fn complete(
 ) {
     let completion = core.state().complete_encoding(result, output);
     core.refresh(window);
+    // Nothing runs any more: a "Cancel and quit" question still on screen is stale, and the
+    // outcome would wait behind it. (Ignored: the window is leaving, nothing is left to show.)
+    if !matches!(completion, Completion::Ignored) {
+        let mut popups = lock(&core.popups);
+        popups.drop_quit();
+        apply_popup(window, popups.current());
+    }
     match completion {
         // Shutting down, asked by the system (the loop is ending), or asked by the user.
         Completion::Ignored | Completion::Quit | Completion::Cancelled => {}

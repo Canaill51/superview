@@ -464,7 +464,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 35] = [
+    let scenarios: [(&str, fn()); 40] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -550,6 +550,20 @@ pub fn run() {
         (
             "overwrite frozen",
             the_overwrite_question_is_about_the_files_it_was_asked_on,
+        ),
+        (
+            "late progress",
+            a_late_progress_does_not_overwrite_cancelling,
+        ),
+        (
+            "quit question stale",
+            the_quit_question_goes_when_the_conversion_ends,
+        ),
+        ("quality list", the_quality_menu_is_the_rust_list),
+        ("modal keys", modals_answer_to_escape_and_enter),
+        (
+            "destructive keys",
+            destructive_questions_ignore_enter_and_escape_means_no,
         ),
     ];
     for (name, scenario) in scenarios {
@@ -1172,12 +1186,15 @@ fn popups_wait_their_turn() {
         .window()
         .dispatch_event(WindowEvent::CloseRequested);
     assert_eq!(r.popup(), Popup::Quit);
-    // The conversion ends while the question is open: the Done dialog waits behind it.
+    // The conversion ends while the question is open: the question is stale (F-24), and the
+    // Done dialog takes its place.
     gate.open();
     r.wait("the completion", |w| w.get_status() == "Status: Completed");
-    assert_eq!(r.popup(), Popup::Quit, "the question was replaced");
-    r.click("No");
-    assert_eq!(r.popup(), Popup::Done);
+    assert_eq!(
+        r.popup(),
+        Popup::Done,
+        "the stale question stayed on screen"
+    );
     assert!(
         r.window
             .get_done_message()
@@ -1740,4 +1757,119 @@ fn overwrite_question_after_a_change(change_input: bool) {
     assert_eq!(r.popup(), Popup::None);
     assert_eq!(r.status(), "Status: The files changed, press Start again");
     assert_eq!(std::fs::read(&second).expect("read"), b"precious too");
+}
+
+/// A progress report already queued when Cancel is pressed lands after it: it must not put
+/// "Transforming..." back over "Cancelling..." (F-23).
+fn a_late_progress_does_not_overwrite_cancelling() {
+    let engine = FakeEngine::new().encoding(move |_, ui, cancel| {
+        wait_for_cancel(cancel);
+        ui.show_progress(60.0);
+        ui.show_progress_detail(60.0, Duration::from_secs(10));
+        std::thread::sleep(Duration::from_millis(300));
+        Err(Error::Cancelled)
+    });
+    let r = Rig::loaded(engine, "result.mp4");
+    r.click("Start transformation");
+    r.click("Cancel");
+    pump(Duration::from_millis(150));
+    assert_eq!(r.status(), "Status: Cancelling...");
+    assert!(r.window.get_progress() < 0.01, "the bar moved after Cancel");
+    r.wait("the cancellation", |w| {
+        w.get_status() == "Status: Cancelled"
+    });
+}
+
+/// "Cancel and quit" on screen when the conversion ends is stale: it says an encoding is in
+/// progress, and the outcome would wait behind it (F-24).
+fn the_quit_question_goes_when_the_conversion_ends() {
+    let started = Gate::default();
+    let release = Gate::default();
+    let (for_encode, hold) = (started.clone(), release.clone());
+    let engine = FakeEngine::new().encoding(move |job, _, _| {
+        for_encode.open();
+        hold.wait();
+        std::fs::write(&job.output, b"video").expect("write the output");
+        Ok(outcome("Hardware: the CPU did it"))
+    });
+    let r = Rig::loaded(engine, "result.mp4");
+    r.click("Start transformation");
+    started.wait();
+    r.click("Quit");
+    assert_eq!(r.popup(), Popup::Quit);
+    release.open();
+    r.wait("the Done dialog", |w| w.get_popup() == Popup::Done);
+    r.click("OK");
+    assert_eq!(r.popup(), Popup::None, "the stale question came back");
+}
+
+/// The quality menu is the list `prefs` validates against (F-25).
+fn the_quality_menu_is_the_rust_list() {
+    let r = rig(FakeEngine::new(), FakeHost::new());
+    r.ready();
+    let shown: Vec<String> = r
+        .window
+        .get_quality_profiles()
+        .iter()
+        .map(|p| p.to_string())
+        .collect();
+    assert_eq!(shown, crate::prefs::QUALITY_PROFILES);
+}
+
+/// Escape and Enter answer a dialog; a destructive question answers only to Escape, which
+/// is its "No" (F-26).
+fn modals_answer_to_escape_and_enter() {
+    let r = rig(FakeEngine::new(), FakeHost::new());
+    r.ready();
+    // Start with nothing chosen: the "No input" dialog.
+    r.click("Start transformation");
+    assert_eq!(r.popup(), Popup::NoInput);
+    r.type_keys("\n");
+    assert_eq!(r.popup(), Popup::None, "Enter did not close the dialog");
+    r.click("Start transformation");
+    assert_eq!(r.popup(), Popup::NoInput);
+    r.type_keys("\u{1b}");
+    assert_eq!(r.popup(), Popup::None, "Escape did not close the dialog");
+}
+
+/// A stray Enter never overwrites a file or quits; Escape is the "No" (F-26).
+fn destructive_questions_ignore_enter_and_escape_means_no() {
+    let started = Gate::default();
+    let release = Gate::default();
+    let (for_encode, hold) = (started.clone(), release.clone());
+    let engine = FakeEngine::new().encoding(move |job, _, _| {
+        for_encode.open();
+        hold.wait();
+        std::fs::write(&job.output, b"video").expect("write the output");
+        Ok(outcome("Hardware: the CPU did it"))
+    });
+    let r = Rig::loaded(engine, "result.mp4");
+    r.click("Start transformation");
+    started.wait();
+    // Quit during the run: Enter leaves the question, Escape answers No.
+    r.click("Quit");
+    assert_eq!(r.popup(), Popup::Quit);
+    r.type_keys("\n");
+    assert_eq!(r.popup(), Popup::Quit, "Enter answered the quit question");
+    assert_eq!(r.host.quits.load(Ordering::SeqCst), 0);
+    r.type_keys("\u{1b}");
+    assert_eq!(r.popup(), Popup::None);
+    assert!(r.window.get_cancel_enabled(), "Escape stopped the run");
+    release.open();
+    r.wait("the Done dialog", |w| w.get_popup() == Popup::Done);
+    r.click("OK");
+
+    // The output exists now: Start asks before overwriting.
+    r.click("Start transformation");
+    assert_eq!(r.popup(), Popup::Overwrite);
+    r.type_keys("\n");
+    assert_eq!(
+        r.popup(),
+        Popup::Overwrite,
+        "Enter answered the overwrite question"
+    );
+    assert_eq!(lock(&r.engine.jobs).len(), 1);
+    r.type_keys("\u{1b}");
+    assert_eq!(r.popup(), Popup::None);
+    assert_eq!(lock(&r.engine.jobs).len(), 1, "Escape started a conversion");
 }
