@@ -54,12 +54,12 @@ it.
 ## Superview's own dependencies (Rust)
 
 The application shipped in the releases is the Rust program under
-[`rust/`](rust/). It links 463 crates (the three of the workspace included, build tools excluded), whose exact
-versions and checksums are in [`rust/Cargo.lock`](rust/Cargo.lock). List them
+[`crates/`](crates/). It links 463 crates (the three of the workspace included, build tools excluded), whose exact
+versions and checksums are in [`Cargo.lock`](Cargo.lock). List them
 with their licences with:
 
 ```bash
-cd rust && cargo tree -p superview-app -e normal --target all --prefix none --format "{p} {l}"
+cargo tree -p superview-app -e normal --target all --prefix none --format "{p} {l}"
 ```
 
 The main ones:

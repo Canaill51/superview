@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn the_appimage_desktop_file_is_named_after_the_app_id() {
         let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../packaging/linux/build_appimage.sh");
+            .join("../../packaging/linux/build_appimage.sh");
         let script = std::fs::read_to_string(&script).unwrap_or_else(|e| panic!("{script:?}: {e}"));
         let want = format!("APP_ID=\"{APP_ID}\"");
         assert!(

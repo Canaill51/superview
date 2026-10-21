@@ -4,7 +4,7 @@
 #   APPIMAGETOOL=path/to/appimagetool-x86_64.AppImage \
 #     sh packaging/linux/build_appimage.sh <superview binary> <dir with ffmpeg+ffprobe> <out.AppImage>
 #
-# The binary is `rust/target/release/superview`, built with SUPERVIEW_VERSION set (it carries
+# The binary is `target/release/superview`, built with SUPERVIEW_VERSION set (it carries
 # the version and the build marker the release checks). The icon is the repository's own.
 #
 # Layout inside the image:
@@ -23,7 +23,7 @@
 #
 # How the application finds them, without LD_LIBRARY_PATH (AppRun must not set it: it would be
 # inherited by ffmpeg, zenity and kdialog, and a Qt tool would load our copies): the binary is
-# linked with a DT_RPATH of $ORIGIN/../lib (rust/crates/superview-app/build.rs). A DT_RPATH,
+# linked with a DT_RPATH of $ORIGIN/../lib (crates/superview-app/build.rs). A DT_RPATH,
 # unlike a RUNPATH, also applies to the dependencies of a library loaded by dlopen, so
 # libxkbcommon-x11 finds libxcb-xkb.so.1 beside itself. All measured with LD_DEBUG=libs.
 set -eu
@@ -99,8 +99,8 @@ Icon=$APP_ID
 Terminal=false
 Categories=AudioVideo;Video;
 EOF
-cp "$ROOT/rust/crates/superview-app/ui/Icon.png" "$APPDIR/$APP_ID.png"
-cp "$ROOT/rust/crates/superview-app/ui/Icon.png" "$APPDIR/.DirIcon"
+cp "$ROOT/crates/superview-app/ui/Icon.png" "$APPDIR/$APP_ID.png"
+cp "$ROOT/crates/superview-app/ui/Icon.png" "$APPDIR/.DirIcon"
 
 # APPIMAGE_EXTRACT_AND_RUN: appimagetool is itself an AppImage, run here without FUSE
 # (GitHub's runners do not allow it).

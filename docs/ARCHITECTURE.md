@@ -11,7 +11,7 @@ sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + F
 (dernière version Go, toujours dans l'historique) ; Go a été retiré après la RC-0.3.0 (DEC-49).
 
 ## Vue d'ensemble
-Un workspace Cargo sous `rust/`, trois crates :
+Un workspace Cargo à la racine (`crates/`), trois crates :
 
 - **`superview-core`** — toute la logique, sans interface. Un module par responsabilité (voir le tableau).
 - **`superview-app`** — la fenêtre Slint. Seul le fil de l'interface touche un widget ; les autres
@@ -56,8 +56,8 @@ Un workspace Cargo sous `rust/`, trois crates :
 ## Arborescence
 | Dossier | Rôle |
 |---------|------|
-| `rust/` | le workspace Cargo ci-dessus ; `rust-toolchain.toml` épingle la version |
-| `rust/crates/superview-core/tests/fixtures/` | fixtures de parité (`parity/*.json`, `ffprobe/`) : enregistrées sur le code Go, **gelées**, ce sont la spécification que le Rust doit reproduire |
+| `Cargo.toml`, `crates/` | le workspace Cargo ci-dessus (à la racine) ; `rust-toolchain.toml` épingle la version |
+| `crates/superview-core/tests/fixtures/` | fixtures de parité (`parity/*.json`, `ffprobe/`) : enregistrées sur le code Go, **gelées**, ce sont la spécification que le Rust doit reproduire |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/rust.sh` |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 |
@@ -82,7 +82,7 @@ dossier temporaire.
 | rfd (portail xdg, sans GTK) | sélecteurs de fichiers ; charge `libdbus` à l'exécution | DEC-43 |
 | `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
 | `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
-| Rust (rustup, `rust/rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/ENVIRONNEMENT.md` |
+| Rust (rustup, `rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/ENVIRONNEMENT.md` |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)

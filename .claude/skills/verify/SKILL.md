@@ -7,7 +7,7 @@ description: Run the AGENTS.md verification recipe for Superview, gate by gate, 
 pre-commit hook and the Claude hooks run), but stops at the first failure and
 says nothing about skips: this skill stays the gate-by-gate report.
 
-Run the gates below **in order**, from `rust/`, with
+Run the gates below **in order**, from the repository root, with
 `export PATH=$HOME/.cargo/bin:$PATH` if `cargo` is not found. Stop at the first
 gate that cannot run and say so: a gate that did not run is not a gate that
 passed.

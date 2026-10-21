@@ -313,14 +313,14 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview
 
 ```
 superview/
-├── rust/                       # Le workspace Cargo (le produit livré)
-│   ├── crates/superview-core/      # Logique d'encodage, sans code de fenêtre
-│   │   └── src/                    # pgm (cartes de distorsion), encode/ (arguments ffmpeg, exécution,
-│   │                               #   cascade de repli), pipeline, video (ffprobe), tools (recherche
-│   │                               #   d'ffmpeg), hardware + probe (choix de l'encodeur), memory, disk,
-│   │                               #   session, health (le Diagnostic), config, security, metrics, logfile
-│   ├── crates/superview-app/       # La fenêtre (Slint) : état, dialogues, préférences, journal
-│   └── crates/superview-harness/   # Un banc d'essai, jamais livré
+├── Cargo.toml, Cargo.lock      # Le workspace Cargo (le produit livré) ; rust-toolchain.toml épingle la chaîne d'outils
+├── crates/superview-core/      # Logique d'encodage, sans code de fenêtre
+│   └── src/                    # pgm (cartes de distorsion), encode/ (arguments ffmpeg, exécution,
+│                               #   cascade de repli), pipeline, video (ffprobe), tools (recherche
+│                               #   d'ffmpeg), hardware + probe (choix de l'encodeur), memory, disk,
+│                               #   session, health (le Diagnostic), config, security, metrics, logfile
+├── crates/superview-app/       # La fenêtre (Slint) : état, dialogues, préférences, journal
+├── crates/superview-harness/   # Un banc d'essai, jamais livré
 ├── packaging/                  # Script de l'installateur Windows et de l'AppImage Linux
 ├── scripts/                    # check.sh, point d'entrée unique de la vérification
 ├── docs/                       # Contrats techniques, journal d'audit, prise en charge matérielle
@@ -344,7 +344,7 @@ Entrée → check_video (ffprobe) → session (dossier temporaire) → cartes PG
 ## Développement
 
 > Superview est écrit en **Rust** ; la version du compilateur est épinglée dans
-> `rust/rust-toolchain.toml`, et [rustup](https://rustup.rs) la fournit. La fenêtre est dessinée par le moteur de rendu
+> `rust-toolchain.toml`, et [rustup](https://rustup.rs) la fournit. La fenêtre est dessinée par le moteur de rendu
 > logiciel de Slint.
 
 Une compilation depuis les sources ne livre aucun FFmpeg : une machine de
@@ -398,7 +398,6 @@ Une compilation depuis les sources ne produit aucun paquet : elle utilise donc
 le FFmpeg présent dans le `PATH`.
 
 ```bash
-cd rust
 cargo build --release --locked -p superview-app
 ./target/release/superview        # superview.exe sous Windows
 ```

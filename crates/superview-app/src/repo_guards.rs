@@ -9,7 +9,7 @@ use crate::app::INSTALL_URL;
 
 fn repo_file(relative: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
+        .join("../..")
         .join(relative)
 }
 
@@ -194,7 +194,7 @@ fn window_constraint(slint: &str, name: &str) -> Option<f32> {
 /// resize it. The testing backend applies no such constraint, so only the source can say.
 #[test]
 fn the_window_has_one_size_so_it_cannot_be_resized() {
-    let slint = read(&repo_file("rust/crates/superview-app/ui/main.slint"));
+    let slint = read(&repo_file("crates/superview-app/ui/main.slint"));
     for axis in ["width", "height"] {
         let min = window_constraint(&slint, &format!("min-{axis}"))
             .unwrap_or_else(|| panic!("main.slint sets no window min-{axis}"));

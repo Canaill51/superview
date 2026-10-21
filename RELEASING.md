@@ -94,7 +94,7 @@ That path stops at a draft, so you can read it before it is public.
 ## The version number lives in the tag
 
 The environment variable `SUPERVIEW_VERSION=x.y.z`, set by the build jobs from
-the tag, is read by `rust/crates/superview-app/build.rs` and stamped into the
+the tag, is read by `crates/superview-app/build.rs` and stamped into the
 binary, which then reports it in its window title, its log and its Diagnostic
 report. **Nothing reads the version from the source tree**, so there is nothing
 to bump and nothing that can drift. `build.rs` refuses anything but `x.y.z`.

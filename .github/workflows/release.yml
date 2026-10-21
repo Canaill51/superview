@@ -161,11 +161,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    # The runner has rustup; rust/rust-toolchain.toml selects the pinned version.
+    # The runner has rustup; rust-toolchain.toml selects the pinned version.
     - name: Cache cargo
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        workspaces: rust
+        workspaces: .
 
     # ffmpeg matters here, and not only to run more tests. Without it every
     # integration test used to skip, and module coverage measured 51.4%
@@ -183,17 +183,14 @@ jobs:
         sudo apt-get install -y --no-install-recommends ffmpeg libfontconfig1-dev
 
     - name: Format
-      working-directory: rust
       run: cargo fmt --all --check
 
     - name: Clippy
-      working-directory: rust
       run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
     # llvm-tools is what cargo-llvm-cov reads the profiles with. The versions are pinned: the
     # coverage figure and the advisory check must not move because a tool did.
     - name: Install the coverage and audit tools
-      working-directory: rust
       run: |
         set -euo pipefail
         rustup component add llvm-tools
@@ -204,7 +201,6 @@ jobs:
     # (E-24), and cargo-llvm-cov runs `cargo test` itself. The floor is 50 % of lines,
     # the same as the "Rust coverage and audit" job of rust.yml: a floor to raise as coverage grows.
     - name: Run tests and the coverage gate
-      working-directory: rust
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo llvm-cov --workspace --locked --fail-under-lines 50
@@ -212,9 +208,8 @@ jobs:
     # Fails on a known vulnerability in Cargo.lock. Advisories for unmaintained crates only
     # warn: they are not a reason to block a release. The advisory database is NOT pinned: an
     # advisory published this morning can block a release this afternoon. The way out is a
-    # reasoned `ignore` in rust/.cargo/audit.toml, not removing the step.
+    # reasoned `ignore` (.cargo/audit.toml for cargo audit, deny.toml for cargo deny), not removing the step.
     - name: Audit the dependencies
-      working-directory: rust
       run: cargo audit
 
   build-gui-windows:
@@ -258,7 +253,6 @@ jobs:
     # anything but x.y.z, and embeds it, with the revision and the "modified" state, in the
     # binary and in its Windows version resource. rust-toolchain.toml selects the compiler.
     - name: Build GUI (native arch)
-      working-directory: rust
       env:
         SUPERVIEW_VERSION: ${{ needs.prepare.outputs.version }}
       run: cargo build --release --locked -p superview-app
@@ -278,7 +272,7 @@ jobs:
         VERSION: ${{ needs.prepare.outputs.version }}
       run: |
         $ErrorActionPreference = 'Stop'
-        $bytes = [System.IO.File]::ReadAllBytes("rust\target\release\superview.exe")
+        $bytes = [System.IO.File]::ReadAllBytes("target\release\superview.exe")
         $text = [System.Text.Encoding]::Latin1.GetString($bytes)
         $found = [regex]::Match($text, 'SUPERVIEW-BUILD[ -~]*')
         if (-not $found.Success) {
@@ -334,7 +328,7 @@ jobs:
     - name: Stage the installer's files
       shell: pwsh
       run: |
-        Copy-Item "rust\target\release\superview.exe" "build\superview.exe"
+        Copy-Item "target\release\superview.exe" "build\superview.exe"
         Copy-Item "THIRD_PARTY_NOTICES.md" "build\"
 
     # Inno Setup 6 is preinstalled on the runner. SourceDir is absolute because
@@ -432,7 +426,6 @@ jobs:
     # No cargo cache here either (see the Windows job). The binary is linked with an RPATH of
     # $ORIGIN/../lib by build.rs, which is how it finds the embedded libraries (DEC-47).
     - name: Build GUI (native arch)
-      working-directory: rust
       env:
         SUPERVIEW_VERSION: ${{ needs.prepare.outputs.version }}
       run: cargo build --release --locked -p superview-app
@@ -450,7 +443,7 @@ jobs:
       run: |
         set -euo pipefail
         # grep -o prints the marker alone; -a reads the binary as text.
-        marker="$(grep -ao 'SUPERVIEW-BUILD[ -~]*' rust/target/release/superview || true)"
+        marker="$(grep -ao 'SUPERVIEW-BUILD[ -~]*' target/release/superview || true)"
         if [ -z "$marker" ]; then
           echo "::error::the SUPERVIEW-BUILD marker is missing from the release binary"
           exit 1
@@ -468,9 +461,9 @@ jobs:
           exit 1
         fi
         # The embedded libraries are only found through this RPATH.
-        readelf -d rust/target/release/superview | grep -E 'RPATH|RUNPATH' || true
+        readelf -d target/release/superview | grep -E 'RPATH|RUNPATH' || true
         # shellcheck disable=SC2016
-        if ! readelf -d rust/target/release/superview | grep -q '(RPATH).*\$ORIGIN/\.\./lib'; then
+        if ! readelf -d target/release/superview | grep -q '(RPATH).*\$ORIGIN/\.\./lib'; then
           echo "::error::the binary has no DT_RPATH of \$ORIGIN/../lib; the AppImage's libraries would not be found"
           exit 1
         fi
@@ -516,7 +509,6 @@ jobs:
     # No profile: the test job already gated coverage; this run only has to be red
     # or green against this FFmpeg.
     - name: Run the tests against the bundled FFmpeg
-      working-directory: rust
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: |
@@ -542,7 +534,7 @@ jobs:
         set -euo pipefail
         archLabel="$(uname -m)"
         APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
-          rust/target/release/superview "${RUNNER_TEMP}/ffbin" \
+          target/release/superview "${RUNNER_TEMP}/ffbin" \
           "superview-${LABEL}-linux-${archLabel}.AppImage"
         ls -lah superview-*.AppImage
 

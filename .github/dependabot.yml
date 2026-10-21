@@ -7,7 +7,7 @@ version: 2
 updates:
   # Port Rust (DEC-43). L'étiquette `dependencies` : .github/release.yml trie dessus.
   - package-ecosystem: "cargo"
-    directory: "/rust"
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:

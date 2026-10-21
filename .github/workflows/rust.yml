@@ -29,11 +29,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    # The runner has rustup; rust/rust-toolchain.toml selects the pinned version.
+    # The runner has rustup; rust-toolchain.toml selects the pinned version.
     - name: Cache cargo
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        workspaces: rust
+        workspaces: .
 
     # libfontconfig1-dev: Slint's text layout (yeslogic-fontconfig-sys) is built against it
     # and the runner image does not have it. The window's other libraries are loaded at run time.
@@ -45,17 +45,14 @@ jobs:
     # The same recipe as scripts/checks/rust.sh, one step at a time so that CI says
     # which one fails.
     - name: Format
-      working-directory: rust
       run: cargo fmt --all --check
 
     - name: Clippy
-      working-directory: rust
       run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
     # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip
     # silently: a green suite could have encoded nothing.
     - name: Test
-      working-directory: rust
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo test --workspace --locked
@@ -74,14 +71,13 @@ jobs:
         chmod +x "${RUNNER_TEMP}/appimagetool"
 
     - name: Build the release binary
-      working-directory: rust
       run: cargo build --release --locked -p superview-app
 
     - name: The build marker must be in the binary
       run: |
         set -euo pipefail
         # Not guaranteed to survive the linker: the release greps this marker in the built file.
-        if ! grep -aq "SUPERVIEW-BUILD version=dev" rust/target/release/superview; then
+        if ! grep -aq "SUPERVIEW-BUILD version=dev" target/release/superview; then
           echo "::error::the SUPERVIEW-BUILD marker is missing from the release binary"
           exit 1
         fi
@@ -90,7 +86,7 @@ jobs:
       run: |
         set -euo pipefail
         set +e
-        xvfb-run -a timeout 10 rust/target/release/superview
+        xvfb-run -a timeout 10 target/release/superview
         code=$?
         set -e
         echo "exit code: ${code}"
@@ -121,7 +117,7 @@ jobs:
         mkdir -p "${work}/tools"
         cp "$(command -v ffmpeg)" "$(command -v ffprobe)" "${work}/tools/"
         APPIMAGETOOL="${RUNNER_TEMP}/appimagetool" sh packaging/linux/build_appimage.sh \
-          rust/target/release/superview "${work}/tools" "${work}/trial.AppImage"
+          target/release/superview "${work}/tools" "${work}/trial.AppImage"
         sudo dpkg --remove --force-depends libxkbcommon-x11-0
         if dpkg -s libxkbcommon-x11-0 > /dev/null 2>&1 || [ -e /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 ]; then
           echo "::error::libxkbcommon-x11 is still on the system, so the launch below would prove nothing"
@@ -155,7 +151,7 @@ jobs:
     - name: Cache cargo
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        workspaces: rust
+        workspaces: .
 
     - name: Install FFmpeg and the window's build libraries
       run: |
@@ -164,7 +160,6 @@ jobs:
 
     # llvm-tools is what cargo-llvm-cov reads the profiles with.
     - name: Install the coverage and audit tools
-      working-directory: rust
       run: |
         set -euo pipefail
         rustup component add llvm-tools
@@ -175,33 +170,29 @@ jobs:
     # The floor is the former Go gate's, 50 % of lines: a floor to raise as coverage grows.
     # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip silently.
     - name: Run tests and the coverage gate
-      working-directory: rust
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo llvm-cov --workspace --locked --fail-under-lines 50
 
     # The figure behind the gate, kept after the run (no external service, E-18).
     - name: Write the coverage report
-      working-directory: rust
       run: cargo llvm-cov report --lcov --output-path lcov.info
 
     - name: Keep the coverage report
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: lcov
-        path: rust/lcov.info
+        path: lcov.info
         retention-days: 30
 
     # Fails on a known vulnerability in Cargo.lock; the advisory database is not pinned.
-    # The way out is a reasoned, dated `ignore` in rust/deny.toml, not removing the step.
+    # The way out is a reasoned, dated `ignore` in deny.toml, not removing the step.
     - name: Audit the dependencies
-      working-directory: rust
       run: cargo audit
 
     # Advisories again, through the dependency graph of the shipped targets, and the licences:
-    # every crate must offer one compatible with GPL-3.0-or-later (rust/deny.toml).
+    # every crate must offer one compatible with GPL-3.0-or-later (deny.toml).
     - name: Check advisories and licences
-      working-directory: rust
       run: cargo deny --locked check advisories licenses
 
   rust-windows:
@@ -222,7 +213,7 @@ jobs:
     - name: Cache cargo
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
-        workspaces: rust
+        workspaces: .
 
     - name: Fetch and verify the pinned FFmpeg
       shell: pwsh
@@ -263,15 +254,12 @@ jobs:
         (ffprobe -version)[0]
 
     - name: Format
-      working-directory: rust
       run: cargo fmt --all --check
 
     - name: Clippy
-      working-directory: rust
       run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
     - name: Test
-      working-directory: rust
       env:
         SUPERVIEW_REQUIRE_FFMPEG: '1'
       run: cargo test --workspace --locked
@@ -279,14 +267,13 @@ jobs:
     # The window trial (phase 3b) on Windows: the release binary starts and is still
     # running after 10 s. There is no installer in this trial.
     - name: Build the release binary
-      working-directory: rust
       run: cargo build --release --locked -p superview-app
 
     - name: The build marker must be in the binary
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        $bytes = [System.IO.File]::ReadAllBytes("rust\target\release\superview.exe")
+        $bytes = [System.IO.File]::ReadAllBytes("target\release\superview.exe")
         $text = [System.Text.Encoding]::Latin1.GetString($bytes)
         if (-not $text.Contains("SUPERVIEW-BUILD version=dev")) {
           Write-Host "::error::the SUPERVIEW-BUILD marker is missing from the release binary"
@@ -297,7 +284,7 @@ jobs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        $proc = Start-Process -FilePath rust\target\release\superview.exe -PassThru
+        $proc = Start-Process -FilePath target\release\superview.exe -PassThru
         Start-Sleep -Seconds 10
         if ($proc.HasExited) { throw "the window exited by itself with code $($proc.ExitCode)" }
         Write-Host "still running after 10 s (pid $($proc.Id))"

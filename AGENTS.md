@@ -21,7 +21,6 @@ and `make check` call. Enable the git hook once per clone:
 `/verify` reports.
 
 ```bash
-cd rust
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
@@ -42,10 +41,10 @@ counter-proof itself is valid — an environment can make it mute.
 
 ### The Rust workspace
 
-`rust/` is a Cargo workspace (`superview-core`, `superview-harness`, `superview-app`) and the
+The root is a Cargo workspace (`superview-core`, `superview-harness`, `superview-app`) and the
 whole product. `scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`, so the
 pre-commit hook needs cargo for every commit. Install with rustup into `~/.cargo` (no sudo,
-`docs/ENVIRONNEMENT.md`); the toolchain is pinned by `rust/rust-toolchain.toml`.
+`docs/ENVIRONNEMENT.md`); the toolchain is pinned by `rust-toolchain.toml`.
 `make coverage-audit` runs what the CI job *Rust coverage and audit* runs (a 50 % line floor
 with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three tools installed.
 
@@ -69,7 +68,7 @@ than it looks.
 
 | What you'll see | Why it is that way |
 | --- | --- |
-| No real version in any committed file (`0.0.0` placeholders in `rust/Cargo.toml` and `packaging/windows/superview.iss` only); `build.rs` reads `SUPERVIEW_VERSION` and a plain `cargo build` reports `dev` | The version comes from the tag (the release workflow sets the variable), so a published binary cannot claim a number a committed file drifted away from. **Do not add a version constant back** (DEC-22, DEC-47). |
+| No real version in any committed file (`0.0.0` placeholders in `Cargo.toml` and `packaging/windows/superview.iss` only); `build.rs` reads `SUPERVIEW_VERSION` and a plain `cargo build` reports `dev` | The version comes from the tag (the release workflow sets the variable), so a published binary cannot claim a number a committed file drifted away from. **Do not add a version constant back** (DEC-22, DEC-47). |
 | `.github/release.yml` has a `"*"` catch-all | Load-bearing. GitHub drops any pull request matching no category, and this repository labels none of its own — removing it empties every release. |
 | The bundled FFmpeg is **8.1.1 on Windows** (gyan.dev) and **n8.1.2 on Linux** (BtbN autobuild 2026-08-31), neither the newest | What is pinned is the NVENC driver floor, 570.0 on both, not a version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping a pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching either. |
 | The release ships `…-setup.exe` and `….AppImage`, not archives | One ready-to-run file per platform (`cargo build --release`, version from `SUPERVIEW_VERSION`). Each package is installed or launched in CI (installer silently, AppImage under `xvfb`), because a package that builds is not one that starts. The installer's `AppId` in `packaging/windows/superview.iss` must never change. The release *build* jobs do not cache `target/`: the build marker must describe that build. See DEC-41, DEC-47. |
@@ -120,7 +119,7 @@ than it looks.
 
 ## Changing the code
 
-- **Build the workspace through cargo**: `cd rust && cargo build -p superview-app --locked`
+- **Build the workspace through cargo**: `cargo build -p superview-app --locked`
   (`make build` for the release binary). The window needs no system GUI headers beyond
   `libfontconfig1-dev` (`docs/ENVIRONNEMENT.md`).
 - Keep user-facing strings stable unless the task is about them.
