@@ -137,7 +137,7 @@ jobs:
         sh packaging/linux/check_appimage_libs.sh "${work}/trial.AppImage" 10
 
   # The coverage floor and the advisory check of the release (release.yml), on every pull
-  # request (Go carried them in test.yml, removed in phase 8). The tool versions are
+  # request. The tool versions are
   # pinned there and here alike, so the figure does not move because a tool did.
   rust-coverage-audit:
     name: Rust coverage and audit
@@ -167,7 +167,7 @@ jobs:
         cargo install --locked --version 0.22.2 cargo-audit
         cargo install --locked --version 0.20.2 cargo-deny
 
-    # The floor is the former Go gate's, 50 % of lines: a floor to raise as coverage grows.
+    # The floor is 50 % of lines: a floor to raise as coverage grows.
     # Without SUPERVIEW_REQUIRE_FFMPEG=1 the tests that need ffmpeg would skip silently.
     - name: Run tests and the coverage gate
       env:

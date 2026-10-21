@@ -1,4 +1,4 @@
-// The application window, laid out as the Go one (`cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9)) and with its
+// The application window, laid out as the Fyne one of v0.2.9 and with its
 // labels word for word. Nothing is computed here: the window shows properties it is given and
 // reports clicks through callbacks, and `app.rs` owns every decision (phase 6 of DEC-43).
 import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView, TextEdit } from "std-widgets.slint";
@@ -166,7 +166,7 @@ component ModalButtons inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    // "Superview " + the build identity, set by `App::wire` (the Go window did the same).
+    // "Superview " + the build identity, set by `App::wire`.
     in property <string> window-title: "Superview";
     title: window-title;
     // The window icon, next to this file (`build.rs` embeds it in the binary).

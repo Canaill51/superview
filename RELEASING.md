@@ -136,7 +136,7 @@ cache, so that marker describes this build and no earlier one. The release profi
 longer than a plain release build; that is the price of a binary a third smaller.
 
 **What the release builds** (DEC-47): the Rust binary, `cargo build --release
---locked -p superview-app`, nothing from Go. Before anything is built, the
+--locked -p superview-app`, nothing else. Before anything is built, the
 `test` job runs `cargo fmt`, `clippy`, the test suite with
 `SUPERVIEW_REQUIRE_FFMPEG=1` under `cargo llvm-cov` (at least 50 % of lines) and
 `cargo audit`; the two cargo tools are installed at a pinned version.
