@@ -115,3 +115,151 @@ export component ProgressBar inherits Rectangle {
         }
     }
 }
+
+// A row of exclusive choices, the chosen one filled with the accent. Each segment is a radio button
+// for the window tests and for assistive technology; Enter and Space choose the one that has the
+// focus. `current` is two-way: the user's pick writes it and the host's later writes show.
+export component SegmentedControl inherits Rectangle {
+    in property <[string]> model;
+    in-out property <string> current;
+    in property <bool> enabled: true;
+    callback selected(string);
+
+    height: 34px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Theme.surface;
+    opacity: root.enabled ? 1 : 0.5;
+    HorizontalLayout {
+        padding: 3px;
+        spacing: 3px;
+        for item in root.model: Rectangle {
+            border-radius: 6px;
+            background: item == root.current ? Theme.accent : touch.has-hover && root.enabled ? Theme.border : transparent;
+            accessible-role: radio-button;
+            accessible-label: item;
+            accessible-checkable: true;
+            accessible-checked: item == root.current;
+            accessible-enabled: root.enabled;
+            accessible-action-default => {
+                if (root.enabled) {
+                    root.pick(item);
+                }
+            }
+            touch := TouchArea {
+                enabled: root.enabled;
+                mouse-cursor: root.enabled ? pointer : default;
+                clicked => { root.pick(item); }
+            }
+            // Tab reaches each segment: the ring shows where the keyboard is.
+            keys := FocusScope {
+                x: 0;
+                width: 0;
+                enabled: root.enabled;
+                key-pressed(event) => {
+                    if (root.enabled && (event.text == Key.Return || event.text == " ")) {
+                        root.pick(item);
+                        return accept;
+                    }
+                    reject
+                }
+            }
+            Rectangle {
+                visible: keys.has-focus;
+                border-radius: 6px;
+                border-width: 2px;
+                border-color: Theme.on-accent;
+            }
+            Text {
+                accessible-role: none;
+                text: item;
+                font-weight: 600;
+                color: item == root.current ? Theme.on-accent : Theme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    function pick(item: string) {
+        if (item == root.current) {
+            return;
+        }
+        root.current = item;
+        root.selected(item);
+    }
+}
+
+// An on/off switch with its label beside it. A click or Space toggles it; `checked` is two-way.
+export component Switch inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    min-height: 28px;
+    opacity: root.enabled ? 1 : 0.5;
+    accessible-role: switch;
+    accessible-label: root.text;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if (root.enabled) {
+            root.flip();
+        }
+    }
+
+    function flip() {
+        root.checked = !root.checked;
+        root.toggled(root.checked);
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.flip(); }
+    }
+    // Tab reaches the switch: the ring around the track shows where the keyboard is.
+    keys := FocusScope {
+        x: 0;
+        width: 0;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (root.enabled && (event.text == Key.Return || event.text == " ")) {
+                root.flip();
+                return accept;
+            }
+            reject
+        }
+    }
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+        Rectangle {
+            width: 40px;
+            height: 22px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 11px;
+            background: root.checked ? Theme.accent : Theme.border;
+            border-width: keys.has-focus ? 2px : 0px;
+            border-color: Theme.text;
+            Rectangle {
+                width: 16px;
+                height: 16px;
+                y: 3px;
+                x: root.checked ? 21px : 3px;
+                border-radius: 8px;
+                background: root.checked ? Theme.on-accent : Theme.text-muted;
+                animate x { duration: 120ms; easing: ease-out; }
+            }
+        }
+        Text {
+            accessible-role: none;
+            text: root.text;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+}

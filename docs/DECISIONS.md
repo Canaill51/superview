@@ -89,9 +89,10 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-53](#dec-53) | Une durée qui n'est pas un nombre fini (`inf`, `nan`) est refusée | Acceptée |
 | [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | *Remplacée par DEC-56* |
 | [DEC-55](#dec-55) | Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas | Acceptée (amende DEC-49) |
-| [DEC-56](#dec-56) | La fenêtre est fixe, 860×332, avec un panneau de conversion à droite | Acceptée (remplace DEC-54) |
+| [DEC-56](#dec-56) | La fenêtre est fixe, 860×332, avec un panneau de conversion à droite | *Remplacée par DEC-59* |
 | [DEC-57](#dec-57) | Menu Theme (Light / Dark, sombre par défaut) et accent cyan par un global `Theme` | Acceptée (remplace le thème sombre forcé de DEC-32) |
 | [DEC-58](#dec-58) | La barre de progression est rouge en cours, verte à la fin, grise si arrêtée, et glisse vers sa valeur | Acceptée |
+| [DEC-59](#dec-59) | La fenêtre est fixe, 1000×520 : le fichier à gauche, réglages et conversion à droite, qualité en segments, interrupteur | Acceptée (remplace DEC-56) |
 
 ---
 
@@ -576,7 +577,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-56
 **La fenêtre est fixe, 860×332, avec un panneau de conversion à droite.**
-2026-10-21 · Acceptée · étude d'interface, scénario C variante « Resserrée », choisie par l'utilisateur · remplace DEC-54
+2026-10-21 · *Remplacée par [DEC-59](#dec-59)* · étude d'interface, scénario C variante « Resserrée », choisie par l'utilisateur · remplace DEC-54
 
 **Contexte** — La fenêtre de 980×470 laissait beaucoup d'espace vide : menus étirés sur toute la colonne, valeurs loin de leurs libellés, Status, Results et Hardware empilés au-dessus de la barre. L'utilisateur a comparé des maquettes et retenu deux colonnes : les réglages à gauche, un panneau de conversion à droite.
 **Décision** — `min-` = `max-` à 860×332 px logiques dans `main.slint`. À gauche, Input file, Output file, Quality profile, Video codec et Input format, puis la ligne Hardware sous Input format ; les deux menus ont une largeur fixe (170 et 300 px), pas celle de la colonne. À droite, un panneau de 290 px : « Progress », la barre, puis Status et Results dessous. Les textes ne changent pas. Le garde `the_window_has_one_size_so_it_cannot_be_resized` lit toujours `min = max` ; `the_conversion_panel_sits_beside_the_settings` (`window_tests.rs`) fige la disposition (rouge avec l'ancienne mise en page : un menu dépassait le panneau, mesuré).
@@ -600,3 +601,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `BarState { Idle, Running, Done, Stopped }` dans `ViewModel` (`state.rs`), fixé là où l'état change déjà : `set_encoding(true)` → Running, succès → Done, annulation, échec et demande d'annulation → Stopped, nouveau fichier d'entrée → Idle (et remise à zéro ; le choix d'un fichier de sortie ne touche pas la barre). `app.rs` le pousse à la fenêtre (`bar-state`). `ProgressBar` (`components.slint`) remplace `ProgressIndicator` : couleur d'accent au repos, `Theme.running` en cours, `Theme.done` à la fin, `Theme.text-muted` si arrêtée ; la largeur du remplissage glisse en 400 ms (`ease-out`) seulement en Running et au-dessus de 0, donc la remise à zéro d'un départ ou l'arrivée à 100 % ne s'animent pas. Les textes ne changent pas.
 **Conséquences** — Le lissage ne se prouve pas par le backend de test (pas d'horloge d'animation utilisée ici) : il se juge à la main sur une vraie conversion. Les couleurs et chaque transition sont testées. La barre garde le rôle `progress-indicator` et sa valeur (0 à 1), comme celle de Slint ; un test les lit.
 **À rouvrir si** — Le rouge « en cours » est pris pour une erreur par des utilisateurs (alors accent en cours, vert à la fin), ou si une barre verte et pleine après le choix d'un autre fichier de sortie gêne (alors remise à zéro aussi dans `apply_chosen_output`).
+
+### DEC-59
+**La fenêtre est fixe, 1000×520 : le fichier à gauche, les réglages et la conversion à droite.**
+2026-10-21 · Acceptée · refonte de l'interface, PR 4 · remplace DEC-56
+
+**Contexte** — Avec la palette cyan (DEC-57) et la barre d'état (DEC-58), l'utilisateur a choisi sur la planche une fenêtre d'environ 1000 px, avec une carte de fichier et deux fonctions à venir (vignette, aperçu).
+**Décision** — `min-` = `max-` à 1000×520 px logiques dans `main.slint`. Colonne gauche (600 px) : une carte du fichier (cadre de vignette vide, « Input file », le nom ; un clic dessus choisit l'entrée, sous le libellé accessible « Input video » pour que « Choose input file » reste unique), puis « Output file ». Colonne droite : Quality profile en `SegmentedControl` (rôle radio, modèle `prefs::QUALITY_PROFILES`), Video codec (le `ComboBox` de Slint, 300 px), Input format en `Switch` (rôle interrupteur, libellé inchangé), la ligne Hardware, puis la carte de conversion. La barre d'actions reste en haut, centrée. Le popup Error met son texte dans un `ScrollView` (300 px au plus) : un message de plusieurs dizaines de lignes (stderr d'ffmpeg) ne repousse plus OK hors de la fenêtre. Les textes ne changent pas.
+**Conséquences** — La colonne gauche a de la place libre sous « Output file » jusqu'à la PR 6 (aperçu) ; la hauteur de 520 px est une estimation à ajuster alors. Le menu de qualité n'est plus un `ComboBox` : les tests le lisent par ses segments (`Fast`, `Balanced`) et `selectors()` ne rend plus que le menu du codec. Les segments et l'interrupteur se prennent par Tab (un anneau montre le focus) et répondent à Entrée et Espace ; Entrée et Espace ne sont pas testés (le backend de test n'expose pas le focus). Leur action d'accessibilité respecte `enabled`, contrairement à celle d'`AppButton` (DEC-57), et un clic sur le segment déjà choisi ne signale rien.
+**À rouvrir si** — Un écran trop petit pour 1000×520 est signalé (alors fenêtre redimensionnable avec minimum, pas retour à 860), ou si le test clavier devient possible (alors l'écrire).
