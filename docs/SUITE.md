@@ -1,6 +1,6 @@
 # Où on en est
 - État (2026-10-21) : **v0.3.0 publiée** (version stable, premier binaire Rust + Slint : installateur Windows, AppImage,
-  `checksums.txt`). Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9** (voir « Historique »). La pré-version
+  `checksums.txt`). Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Plan de la 14ᵉ passe terminé** : ses sessions 1 à 8 (F-01 à F-30) et la session 9 (Q-04 et Q-05 : `-f mov` sur l'entrée, DEC-52 ;
@@ -22,5 +22,5 @@
 
 ## Historique
 Le programme a été écrit en Go + Fyne jusqu'à la v0.2.9, puis porté en Rust + Slint (DEC-43, phases 1 à 8 en octobre 2026,
-#99 à #137) ; Go a été retiré avec #136 et #137 (DEC-49). Le détail, PR par PR, est dans `docs/CORRECTIONS.md` et les
-décisions dans `docs/DECISIONS.md`. Pour relire l'ancien code : `git show v0.2.9:<chemin>`.
+#99 à #137) ; Go a été retiré avec #136 et #137 (DEC-49). Résumé par phase dans DEC-43 (`docs/DECISIONS.md`) ; le journal complet, PR par PR,
+est dans `git show b6cd5f8:docs/SUITE.md` (section « Historique du portage Go → Rust »). Pour relire l'ancien code : `git show v0.2.9:<chemin>`.

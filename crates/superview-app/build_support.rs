@@ -5,8 +5,8 @@
 ///
 /// `None` or empty means "no version injected" (a plain `cargo build`): the binary is `dev`.
 /// Anything else must be exactly three groups of ASCII digits, `x.y.z`: no `v` prefix, no
-/// suffix such as `-rc1`, no fourth group. Leading zeros are accepted (`01.2.3`), as the
-/// Go build of v0.2.9 accepted them; each group must fit the 16 bits of a Windows version resource.
+/// suffix such as `-rc1`, no fourth group. Leading zeros are accepted (`01.2.3`), as releases
+/// up to v0.2.9 accepted them; each group must fit the 16 bits of a Windows version resource.
 /// A bad value is an error so that a mistyped release fails at build time, not after publishing.
 #[allow(dead_code)] // in the test build only the tests call it
 pub fn stamped_version(raw: Option<&str>) -> Result<Option<(String, [u16; 3])>, String> {

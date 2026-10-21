@@ -15,9 +15,9 @@
 | --- | --- |
 | **Constat** | AGENTS, ARCHITECTURE, ENVIRONNEMENT, SUITE, RELEASING et des commentaires de `Cargo.toml`, `main.slint`, `build*.rs`, `rust.yml` racontaient encore Go (21 lignes de SUITE pour le portage, « Go carried them… », renvois à `gui_main.go`) |
 | **Cause** | Go retiré en DEC-49 sans repasser sur la prose |
-| **Fichiers** | les fichiers ci-dessus ; SUITE.md : l'historique du portage condensé en 3 lignes (le détail reste ici et dans DECISIONS) |
+| **Fichiers** | les fichiers ci-dessus ; SUITE.md : l'historique du portage condensé en 3 lignes (résumé par phase dans DEC-43 ; journal complet : `git show b6cd5f8:docs/SUITE.md`) |
 | **Règle** | une seule phrase d'histoire (« Go + Fyne jusqu'à la v0.2.9 ; retiré en DEC-49 ; `git show v0.2.9:<chemin>` ») ; les textes utiles restent (fixtures gelées = spécification, `powi(2)`, tableau des décisions) reformulés sans « Go » |
-| **Vérification** | `scripts/check.sh` ; `git grep -n -E "\bGo\b\|Fyne"` sur ces fichiers ne rend que la phrase d'histoire et les fixtures citées comme telles |
+| **Vérification** | `scripts/check.sh` ; `git grep -n -E "\bGo\b\|Fyne"` sur ces fichiers ne rend que l'unique phrase d'histoire de chaque fichier touché, les fixtures citées comme telles et les deux commentaires de `build_support.rs` et `main.slint` |
 
 ### [2026-10-21] Le workspace Cargo remonte de `rust/` à la racine (plan « traces de Go », PR 1)
 

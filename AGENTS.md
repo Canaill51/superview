@@ -55,7 +55,7 @@ with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three 
   on the platform's libm and would break the golden fingerprints
   (`superview-core/tests/pgm_golden.rs`).
 - The parity fixtures under `superview-core/tests/fixtures/` (`parity/*.json`, `ffprobe/`) were
-  recorded with the Go version (v0.2.9) and are now frozen: they are the specification, not output to
+  recorded by the Go oracle (`internal/common/parity_test.go`, #101, on code identical to v0.2.9; read it with `git show 915dc2c^:<path>`) and are now frozen: they are the specification, not output to
   regenerate. A failing parity test means the Rust changed, not that the fixture is stale.
 - `superview-harness` is a test bench, not a CLI, and is never shipped (DEC-44). It stays for the tests that run a real conversion in a
   separate process and send it SIGINT/SIGTERM (`superview-harness/tests/harness.rs`).
@@ -81,9 +81,9 @@ than it looks.
 | On Linux, the file pickers treat a `None` returned in under 300 ms as "no picker could open" and fall back to zenity, kdialog, then a text field; on Windows there is no fallback, rfd's native box alone, and `None` is a cancel | rfd cannot tell a cancellation from a missing portal, and a human does not cancel in 300 ms. The clock is injected; never add a `sleep` to a test (DEC-43, phase 6.4). |
 | The Diagnostic shows `[OK]` / `[FAIL]` in its text form, and an input or output path that is not UTF-8 is refused | Slint's software renderer draws no colour emoji; `check_video` takes a `&str`. Both are accepted costs, not oversights (DEC-43). |
 | The source is read with `-f mov` by ffprobe and ffmpeg, so `encode_args.json` (frozen) is compared with `-f mov` added before its first `-i`, not as recorded; a non-MP4 file is refused whatever its extension | A text file named `.mp4` was read by ffmpeg as a concat script and led to other local files. The gap with the recorded fixture is written in `with_forced_demuxer`, not hidden in a regenerated fixture (DEC-52). |
-| A duration of `inf` or `nan` is refused although the recorded behaviour (`<= 0`) let it through | `inf` demanded 8 TB of free space and `NaN` zeroed the disk check (DEC-53). |
+| A duration of `inf` or `nan` is refused although the `<= 0` check inherited from v0.2.9 let it through | `inf` demanded 8 TB of free space and `NaN` zeroed the disk check (DEC-53). |
 | Preferences live in a new `preferences.json`; nothing is read from the old Fyne preferences | Their format was never a contract, and Fyne is gone (DEC-46). |
-| The YAML is read with `serde-saphyr`, not `serde_yaml_ng`; removed keys are not migrated and `SUPERVIEW_*` variables other than `SUPERVIEW_FFMPEG_DIR` are not read | `serde_yaml_ng` rests on `unsafe-libyaml` (RUSTSEC-2024-0449). The migration and the variables belonged to the program before v0.2.9 (DEC-43). |
+| The YAML is read with `serde-saphyr`, not `serde_yaml_ng`; removed keys are not migrated and `SUPERVIEW_*` variables other than `SUPERVIEW_FFMPEG_DIR` are not read | `serde_yaml_ng` rests on `unsafe-libyaml` (RUSTSEC-2024-0449). The migration and the variables belonged to the Go program, v0.2.9 and earlier (DEC-43). |
 | The coverage floor is 50 % of lines although the measured figure is about 95 % | It is a floor against collapse, raised when someone decides to, not when a number allows it (DEC-47). |
 
 ## Contracts you must not break
