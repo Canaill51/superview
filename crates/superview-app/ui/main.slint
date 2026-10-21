@@ -2,7 +2,7 @@
 // properties it is given and reports clicks through callbacks, and `app.rs` owns every decision (DEC-43).
 import { Palette, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { AppButton, BarState, Card, ProgressBar, SegmentedControl, Switch } from "components.slint";
+import { AppButton, BarState, Card, Pill, ProgressBar, SegmentedControl, Switch } from "components.slint";
 
 // The colours, for the Rust side to read in tests.
 export { BarState, Theme }
@@ -175,13 +175,13 @@ export component MainWindow inherits Window {
     title: window-title;
     // The window icon, next to this file (`build.rs` embeds it in the binary).
     icon: @image-url("Icon.png");
-    // Fixed size (DEC-59): minimum and maximum are the same, so the window cannot be resized.
+    // Fixed size (DEC-61): minimum and maximum are the same, so the window cannot be resized.
     min-width: 1000px;
     max-width: 1000px;
-    min-height: 520px;
-    max-height: 520px;
+    min-height: 600px;
+    max-height: 600px;
 
-    background: Theme.background;
+    background: Theme.panel;
     // The theme the user chose (DEC-57), not the desktop's: the global and Slint's own widgets follow it.
     init => { root.apply-theme(); }
     changed theme => { root.apply-theme(); }
@@ -250,6 +250,12 @@ export component MainWindow inherits Window {
     in-out property <string> path-entry-text;
     in property <string> path-entry-error;
 
+    // What the state pill says.
+    out property <string> state-label: root.bar-state == BarState.running ? "Converting"
+        : root.bar-state == BarState.done ? "Completed"
+        : root.bar-state == BarState.stopped ? "Stopped"
+        : "Ready";
+
     // False while a popup is open: the controls behind it cannot be used, by mouse or key.
     private property <bool> free: root.popup == Popup.none;
 
@@ -280,25 +286,16 @@ export component MainWindow inherits Window {
     callback path-entry-cancel();
 
     VerticalLayout {
-        padding: 12px;
-        spacing: 10px;
-        alignment: LayoutAlignment.start;
-
+        // The header: what the program does, and the Theme menu. The name is in the title bar.
         HorizontalLayout {
-            spacing: 10px;
-            alignment: LayoutAlignment.start;
-            Text {
-                text: "Superview";
-                font-size: 22px;
-                font-weight: 700;
-                vertical-alignment: center;
-                horizontal-stretch: 0;
-            }
+            padding: 8px;
+            padding-left: 20px;
+            padding-right: 20px;
+            spacing: 12px;
             Text {
                 text: "Convert 4:3 to 16:9 in one workflow";
-                horizontal-alignment: left;
-                vertical-alignment: center;
                 color: Theme.text-muted;
+                vertical-alignment: center;
             }
             Rectangle { horizontal-stretch: 1; }
             Text { text: "Theme"; vertical-alignment: center; }
@@ -312,62 +309,30 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Centred: the layout packs the buttons together and centres the pack.
         HorizontalLayout {
-            alignment: center;
-            spacing: 8px;
-            AppButton {
-                text: "Choose input file";
-                enabled: root.free && root.open-enabled;
-                clicked => { root.choose-input(); }
-            }
-            AppButton {
-                text: "Choose output file";
-                enabled: root.free && root.output-enabled;
-                clicked => { root.choose-output(); }
-            }
-            AppButton {
-                text: "Start transformation";
-                primary: true;
-                enabled: root.free && root.start-enabled;
-                clicked => { root.start(); }
-            }
-            AppButton {
-                text: "Cancel";
-                enabled: root.free && root.cancel-enabled;
-                clicked => { root.cancel(); }
-            }
-            AppButton {
-                text: "Diagnostic";
-                enabled: root.free && root.diagnostic-enabled;
-                clicked => { root.diagnostic(); }
-            }
-            AppButton {
-                text: "Quit";
-                enabled: root.free;
-                clicked => { root.quit(); }
-            }
-        }
-
-        HorizontalLayout {
-            spacing: 14px;
-
-            // The file: the input in a card (a click on it chooses the input, like the button
-            // above), then the output.
+            // The file: the input in a card, then the output in a field.
             VerticalLayout {
                 width: 600px;
+                padding: 14px;
+                padding-left: 20px;
+                padding-right: 20px;
                 spacing: 10px;
                 alignment: LayoutAlignment.start;
 
-                Card {
-                    height: 176px;
-                    // The frame of the video's picture, which fills it once decoded.
+                Text { text: "Input file"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
+                Rectangle {
+                    height: 96px;
+                    border-radius: 12px;
+                    border-width: 1.5px;
+                    border-color: Theme.accent;
+                    background: Theme.accent.with-alpha(0.08);
+                    // The video's picture: 96x72 (4:3), which fills it once decoded.
                     Rectangle {
-                        x: 16px;
-                        y: 16px;
-                        width: 192px;
-                        height: 144px;
-                        border-radius: 6px;
+                        x: 12px;
+                        y: 12px;
+                        width: 96px;
+                        height: 72px;
+                        border-radius: 8px;
                         background: Theme.surface;
                         clip: true;
                         if root.has-thumbnail: Image {
@@ -378,85 +343,157 @@ export component MainWindow inherits Window {
                         }
                     }
                     VerticalLayout {
-                        x: 224px;
-                        y: 16px;
-                        width: parent.width - 240px;
-                        spacing: 6px;
+                        x: 122px;
+                        y: 12px;
+                        width: parent.width - 122px - 190px;
+                        spacing: 4px;
                         alignment: LayoutAlignment.start;
-                        Text { text: "Input file"; color: Theme.text-muted; }
                         Text {
                             text: root.input-name;
-                            font-size: 16px;
+                            font-size: 15px;
                             font-weight: 600;
                             overflow: elide;
                         }
                         Text { text: root.input-specs; color: Theme.text-muted; overflow: elide; }
                     }
-                    TouchArea {
+                    AppButton {
+                        x: parent.width - self.width - 12px;
+                        y: (parent.height - self.height) / 2;
+                        width: 160px;
+                        height: 34px;
+                        text: "Choose input file";
                         enabled: root.free && root.open-enabled;
-                        mouse-cursor: self.enabled ? pointer : default;
-                        accessible-role: button;
-                        accessible-label: "Input video";
-                        accessible-enabled: root.free && root.open-enabled;
-                        accessible-action-default => {
-                            if (root.free && root.open-enabled) {
-                                root.choose-input();
-                            }
-                        }
                         clicked => { root.choose-input(); }
                     }
                 }
+
+                Text { text: "Output file"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
                 HorizontalLayout {
-                    spacing: 12px;
-                    alignment: LayoutAlignment.start;
-                    Text { text: "Output file"; color: Theme.text-muted; vertical-alignment: center; }
-                    Text { text: root.output-name; vertical-alignment: center; overflow: elide; }
+                    spacing: 10px;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 34px;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        background: Theme.background;
+                        Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: root.output-name;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    AppButton {
+                        text: "Choose output file";
+                        enabled: root.free && root.output-enabled;
+                        clicked => { root.choose-output(); }
+                    }
                 }
             }
 
-            // The settings, the hardware line, then the conversion.
-            VerticalLayout {
-                spacing: 8px;
-                alignment: LayoutAlignment.start;
-
-                Text { text: "Quality profile"; color: Theme.text-muted; }
-                SegmentedControl {
-                    model: root.quality-profiles;
-                    current <=> root.quality;
-                    enabled: root.free && root.quality-enabled;
-                    selected(value) => { root.quality-changed(value); }
+            // The settings and the conversion, on a darker ground with a line to its left.
+            Rectangle {
+                width: 400px;
+                background: Theme.background;
+                Rectangle {
+                    x: 0px;
+                    width: 1px;
+                    background: Theme.border;
                 }
-                Text { text: "Video codec"; color: Theme.text-muted; }
-                HorizontalLayout {
-                    alignment: LayoutAlignment.start;
+                VerticalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding: 12px;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    spacing: 6px;
+
+                    Text { text: "Quality profile"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
+                    SegmentedControl {
+                        model: root.quality-profiles;
+                        current <=> root.quality;
+                        enabled: root.free && root.quality-enabled;
+                        selected(value) => { root.quality-changed(value); }
+                    }
+                    Text { text: "Video codec"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
                     ComboBox {
-                        width: 300px;
                         model: root.encoder-options;
                         current-value <=> root.encoder-selected;
                         enabled: root.free && root.encoder-enabled;
                         selected(value) => { root.encoder-changed(value); }
                     }
-                }
-                Text { text: "Input format"; color: Theme.text-muted; }
-                Switch {
-                    text: "Source already stretched to 16:9 (un-squeeze)";
-                    checked <=> root.squeeze;
-                    enabled: root.free && root.squeeze-enabled;
-                    toggled(on) => { root.squeeze-toggled(on); }
-                }
-                Text { text: root.hardware; wrap: word-wrap; }
+                    Text { text: "Input format"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
+                    Switch {
+                        text: "Source already stretched to 16:9 (un-squeeze)";
+                        checked <=> root.squeeze;
+                        enabled: root.free && root.squeeze-enabled;
+                        toggled(on) => { root.squeeze-toggled(on); }
+                    }
+                    // At most three lines (a refusal from the probe can be long; the Diagnostic has it whole).
+                    Text {
+                        text: root.hardware;
+                        color: Theme.text-muted;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                        overflow: elide;
+                        // Explicit: a wrapped text's own minimum height would win over a maximum.
+                        height: min(self.preferred-height, 48px);
+                    }
 
-                // The conversion: the bar, then what is going on and what it gave.
-                Card {
-                    VerticalLayout {
-                        padding: 10px;
-                        spacing: 6px;
-                        alignment: LayoutAlignment.start;
+                    Rectangle { vertical-stretch: 1; }
 
-                        Text { text: "Progress"; }
-                        bar := ProgressBar { progress: root.progress; state: root.bar-state; }
-                        Text { text: root.status; font-weight: 700; wrap: word-wrap; }
-                        Text { text: root.results; wrap: word-wrap; }
+                    // The conversion: the state, the figure and the bar, what is going on and what
+                    // it gave, then Start and Cancel.
+                    Card {
+                        height: conversion.preferred-height;
+                        conversion := VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: LayoutAlignment.start;
+
+                            Pill { text: root.state-label; tone: bar.fill; }
+                            Text {
+                                text: "\{Math.round(root.progress * 100)} %";
+                                font-size: 32px;
+                                font-weight: 800;
+                            }
+                            bar := ProgressBar { progress: root.progress; state: root.bar-state; }
+                            Text { text: root.status; font-weight: 700; wrap: word-wrap; }
+                            Text { text: root.results; color: Theme.text-muted; font-size: 12px; wrap: word-wrap; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                AppButton {
+                                    horizontal-stretch: 1;
+                                    text: "Start transformation";
+                                    primary: true;
+                                    enabled: root.free && root.start-enabled;
+                                    clicked => { root.start(); }
+                                }
+                                AppButton {
+                                    text: "Cancel";
+                                    enabled: root.free && root.cancel-enabled;
+                                    clicked => { root.cancel(); }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        AppButton {
+                            text: "Diagnostic";
+                            enabled: root.free && root.diagnostic-enabled;
+                            clicked => { root.diagnostic(); }
+                        }
+                        AppButton {
+                            text: "Quit";
+                            enabled: root.free;
+                            clicked => { root.quit(); }
+                        }
                     }
                 }
             }

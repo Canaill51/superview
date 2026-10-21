@@ -1,11 +1,11 @@
 //! Scenarios on the real window under the testing backend: the labels it shows, where its
-//! toolbar sits, what it starts with, that every button reports its click, and the popups.
+//! buttons sit, what it starts with, that every button reports its click, and the popups.
 //! Plain functions called from the one `#[test]` in `app_tests.rs`: the backend can be initialised
 //! only once per process.
 //!
 //! The testing backend does not measure the real font, so nothing here asserts that a label
 //! fits its button, nor that a long path wraps (the text sizes are not real, `word-wrap` passed
-//! the same test as `char-wrap`); a button pushed out of the frame is what the toolbar test sees.
+//! the same test as `char-wrap`); a button pushed out of the frame is what the button-position test sees.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -17,13 +17,11 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind, Theme};
 
-/// The window's size (fixed, DEC-59).
+/// The window's size (fixed, DEC-61).
 const WINDOW_WIDTH: f32 = 1000.0;
-const WINDOW_HEIGHT: f32 = 520.0;
-/// The padding around the window's content (`padding` in `main.slint`).
-const PADDING: f32 = 12.0;
+const WINDOW_HEIGHT: f32 = 600.0;
 
-const TOOLBAR: [&str; 6] = [
+const BUTTONS: [&str; 6] = [
     "Choose input file",
     "Choose output file",
     "Start transformation",
@@ -122,9 +120,7 @@ fn counter() -> (Rc<Cell<u32>>, Bump) {
 pub fn run() {
     every_label_is_present();
     the_window_has_the_designed_size();
-    the_toolbar_stays_in_the_frame();
-    the_toolbar_is_centred();
-    the_settings_and_the_conversion_sit_to_the_right_of_the_file();
+    the_buttons_and_the_settings_sit_where_the_mockup_puts_them();
     the_window_starts_in_its_initial_state();
     every_button_reports_its_click();
     the_form_follows_the_host_after_the_user_chose();
@@ -134,7 +130,7 @@ pub fn run() {
     the_theme_menu_switches_the_colours();
     an_active_button_answers_the_first_mouse_click();
     the_bar_changes_colour_with_its_state();
-    the_file_card_chooses_the_input();
+    the_pill_names_the_state();
     a_long_error_scrolls_and_keeps_its_button_in_the_window();
     a_locked_control_ignores_the_accessible_action();
     the_right_column_fits_with_the_longest_texts();
@@ -143,7 +139,6 @@ pub fn run() {
 fn every_label_is_present() {
     let window = shown();
     for label in [
-        "Superview",
         "Convert 4:3 to 16:9 in one workflow",
         "Choose input file",
         "Choose output file",
@@ -182,50 +177,15 @@ fn the_window_has_the_designed_size() {
     );
 }
 
-/// No button leaves the window.
-fn the_toolbar_stays_in_the_frame() {
-    let window = shown();
-    for label in TOOLBAR {
-        let button = only(&window, label);
-        let (pos, size) = (button.absolute_position(), button.size());
-        assert!(
-            pos.x >= 0.0,
-            "{label:?} starts at x={}, outside the window",
-            pos.x
-        );
-        assert!(
-            pos.x + size.width <= WINDOW_WIDTH,
-            "{label:?} ends at x={}, past the {WINDOW_WIDTH}px window",
-            pos.x + size.width
-        );
-    }
-}
-
-/// The row sits in the middle: equal margins within a pixel, and not flush left.
-fn the_toolbar_is_centred() {
-    let window = shown();
-    let first = only(&window, TOOLBAR[0]);
-    let last = only(&window, TOOLBAR[5]);
-    let left = first.absolute_position().x;
-    let row_end = last.absolute_position().x + last.size().width;
-    let right = WINDOW_WIDTH - row_end;
-    assert!(
-        left > PADDING,
-        "the row starts at x={left} in a {WINDOW_WIDTH}px window: it is flush left"
-    );
-    assert!(
-        (left - right).abs() <= 1.0,
-        "margins are {left}px left and {right}px right: the toolbar is off-centre"
-    );
-}
-
-/// The file is on the left; on the right the settings come in order (quality, codec, input
-/// format, hardware), then the conversion with the bar first and Status and Results under it.
-fn the_settings_and_the_conversion_sit_to_the_right_of_the_file() {
+/// The buttons are where the mockup puts them, none leaves the window: the input button in the
+/// file card and the output button by the output field, on the left; Start and Cancel in the
+/// conversion card under Status and Results, then Diagnostic and Quit at the foot of the right
+/// column. On the right the settings come in order (quality, codec, input format, hardware),
+/// then the conversion with the bar first and Status and Results under it.
+fn the_buttons_and_the_settings_sit_where_the_mockup_puts_them() {
     let window = shown();
     let x = |e: &ElementHandle| e.absolute_position().x;
     let y = |e: &ElementHandle| e.absolute_position().y;
-    let file = only(&window, "Input video");
     let quality = only(&window, "Quality profile");
     let codec = only(&window, "Video codec");
     let input_format = only(&window, "Input format");
@@ -236,7 +196,7 @@ fn the_settings_and_the_conversion_sit_to_the_right_of_the_file() {
 
     let column = x(&quality);
     assert!(
-        x(&file) + file.size().width <= column,
+        x(&only(&window, BUTTONS[0])) + only(&window, BUTTONS[0]).size().width <= column,
         "the file card must be in the left column, the settings in the right one"
     );
     for (name, element) in [
@@ -248,7 +208,7 @@ fn the_settings_and_the_conversion_sit_to_the_right_of_the_file() {
         ("Results", &results),
     ] {
         assert!(
-            (x(element) - column).abs() <= 11.0,
+            (x(element) - column).abs() <= 16.0,
             "{name} is not in the settings column (x={}, column x={column})",
             x(element)
         );
@@ -277,6 +237,47 @@ fn the_settings_and_the_conversion_sit_to_the_right_of_the_file() {
     assert!(
         x(&fast) < x(&balanced),
         "the quality segments are out of order"
+    );
+
+    for label in BUTTONS {
+        let button = only(&window, label);
+        let (pos, size) = (button.absolute_position(), button.size());
+        assert!(
+            pos.x >= 0.0 && pos.x + size.width <= WINDOW_WIDTH,
+            "{label:?} is outside the window (x={}..{})",
+            pos.x,
+            pos.x + size.width
+        );
+        assert!(
+            pos.y >= 0.0 && pos.y + size.height <= WINDOW_HEIGHT,
+            "{label:?} is outside the window (y={}..{})",
+            pos.y,
+            pos.y + size.height
+        );
+    }
+    let button = |label: &str| only(&window, label);
+    let (input, output) = (button("Choose input file"), button("Choose output file"));
+    let (start, cancel) = (button("Start transformation"), button("Cancel"));
+    let (diagnostic, quit) = (button("Diagnostic"), button("Quit"));
+    assert!(
+        x(&output) + output.size().width <= column,
+        "Choose output file is not on the left"
+    );
+    assert!(
+        y(&input) < y(&output),
+        "the input button must be above the output one"
+    );
+    assert!(
+        y(&start) > y(&results) && x(&start) >= column,
+        "Start must be in the conversion card, under Results"
+    );
+    assert!(
+        (y(&start) - y(&cancel)).abs() <= 1.0 && x(&cancel) > x(&start),
+        "Cancel must sit beside Start, to its right"
+    );
+    assert!(
+        y(&diagnostic) > y(&start) && x(&diagnostic) >= column && x(&quit) > x(&diagnostic),
+        "Diagnostic and Quit must close the right column, in that order"
     );
 }
 
@@ -352,7 +353,7 @@ fn every_button_reports_its_click() {
     window.on_cancel(count(3));
     window.on_diagnostic(count(4));
     window.on_quit(count(5));
-    for (index, label) in TOOLBAR.iter().enumerate() {
+    for (index, label) in BUTTONS.iter().enumerate() {
         only(&window, label).invoke_accessible_default_action();
         let mut expected = [0_u32; 6];
         expected[index] = 1;
@@ -515,17 +516,21 @@ fn a_locked_control_ignores_the_accessible_action() {
 /// not measure the real font, so this catches a column that grew, not a font that is wider.
 fn the_right_column_fits_with_the_longest_texts() {
     let window = shown();
-    let long = "x".repeat(200);
-    window.set_hardware(format!("Hardware: {long}").into());
+    // The longest refusal a probe line can hold: the prefix, then two reasons of the budget's
+    // length (the VAAPI "constant quality only" case, DEC-48), with spaces so that it wraps.
+    let reason = "word ".repeat(superview_core::probe::PROBE_REASON_BUDGET / 5);
+    let hardware =
+        format!("Hardware: planned h264_vaapi -- {reason}; in constant quality: {reason}");
+    window.set_hardware(hardware.into());
     window.set_status("Status: Starting the encoder... (no progress until the first frame)".into());
-    window
-        .set_results(format!("Results: in=100.0 MB | out=150.0 MB | total=01:00 | {long}").into());
-    let results = find(&window, &window.get_results())
-        .pop()
-        .expect("the results line");
-    let bottom = results.absolute_position().y + results.size().height;
+    window.set_results(
+        "Results: in=1122.9 MB | out=1291.5 MB (115.0%) | total=1m18s | encode=1m12s".into(),
+    );
+    // The last thing in the column: Diagnostic and Quit.
+    let quit = only(&window, "Quit");
+    let bottom = quit.absolute_position().y + quit.size().height;
     assert!(
-        bottom <= WINDOW_HEIGHT - PADDING,
+        bottom <= WINDOW_HEIGHT - 8.0,
         "the right column ends at y={bottom}, past the {WINDOW_HEIGHT}px window"
     );
 }
@@ -546,28 +551,21 @@ fn a_long_error_scrolls_and_keeps_its_button_in_the_window() {
     window.set_popup(Popup::None);
 }
 
-/// The file card is a second way to choose the input, under a label of its own so that the
-/// button's label stays unique; it is locked like the button.
-fn the_file_card_chooses_the_input() {
+/// The capsule says a word for each state of the bar; a stopped conversion, cancelled or failed,
+/// reads "Stopped" (the Status line says which).
+fn the_pill_names_the_state() {
+    use super::BarState;
     let window = shown();
-    let (chosen, bump) = counter();
-    window.on_choose_input(bump());
-    let card = only(&window, "Input video");
-    let clicked = card.clone();
-    drive(async move { clicked.single_click(PointerEventButton::Left).await });
-    assert_eq!(
-        chosen.get(),
-        1,
-        "a click on the file card did not choose the input"
-    );
-    window.set_open_enabled(false);
-    let clicked = card.clone();
-    drive(async move { clicked.single_click(PointerEventButton::Left).await });
-    assert_eq!(
-        chosen.get(),
-        1,
-        "the file card chose the input while it was locked"
-    );
+    for (state, word) in [
+        (BarState::Idle, "Ready"),
+        (BarState::Running, "Converting"),
+        (BarState::Done, "Completed"),
+        (BarState::Stopped, "Stopped"),
+    ] {
+        window.set_bar_state(state);
+        assert_eq!(window.get_state_label(), word);
+        assert!(is_shown(&window, word), "{word:?} is not on screen");
+    }
 }
 
 /// A press on an enabled button is a click the first time: a focus scope over the button took
@@ -938,7 +936,7 @@ fn the_popups_open_close_and_say_what_they_should() {
     the_diagnostic_list_draws_its_icons_and_switches_to_text(&window);
 
     // The text field: the title follows the file asked for, the reason shows only when there
-    // is one, and both buttons report. "Cancel" also names the toolbar's (greyed out).
+    // is one, and both buttons report. "Cancel" also names the other one (greyed out).
     check_popup(
         &window,
         Popup::PathEntry,
@@ -1009,7 +1007,6 @@ fn a_popup_blocks_the_window_behind_it() {
         SQUEEZE,
         "Fast",
         "Balanced",
-        "Input video",
     ];
     window.set_cancel_enabled(true);
     window.set_popup(Popup::Done);

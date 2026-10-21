@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] La fenêtre suit la maquette cyan validée (DEC-61, refonte de l'interface, PR d'alignement)
+
+| | |
+| --- | --- |
+| **Constat** | à l'essai, l'utilisateur voit une fenêtre différente de la maquette : barre de six boutons en haut, titre en double, carte de conversion sans pastille ni pourcentage, colonne droite de même fond que la gauche |
+| **Cause** | le plan de la refonte avait gardé la barre de boutons « en haut, centrée » sans la comparer à la maquette |
+| **Fichiers** | `ui/main.slint` (disposition), `ui/components.slint` (`Pill`, fond des boutons, étiquette de la barre), `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-61) |
+| **Règle** | avant d'écrire la disposition d'une maquette validée, relire la maquette elle-même et pas le plan qui la résume ; une remarque de l'utilisateur sur l'écart se traite par le texte de la maquette |
+| **Relecture** | la ligne Hardware est plafonnée à trois lignes (`height: min(preferred, 48px)` : un `max-height` seul perdait contre la hauteur minimale du texte replié) et le test prend le pire cas réel (préfixe + deux raisons de `PROBE_REASON_BUDGET`) ; bouton désactivé sans fond ; texte de la pastille testé ; vocabulaire « toolbar » retiré des tests |
+| **Vérification** | `the_buttons_and_the_settings_sit_where_the_mockup_puts_them` (place de chaque bouton) et `the_right_column_fits_with_the_longest_texts` (rouge à 560 puis 600 px : mesuré) ; captures Xvfb en Dark et en Light ; essai à la main par l'utilisateur avant la PR ; `scripts/check.sh` |
+
 ### [2026-10-21] Vignette et ligne de spécifications du fichier d'entrée (DEC-60, refonte de l'interface, PR 5)
 
 | | |
