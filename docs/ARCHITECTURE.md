@@ -43,7 +43,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 ### `superview-app`
 | Fichier | Rôle |
 |---------|------|
-| `ui/main.slint` | la fenêtre (980×470, taille fixe, DEC-54), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
+| `ui/main.slint` | la fenêtre (860×332, taille fixe, DEC-56 : réglages à gauche, panneau de conversion à droite), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
 | `state.rs`, `format.rs`, `report.rs`, `prefs.rs` | `AppState` + `ViewModel` ; textes et règles pures ; le rapport du Diagnostic lu ligne à ligne (aucun texte perdu) ; préférences JSON (DEC-46) |
 | `app.rs` | la colle : callbacks, fils de travail, popups en file ; tout widget touché par `upgrade_in_event_loop` |
 | `engine.rs`, `host.rs` | ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; le bureau derrière `Host` (navigateur sans shell, fin de la boucle) |
