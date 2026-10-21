@@ -1,24 +1,21 @@
-//! The memory guard: what a software encode is measured to need, and the refusal. Port of
-//! Go's `internal/common/memory.go` (removed in phase 8; last release with it: v0.2.9), plus the real reading of `health.go`
-//! (`availableMemoryBytes`, `cgroupMemoryLeft`, `parseMemAvailable`,
-//! `formatAvailableMemory`).
+//! The memory guard: what a software encode is measured to need, and the refusal, plus the
+//! real reading of the available memory (cgroup limit, `/proc/meminfo`).
 //!
 //! `tests/fixtures/parity/memory.json` pins the estimate over ~1000 cases
-//! (`tests/parity_memory.rs`); the refusal text is Go's, word for word.
+//! (`tests/parity_memory.rs`); the refusal text is v0.2.9's, word for word.
 //!
-//! Deliberate differences from the Go code:
-//! - The reading is a parameter of the checks (`available: impl Fn() -> Option<u64>`),
-//!   where Go swaps the package variable `readAvailableMemory`. [`available_memory_bytes`]
-//!   is the real one; [`available_memory_bytes_from`] takes the three paths it reads, as
-//!   the Go test does by overwriting the path variables.
+//! Design notes:
+//! - The reading is a parameter of the checks (`available: impl Fn() -> Option<u64>`).
+//!   [`available_memory_bytes`] is the real one; [`available_memory_bytes_from`] takes the
+//!   three paths it reads, so a test can point them at files of its own.
 //! - On Windows [`available_memory_bytes`] is `None` without looking: there is no
-//!   `/proc/meminfo`, which is also what Go ends up with.
-//! - The sizes are `i64` for Go's `int`; products saturate where Go wraps.
+//!   `/proc/meminfo`.
+//! - The sizes are `i64`; products saturate rather than wrap.
 //! - `warn` goes through `log::warn!`, the attributes becoming `key=value` text (same
 //!   convention as `hardware.rs`).
-//! - `str::parse::<u64>` accepts a leading `+` where Go's `ParseUint` refuses it, in
-//!   `meminfo` and in the cgroup files. The kernel never writes one.
-//! - Left out: `checkMemoryHealth`, the Diagnostic button's own memory line.
+//! - `str::parse::<u64>` accepts a leading `+`, in `meminfo` and in the cgroup files. The
+//!   kernel never writes one.
+//! - The Diagnostic button's own memory line is not here.
 
 use std::path::{Path, PathBuf};
 

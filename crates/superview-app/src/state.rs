@@ -1,12 +1,10 @@
 //! The state of the window, with no dependency on Slint: what the user has chosen, whether a
 //! conversion runs, and the view of all that (`ViewModel`) that the window copies into its
-//! properties. Port of Go's `appState` (`cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9)), method for method; the
-//! Go test that guarded each transition is named beside its Rust test.
+//! properties.
 //!
-//! What differs from Go, on purpose:
+//! Design choices:
 //!
-//! * The widgets Go drives are the fields of [`ViewModel`]; a test reads the view as Go's tests
-//!   read `widget.Label.Text`.
+//! * The widgets are driven through the fields of [`ViewModel`]; a test reads the view there.
 //! * Nothing here spawns a thread or opens a dialog. The video check is a closure the caller
 //!   passes; the background hardware verification is a hook ([`AppState::set_verify_hook`]);
 //!   the dialogs are described by what [`AppState::apply_chosen_input`] and
@@ -41,7 +39,7 @@ use crate::prefs::{self, Preferences};
 /// its own and does not watch the cancel flag; ffmpeg itself is killed within milliseconds.
 pub const SHUTDOWN_GRACE: Duration = Duration::from_secs(20);
 
-/// What the hardware line says when a verification could not be completed. Go left the previous
+/// What the hardware line says when a verification could not be completed. v0.2.9 left the previous
 /// line in place, which described a state the window had moved on from.
 pub const HARDWARE_UNVERIFIED: &str = "Hardware: could not verify the encoder on this machine";
 
@@ -68,7 +66,7 @@ const CONTROL_COUNT: usize = 6;
 /// Every control that changes what the next conversion will do, or that would run a GPU probe
 /// beside a hardware encode (Diagnostic probes every hardware encoder: two probes on one GPU
 /// beside a running encode can make a working encoder fail, E-14). Quit is deliberately not in
-/// it: it cancels safely, and a user must always be able to leave. Go: `windowControls.locked`.
+/// it: it cancels safely, and a user must always be able to leave.
 pub fn locked() -> &'static [Control] {
     &[
         Control::Open,
@@ -81,8 +79,7 @@ pub fn locked() -> &'static [Control] {
 }
 
 /// Every control that has nothing to do without ffmpeg: [`locked`] minus Diagnostic, and the
-/// difference is the point, since Diagnostic is the tool that reports "ffmpeg not found". Go:
-/// `windowControls.requiresFFmpeg`.
+/// difference is the point, since Diagnostic is the tool that reports "ffmpeg not found".
 pub fn requires_ffmpeg() -> &'static [Control] {
     &[
         Control::Open,
@@ -100,7 +97,7 @@ pub struct ViewModel {
     pub status: String,
     pub results: String,
     pub hardware: String,
-    /// File names only (Go's `filepath.Base`); the full paths stay in the state.
+    /// File names only; the full paths stay in the state.
     pub input_name: String,
     pub output_name: String,
     pub start_enabled: bool,
@@ -149,7 +146,7 @@ impl ViewModel {
         self.enabled[control as usize] && !self.picking[control as usize]
     }
 
-    /// Applies one decision to a whole group (Go: `encodingControls.setEnabled`). Round-tripping
+    /// Applies one decision to a whole group. Round-tripping
     /// it (false then true) leaves every control as it started, which is the property P-01
     /// broke.
     pub fn set_enabled(&mut self, controls: &[Control], enabled: bool) {
@@ -163,8 +160,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Released once by the encoding thread when it has nothing left to unwind (Go's `done`
-/// channel). An exit waits on it.
+/// Released once by the encoding thread when it has nothing left to unwind. An exit waits on it.
 #[derive(Clone, Default)]
 pub struct Done(Arc<(Mutex<bool>, Condvar)>);
 
@@ -669,9 +665,8 @@ impl AppState {
     /// Rewrites the line describing the path the next conversion will take.
     ///
     /// Any refresh invalidates a verification still in flight: the answer it carries was
-    /// computed for the state this call has just replaced. (Go moved the generation on only
-    /// when it reached the plan; here every refresh does, which can only drop more stale
-    /// answers.)
+    /// computed for the state this call has just replaced. (Every refresh moves the generation on,
+    /// which can only drop more stale answers.)
     pub fn refresh_hardware_status(&mut self) {
         self.hardware_status_gen += 1;
         if !self.ffmpeg_available {
@@ -839,7 +834,7 @@ impl AppState {
 
         // The line is rewritten here, so a verification still in flight is stale. After a
         // success it is the path that encoded; after a failure or a cancellation it is emptied
-        // (Go: the summary after EncodeVideo), not left on a plan nobody ran.
+        // not left on a plan nobody ran.
         self.hardware_status_gen += 1;
         self.view.hardware = match &result {
             Ok(outcome) => outcome.summary.hardware_acceleration.clone(),
@@ -981,7 +976,7 @@ impl AppState {
 }
 
 /// Where the encoding thread sends what the window must show. The window implements it by
-/// posting to its event loop (Go: `fyne.Do`).
+/// posting to its event loop.
 pub trait ProgressSink: Send + Sync {
     /// The bar, as a fraction in 0..1.
     fn bar(&self, fraction: f64);
@@ -989,7 +984,7 @@ pub trait ProgressSink: Send + Sync {
     fn status(&self, text: &str);
 }
 
-/// What the pipeline asks of the window (Go: `GUIHandler`).
+/// What the pipeline asks of the window.
 ///
 /// Every choice it answers for is a plain value captured on the UI thread when the conversion
 /// starts. Reading the codec dropdown from the encoding thread was a data race, and an encoder

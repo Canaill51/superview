@@ -1,4 +1,4 @@
-//! Configuration, mirroring Go's `internal/common/config.go` (removed in phase 8; last release with it: v0.2.9).
+//! Configuration: the YAML file, its defaults and its validation.
 //!
 //! # YAML crate: `serde-saphyr`
 //!
@@ -8,9 +8,9 @@
 //! RustSec database has no entry for `serde-saphyr`, `granit-parser` or `dunce`
 //! (checked 2026-10-15). `serde-saphyr` 2.0.0 is safe Rust, MIT OR Apache-2.0,
 //! and refuses unknown fields (through serde's `deny_unknown_fields`, with an
-//! error naming the key) and duplicate keys, as Go's strict decoder did.
+//! error naming the key) and duplicate keys.
 //!
-//! # What the port leaves out, on purpose
+//! # What is left out, on purpose
 //!
 //! * The `SUPERVIEW_*` variables (`SUPERVIEW_FFMPEG_DIR`, the only one kept, is
 //!   read by the tool lookup, not here). Hence no `SUPERVIEW_CONFIG` either.
@@ -19,15 +19,15 @@
 //!   key, like any other unknown key.
 //! * `configOrDefault`: Rust callers take a `Config` by value or reference.
 //!
-//! # Differences from Go's strict decoder, on purpose
+//! # Differences from v0.2.9's strict decoder (yaml.v3), on purpose
 //!
 //! * A quoted number (`min_bitrate: "5"`) is accepted; yaml.v3 refused it.
-//! * Several documents in one file (`---`) are refused; Go read the first only.
+//! * Several documents in one file (`---`) are refused; v0.2.9 read the first only.
 //! * A decimal in an integer field (`1e6`, `1.5`) is refused; yaml.v3 took
 //!   `1e6` and silently truncated `1.5` to 1, which was a defect.
 //!
 //! The file is decoded by hand (UTF-8, UTF-8 with BOM, UTF-16 LE/BE with BOM,
-//! as yaml.v3 does) rather than through `serde_saphyr::from_reader`.
+//! as yaml.v3 did) rather than through `serde_saphyr::from_reader`.
 //!
 //! The environment is never read directly: lookups take it as a parameter, so
 //! no test needs `std::env::set_var` (unsafe in edition 2024, and tests run in
@@ -304,7 +304,7 @@ impl fmt::Display for Config {
     }
 }
 
-/// The per-user configuration directory, as Go's `os.UserConfigDir` finds it
+/// The per-user configuration directory, as found
 /// on Windows (`%AppData%`) and Unix (`$XDG_CONFIG_HOME`, else `$HOME/.config`).
 /// `env` is the environment lookup. `None` when it cannot be worked out.
 pub fn user_config_dir(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
@@ -313,7 +313,7 @@ pub fn user_config_dir(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> 
         return get("AppData").map(PathBuf::from);
     }
     if let Some(xdg) = get("XDG_CONFIG_HOME") {
-        // A relative XDG_CONFIG_HOME is invalid per the spec; Go refuses it.
+        // A relative XDG_CONFIG_HOME is invalid per the spec; it is refused.
         return Path::new(&xdg).is_absolute().then(|| PathBuf::from(xdg));
     }
     get("HOME").map(|home| Path::new(&home).join(".config"))

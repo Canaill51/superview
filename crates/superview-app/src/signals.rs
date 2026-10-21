@@ -4,7 +4,7 @@
 //!
 //! Unlike the harness, the window has something to do besides stopping a conversion: when no
 //! conversion runs, nothing would otherwise notice the signal, so `on_stop` ends the event loop
-//! (Go: Fyne's own SIGINT/SIGTERM handler stops its driver). The conversion, if there is one,
+//! (no toolkit handler does it for us). The conversion, if there is one,
 //! sees the number through the flag and unwinds on its own.
 //!
 //! A signal that arrives before the event loop runs is not lost, as far as this module can

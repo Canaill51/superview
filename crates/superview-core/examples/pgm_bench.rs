@@ -1,5 +1,5 @@
 //! Times the generation of one map pair (not shipped: `cargo run --release --example pgm_bench`).
-//! Compares with Go's `GeneratePGM` (files in the temp dir) at the same sizes.
+//! Measures generation at several sizes (files in the temp dir).
 
 use std::time::Instant;
 

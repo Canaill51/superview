@@ -16,7 +16,6 @@ fn codecs(list: &[&str]) -> Vec<String> {
     list.iter().map(|c| (*c).into()).collect()
 }
 
-// TestLoadConfig_DefaultValues, TestLoadConfig_EmptyPathYieldsDefaults
 #[test]
 fn no_path_yields_the_defaults() {
     let cfg = load_config(None).unwrap();
@@ -31,7 +30,6 @@ fn no_path_yields_the_defaults() {
     assert_eq!((cfg.filter_threads, cfg.encoder_threads), (0, 0));
 }
 
-// TestLoadConfig_NonexistentFile
 #[test]
 fn missing_file_yields_the_defaults() {
     let dir = tempfile::tempdir().unwrap();
@@ -39,7 +37,6 @@ fn missing_file_yields_the_defaults() {
     assert_eq!(cfg, Config::default());
 }
 
-// TestLoadConfig_FromYAML
 #[test]
 fn values_come_from_the_file() {
     let cfg = load_str(
@@ -56,7 +53,7 @@ fn values_come_from_the_file() {
     assert_eq!(cfg.performance_mode, "safe_performance");
 }
 
-// TestLoadConfig_UnknownKeyIsAnError (E-21)
+// E-21
 #[test]
 fn unknown_key_is_an_error_naming_it() {
     let err = load_str("video-preset: slow\n").unwrap_err();
@@ -64,7 +61,7 @@ fn unknown_key_is_an_error_naming_it() {
     assert!(err.to_string().contains("failed to parse config file"));
 }
 
-// TestLoadConfig_AcceptsTheFileReleasesUsedToShip, reversed: the migration
+// The migration
 // of retired keys is gone, so the v0.1.6 keys are unknown keys like others.
 #[test]
 fn retired_keys_are_no_longer_tolerated() {
@@ -74,7 +71,7 @@ fn retired_keys_are_no_longer_tolerated() {
     }
 }
 
-// Beyond the Go tests: what Go's strict decoder also refused.
+// Beyond the basic cases: what a strict decoder also refuses.
 #[test]
 fn duplicate_key_and_wrong_type_are_errors() {
     assert!(load_str("min_bitrate: 1\nmin_bitrate: 2\n").is_err());
@@ -125,7 +122,6 @@ fn null_keeps_the_default() {
     assert_eq!(cfg, Config::default());
 }
 
-// TestLoadConfig_MinAboveMaxIsAnError
 #[test]
 fn min_above_max_is_an_error() {
     let err = load_str("min_bitrate: 10\nmax_bitrate: 5\n").unwrap_err();
@@ -141,15 +137,14 @@ fn min_above_max_is_an_error() {
     assert!(load_str("min_bitrate: 300000000\n").is_err());
 }
 
-// TestLoadConfig_EncoderCodecsAreTrimmed (the env variable is gone; the
-// YAML list gets the same normalisation)
+// The env variable is gone; the
+// YAML list gets the same normalisation.
 #[test]
 fn encoder_codecs_are_trimmed() {
     let cfg = load_str("encoder_codecs: [\"264\", \" 265 \", \"\"]\n").unwrap();
     assert_eq!(cfg.encoder_codecs, codecs(&["264", "265"]));
 }
 
-// TestLoadConfig_EmptyEncoderCodecsFallBackToDefaults
 #[test]
 fn empty_encoder_codecs_fall_back_to_the_defaults() {
     let defaults = codecs(&["264", "265", "hevc"]);
@@ -165,7 +160,6 @@ fn empty_encoder_codecs_fall_back_to_the_defaults() {
     );
 }
 
-// TestLoadConfig_ShippedFileStillLoads
 #[test]
 fn shipped_file_still_loads() {
     let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../superview.yaml");
@@ -177,7 +171,7 @@ fn shipped_file_still_loads() {
     assert_eq!(load_str("").unwrap(), Config::default());
 }
 
-// TestLoadConfig_InvalidPerformanceModeFallsBackToSafe (via the file now)
+// Via the file.
 #[test]
 fn performance_mode_is_normalised() {
     for (written, want) in [
@@ -194,7 +188,7 @@ fn performance_mode_is_normalised() {
     }
 }
 
-// TestLoadConfig_InvalidFfmpegTuningValuesFallbackToDefaults (via the file)
+// Via the file.
 #[test]
 fn tuning_values_are_normalised() {
     let cfg = load_str("video_preset: turbo\nfilter_threads: -1\nencoder_threads: -2\n").unwrap();
@@ -238,7 +232,6 @@ fn safe_performance_mode_follows_the_normalised_mode() {
     assert!(cfg.is_safe_performance_mode());
 }
 
-// TestConfig_String
 #[test]
 fn display_lists_the_settings() {
     let text = Config::default().to_string();
@@ -260,7 +253,7 @@ fn env_of(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Op
     }
 }
 
-// TestConfigCandidatePaths_OrderAndOverride (SUPERVIEW_CONFIG is gone)
+// SUPERVIEW_CONFIG is gone.
 #[test]
 fn candidates_are_ordered_exe_user_cwd() {
     let exe = Path::new("/opt/superview/bin/superview");
@@ -289,7 +282,7 @@ fn user_config_dir_follows_xdg_then_home() {
     let got = user_config_dir(&env_of(&[("HOME", "/h")]));
     assert_eq!(got, Some(PathBuf::from("/h/.config")));
     // Empty counts as unset; a relative XDG_CONFIG_HOME is refused, not
-    // replaced by $HOME (Go's os.UserConfigDir).
+    // replaced by $HOME.
     let got = user_config_dir(&env_of(&[("XDG_CONFIG_HOME", ""), ("HOME", "/h")]));
     assert_eq!(got, Some(PathBuf::from("/h/.config")));
     assert_eq!(
@@ -307,8 +300,7 @@ fn user_config_dir_is_appdata() {
     assert_eq!(user_config_dir(&env_of(&[])), None);
 }
 
-// TestResolveConfigPath_FindsExplicitOverride, minus the override: the
-// first existing file wins.
+// The first existing file wins.
 #[test]
 fn resolve_takes_the_first_existing_file() {
     let dir = tempfile::tempdir().unwrap();
@@ -321,7 +313,6 @@ fn resolve_takes_the_first_existing_file() {
     assert_eq!(resolve_config_path(&candidates), Some(first));
 }
 
-// TestResolveConfigPath_IgnoresDirectoryAndMissingFile
 #[test]
 fn resolve_ignores_directories_and_missing_files() {
     let dir = tempfile::tempdir().unwrap();

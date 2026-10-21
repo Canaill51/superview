@@ -16,13 +16,12 @@ fn s(path: &Path) -> &str {
 }
 
 /// A resolver that believes the program runs from `exe_dir`, with `pairs`
-/// as its whole environment. Go: withFakeExecutableIn.
+/// as its whole environment.
 fn resolver_in(exe_dir: &Path, pairs: &[(&str, &str)]) -> ToolResolver {
     ToolResolver::new(env_of(pairs), Some(exe_dir.to_path_buf()))
 }
 
 /// Drops a file where a tool binary would be and returns its path.
-/// Go: writeFakeTool.
 fn write_fake_tool(dir: &Path, tool: &str) -> PathBuf {
     fs::create_dir_all(dir).unwrap();
     let path = dir.join(tool_file_name(tool));
@@ -35,7 +34,7 @@ fn write_fake_tool(dir: &Path, tool: &str) -> PathBuf {
     path
 }
 
-// Go: TestResolveToolBinary_BundledIsPreferredOverPath -- the decision the
+// The bundled copy is preferred over PATH -- the decision the
 // whole bundling exists to make (U-03).
 #[test]
 fn resolve_prefers_the_bundled_copy_over_path() {
@@ -46,7 +45,6 @@ fn resolve_prefers_the_bundled_copy_over_path() {
     assert_eq!(resolver.resolve("ffmpeg"), bundled);
 }
 
-// Go: TestResolveToolBinary_FindsTheLinuxInstallLayout
 #[test]
 fn resolve_finds_the_linux_install_layout() {
     let prefix = TempDir::new().unwrap();
@@ -58,7 +56,6 @@ fn resolve_finds_the_linux_install_layout() {
     assert_eq!(resolver.resolve("ffprobe"), bundled);
 }
 
-// Go: TestResolveToolBinary_OverrideWinsOverTheBundledCopy
 #[test]
 fn resolve_override_wins_over_the_bundled_copy() {
     let (app, over) = (TempDir::new().unwrap(), TempDir::new().unwrap());
@@ -68,7 +65,7 @@ fn resolve_override_wins_over_the_bundled_copy() {
     assert_eq!(resolver.resolve("ffmpeg"), chosen);
 }
 
-// No Go test: the variable is trimmed, as Go trims it.
+// The variable is trimmed.
 #[test]
 fn resolve_trims_the_override() {
     let (app, over) = (TempDir::new().unwrap(), TempDir::new().unwrap());
@@ -78,7 +75,6 @@ fn resolve_trims_the_override() {
     assert_eq!(resolver.resolve("ffmpeg"), chosen);
 }
 
-// Go: TestResolveToolBinary_BogusOverrideFallsThrough
 #[test]
 fn resolve_bogus_override_falls_through() {
     let app = TempDir::new().unwrap();
@@ -88,8 +84,8 @@ fn resolve_bogus_override_falls_through() {
     assert_eq!(resolver.resolve("ffmpeg"), bundled);
 }
 
-// Go: TestResolveToolBinary_FallsBackToPathWithNothingBundled. Skipped on
-// Windows like Go: winget and scoop directories would answer first.
+// Falls back to PATH with nothing bundled. Skipped on
+// Windows: winget and scoop directories would answer first.
 #[cfg(not(windows))]
 #[test]
 fn resolve_falls_back_to_path_with_nothing_bundled() {
@@ -99,7 +95,7 @@ fn resolve_falls_back_to_path_with_nothing_bundled() {
     assert_eq!(resolver.resolve("ffmpeg"), found);
 }
 
-// No Go test (Go leaves it to exec.LookPath): a file without the execute
+// A file without the execute
 // bit on PATH is not a tool.
 #[cfg(unix)]
 #[test]
@@ -124,7 +120,7 @@ fn relative_to_cwd(target: &Path) -> String {
     )
 }
 
-// No Go test (L-16: Go's LookPath refuses a relative entry with ErrDot).
+// L-16: a relative entry on PATH is refused.
 // Runs the command for real: a fake ffmpeg that would answer sits behind a
 // relative PATH entry, and the spawner must not find it.
 #[cfg(unix)]
@@ -153,7 +149,7 @@ fn a_command_never_finds_a_tool_through_a_relative_path_entry() {
     }
 }
 
-// No Go test: the filter on its own. Never empty, which execvp would read as
+// The filter on its own. Never empty, which execvp would read as
 // "the current directory".
 #[cfg(unix)]
 #[test]
@@ -169,7 +165,7 @@ fn absolute_path_entries_keeps_only_absolute_ones() {
     }
 }
 
-// No Go test: a PATH entry that is not UTF-8 still searches, and so does
+// A PATH entry that is not UTF-8 still searches, and so does
 // an override (the values are OsString end to end).
 #[cfg(unix)]
 #[test]
@@ -194,7 +190,7 @@ fn non_utf8_environment_values_are_still_searched() {
     assert_eq!(resolver.resolve("ffmpeg"), found, "override");
 }
 
-// No Go test: a directory named like the tool on PATH is not the tool
+// A directory named like the tool on PATH is not the tool
 // (it has the execute bit, which is how a directory is searched).
 #[cfg(unix)]
 #[test]
@@ -211,8 +207,8 @@ fn path_lookup_ignores_a_directory_named_like_the_tool() {
     assert_eq!(resolver.resolve("ffmpeg"), found);
 }
 
-// No Go test: a relative PATH entry is skipped, never resolved against the
-// working directory (the divergence from LookPath, listed in the header).
+// A relative PATH entry is skipped, never resolved against the
+// working directory (listed in the header).
 #[cfg(not(windows))]
 #[test]
 fn path_lookup_skips_relative_entries() {
@@ -235,7 +231,6 @@ fn path_lookup_skips_relative_entries() {
     assert_eq!(resolver.resolve("ffmpeg"), PathBuf::from("ffmpeg"));
 }
 
-// Go: TestResolveToolBinary_IgnoresADirectoryNamedLikeTheTool
 #[cfg(not(windows))]
 #[test]
 fn resolve_ignores_a_directory_named_like_the_tool() {
@@ -246,7 +241,7 @@ fn resolve_ignores_a_directory_named_like_the_tool() {
     assert_eq!(resolver.resolve("ffmpeg"), found);
 }
 
-// No Go test: usable_tool_file is the regular-file check on its own.
+// usable_tool_file is the regular-file check on its own.
 #[test]
 fn usable_tool_file_wants_a_regular_file() {
     let dir = TempDir::new().unwrap();
@@ -256,14 +251,13 @@ fn usable_tool_file_wants_a_regular_file() {
     assert!(!usable_tool_file(&dir.path().join("missing")));
 }
 
-// Go: TestFindBundledToolBinary_SurvivesAnUnknownExecutablePath
 #[test]
 fn find_bundled_survives_an_unknown_executable_path() {
     let resolver = ToolResolver::new(env_of(&[]), None);
     assert_eq!(resolver.find_bundled("ffmpeg"), None);
 }
 
-// No Go test (Go accepts batch files): a batch file would leave ffmpeg running when a
+// A batch file would leave ffmpeg running when a
 // cancellation kills `cmd.exe`, so `PATHEXT` is cut down to programs. Pure, so it runs
 // on every OS; the Windows search uses it.
 #[test]
@@ -289,8 +283,8 @@ fn path_search_keeps_only_program_extensions() {
     );
 }
 
-// Go: TestResolveToolBinary_DoesNotCacheFailures. The Go test peeks into
-// the cache; this one shows the effect: a tool installed afterwards is found.
+// Failures are not cached. The test does not peek into
+// the cache; it shows the effect: a tool installed afterwards is found.
 #[test]
 fn resolve_does_not_cache_failures() {
     let (app, on_path) = (TempDir::new().unwrap(), TempDir::new().unwrap());
@@ -311,8 +305,8 @@ fn resolve_does_not_cache_failures() {
     }
 }
 
-// Go: TestResolveToolBinary_CachesSuccess, on a stand-in rather than a real
-// ffmpeg, plus reset_cache (ResetToolResolutionCache).
+// Successes are cached, on a stand-in rather than a real
+// ffmpeg, plus reset_cache.
 #[test]
 fn resolve_caches_success_until_the_cache_is_reset() {
     let app = TempDir::new().unwrap();
@@ -326,7 +320,7 @@ fn resolve_caches_success_until_the_cache_is_reset() {
     assert_eq!(resolver.resolve("ffmpeg"), PathBuf::from("ffmpeg"));
 }
 
-// No Go test: the resolver is shared between threads (the GUI's and the
+// The resolver is shared between threads (the GUI's and the
 // encode's), and what it caches for one tool is not served for another.
 #[test]
 fn resolve_caches_per_tool_and_is_shareable() {
@@ -345,7 +339,6 @@ fn resolve_caches_per_tool_and_is_shareable() {
 // A stand-in for the Windows layouts: points the three variables at fresh
 // directories and returns the LOCALAPPDATA one. ProgramFiles and
 // USERPROFILE get real, empty directories rather than "" (E-22).
-// Go: wingetLayout.
 struct Winget {
     local: TempDir,
     _program_files: TempDir,
@@ -385,7 +378,6 @@ impl Winget {
         )
     }
 
-    /// Go: writeWindowsTool.
     fn write_tool(&self, tool: &str, parts: &[&str]) -> PathBuf {
         let mut dir = self.local.path().to_path_buf();
         dir.extend(parts);
@@ -412,7 +404,7 @@ fn package_parts<'a>(rest: &[&'a str]) -> Vec<&'a str> {
         .collect()
 }
 
-// Go: TestFindWindowsToolBinary_FindsAWingetPackagesTree / package tree
+// A winget package tree.
 #[test]
 fn windows_finds_a_winget_packages_tree() {
     let layout = winget_layout();
@@ -427,7 +419,7 @@ fn windows_finds_a_winget_packages_tree() {
     assert_eq!(layout.find("ffmpeg"), Some(want));
 }
 
-// Go: TestFindWindowsToolBinary_FindsAWingetPackagesTree / package not
+// A package not
 // named after ffmpeg
 #[test]
 fn windows_walk_stays_inside_ffmpeg_packages() {
@@ -436,7 +428,7 @@ fn windows_walk_stays_inside_ffmpeg_packages() {
     assert_eq!(layout.find("ffmpeg"), None);
 }
 
-// Go: TestFindWindowsToolBinary_FindsAWingetPackagesTree / Links shim wins
+// The Links shim wins.
 #[test]
 fn windows_links_shim_wins_over_the_package_tree() {
     let layout = winget_layout();
@@ -445,7 +437,7 @@ fn windows_links_shim_wins_over_the_package_tree() {
     assert_eq!(layout.find("ffmpeg"), Some(link));
 }
 
-// No Go test: the walk matches the file name without regard to case.
+// The walk matches the file name without regard to case.
 #[test]
 fn windows_walk_ignores_the_case_of_the_file_name() {
     let layout = winget_layout();
@@ -459,8 +451,7 @@ fn windows_walk_ignores_the_case_of_the_file_name() {
     assert_eq!(layout.find("ffmpeg"), Some(want));
 }
 
-// Go: TestFindWindowsToolBinary_IgnoresRelativeCandidates. Go plants a file
-// in the working directory and chdirs; Rust tests must not change the
+// Relative candidates are ignored. Rust tests must not change the
 // process's state, so every candidate is shown to `usable` instead, and
 // `usable` approves whatever it is shown: a relative path would be returned.
 #[test]
@@ -496,7 +487,6 @@ fn windows_builds_candidates_only_from_set_variables() {
 
 // ---- parsing ----
 
-// Go: TestParseFFmpegVersion
 #[test]
 fn parse_ffmpeg_version_cases() {
     for (name, input, want) in [
@@ -523,7 +513,6 @@ fn codecs(list: &[&str]) -> Vec<String> {
     list.iter().map(|c| (*c).to_string()).collect()
 }
 
-// Go: TestParseFFmpegEncoders
 #[test]
 fn parse_ffmpeg_encoders_keeps_the_matching_video_encoders() {
     let listing = "Encoders:\n V..... = Video\n A..... = Audio\n ------\n \
@@ -536,7 +525,7 @@ V....D libvpx-vp9           VP9 video\n";
     );
 }
 
-// Go: TestParseFFmpegEncoders_MalformedInputDoesNotPanic (each of these used
+// Malformed input does not panic (each of these used
 // to index past the end of a split slice).
 #[test]
 fn parse_ffmpeg_encoders_malformed_input_does_not_panic() {
@@ -557,7 +546,6 @@ fn parse_ffmpeg_encoders_malformed_input_does_not_panic() {
     );
 }
 
-// Go: TestParseFFmpegEncoders_NoSeparatorStillParses
 #[test]
 fn parse_ffmpeg_encoders_without_separator_still_parses() {
     let listing = " V....D libx264              H.264 / AVC\n V....D libx265              H.265\n";
@@ -567,7 +555,7 @@ fn parse_ffmpeg_encoders_without_separator_still_parses() {
     );
 }
 
-// No Go test: the header is skipped whatever it holds, and CRLF line ends
+// The header is skipped whatever it holds, and CRLF line ends
 // (Windows ffmpeg) leave no "\r" in a name.
 #[test]
 fn parse_ffmpeg_accels_skips_the_header_and_reads_crlf() {
@@ -583,7 +571,7 @@ fn parse_ffmpeg_accels_skips_the_header_and_reads_crlf() {
     assert_eq!(parse_ffmpeg_accels(""), "");
 }
 
-// No Go test: what precedes the separator is a banner, not encoders, even
+// What precedes the separator is a banner, not encoders, even
 // if a line of it looks like a row.
 #[test]
 fn parse_ffmpeg_encoders_ignores_rows_before_the_separator() {
@@ -594,7 +582,7 @@ fn parse_ffmpeg_encoders_ignores_rows_before_the_separator() {
     );
 }
 
-// No Go test: only rows flagged "V" are video encoders, whatever the name.
+// Only rows flagged "V" are video encoders, whatever the name.
 #[test]
 fn parse_ffmpeg_encoders_ignores_audio_rows() {
     let listing = " ------\n A....D audio264  AAC\n V....D libx264  H.264\n";
@@ -609,7 +597,7 @@ fn parse_ffmpeg_encoders_ignores_audio_rows() {
 /// An ffmpeg on PATH that answers -version and -hwaccels like a real one,
 /// lists libx264 for -encoders, and exits 1 on the one query named by
 /// `failing`. The bundled lookup points at an empty directory and the
-/// override is unset. Go: fakeCheckFFmpeg.
+/// override is unset.
 struct FakeFfmpeg {
     _dir: TempDir,
     _empty: TempDir,
@@ -677,7 +665,7 @@ fn fake_check_ffmpeg(failing: &str) -> FakeFfmpeg {
     }
 }
 
-// Go: TestCheckFfmpeg_ReportsAFailingEncodersQuery / control: the same
+// Control: the same
 // stand-in, failing nothing, is read correctly, so the error cases cannot
 // pass because the fake is broken.
 #[test]
@@ -691,7 +679,7 @@ fn check_ffmpeg_reads_a_healthy_stand_in() {
     assert_eq!(got.len(), 3, "the map keys are the Go ones: {got:?}");
 }
 
-// Go: TestCheckFfmpeg_ReportsAFailingEncodersQuery / "-encoders fails" and
+// "-encoders fails" and
 // "-hwaccels fails". An ffmpeg that runs but cannot list its accelerators
 // or encoders is reported, not turned into an empty encoder list.
 #[test]
@@ -712,7 +700,7 @@ fn check_ffmpeg_reports_a_failing_query() {
     }
 }
 
-// Go: TestCheckFfmpeg_ReportsAFailingEncodersQuery, -version half, which
+// A failing -version query, which
 // is the "ffmpeg missing" message the GUI turns into an install link.
 #[test]
 fn check_ffmpeg_reports_a_failing_version_query() {
@@ -724,7 +712,7 @@ fn check_ffmpeg_reports_a_failing_version_query() {
     assert!(message.starts_with("cannot find ffmpeg/ffprobe on your system\n"));
 }
 
-// Go: withoutFFmpegOnPath (health_report_test.go). Not on Windows, where
+// Not on Windows, where
 // winget directories PATH does not govern could still answer.
 #[cfg(not(windows))]
 #[test]
@@ -741,8 +729,7 @@ fn check_ffmpeg_reports_a_missing_ffmpeg() {
     );
 }
 
-// No Go test of this exact shape (Go's integration tests call CheckFfmpeg
-// on the machine's ffmpeg). Skipped without ffmpeg unless
+// The machine's own ffmpeg, as a whole. Skipped without ffmpeg unless
 // SUPERVIEW_REQUIRE_FFMPEG=1, which CI sets.
 #[test]
 fn check_ffmpeg_reads_the_real_ffmpeg() {
@@ -766,7 +753,7 @@ fn check_ffmpeg_reads_the_real_ffmpeg() {
     }
 }
 
-// No Go test: the constructors hand the arguments over one by one.
+// The constructors hand the arguments over one by one.
 #[cfg(unix)]
 #[test]
 fn commands_carry_their_arguments_and_the_injected_path() {

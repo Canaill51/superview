@@ -1,6 +1,6 @@
 //! The Diagnostic report, read line by line so the window can draw an icon where the core wrote
 //! an emoji. Pure: no Slint here. The core's text (`get_health_report`, `describe_encoder_probe`)
-//! is the Go one and stays as it is; this reads it and never loses a character of it.
+//! stays as it is; this reads it and never loses a character of it.
 
 /// What one line of the report is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

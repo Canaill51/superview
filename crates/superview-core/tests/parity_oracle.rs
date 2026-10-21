@@ -1,9 +1,6 @@
 //! Reproduces the frozen parity fixtures (`tests/fixtures/parity/*.json`) field by field.
-//! The JSON files were generated once by the Go tests `TestParity_PGM` and
-//! `TestParity_Specs` (`parity_test.go`, removed with Go in phase 8); they are now plain
-//! regression fixtures, no longer regenerated. The `// Go: TestXxx` comments in the test
-//! files name Go tests that no longer exist; they stay as the port's genealogy (history up to
-//! v0.2.9).
+//! The JSON files are frozen: they were recorded once by the Go tests `TestParity_PGM` and
+//! `TestParity_Specs`, and are never regenerated.
 
 mod common;
 
@@ -35,7 +32,7 @@ fn kind(err: &Error) -> &'static str {
         Error::Encoder(_) => "EncoderError",
         Error::Session(_) => "SessionError",
         Error::Plain(_) => "plain",
-        // No oracle case produces a stop (PR 6a): named so the match stays exhaustive.
+        // No oracle case produces a stop: named so the match stays exhaustive.
         Error::Cancelled => "cancelled",
         Error::StoppedBySignal(_) => "stopped_by_signal",
         Error::FailedAfterOutput(_) => "failed_after_output",

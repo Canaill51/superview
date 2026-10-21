@@ -163,7 +163,7 @@ fn convert_failure_is_json_with_a_kind() {
     let json = json_of(&out);
     assert_eq!(out.status.code(), Some(1));
     assert_eq!(json["ok"], false);
-    // The core wraps the ffprobe failure into a plain error (as the Go code does).
+    // The core wraps the ffprobe failure into a plain error.
     assert_eq!(json["kind"], "other", "{json}");
     assert!(json["error"].as_str().is_some_and(|e| !e.is_empty()));
     assert!(!output.exists());

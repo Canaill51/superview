@@ -1,5 +1,4 @@
-//! One ffmpeg pass, from launch to its end: the `run` closure of `EncodeVideo` in
-//! Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9), with the stop reasons of `errors.go`.
+//! One ffmpeg pass, from launch to its end, with its stop reasons.
 //!
 //! The command arrives already built (the `-hwaccel` option, [`build_encode_base_args`] and the
 //! output path are assembled by the caller, the cascade); this module starts it, follows its
@@ -8,53 +7,46 @@
 //!
 //! [`build_encode_base_args`]: crate::encode::args::build_encode_base_args
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - No signal handler is installed here (L-114: no process-wide state). Go registers
-//!   `os.Interrupt` and `SIGTERM` inside the run; here the application does it and raises
-//!   [`StopControl::signal`] with the signal's number (0 = none), and the cancel button
-//!   raises [`StopControl::cancel`]. A signal wins over a cancellation when both are up
-//!   (Go's `select` picks one at random).
-//! - A stop requested before the call starts nothing: Go starts ffmpeg and kills it at once.
-//!   One process less, same result (`Cancelled` / `StoppedBySignal`), and the cascade's rule
-//!   "a stop request launches no ffmpeg" (E-02) holds literally.
-//! - The child is not shared between a watcher and a waiter. Go has a goroutine kill it; here
-//!   the one loop of [`run_ffmpeg`] looks at the process and at both flags every
+//! Design notes (exhaustive):
+//! - No signal handler is installed here (L-114: no process-wide state). The
+//!   application installs it and raises [`StopControl::signal`] with the signal's number
+//!   (0 = none), and the cancel button raises [`StopControl::cancel`]. A signal wins over a
+//!   cancellation when both are up.
+//! - A stop requested before the call starts nothing (`Cancelled` / `StoppedBySignal`), and
+//!   the cascade's rule "a stop request launches no ffmpeg" (E-02) holds literally.
+//! - The child is not shared between a watcher and a waiter: the one loop of [`run_ffmpeg`] looks at the process and at both flags every
 //!   [`POLL`] (so a stop is seen within that time, as in `process.rs`), reads the progress
 //!   lines a thread sends it, and calls `on_progress` itself: the callback needs no `Send`.
-//! - A run that fails on its own while a stop is requested returns the stop reason, as Go's
-//!   goroutine would have killed it and filled `stopped` first, but only when ffmpeg left with
+//! - A run that fails on its own while a stop is requested returns the stop reason, as if
+//!   the application had killed it first, but only when ffmpeg left with
 //!   an exit code. This is the case of Ctrl+C in a terminal, where ffmpeg gets the SIGINT too
 //!   and leaves (code 255) before the application has looked at its flag. An ffmpeg killed by
 //!   a signal we did not send keeps its diagnosis: the out-of-memory killer takes ffmpeg
 //!   (SIGKILL) and systemd stops the application with a SIGTERM a few milliseconds later; if
 //!   that SIGTERM fell in the window (a poll, or the grace if a child holds the pipes), the
-//!   stop reason would hide the memory diagnosis that `ErrStoppedBySignal` exists to keep
+//!   stop reason would hide the memory diagnosis that `StoppedBySignal` exists to keep
 //!   (U-09). Whenever the stop reason replaces a real failure, the classified failure, stderr
 //!   included, is logged at warn first. A run that succeeds is a success whatever is
-//!   requested after it (Go reads `stopped` only when `Wait` fails). If ffmpeg succeeds between
-//!   the last `try_wait` and the stop check, the kill path answers `Cancelled` for a complete
-//!   output: a race Go has too.
-//! - After a kill Go joins the progress reader without a bound and `Wait`s on the stderr copy.
-//!   Here the readers get [`READER_GRACE`] in all, as in `run_with_deadline` (#110), and are
+//!   requested after it. If ffmpeg succeeds between the last `try_wait` and the stop check,
+//!   the kill path answers `Cancelled` for a complete output: a known race.
+//! - After a kill the readers get [`READER_GRACE`] in all, as in `run_with_deadline` (#110), and are
 //!   then abandoned: a grandchild of ffmpeg that keeps the pipes open cannot hold the caller. The
 //!   same grace applies to the lines still queued when ffmpeg ends by itself. The
-//!   known limit shared with Go: the kill reaches the process that was started, not its
+//!   known limit: the kill reaches the process that was started, not its
 //!   children; on Windows a `.bat`/`.cmd` ffmpeg would be killed through `cmd.exe` only, which is
 //!   why the `PATH` search refuses them (`tools.rs`).
 //! - The process is killed and reaped on every way out of the function, an error or a panic
-//!   of the callback included ([`Running`]); Go relies on its goroutine and a `defer`.
+//!   of the callback included ([`Running`]).
 //! - The progress pipe is read as bytes and decoded lossily: an invalid byte is a replacement
-//!   character, not the end of the progress. The lines are not limited in length (Go cuts them
+//!   character, not the end of the progress. The lines are not limited in length (v0.2.9 cut them
 //!   at 4096 bytes); `-progress pipe:1` always ends its lines, and they are short. After a read error the reader drops its end of
-//!   the pipe, so ffmpeg gets a broken pipe instead of blocking on a pipe nobody reads (Go
-//!   would leave it blocked). It then dies of SIGPIPE and is classified as killed by the
+//!   the pipe, so ffmpeg gets a broken pipe instead of blocking on a pipe nobody reads. It then dies of SIGPIPE and is classified as killed by the
 //!   system, a wrong "ran out of memory" diagnosis; a read error on a pipe is close to
 //!   impossible, and the warning above is logged first.
-//! - The `wait` after a kill is not bounded, as Go's `cmd.Wait()` is: an ffmpeg stuck in
+//! - The `wait` after a kill is not bounded: an ffmpeg stuck in
 //!   uninterruptible sleep (a GPU driver, an NFS output) holds the caller.
-//! - `TestEncodeVideo_ReturnsStdoutPipeError` has no equivalent: the `commandStdoutPipe`
-//!   seam does not exist (a pipe that cannot be opened is a launch failure here).
-//! - The logs are `log` records with `key=value` text, where Go uses `slog` attributes.
+//! - A pipe that cannot be opened is a launch failure.
+//! - The logs are `log` records with `key=value` text.
 
 use std::io::{self, BufRead, BufReader, Read};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -79,7 +71,7 @@ const LINE_QUEUE: usize = 1024;
 /// What can stop a run from outside. The application writes them; the run only reads.
 #[derive(Clone, Copy)]
 pub struct StopControl<'a> {
-    /// Raised when the user cancels (Go's `cancel` channel).
+    /// Raised when the user cancels (the cancel button).
     pub cancel: &'a AtomicBool,
     /// 0 while nothing happened, else the number of the signal the system sent the
     /// application (2 = interrupt, 15 = terminated).
@@ -209,7 +201,7 @@ pub fn run_ffmpeg(
         return Err(reason);
     }
     let start_failure = |e: io::Error| Error::Plain(format!("failed to start ffmpeg: {e}"));
-    // Like Go's nil Stdin: ffmpeg reads end-of-file, never our terminal.
+    // ffmpeg reads end-of-file, never our terminal.
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

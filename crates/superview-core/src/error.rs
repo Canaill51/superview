@@ -1,20 +1,17 @@
-//! Typed errors, mirroring Go's `internal/common/errors.go` (removed in phase 8; last release with it: v0.2.9).
+//! Typed errors.
 //!
-//! The Display text of each variant is the Go `Error()` text, so a message can
-//! be compared against the parity oracle as it stands.
+//! The Display text of each variant is v0.2.9's; the `InvalidVideo` and `Encoder` texts
+//! are pinned by the parity fixtures.
 //!
-//! Deliberate differences from the Go code:
-//! - The three sentinels of the fallback cascade (`ErrCancelled`, `ErrStoppedBySignal`,
-//!   `errFailedAfterOutput`) are variants of [`Error`], not values compared with
-//!   `errors.Is`. Go wraps the signal name into the message with `%w`, so the value is not
-//!   the sentinel itself; here [`Error::StoppedBySignal`] carries the name. `errors.Is`
-//!   looking through a wrapped error is reproduced only for [`Error::FailedAfterOutput`],
-//!   the one variant that wraps another (`fmt.Errorf("%w: %w", ...)`); Go's `errors.Join`
-//!   has no use in the port.
+//! Design notes:
+//! - The three sentinels of the fallback cascade (cancelled, stopped by a signal, failed
+//!   after output) are variants of [`Error`], matched as such, never compared as strings.
+//!   [`Error::StoppedBySignal`] carries the signal name. Looking through a wrapped error is
+//!   done only for [`Error::FailedAfterOutput`], the one variant that wraps another.
 //! - The signal name is the Linux table of `process.rs` on every platform
-//!   ([`signal_description`]): Go's `os.Interrupt` and `SIGTERM` read "interrupt" and
-//!   "terminated" on Windows too. (Go's Windows table only names signals 1 to 15 and prints
-//!   "signal 16" beyond; the port says "stack fault". No effect: only 2 and 15 are listened to.)
+//!   ([`signal_description`]): 2 reads "interrupt" and 15 "terminated" on Windows too.
+//!   Beyond 15 the Linux names are used (16 is "stack fault"). No effect: only 2 and 15 are
+//!   listened to.
 
 use std::error::Error as StdError;
 
@@ -52,8 +49,7 @@ impl std::fmt::Display for SessionError {
 
 /// Every error the core can return.
 ///
-/// `Plain` is Go's untyped `fmt.Errorf` error: callers must not match on its
-/// text, which follows Go's standard library only loosely.
+/// `Plain` is an untyped error: callers must not match on its text.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -81,8 +77,8 @@ pub enum Error {
 }
 
 impl Error {
-    /// `isStopRequest`: the error means "stop", whoever asked. Looks through
-    /// [`Error::FailedAfterOutput`], as `errors.Is` looks through `%w`.
+    /// The error means "stop", whoever asked. Looks through
+    /// [`Error::FailedAfterOutput`], the variant that wraps another error.
     pub fn is_stop_request(&self) -> bool {
         match self {
             Self::Cancelled | Self::StoppedBySignal(_) => true,
@@ -98,7 +94,7 @@ impl Error {
     }
 }
 
-/// The name Go gives a signal (`os.Signal`'s `String()`), for [`Error::StoppedBySignal`]:
+/// The name of a signal, for [`Error::StoppedBySignal`]:
 /// `2` reads "interrupt", `15` "terminated", an unknown number "signal N".
 pub fn signal_description(signal: i32) -> String {
     crate::process::signal_name(signal)
@@ -132,7 +128,7 @@ mod tests {
         assert!(wrapped.source().is_some());
     }
 
-    // Go: the message of each sentinel, and the %w (signal: %v) form of EncodeVideo.
+    // The message of each sentinel, and the `(signal: …)` form of a stop by signal.
     #[test]
     fn the_stop_messages_match_the_go_text() {
         assert_eq!(Error::Cancelled.to_string(), "encoding interrupted by user");
@@ -154,8 +150,7 @@ mod tests {
         assert_eq!(signal_description(999), "signal 999");
     }
 
-    // Go: TestShouldNotRetry_NamesEveryStopReason. "wrapped system signal" (errors.Join in Go)
-    // becomes the one wrapping the port has: a signal inside a failure-after-output.
+    // Every stop reason. A "wrapped system signal" is a signal inside a failure-after-output.
     #[test]
     fn should_not_retry_names_every_stop_reason() {
         let signal = || Error::StoppedBySignal("terminated".into());
@@ -188,7 +183,7 @@ mod tests {
         }
     }
 
-    // Go: isStopRequest -- a failure after output is not, by itself, a stop request.
+    // A failure after output is not, by itself, a stop request.
     #[test]
     fn only_cancellation_and_signal_are_stop_requests() {
         assert!(Error::Cancelled.is_stop_request());

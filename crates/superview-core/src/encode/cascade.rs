@@ -1,5 +1,4 @@
-//! The fallback cascade of an encode: `EncodeVideo` in Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9) (the part
-//! after the `run` closure, which is [`run_ffmpeg`]).
+//! The fallback cascade of an encode (one pass of ffmpeg is [`run_ffmpeg`]).
 //!
 //! The paths are tried in this order, and each level is given up on only for an error that
 //! another path could fix: hardware decode with the hardware encoder, then CPU decode with
@@ -9,33 +8,28 @@
 //! and a failure that came after frames were written end the cascade with the error as it
 //! is (E-02, E-13).
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - The summary Go stores in a global (`SetLastHardwareAccelerationSummary`) is the return
-//!   value, [`EncodeSummary`]. Go clears it at the start of every call; here there is none
-//!   to read after an error, which is the same thing.
-//! - The session is a parameter (Go's `getSessionPaths` and `sessionOutputSize` read the
-//!   global one), the core count is `cpu_count` (Go's `runtime.NumCPU()`), the stop requests
-//!   are a [`StopControl`] (Go's `cancel` channel and signal handler), and the tool lookup is
-//!   the `resolver`.
-//! - The memory reading is injectable ([`encode_video_with_memory`], where Go swaps
-//!   `readAvailableMemory`); [`encode_video`] reads the real one.
-//! - A video with no stream is refused at once with an [`InvalidVideoError`]; Go indexes
-//!   `Streams[0]` inside the run and would panic.
+//! Design notes (exhaustive):
+//! - The summary is the return value, [`EncodeSummary`], not a global; there is none to read
+//!   after an error.
+//! - The session is a parameter, the core count is `cpu_count`, the stop requests are a
+//!   [`StopControl`], and the tool lookup is the `resolver`.
+//! - The memory reading is injectable ([`encode_video_with_memory`]); [`encode_video`]
+//!   reads the real one.
+//! - A video with no stream is refused at once with an [`InvalidVideoError`].
 //! - The paths of the maps are handed to ffmpeg as text. A session directory whose path is
 //!   not valid UTF-8 is refused with a [`SessionError`] before anything is launched (a lossy
 //!   conversion would send up to six ffmpeg after a file that does not exist, each failing
 //!   with a misleading message). The output path is passed as it is.
 //!   `VideoSpecs::file`, the input path, comes from a file picker and is not trusted: it is
-//!   handed to `-i` as it is, as in Go. Validating it is the caller's job (`security.rs`,
-//!   PR 7).
+//!   handed to `-i` as it is. Validating it is the caller's job (`security.rs`).
 //! - A stop that is raised between a failed pass and the next decision is seen by the next
 //!   [`run_ffmpeg`], which starts nothing; the one `falling back` warning that was already
-//!   logged is not retracted (Go has the same window, for the log only). Before the memory
+//!   logged is not retracted (a window for the log only). Before the memory
 //!   guard of the encoder fallback the stop is looked at explicitly and returned as it is
-//!   (signal first, then cancellation, as in `run_ffmpeg`): Go would answer "not enough
-//!   memory" to a user who had just pressed Cancel. If the stop is a signal, the "system
+//!   (signal first, then cancellation, as in `run_ffmpeg`): otherwise a user who had just
+//!   pressed Cancel would be answered "not enough memory". If the stop is a signal, the "system
 //!   signalled" error line is logged a second time by that look.
-//! - The logs are `log` records with `key=value` text, where Go uses `slog` attributes.
+//! - The logs are `log` records with `key=value` text.
 //!
 //! [`InvalidVideoError`]: crate::error::InvalidVideoError
 //! [`SessionError`]: crate::error::SessionError
@@ -59,8 +53,7 @@ use crate::session::EncodingSession;
 use crate::tools::ToolResolver;
 use crate::video::VideoSpecs;
 
-/// What a successful encode says about the path that produced it: the line the window shows
-/// (Go: `LastHardwareAccelerationSummary`).
+/// What a successful encode says about the path that produced it: the line the window shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EncodeSummary {
     pub hardware_acceleration: String,
@@ -147,7 +140,7 @@ pub fn encode_video_with_memory(
     let video_preset = cfg.video_preset.as_str();
     let (x_path, y_path) = map_paths(session.x_path(), session.y_path())?;
 
-    // One pass of ffmpeg: Go's `run`.
+    // One pass of ffmpeg.
     let mut run = |hwaccel: &str, audio_codec: &str| -> Result<(), Error> {
         let base_args = build_encode_base_args(
             video,
@@ -176,7 +169,7 @@ pub fn encode_video_with_memory(
         )
     };
 
-    // Go: `runWithAudioFallback`.
+    // A pass with its audio retry (copy, then AAC).
     let mut run_with_audio_fallback = |hwaccel: &str| -> Result<(), Error> {
         let preferred_audio_codec = if safe_performance_mode { "copy" } else { "aac" };
         let err = match run(hwaccel, preferred_audio_codec) {

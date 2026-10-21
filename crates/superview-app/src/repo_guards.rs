@@ -1,6 +1,5 @@
 //! Guards on files of the repository that no compiler reads: the README anchor the
-//! application links to, the workflow files and the window's fixed size. Ports of two Go tests that lived beside
-//! the Go window (removed in phase 8; last release with it: v0.2.9).
+//! application links to, the workflow files and the window's fixed size.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -73,7 +72,7 @@ fn the_slug_follows_github() {
     );
 }
 
-// Go: TestInstallURLFragmentPointsAtARealHeading. A fragment that matches no heading does
+// A fragment that matches no heading does
 // not fail: it silently drops the reader, who has no ffmpeg, at the top of the README.
 #[test]
 fn the_install_url_fragment_points_at_a_real_heading() {
@@ -151,7 +150,7 @@ fn the_pipe_matcher_knows_the_cut_forms() {
     }
 }
 
-// Go: TestWorkflows_DoNotCutAToolsOutputShort (L-115): a step must capture a tool's whole
+// L-115: a step must capture a tool's whole
 // output before keeping its first line. Comment lines are skipped.
 #[test]
 fn workflows_do_not_cut_a_tools_output_short() {

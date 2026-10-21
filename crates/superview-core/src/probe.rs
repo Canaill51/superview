@@ -1,46 +1,38 @@
-//! Runtime probing of the encoders ffmpeg claims to have. Port of
-//! Go's `internal/common/probe.go` (removed in phase 8; last release with it: v0.2.9) and, from `hardware.go`, `outputFrameSize`,
-//! `probeEncoderForSizeCached`, `verifyEncoderForOutput` and
-//! `DescribeVerifiedHardwarePlan`.
+//! Runtime probing of the encoders ffmpeg claims to have.
 //!
 //! `ffmpeg -encoders` says what the binary was built with, not whether the driver on this
 //! machine will accept the work (an NVENC build can demand a driver the machine cannot
 //! have, `docs/hardware-support.md`). The only honest question is the one asked here:
 //! encode one frame and see. The argv comes from the functions the conversion uses
 //! (`hw_device_args`, `pixel_format_chain`, `encoder_facing_args`), so the two cannot
-//! drift (E-01); `tests/parity_probe_args.rs` pins it against Go.
+//! drift (E-01); `tests/parity_probe_args.rs` pins it against the recorded fixtures.
 //!
-//! Deliberate differences from the Go code (exhaustive):
+//! Design notes (exhaustive):
 //! - A VAAPI driver that answers "supported modes: CQP" is asked again in constant quality
-//!   (DEC-48) and, if that works, reported usable with [`EncoderProbe::rate_control`] set:
-//!   Go reports it unusable. The second question goes through the same
+//!   (DEC-48) and, if that works, reported usable with [`EncoderProbe::rate_control`] set
+//!   (v0.2.9 reported it unusable). The second question goes through the same
 //!   `encoder_facing_args` as every other (DEC-05).
-//! - No global. The cache of verdicts per frame size (`sizeProbeCache`) is the
-//!   [`ProbeCache`] a [`Prober`] owns, `resetSizeProbeCache` is [`ProbeCache::reset`], and
-//!   the probe's own timeout (Go's `var probeTimeout`) is a field of the [`Prober`]
-//!   ([`PROBE_TIMEOUT`] by default), so tests shorten it without touching anything shared.
-//! - A Go `context.Context` carries a caller's deadline and cancellation; here the caller
-//!   gives an `Option<&AtomicBool>` and only the probe's own timeout is a deadline. "The
-//!   caller's deadline" (`TestProbeEncoder_HonoursTheCallerDeadline`) is therefore a
-//!   cancellation: the reason of a cancelled probe is the process's end status (or
+//! - No global. The cache of verdicts per frame size is the [`ProbeCache`] a [`Prober`]
+//!   owns, [`ProbeCache::reset`] empties it, and the probe's own timeout is a field of the
+//!   [`Prober`] ([`PROBE_TIMEOUT`] by default), so tests shorten it without touching
+//!   anything shared.
+//! - The caller gives an `Option<&AtomicBool>` and only the probe's own timeout is a
+//!   deadline. There is no caller deadline: what would be one is a cancellation. The reason of a cancelled probe is the process's end status (or
 //!   "cancelled" when nothing was started), not "gave no answer in ...", which stays the
 //!   probe's own timeout. A cancelled probe is never cached (E-23), whenever the flag is
-//!   up once the probe is back, as in Go.
+//!   up once the probe is back.
 //! - A [`Prober`] must be long-lived (one for the application): its cache is the point, and
 //!   a fresh one per question probes every time. Two simultaneous calls on the same key
-//!   both probe, as in Go (the lock is not held across a probe).
-//! - A Go `nil` report is `None` in [`apply_encoder_probe`] and [`describe_encoder_probe`].
-//! - The run error in a reason is Rust's: "exit status: 218" where Go says "exit status
-//!   218" (only the leading text of such a reason is comparable, like in `tools.rs`).
-//! - The reason budget is 300 bytes cut back to a character boundary; Go cuts at 300
-//!   bytes, possibly in the middle of a character.
-//! - The durations in the report are printed as Go's `Duration.String` does after
-//!   `Round(time.Millisecond)` ("302ms", "1.5s", "1m2.5s"), by [`format_duration`].
+//!   both probe (the lock is not held across a probe).
+//! - An absent report is `None` in [`apply_encoder_probe`] and [`describe_encoder_probe`].
+//! - The run error in a reason is Rust's: "exit status: 218" (only the leading text of such
+//!   a reason is comparable, like in `tools.rs`).
+//! - The reason budget is 300 bytes cut back to a character boundary.
+//! - The durations in the report are rounded to the millisecond and printed compactly
+//!   ("302ms", "1.5s", "1m2.5s") by [`format_duration`].
 //! - The machine profile of the fallback is built with 0 cores: nothing in the selection
 //!   reads the core count (`hardware.rs`).
-//! - The logs are `log` records with `key=value` text, where Go uses `slog` attributes.
-//! - Left out: the Go `ProbeEncoder(ctx, ...)` wrappers around package globals; the
-//!   methods of [`Prober`] are their equivalents.
+//! - The logs are `log` records with `key=value` text.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -201,7 +193,7 @@ pub fn probe_args(spec: &ProbeSpec) -> Vec<String> {
 /// libva announces its driver search with three `libva info:` lines before any VAAPI or QSV
 /// session. They say nothing went wrong, and left in they filled the three lines kept and
 /// pushed the real error out of the reason. A `libva error:` line is a cause and stays.
-/// Rust only: Go keeps them (DEC-48).
+/// Unlike v0.2.9, which kept them (DEC-48).
 const LIBVA_INFO_PREFIX: &str = "libva info:";
 
 /// Turns ffmpeg's output into one line a user can act on.
@@ -242,7 +234,7 @@ pub fn summarize_probe_failure(
     reason
 }
 
-/// Go's `Duration.Round(time.Millisecond).String()`.
+/// A duration rounded to the millisecond, printed compactly ("302ms", "1.5s", "1m2.5s").
 pub fn format_duration(duration: Duration) -> String {
     let ms = (duration.as_nanos() + 500_000) / 1_000_000;
     if ms == 0 {

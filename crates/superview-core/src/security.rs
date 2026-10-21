@@ -1,10 +1,10 @@
-//! Path and encoder validation, mirroring Go's `internal/common/security.go` (removed in phase 8; last release with it: v0.2.9).
+//! Path and encoder validation.
 //!
 //! Paths from the file pickers are untrusted until they pass here. Verdicts
-//! and message texts follow Go's; the I/O causes inside a message come from
+//! and message texts are v0.2.9's; the I/O causes inside a message come from
 //! Rust's `std::io::Error`, so only the leading text is comparable.
 //!
-//! `dunce::canonicalize` stands in for `filepath.EvalSymlinks`: on Windows it
+//! `dunce::canonicalize` resolves symlinks: on Windows it
 //! drops the `\\?\` prefix `std::fs::canonicalize` would add, which would
 //! otherwise never match the protected directories.
 
@@ -75,7 +75,7 @@ pub(crate) fn path_equal(a: &str, b: &str) -> bool {
     }
 }
 
-/// `filepath.Clean` for the paths that reach it: `.` components, repeated and
+/// Cleans the paths that reach it: `.` components, repeated and
 /// trailing separators go. `..` never gets here (see [`has_traversal_component`]).
 pub(crate) fn clean(path: &Path) -> PathBuf {
     path.components().collect()

@@ -23,7 +23,6 @@ fn killed_helper_process() -> ExitStatus {
     status
 }
 
-// Go: TestKilledBySignal_NamesTheSignal
 #[cfg(unix)]
 #[test]
 fn killed_by_signal_names_the_signal() {
@@ -31,8 +30,8 @@ fn killed_by_signal_names_the_signal() {
     assert_eq!(signal.as_deref(), Some("killed"));
 }
 
-// Go: TestKilledBySignal_IgnoresAnOrdinaryFailure (the "not an exit error"
-// half has no Rust counterpart: the argument is already an ExitStatus).
+// An ordinary failure is not a kill (the "not an exit error"
+// case has no counterpart: the argument is already an ExitStatus).
 #[cfg(unix)]
 #[test]
 fn killed_by_signal_ignores_an_ordinary_failure() {
@@ -42,7 +41,7 @@ fn killed_by_signal_ignores_an_ordinary_failure() {
     assert_eq!(killed_by_signal(&status), None);
 }
 
-// No Go test: killedBySignal always reports false on Windows.
+// Always reports false on Windows.
 #[cfg(windows)]
 #[test]
 fn killed_by_signal_is_always_none_on_windows() {
@@ -64,7 +63,7 @@ fn signal_names_follow_go_and_unknown_numbers_are_numbered() {
     assert_eq!(signal_name(-1), "signal -1");
 }
 
-// No Go test: exec.Command with arguments, never a shell string (AGENTS.md).
+// Arguments, never a shell string (AGENTS.md).
 // The argument holds a space, a `;` and a `$`, which a shell would act on.
 #[cfg(unix)]
 #[test]
@@ -76,7 +75,7 @@ fn arguments_reach_the_program_verbatim() {
     assert_eq!(output, "a b;c $HOME");
 }
 
-// No Go test: CombinedOutput keeps both streams.
+// Both streams are kept.
 #[cfg(unix)]
 #[test]
 fn combined_output_keeps_both_streams_in_order() {
@@ -87,7 +86,7 @@ fn combined_output_keeps_both_streams_in_order() {
     assert_eq!(output, "out\nerr\n");
 }
 
-// No Go test: Go's nil Stdin is /dev/null. The child inspects its own
+// A missing stdin is /dev/null. The child inspects its own
 // descriptor 0, so this cannot pass whatever `cargo test` itself reads from.
 #[cfg(target_os = "linux")]
 #[test]
@@ -125,7 +124,7 @@ fn pid_exists(pid: &str) -> bool {
         .success()
 }
 
-// Go: exec.CommandContext + WithTimeout (TestProbeEncoder_BoundsItselfWithoutACallerDeadline)
+// A deadline bounds the process.
 #[cfg(unix)]
 #[test]
 fn run_with_deadline_kills_and_reaps_at_the_deadline() {
@@ -155,7 +154,7 @@ fn run_with_deadline_kills_and_reaps_at_the_deadline() {
     );
 }
 
-// Go: TestSizeProbeCache_DoesNotRememberACancelledProbe (the process half: the
+// A cancelled probe is not remembered (the process half: the
 // caller's cancellation stops a running process).
 #[cfg(unix)]
 #[test]
@@ -191,7 +190,7 @@ fn run_with_deadline_stops_on_cancellation() {
     );
 }
 
-// Go: TestProbeEncoders_StopsOnCancellation (a done context starts nothing).
+// A cancel flag already raised starts nothing.
 #[test]
 fn run_with_deadline_starts_nothing_when_already_cancelled() {
     let cancel = AtomicBool::new(true);
@@ -206,7 +205,7 @@ fn run_with_deadline_starts_nothing_when_already_cancelled() {
     assert!(out.status.is_none());
 }
 
-// No Go test: a finished process is reported as such, with its code and both streams.
+// A finished process is reported as such, with its code and both streams.
 #[cfg(unix)]
 #[test]
 fn run_with_deadline_reports_a_process_that_finishes() {
@@ -223,8 +222,8 @@ fn run_with_deadline_reports_a_process_that_finishes() {
     assert_eq!(out.output, "out\nerr\n");
 }
 
-// No Go test (CombinedOutput reads while it waits too): more than a pipe holds must
-// not block the child, . 4 MB, not just over 64 KiB: a Linux pipe is
+// More than a pipe holds must
+// not block the child. 4 MB, not just over 64 KiB: a Linux pipe is
 // 64 KiB by default but grows (up to 1 MiB, `pipe-max-size`), and 300 KB was
 // measured to fit without a reader.
 #[cfg(unix)]
@@ -259,8 +258,7 @@ fn run_with_deadline_fails_when_the_program_does_not_exist() {
     assert!(run_with_deadline(cmd, Duration::from_secs(1), None).is_err());
 }
 
-// No Go test (CombinedOutput would wait on the pipe for as long as a child holds it):
-// a grandchild keeping the pipe open after the kill must not hold the caller. The run
+// A grandchild keeping the pipe open after the kill must not hold the caller. The run
 // happens in a thread so that the unbounded wait this guards against fails the test
 // instead of hanging it.
 #[cfg(unix)]
@@ -283,7 +281,7 @@ fn run_with_deadline_returns_although_a_child_keeps_the_pipe() {
     assert_eq!(out.output, "hello\n", "the partial output is kept");
 }
 
-// No Go test: the outcome of a kill is decided by how the process died.
+// The outcome of a kill is decided by how the process died.
 #[cfg(unix)]
 #[test]
 fn settle_end_tells_a_kill_from_a_normal_exit() {
@@ -327,7 +325,7 @@ fn ping_for_a_long_time() -> Command {
     background_command("ping", ["-n", "30", "127.0.0.1"])
 }
 
-// Go: exec.CommandContext + WithTimeout, on Windows.
+// A deadline bounds the process, on Windows.
 #[cfg(windows)]
 #[test]
 fn run_with_deadline_times_out_a_running_exe() {

@@ -1,6 +1,4 @@
 //! Free space of the temporary filesystem, and the check that the remap maps fit in it.
-//! Port of `health_disk_unix.go`, `health_disk_windows.go` and `checkTempSpaceForMaps`
-//! (`pgm.go`), all in Go's `internal/common/` (removed in phase 8; last release with it: v0.2.9).
 //!
 //! The system call comes from the `fs4` crate. `rustix` alone would give a safe `statvfs`
 //! on Unix, but Windows has no safe equivalent short of calling `GetDiskFreeSpaceExW`
@@ -8,19 +6,17 @@
 //! tree (it sits on the `rustix` and `windows-sys` that `tempfile` already pulls in), so
 //! this crate stays free of `unsafe`, with no `sysinfo`-sized dependency for one number.
 //!
-//! Deliberate differences from the Go code:
+//! Design notes:
 //! - The free space is read in bytes by `fs4` and converted to GB here. On Unix `fs4`
-//!   multiplies the available blocks by `f_frsize` (the POSIX fragment size) where Go
-//!   multiplies by `Bsize`; they are the same on the filesystems that matter, and
-//!   `f_frsize` is the one the blocks are counted in. On Windows `fs4` asks for the
-//!   free bytes available to the calling user (quotas honoured), like Go.
-//! - On Windows Go calls `GetDiskFreeSpaceEx` on the path itself, which fails for a
-//!   directory that does not exist; `fs4` first reduces the path to its volume root
+//!   multiplies the available blocks by `f_frsize` (the POSIX fragment size), the unit
+//!   the blocks are counted in. On Windows `fs4` asks for the free bytes available to
+//!   the calling user (quotas honoured).
+//! - On Windows, `GetDiskFreeSpaceEx` on the path itself would fail for a directory that
+//!   does not exist; `fs4` first reduces the path to its volume root
 //!   (`GetVolumePathNameW`) and measures that, so a missing directory still reads. No
 //!   consequence for `temp_dir`, which exists.
-//! - `check_temp_space_for_maps` receives the directory and the reading as parameters
-//!   (Go reads `os.TempDir()` and a variable swapped by tests); `free_disk_gb` is the
-//!   real reading.
+//! - `check_temp_space_for_maps` receives the directory and the reading as parameters;
+//!   `free_disk_gb` is the real reading.
 //! - The headroom sum saturates: `remap_map_bytes` itself saturates at `i64::MAX`.
 
 use std::io;
@@ -112,7 +108,7 @@ mod tests {
         }
     }
 
-    // Go: TestCheckTempSpaceForMaps_PassesWhenThereIsRoom (on the real filesystem)
+    // On the real filesystem.
     #[test]
     fn passes_when_there_is_room() {
         let dir = std::env::temp_dir();
@@ -133,7 +129,6 @@ mod tests {
         assert!(free_disk_gb(&missing).is_err());
     }
 
-    // Go: TestCheckTempSpaceForMaps_RefusesWhenTmpIsFull
     #[test]
     fn refuses_when_tmp_is_full_and_names_tmpdir() {
         let dir = Path::new("/tmp/x");

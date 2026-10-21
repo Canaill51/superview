@@ -2,7 +2,7 @@
 //! and the "source already stretched" box.
 //!
 //! A new file (`<user config dir>/superview/preferences.json`), not a reading of what the
-//! Go/Fyne window saved: the port starts clean (decision of 2026-10-17). Loading never fails:
+//! earlier window saved: it starts clean (decision of 2026-10-17). Loading never fails:
 //! a missing, unreadable or invalid file gives the defaults, and the last two leave a warning
 //! in the log. Saving is atomic (a temporary file, then a rename), so a crash cannot leave half
 //! a file.

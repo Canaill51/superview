@@ -1,4 +1,4 @@
-//! The file pickers, and what to do when the system has none (phase 6, PR 6.4 of DEC-43). The
+//! The file pickers, and what to do when the system has none (DEC-43). The
 //! decisions are here as plain functions over a [`Desktop`], so that the tests choose what every
 //! step answers; [`SystemDesktop`] is the real one, used by `host.rs`.
 //!
@@ -6,8 +6,7 @@
 //!
 //! 1. rfd (the xdg portal, then zenity, both inside rfd);
 //! 2. if rfd answered "nothing" **in less than [`PORTAL_FAILURE_WINDOW`]**, our own `zenity`
-//!    then `kdialog` (ported from Go's `gui_native_dialog_linux.go` (removed in phase 8; last release with it: v0.2.9): same arguments, exit code 1
-//!    is a cancel);
+//!    then `kdialog` (same arguments as v0.2.9, exit code 1 is a cancel);
 //! 3. if neither exists or works, [`Pick::NoPicker`]: the window shows a text field instead.
 //!
 //! Why a duration: rfd 0.17 returns `None` for a cancel and for "no portal and no zenity"
@@ -16,7 +15,7 @@
 //! second picker; the gain is that a machine with kdialog only (KDE without a portal) is served.
 //!
 //! On Windows there is no fallback: rfd's native box alone, and `None` is a cancel (no
-//! PowerShell, a deliberate gap with Go, see DEC-43).
+//! PowerShell, a deliberate gap from v0.2.9, see DEC-43).
 //!
 //! Every program is run with an argument list, never a shell string, and the only thing that
 //! comes back from a picker is a path, which the window validates like any other.
@@ -87,7 +86,7 @@ pub trait Desktop {
     fn elapsed(&self) -> Duration;
 }
 
-/// The helper pickers, in the order they are tried (Go: zenity, GTK and the most common, first).
+/// The helper pickers, in the order they are tried (zenity, GTK and the most common, first).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tool {
     Zenity,
@@ -123,8 +122,8 @@ fn filter_globs() -> String {
         .join(" ")
 }
 
-/// The arguments of `tool` for `kind` (Go: `chooseInputFileNative`, `chooseOutputFileNative`).
-/// Kdialog's filter also lists `*.MP4`, which Go's left out: the filter is case-sensitive.
+/// The arguments of `tool` for `kind`.
+/// Kdialog's filter also lists `*.MP4`, which v0.2.9 left out: the filter is case-sensitive.
 fn tool_args(tool: Tool, kind: Kind) -> Vec<String> {
     let globs = filter_globs();
     let args: Vec<String> = match (tool, kind) {

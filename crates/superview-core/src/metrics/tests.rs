@@ -19,7 +19,6 @@ fn video() -> VideoSpecs {
     }
 }
 
-// Go: TestNewEncodingMetrics
 #[test]
 fn a_new_tracker_names_its_files() {
     let t0 = Instant::now();
@@ -32,8 +31,8 @@ fn a_new_tracker_names_its_files() {
     assert!(m.end.is_none() && !m.success);
 }
 
-// Go: TestEncodingMetrics_RecordAndCompute (the recorded values; the figures computed
-// from them are not ported)
+// The recorded values; the figures once computed
+// from them no longer exist (see the header).
 #[test]
 fn recording_keeps_what_the_interface_reads() {
     let t0 = Instant::now();
@@ -64,7 +63,7 @@ fn recording_keeps_what_the_interface_reads() {
     );
 }
 
-// No Go test: RecordInputMetadata ignores a video with no stream.
+// record_input_metadata ignores a video with no stream.
 #[test]
 fn a_video_without_streams_records_no_input_size() {
     let mut m = EncodingMetrics::new("in.mp4", "out.mp4");
@@ -78,7 +77,6 @@ fn a_video_without_streams_records_no_input_size() {
     assert_eq!(m.input_file_size, 0);
 }
 
-// Go: TestEncodingMetrics_RecordProgressClamp
 #[test]
 fn progress_is_clamped_to_0_and_100() {
     let mut m = EncodingMetrics::new("in.mp4", "out.mp4");
@@ -89,7 +87,7 @@ fn progress_is_clamped_to_0_and_100() {
     assert_eq!(m.progress_updates, 2);
 }
 
-// Go: TestEncodingMetrics_RecordErrorAndSummary (the error part)
+// The error part.
 #[test]
 fn an_error_is_recorded_with_its_exit_code() {
     let t0 = Instant::now();
@@ -116,7 +114,7 @@ fn elapsed_runs_until_the_end() {
     assert_eq!(m.elapsed_at(t0 + secs(100)), secs(7));
 }
 
-// Go: TestEncodingMetrics_EstimateStartsAtFirstProgress -- from the first report, not the
+// The estimate starts at the first report, not the
 // start.
 #[test]
 fn the_estimate_waits_for_two_percent_and_runs_from_the_first_report() {
@@ -136,7 +134,6 @@ fn the_estimate_waits_for_two_percent_and_runs_from_the_first_report() {
     assert_eq!(m.remaining(), secs(160));
 }
 
-// Go: TestEncodingMetrics_EstimateRestartsWithTheEncode
 #[test]
 fn a_progress_that_goes_back_drops_the_estimate_and_its_origin() {
     let t0 = Instant::now();
@@ -164,7 +161,7 @@ fn a_report_of_100_percent_computes_no_new_estimate() {
     m.record_progress_at(50.0, t0 + secs(49));
     assert_eq!(m.remaining(), secs(50));
     m.record_progress_at(100.0, t0 + secs(99));
-    // A fresh estimate would be zero; the previous one stays, as in Go (the interface
+    // A fresh estimate would be zero; the previous one stays (the interface
     // reads 100% and shows the result panel, not a countdown).
     assert_eq!(m.last_progress, 100.0);
     assert_eq!(m.remaining(), secs(50));

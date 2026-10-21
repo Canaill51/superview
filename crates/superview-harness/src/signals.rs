@@ -1,6 +1,6 @@
 //! System stop requests. The core installs no handler (it only reads a `StopControl`); the
 //! harness writes the flags. On Unix the real signal number is stored (2 or 15), which keeps
-//! the "interrupt" / "terminated" messages of the Go code; on Windows only Ctrl+C exists.
+//! the "interrupt" / "terminated" messages of v0.2.9; on Windows only Ctrl+C exists.
 
 use std::sync::atomic::{AtomicBool, AtomicI32};
 

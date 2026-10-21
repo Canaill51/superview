@@ -1,21 +1,17 @@
 //! What an encode measures about itself, for the interface and the log.
-//! Port of the part of Go's `internal/common/metrics.go` (removed in phase 8; last release with it: v0.2.9) the interface reads.
 //!
-//! Deliberate differences from the Go code:
-//! - Removed, as decided for phase 4: `Summary()`, `LogMetrics()` and `computeMetrics`
-//!   (encoding speed, compression ratio, bitrate reduction). Nothing in the interface
-//!   reads them, and the result panel only needs the two sizes and two durations kept
-//!   here. The input's codec, size in pixels, duration, bitrate and frame rate, which fed
-//!   only those figures, are not stored either.
+//! Design notes:
+//! - Only what the interface reads is kept: the result panel needs the two sizes and two
+//!   durations. No encoding speed, compression ratio or bitrate reduction, and the input's
+//!   codec, size in pixels, duration, bitrate and frame rate are not stored either.
 //! - No lock and no global: the metrics are a plain value (`&mut self` to record) that
 //!   `perform_encoding` returns; a caller sharing one across threads wraps it in a
-//!   `Mutex`. Go's `GetLast*`/`SetLast*` have no counterpart.
-//! - Times are `Instant`s (monotonic) where Go keeps UTC wall-clock times, and every
+//!   `Mutex`.
+//! - Times are `Instant`s (monotonic), not wall-clock times, and every
 //!   recording method has an `_at(now)` form taking the instant, so the remaining-time
 //!   estimate is tested without sleeping. The plain form passes `Instant::now()`.
-//! - The estimate is stored as it is computed, as in Go; it is *not* cleared by
-//!   [`EncodingMetrics::record_completion`], which, like Go's, only forces the
-//!   progress to 100.
+//! - The estimate is stored as it is computed; it is *not* cleared by
+//!   [`EncodingMetrics::record_completion`], which only forces the progress to 100.
 
 use std::time::{Duration, Instant};
 
@@ -62,7 +58,7 @@ pub struct EncodingMetrics {
 }
 
 impl EncodingMetrics {
-    /// A tracker started now (Go: `NewEncodingMetrics`).
+    /// A tracker started now.
     pub fn new(input_file: &str, output_file: &str) -> Self {
         Self::new_at(input_file, output_file, Instant::now())
     }
@@ -183,7 +179,7 @@ impl EncodingMetrics {
         self.error_message = message.into();
     }
 
-    /// Time since the start, or the whole run once it has ended (Go: `ElapsedTime`).
+    /// Time since the start, or the whole run once it has ended.
     pub fn elapsed(&self) -> Duration {
         self.elapsed_at(Instant::now())
     }

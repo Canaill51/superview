@@ -14,7 +14,6 @@ fn exited(code: i32) -> ExitStatus {
     }
 }
 
-// Go: TestClassifyFfmpegFailure_KeepsStderrForOrdinaryFailures
 #[test]
 fn an_ordinary_failure_keeps_ffmpegs_stderr() {
     let err = classify_ffmpeg_failure(&exited(1), "Unknown encoder 'nope'", "5.2 GB");
@@ -30,7 +29,6 @@ fn an_ordinary_failure_keeps_ffmpegs_stderr() {
     );
 }
 
-// Go: TestClassifyFfmpegFailure_WithoutStderr
 #[test]
 fn no_stderr_is_not_announced() {
     let text = classify_ffmpeg_failure(&exited(8), "", "5.2 GB").to_string();
@@ -58,7 +56,6 @@ fn killed() -> ExitStatus {
         .expect("cannot start a helper process on this machine")
 }
 
-// Go: TestClassifyFfmpegFailure_DiagnosesAKillAsMemoryExhaustion
 #[cfg(unix)]
 #[test]
 fn a_kill_is_diagnosed_as_memory_exhaustion() {
@@ -81,7 +78,7 @@ fn a_kill_is_diagnosed_as_memory_exhaustion() {
     assert!(!with_stderr.to_string().contains("noise"));
 }
 
-// The whole text, written out by hand from encode.go.
+// The whole text, written out by hand.
 #[cfg(unix)]
 #[test]
 fn the_kill_message_is_the_go_text_word_for_word() {
@@ -99,7 +96,7 @@ or convert a video with fewer pixels.";
     );
 }
 
-// Go: TestClassifyFfmpegFailure_ReportsTheMemoryReadingWhenThereIsOne, with the reading
+// The reading is
 // injected so that it runs on any machine.
 #[cfg(unix)]
 #[test]
@@ -125,7 +122,7 @@ fn an_unknown_memory_reading_is_left_out() {
     );
 }
 
-// The convenience variant takes the reading of this machine, like the Go function.
+// The convenience variant takes the reading of this machine.
 #[cfg(unix)]
 #[test]
 fn the_convenient_variant_reads_this_machine() {

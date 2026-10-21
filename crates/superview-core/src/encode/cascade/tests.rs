@@ -21,13 +21,13 @@ fn caps(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         .collect()
 }
 
-/// Go: cascadeMachine: a hardware encoder with a matching decode accel opens all three
+/// A hardware encoder with a matching decode accel opens all three
 /// levels of the cascade.
 fn nvenc_machine() -> HashMap<String, String> {
     caps(&[("accels", "cuda"), ("encoders", "h264_nvenc,libx264")])
 }
 
-/// Go: vaapiMachine.
+/// A VAAPI machine.
 fn vaapi_machine() -> HashMap<String, String> {
     caps(&[
         ("encoders", "h264_vaapi,libx264,libx265"),
@@ -39,7 +39,7 @@ fn cpu_machine(encoders: &str) -> HashMap<String, String> {
     caps(&[("accels", ""), ("encoders", encoders)])
 }
 
-/// Go: cascadeVideo, a plain 1080p H.264 source.
+/// A plain 1080p H.264 source.
 fn h264_video() -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
@@ -56,7 +56,7 @@ fn h264_video() -> VideoSpecs {
     }
 }
 
-/// Go: hevcSource (crossfamily_test.go).
+/// An HEVC source.
 fn hevc_source(pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "clip.mp4".into(),
@@ -72,7 +72,7 @@ fn hevc_source(pix_fmt: &str) -> VideoSpecs {
     }
 }
 
-/// Go: reAudioConfig: the audio is always re-encoded, so one pass is one launch.
+/// The audio is always re-encoded, so one pass is one launch.
 fn safe_config() -> Config {
     Config {
         performance_mode: "safe".into(),
@@ -192,7 +192,7 @@ fn assert_memory_refusal(result: &Result<EncodeSummary, Error>) {
 mod act {
     pub const OK: &str = "echo out_time_ms=1000000; echo progress=end; exit 0";
     pub const REFUSE: &str = "echo 'Hardware does not support encoding at size' 1>&2; exit 1";
-    /// Go: fakeLateFailingFFmpeg: frames are written, then the disk is full.
+    /// Frames are written, then the disk is full.
     pub const LATE: &str = "echo out_time_ms=500000; echo 'No space left on device' 1>&2; exit 1";
     pub const NO_AUDIO_COPY: &str =
         "echo 'Could not find tag for codec pcm_s16le in stream #1' 1>&2; exit 1";
@@ -210,7 +210,7 @@ struct Fake {
     _dir: tempfile::TempDir,
 }
 
-/// Go: fakeRefusingFFmpeg and its relatives, in one: an ffmpeg that appends the argv of
+/// An ffmpeg that refuses, and its relatives, in one: appends the argv of
 /// every call to a ledger and its pid to another, then does the action of the first rule
 /// whose pattern is a word sequence of the argv (`default` when none is).
 #[cfg(unix)]
@@ -361,7 +361,7 @@ impl Job {
 
 // ---- the order of the attempts, and the summary of each way out ----
 
-// Go: no test; the first level. The ledger shows -hwaccel, and the summary names the
+// The first level. The ledger shows -hwaccel, and the summary names the
 // decoder in capitals.
 #[cfg(unix)]
 #[test]
@@ -646,7 +646,7 @@ fn a_hardware_encoder_without_a_software_fallback_returns_the_cpu_pass_error() {
 
 // ---- the audio retry ----
 
-// Go: TestEncodeVideo_SafePerformanceRetriesAudioAsAAC, first subtest.
+// Safe performance retries audio as AAC, first case.
 #[cfg(unix)]
 #[test]
 fn safe_performance_retries_the_audio_as_aac() {
@@ -689,7 +689,7 @@ fn safe_mode_asks_for_aac_and_does_not_retry_it() {
     assert!(has(&calls[0], "-c:a aac"), "{}", calls[0]);
 }
 
-// Go: TestEncodeVideo_SafePerformanceRetriesAudioAsAAC, second subtest.
+// Safe performance retries audio as AAC, second case.
 #[cfg(unix)]
 #[test]
 fn a_copy_that_fails_after_output_is_not_retried_as_aac() {
@@ -724,7 +724,7 @@ fn a_copy_that_fails_after_output_is_not_retried_as_aac() {
     assert_eq!(fake.calls().len(), 1, "{:?}", fake.calls());
 }
 
-// Go: TestEncodeVideo_SafePerformanceRetriesAudioAsAAC, third subtest.
+// Safe performance retries audio as AAC, third case.
 #[cfg(unix)]
 #[test]
 fn a_cancellation_during_the_copy_run_is_not_retried_as_aac() {
@@ -800,7 +800,7 @@ fn every_pass_of_the_cascade_retries_its_own_audio() {
 
 // ---- the stops ----
 
-// Go: TestEncodeVideo_SystemSignalStopsTheFallbackCascade (E-02). One signal for the
+// A system signal stops the fallback cascade (E-02). One signal for the
 // conversion; under the shipped configuration with a hardware encoder it used to start
 // six processes.
 #[cfg(unix)]
@@ -833,7 +833,7 @@ fn a_system_signal_stops_the_fallback_cascade() {
     fake.assert_no_process_left();
 }
 
-// Go: TestEncodeVideo_CancellationStopsTheFallbackCascade (P-03). The cancellation
+// A cancellation stops the fallback cascade (P-03). The cancellation
 // lands from the progress callback, so the first ffmpeg is provably running.
 #[cfg(unix)]
 #[test]
@@ -886,7 +886,7 @@ fn a_stop_on_the_cpu_pass_is_not_turned_into_a_memory_refusal() {
     fake.assert_no_process_left();
 }
 
-// Go: TestEncodeVideo_FailureAfterOutputIsNotRetried (E-13). The progress callback must
+// A failure after output is not retried (E-13). The progress callback must
 // have fired, so the failure is a late one and not an open failure the cascade is right
 // to retry.
 #[cfg(unix)]
@@ -1041,9 +1041,9 @@ fn a_stop_already_requested_is_reported_before_any_launch() {
     }
 }
 
-// ---- the memory guard of the CPU-encoder fallback (fallbackmemory_test.go) ----
+// ---- the memory guard of the CPU-encoder fallback ----
 
-// Go: TestEncodeVideo_RefusesAFallbackThatCannotFitInMemory.
+// A fallback that cannot fit in memory is refused.
 #[cfg(unix)]
 #[test]
 fn a_fallback_that_cannot_fit_in_memory_is_refused_before_it_starts() {
@@ -1065,7 +1065,7 @@ fn a_fallback_that_cannot_fit_in_memory_is_refused_before_it_starts() {
     assert_eq!(fake.calls().len(), 2, "{:?}", fake.calls());
 }
 
-// Go: TestEncodeVideo_FallbackProceedsWhenMemoryAllows.
+// The fallback proceeds when memory allows.
 #[cfg(unix)]
 #[test]
 fn a_fallback_that_fits_in_memory_proceeds() {
@@ -1088,7 +1088,7 @@ fn a_fallback_that_fits_in_memory_proceeds() {
     assert!(has(&calls[2], "-c:v libx265"), "{}", calls[2]);
 }
 
-// Go: TestEncodeVideo_FallbackPricesTheThreadsItWillUse.
+// The fallback prices the threads it will use.
 #[cfg(unix)]
 #[test]
 fn the_fallback_is_priced_with_the_threads_it_will_use() {
@@ -1251,7 +1251,7 @@ fn the_memory_refusal_is_the_error_returned_when_the_fallback_cannot_fit() {
 }
 
 // Without maps there is no size to price: the guard is skipped and the fallback goes on
-// (Go: `if outX, outY, known := sessionOutputSize(); known`).
+// (the output size is known only when the session has maps).
 #[test]
 fn a_session_without_maps_skips_the_guard() {
     let _guard = spawn_lock();
@@ -1359,7 +1359,7 @@ fn lavfi_clip(
     }
 }
 
-// No Go test of this shape: a real encode, with real maps, ends in a non-empty file and
+// A real encode, with real maps, ends in a non-empty file and
 // the summary of a plain CPU conversion.
 #[test]
 fn a_real_clip_is_encoded_with_libx264() {

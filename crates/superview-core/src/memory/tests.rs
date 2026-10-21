@@ -3,7 +3,7 @@ use crate::video::VideoStream;
 
 const GIB: u64 = 1024 * 1024 * 1024;
 
-// Go: reportedClip -- the geometry the whole memory finding was measured on: a
+// reported_clip -- the geometry the whole memory finding was measured on: a
 // 3840x2880 source, which the conversion widens to 5120x2880.
 fn reported_clip(codec: &str, pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
@@ -33,7 +33,6 @@ fn check(
     check_memory_for_encode(Some(video), false, encoder, threads, || available)
 }
 
-// Go: TestMemoryNeededForEncode_MatchesTheMeasurement
 #[test]
 fn the_estimate_matches_the_measurement() {
     for (pix_fmt, measured) in [("yuv420p", 3.97), ("yuv420p10le", 6.25)] {
@@ -46,7 +45,6 @@ fn the_estimate_matches_the_measurement() {
     }
 }
 
-// Go: TestMemoryNeededForEncode_FollowsTheFilterChain
 #[test]
 fn a_ten_bit_source_on_h264_costs_the_eight_bit_rate() {
     let ten = reported_clip("hevc", "yuv420p10le");
@@ -60,7 +58,6 @@ fn a_ten_bit_source_on_h264_costs_the_eight_bit_rate() {
     );
 }
 
-// Go: TestMemoryNeededForEncode_SaysNothingAboutHardwareEncoders
 #[test]
 fn hardware_encoders_have_no_estimate() {
     let video = reported_clip("hevc", "yuv420p10le");
@@ -73,7 +70,6 @@ fn hardware_encoders_have_no_estimate() {
     }
 }
 
-// Go: TestMemoryNeededForEncode_HandlesNothingToEstimate
 #[test]
 fn nothing_to_estimate_gives_zero() {
     let no_streams = VideoSpecs {
@@ -93,7 +89,6 @@ fn nothing_to_estimate_gives_zero() {
     assert_eq!(needed(&clip, false, "", baseline), 0);
 }
 
-// Go: TestMemoryNeededForEncode_CostsTheOutputFrameNotTheInput
 #[test]
 fn the_widened_output_costs_more_than_the_unwidened_one() {
     let video = reported_clip("hevc", "yuv420p");
@@ -102,7 +97,6 @@ fn the_widened_output_costs_more_than_the_unwidened_one() {
     assert!(widened > unwidened, "{widened} vs {unwidened}");
 }
 
-// Go: TestMemoryNeededForEncode_GrowsWithThreads
 #[test]
 fn the_estimate_grows_with_the_threads_as_measured() {
     for pix_fmt in ["yuv420p", "yuv420p10le"] {
@@ -118,7 +112,6 @@ fn the_estimate_grows_with_the_threads_as_measured() {
     }
 }
 
-// Go: TestMemoryNeededForEncode_NeverBelowTheBaseline
 #[test]
 fn fewer_threads_than_the_baseline_are_not_credited() {
     let video = reported_clip("hevc", "yuv420p");
@@ -132,7 +125,6 @@ fn fewer_threads_than_the_baseline_are_not_credited() {
     }
 }
 
-// Go: TestCheckMemoryForEncode_RefusesWhatCannotFit
 #[test]
 fn refuses_what_cannot_fit_and_says_why() {
     let video = reported_clip("hevc", "yuv420p10le");
@@ -151,14 +143,12 @@ fn refuses_what_cannot_fit_and_says_why() {
     );
 }
 
-// Go: TestCheckMemoryForEncode_AllowsWhatFitsWithRoom
 #[test]
 fn allows_what_fits_with_room() {
     let video = reported_clip("hevc", "yuv420p10le");
     check(&video, "libx265", MEMORY_BASELINE_THREADS, Some(16 * GIB)).unwrap();
 }
 
-// Go: TestCheckMemoryForEncode_AllowsATightFit
 #[test]
 fn a_tight_fit_is_warned_about_not_refused() {
     let video = reported_clip("hevc", "yuv420p10le");
@@ -170,14 +160,12 @@ fn a_tight_fit_is_warned_about_not_refused() {
         .expect_err("one byte under the estimate must be refused");
 }
 
-// Go: TestCheckMemoryForEncode_DoesNotRefuseWhatItCannotMeasure
 #[test]
 fn an_unreadable_memory_is_not_a_refusal() {
     let video = reported_clip("hevc", "yuv420p10le");
     check(&video, "libx265", MEMORY_BASELINE_THREADS, None).unwrap();
 }
 
-// Go: TestCheckMemoryForEncode_IgnoresHardwareEncoders
 #[test]
 fn hardware_encoders_are_not_refused() {
     let video = reported_clip("hevc", "yuv420p10le");
@@ -198,7 +186,6 @@ fn nothing_to_check_is_never_refused() {
     .unwrap();
 }
 
-// Go: TestCheckMemoryForEncode_RefusesWhatOnlyManyThreadsCannotHold
 #[test]
 fn refuses_what_only_many_threads_cannot_hold() {
     let video = reported_clip("hevc", "yuv420p10le");
@@ -216,14 +203,12 @@ fn format_gb_has_one_decimal() {
     assert_eq!(format_gb(4 * GIB), "4.0 GB");
 }
 
-// Go: TestParseMemAvailable_ReadsTheKernelEstimate
 #[test]
 fn parse_reads_the_kernel_estimate_in_bytes() {
     let meminfo = b"MemTotal:        8039284 kB\nMemFree:          204552 kB\nMemAvailable:    3894132 kB\nBuffers:           12345 kB\n";
     assert_eq!(parse_mem_available(meminfo), Some(3_894_132 * 1024));
 }
 
-// Go: TestParseMemAvailable_IsNotMemFree
 #[test]
 fn parse_does_not_read_mem_free() {
     let meminfo =
@@ -231,7 +216,6 @@ fn parse_does_not_read_mem_free() {
     assert_ne!(parse_mem_available(meminfo), Some(204_552 * 1024));
 }
 
-// Go: TestParseMemAvailable_RejectsWhatItCannotRead
 #[test]
 fn parse_rejects_what_it_cannot_read() {
     for (what, meminfo) in [
@@ -247,7 +231,6 @@ fn parse_rejects_what_it_cannot_read() {
     }
 }
 
-// Go: TestAvailableMemoryBytes_MatchesProcMeminfo
 #[cfg(not(windows))]
 #[test]
 fn the_real_reading_matches_proc_meminfo() {
@@ -283,7 +266,6 @@ fn windows_has_no_reading() {
     assert_eq!(format_available_memory(), UNKNOWN_MEMORY);
 }
 
-// Go: TestFormatAvailableMemory_AgreesWithTheHelper
 #[test]
 fn the_formatted_reading_agrees_with_the_helper() {
     let formatted = format_available_memory();
@@ -295,7 +277,7 @@ fn the_formatted_reading_agrees_with_the_helper() {
     }
 }
 
-// Go: TestCgroupLimitsAvailableMemory -- in a container MemAvailable describes the host.
+// In a container MemAvailable describes the host.
 #[test]
 fn a_cgroup_limit_caps_the_available_memory() {
     let dir = tempfile::tempdir().unwrap();
