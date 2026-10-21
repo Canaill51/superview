@@ -7,7 +7,6 @@ use superview_core::tools::{ToolResolver, check_ffmpeg};
 
 use super::*;
 
-// TestEnsureMP4Extension
 #[test]
 fn ensure_mp4_extension_appends_unless_present() {
     let cases = [
@@ -28,7 +27,6 @@ fn ensure_mp4_extension_appends_unless_present() {
     }
 }
 
-// TestEnsureMP4ExtensionMatchesTheInputFilter
 #[test]
 fn ensure_mp4_extension_matches_the_input_filter() {
     for ext in SUPPORTED_INPUT_EXTENSIONS {
@@ -41,7 +39,6 @@ fn ensure_mp4_extension_matches_the_input_filter() {
     }
 }
 
-// TestSupportedInputExtensionsAreMP4Only
 #[test]
 fn supported_input_extensions_are_mp4_only_in_both_cases() {
     assert!(
@@ -68,7 +65,6 @@ impl StdError for Opaque {
     }
 }
 
-// TestIsMissingFFmpegError
 #[test]
 fn is_missing_ffmpeg_error_matches_only_the_real_message() {
     let other = Error::Plain("some other failure".into());
@@ -111,7 +107,6 @@ fn metrics(input: i64, output: i64) -> EncodingMetrics {
     m
 }
 
-// TestFormatResultsPanel
 #[test]
 fn format_results_panel_reports_sizes_ratio_and_times() {
     assert_eq!(format_results_panel(None), "Results: no completed run yet");
@@ -133,7 +128,6 @@ fn format_results_panel_reports_sizes_ratio_and_times() {
     );
 }
 
-// TestFormatResultsPanel_ZeroInputSizeDoesNotDivideByZero
 #[test]
 fn format_results_panel_zero_input_size_gives_no_non_finite_ratio() {
     let mut m = metrics(0, 1024);
@@ -143,7 +137,6 @@ fn format_results_panel_zero_input_size_gives_no_non_finite_ratio() {
     assert!(text.contains("(0.0%)"), "{text}");
 }
 
-// TestFormatEncodingStatus
 #[test]
 fn format_encoding_status_hides_an_estimate_that_rounds_to_zero() {
     let ms = Duration::from_millis;
@@ -174,7 +167,7 @@ fn format_encoding_status_hides_an_estimate_that_rounds_to_zero() {
     }
 }
 
-// TestBuildIdentity (R-04)
+// (R-04)
 #[test]
 fn build_identity_covers_the_degraded_cases() {
     let rev = "85b66712872f83ec87bfc7f9cfc38d128cd3a88d";
@@ -246,7 +239,6 @@ fn build_identity_covers_the_degraded_cases() {
     }
 }
 
-// TestQualityProfileSettings
 #[test]
 fn quality_profile_settings_widens_by_four_thirds_and_picks_the_preset() {
     const INPUT: i64 = 10_000_000;
@@ -268,8 +260,7 @@ fn quality_profile_settings_widens_by_four_thirds_and_picks_the_preset() {
     }
 }
 
-// TestConfiguredPresetWinsOverQualityProfile (the Go test checked a copy of the rule; this
-// one checks the rule the window applies)
+// Checks the rule the window applies.
 #[test]
 fn a_configured_preset_wins_over_the_quality_profile() {
     let configured = |preset: &str| Config {
@@ -316,7 +307,6 @@ fn the_bitrate_is_bounded_by_the_configuration() {
     );
 }
 
-// TestEncoderOptionsFor
 #[test]
 fn encoder_options_for_ignores_empty_items_and_trims() {
     let u = USE_INPUT_CODEC;
@@ -345,7 +335,6 @@ fn encoder_options_for_ignores_empty_items_and_trims() {
     }
 }
 
-// TestParseEncoderSelection_UseInputCodecWithPadding
 #[test]
 fn parse_encoder_selection_ignores_padding_around_the_first_entry() {
     assert_eq!(
@@ -366,8 +355,8 @@ fn parse_encoder_selection_takes_the_first_word() {
     );
 }
 
-// TestLoadStartupConfig_NeverNil (E-21). Go had an environment step between the file and
-// the defaults; the port has none, so both refusals end on the defaults.
+// (E-21) There is no environment step between the file and
+// the defaults (DEC-43), so both refusals end on the defaults.
 #[test]
 fn load_startup_config_never_returns_an_unusable_config() {
     let dir = tempfile::tempdir().expect("tempdir");

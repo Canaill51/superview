@@ -25,7 +25,7 @@ fn load() -> serde_json::Map<String, Value> {
     }
 }
 
-/// Go: parityVideo
+/// A source video of the matrix.
 fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
@@ -43,7 +43,7 @@ fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
     }
 }
 
-/// Go: parityCapabilities. A nil Go map is an empty one.
+/// The capabilities of the matrix. A missing map is an empty one.
 fn capabilities() -> Vec<(&'static str, HashMap<String, String>)> {
     let caps = |accels: &str, encoders: &str| {
         let mut map = HashMap::new();
@@ -109,7 +109,7 @@ fn capabilities() -> Vec<(&'static str, HashMap<String, String>)> {
     ]
 }
 
-/// Go: the `sources` table.
+/// The `sources` table.
 fn sources() -> Vec<(&'static str, VideoSpecs)> {
     vec![
         ("src=h264", parity_video("h264", "yuv420p")),
@@ -145,7 +145,7 @@ fn kind(err: &Error) -> &'static str {
         Error::Encoder(_) => "EncoderError",
         Error::Session(_) => "SessionError",
         Error::Plain(_) => "plain",
-        // No oracle case produces a stop (PR 6a): named so the match stays exhaustive.
+        // No oracle case produces a stop: named so the match stays exhaustive.
         Error::Cancelled => "cancelled",
         Error::StoppedBySignal(_) => "stopped_by_signal",
         Error::FailedAfterOutput(_) => "failed_after_output",

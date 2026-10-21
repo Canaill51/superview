@@ -1,27 +1,27 @@
-//! The glue between the Slint window and everything else (phase 6, PR 6.3 and 6.4 of DEC-43): it turns
+//! The glue between the Slint window and everything else (DEC-43): it turns
 //! the window's callbacks into calls on [`AppState`], runs the slow work (pickers, ffprobe,
 //! probes, the conversion, the diagnostic) on threads of its own, and brings every result back
-//! to the event loop with `upgrade_in_event_loop` before a property is touched. It ports the
-//! body of Go's `main` (`cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9)).
+//! to the event loop with `upgrade_in_event_loop` before a property is touched. It holds what
+//! `main` runs once the window exists.
 //!
 //! Nothing here reaches ffmpeg or the desktop directly: [`Engine`] (tools, pipeline) and
 //! [`Host`] (pickers, browser, end of the loop) are injected, so the window's tests run the
 //! real wiring with a conversion that is only simulated.
 //!
-//! What differs from Go, on purpose:
+//! Design choices:
 //!
 //! * Dialogs are one [`Popup`] at a time, in a queue: a second one waits for the first to be
-//!   answered, where Fyne stacked windows. The same dialog is never queued twice.
+//!   answered, not stacked windows. The same dialog is never queued twice.
 //! * A panic in the encoder, a picker, ffprobe, a probe or the diagnostic is caught on its
 //!   thread: it counts as a failure (an error dialog), a cancel or a neutral text, and the
-//!   window is never left locked. Go let a panic take the process down.
+//!   window is never left locked.
 //! * The video check (ffprobe) runs on the picker's thread, after the pick, with the button
-//!   still held down; Go ran `CheckVideo` on the UI thread.
+//!   still held down, never on the UI thread.
 //! * No file picker at all (no portal, no zenity, no kdialog): a text field in a dialog of the
 //!   window asks for the path (`dialogs.rs` decides when). What is typed goes through the same
 //!   checks as a picked file.
 //! * The choice of the output file is applied as it is picked and the overwrite question is
-//!   asked at Start, as in Go (the native picker may ask it too).
+//!   asked at Start (the native picker may ask it too).
 //! * The install link opens through `xdg-open` / `explorer.exe`, never a shell string, and only
 //!   for the one address the program knows.
 //! * The probe, the hardware verification and the Diagnostic threads are not joined at exit:
@@ -60,16 +60,16 @@ use crate::state::{
 };
 use crate::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
-/// Where the prerequisite dialog sends the user (Go: `installURL`).
+/// Where the prerequisite dialog sends the user.
 pub const INSTALL_URL: &str =
     "https://github.com/Canaill51/superview?tab=readme-ov-file#download-and-install";
 
 /// The status line while the diagnostic runs.
 const RUNNING_DIAGNOSTIC: &str = "Status: Running diagnostic...";
 
-/// The core's report marks each check with an emoji (✅ and ❌, as the Go one does). The window's
+/// The core's report marks each check with an emoji (✅ and ❌). The window's
 /// software renderer draws no colour emoji, and a machine without a symbols font shows nothing
-/// at all, so the window swaps them for plain text. The core's text stays the Go one, which a
+/// at all, so the window swaps them for plain text. The core's text stays as it is, which a
 /// parity test pins; only what is shown changes.
 fn plain_marks(report: &str) -> String {
     report.replace('✅', "[OK]").replace('❌', "[FAIL]")
@@ -104,10 +104,8 @@ pub struct EncodeJob {
 }
 
 /// What does the work: ffmpeg, ffprobe and the pipeline. Every method may block, and none is
-/// called on the UI thread, except `check_ffmpeg` and `forget_tools` (a few milliseconds, as in
-/// Go).
+/// called on the UI thread, except `check_ffmpeg` and `forget_tools` (a few milliseconds).
 pub trait Engine: Send + Sync + 'static {
-    /// Go: `CheckFfmpeg`.
     fn check_ffmpeg(&self) -> Result<HashMap<String, String>, Error>;
     /// Forgets what was found about the tools, before a retry.
     fn forget_tools(&self);
@@ -474,8 +472,7 @@ impl App {
     }
 
     /// What every way out goes through once the loop has stopped: asks a running conversion to
-    /// stop and waits for it. Safe to call any number of times (Go: the line after
-    /// `ShowAndRun`).
+    /// stop and waits for it. Safe to call any number of times.
     pub fn shutdown(&self, reason: &str) -> bool {
         self.core.shutdown(reason)
     }
@@ -575,7 +572,7 @@ fn register(core: &Arc<Core>, window: &MainWindow) {
     }
 }
 
-/// Go's startup: the ffmpeg check, the codec list, then the probe of the encoders.
+/// The startup: the ffmpeg check, the codec list, then the probe of the encoders.
 fn startup(core: &Arc<Core>, window: &MainWindow) {
     match core.engine.check_ffmpeg() {
         Ok(ffmpeg) => core.state().set_ffmpeg(ffmpeg),
@@ -1088,7 +1085,7 @@ fn quit_pressed(core: &Arc<Core>, window: &MainWindow) {
 }
 
 /// Leaves for good: stops a running conversion and waits for it (the UI thread is held for at
-/// most the grace period, as in Go), then ends the loop.
+/// most the grace period), then ends the loop.
 fn leave(core: &Arc<Core>, window: &MainWindow, reason: &str) {
     // The window goes first, so that it does not stay on screen while the wait runs.
     if let Err(e) = window.hide() {

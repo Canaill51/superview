@@ -1,29 +1,25 @@
-//! The per-conversion temporary directory and the remap maps it holds. Port of
-//! Go's `internal/common/session.go` (removed in phase 8; last release with it: v0.2.9).
+//! The per-conversion temporary directory and the remap maps it holds.
 //!
-//! Deliberate differences from the Go code:
-//! - The session is a value the caller owns, not a package global behind a mutex. The Go
-//!   error "encoding session already active" and "no encoding session active" disappear by
-//!   construction: two sessions are two directories, and a session that does not exist
-//!   cannot be asked for its paths.
-//! - `InitEncodingSession` is [`EncodingSession::new`], `CleanUp` is
-//!   [`EncodingSession::close`]. Dropping a session removes its directory too (Go needed
-//!   `defer common.CleanUp()`), so an early return or a panic leaves nothing behind.
-//!   `close` is only there to report a removal failure.
-//! - Go's `TempDirPrefix` is an `os.MkdirTemp` pattern ("superview-*": the last `*` is
-//!   replaced by random digits, the rest kept around it). [`tempfile::Builder`] takes a
-//!   prefix and a suffix, so the pattern is split at its last `*`; without one, the random
-//!   part comes last, as in Go.
-//! - `close` reports a failed removal as a [`SessionError`]; Go returns the bare
-//!   `os.RemoveAll` error.
-//! - A pattern containing a path separator (`/`, and on Windows `\` and `:`) is refused,
-//!   as `os.MkdirTemp` does ("pattern contains path separator"): otherwise the directory
-//!   would be created outside the temporary directory.
-//! - `parse_p5_size` is more permissive than Go's `Sscanf("P5 %d %d")`: it accepts
-//!   leading whitespace, a newline between fields, and a `+` sign (`P5 +5 ...`). The
-//!   header `generate_pgm` writes is read the same.
-//! - `getSessionPaths` is [`EncodingSession::x_path`] and [`EncodingSession::y_path`];
-//!   `sessionOutputSize` is [`EncodingSession::output_size`].
+//! Design notes:
+//! - The session is a value the caller owns, not a global behind a mutex. "Session already
+//!   active" and "no session active" cannot happen by construction: two sessions are two
+//!   directories, and a session that does not exist cannot be asked for its paths.
+//! - [`EncodingSession::new`] creates the directory and [`EncodingSession::close`] removes
+//!   it. Dropping a session removes its directory too, so an early return or a panic leaves
+//!   nothing behind. `close` is only there to report a removal failure.
+//! - The directory name comes from a pattern ("superview-*": the last `*` is replaced by
+//!   random digits, the rest kept around it). [`tempfile::Builder`] takes a prefix and a
+//!   suffix, so the pattern is split at its last `*`; without one, the random part comes
+//!   last.
+//! - `close` reports a failed removal as a [`SessionError`].
+//! - A pattern containing a path separator (`/`, and on Windows `\` and `:`) is refused
+//!   ("pattern contains path separator"): otherwise the directory would be created outside
+//!   the temporary directory.
+//! - `parse_p5_size` is permissive: it accepts leading whitespace, a newline between
+//!   fields, and a `+` sign (`P5 +5 ...`). The header `generate_pgm` writes is read the
+//!   same.
+//! - The paths of the two maps are [`EncodingSession::x_path`] and
+//!   [`EncodingSession::y_path`]; the size of the output is [`EncodingSession::output_size`].
 
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -114,7 +110,7 @@ impl EncodingSession {
         parse_p5_size(&header)
     }
 
-    /// Removes the directory and reports a failure (Go: `CleanUp`). Dropping the session
+    /// Removes the directory and reports a failure. Dropping the session
     /// removes it too, silently.
     pub fn close(self) -> Result<(), SessionError> {
         self.dir.close().map_err(|e| SessionError {
@@ -160,7 +156,6 @@ mod tests {
         }
     }
 
-    // Go: TestInitEncodingSession_NilConfigUsesDefaults
     #[test]
     fn default_prefix_names_the_directory_under_the_temp_dir() {
         let session = EncodingSession::new(&Config::default()).unwrap();
@@ -176,7 +171,6 @@ mod tests {
         assert!(session.dir().is_dir());
     }
 
-    // Go: TestPipelineHonoursExplicitConfig
     #[test]
     fn supplied_prefix_is_used_and_the_star_is_the_random_part() {
         let cfg = Config {
@@ -208,7 +202,7 @@ mod tests {
         assert_eq!(session.y_path(), session.dir().join("y.pgm"));
     }
 
-    // Go: os.MkdirTemp refuses "pattern contains path separator".
+    // "pattern contains path separator" is refused.
     #[test]
     fn a_prefix_with_a_path_separator_is_refused_and_creates_nothing() {
         let parent = tempfile::tempdir().unwrap();
@@ -235,7 +229,6 @@ mod tests {
         );
     }
 
-    // Go: CleanUp (no dedicated test)
     #[test]
     fn close_removes_the_directory_and_its_content() {
         let session = EncodingSession::new(&Config::default()).unwrap();
@@ -245,7 +238,7 @@ mod tests {
         assert!(!dir.exists());
     }
 
-    // Go: `defer common.CleanUp()` -- here the drop does it.
+    // The drop does the cleanup.
     #[test]
     fn dropping_the_session_removes_the_directory() {
         let session = EncodingSession::new(&Config::default()).unwrap();
@@ -255,7 +248,7 @@ mod tests {
         assert!(!dir.exists());
     }
 
-    // The case Go refused with "encoding session already active" is no case here.
+    // "Session already active" is no case here.
     #[test]
     fn two_sessions_coexist_in_two_directories() {
         let a = EncodingSession::new(&Config::default()).unwrap();
@@ -267,7 +260,6 @@ mod tests {
         assert!(b.dir().is_dir());
     }
 
-    // Go: TestSessionError_UnwrapKeepsCause, TestSessionErrorsAreTyped
     #[test]
     fn creation_failure_is_a_session_error_with_its_cause() {
         let parent = tempfile::tempdir().unwrap();
@@ -281,7 +273,6 @@ mod tests {
         );
     }
 
-    // Go: TestSessionOutputSize_ReadsWhatGeneratePGMWrote
     #[test]
     fn output_size_reads_what_generate_pgm_wrote() {
         let source = video(1440, 1080);
@@ -296,14 +287,14 @@ mod tests {
         }
     }
 
-    // Go: TestSessionOutputSize_SaysSoWithoutASession (no map yet, the nearest case)
+    // No map yet.
     #[test]
     fn output_size_is_none_without_a_map() {
         let session = EncodingSession::new(&Config::default()).unwrap();
         assert_eq!(session.output_size(), None);
     }
 
-    // The rejections of sessionOutputSize that Go's Sscanf and size check give.
+    // The rejections of `output_size`: header and size checks.
     #[test]
     fn output_size_rejects_what_it_cannot_read() {
         let session = EncodingSession::new(&Config::default()).unwrap();

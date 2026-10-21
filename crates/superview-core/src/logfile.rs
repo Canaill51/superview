@@ -1,27 +1,24 @@
 //! The application log file: where it lives, how it is capped, and the level it logs at.
-//! Port of `OpenLogFile`, `cappedLogWriter` and `ParseLogLevel` (Go's `observability.go` (removed in phase 8; last release with it: v0.2.9)).
 //!
-//! Deliberate differences from the Go code:
-//! - The user cache directory is a parameter of [`open_log_file`] (Go calls
-//!   `os.UserCacheDir`), so no test touches the process environment (L-114);
+//! Design notes:
+//! - The user cache directory is a parameter of [`open_log_file`], so no test touches the
+//!   process environment (L-114);
 //!   [`user_cache_dir`] is the lookup, over an injected environment like
-//!   `config::user_config_dir`. It follows Go's Windows and Unix rules; Go's macOS
-//!   branch (`~/Library/Caches`) is not ported, the application ships for Windows and
-//!   Linux only.
+//!   `config::user_config_dir`. It follows the Windows and Unix rules; there is
+//!   no macOS branch (`~/Library/Caches`), the application ships for Windows and Linux
+//!   only.
 //! - Rust refuses `append` together with `truncate`, so the writer empties its file
 //!   through a short-lived write-and-truncate handle and then reopens it in append
-//!   mode. Go's single `O_TRUNC|O_APPEND` open does both at once. What the Go comment
-//!   teaches is kept: the truncation goes through a *fresh* handle, never `set_len` on
-//!   the append handle, which Windows opens without `FILE_WRITE_DATA` and so refuses
-//!   to truncate (the cap silently never applied there).
-//! - Go empties and reopens in one `O_TRUNC|O_APPEND` open: if it fails, nothing is emptied.
-//!   Here the truncation and the reopening are two steps; if only the second fails (no
+//!   mode. The truncation goes through a *fresh* handle, never `set_len` on the append
+//!   handle, which Windows opens without `FILE_WRITE_DATA` and so refuses to truncate (the
+//!   cap silently never applied there).
+//! - The truncation and the reopening are two steps; if only the second fails (no
 //!   descriptor left), the file is empty, the size count restarts at 0 and the old append
 //!   handle goes on writing at the end. Not tested: making the reopening fail without
 //!   exhausting the process's descriptors, which would reach the parallel tests.
-//! - [`CappedLogWriter`] is closed by `Drop`; Go's `Close` has no counterpart.
+//! - [`CappedLogWriter`] is closed by `Drop`.
 //! - `parse_log_level` returns a `log::LevelFilter`, the type the `log` facade filters
-//!   on. `"warning"` is an alias of `"warn"`, as in Go; `"trace"` is not a level here,
+//!   on. `"warning"` is an alias of `"warn"`; `"trace"` is not a level here,
 //!   and falls back to info like any unknown word.
 //! - A write that fails part-way is not counted in the size (`write_all` does not say
 //!   how much went through); the next record at worst triggers the truncation a little
@@ -32,7 +29,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-/// The per-user cache directory, as Go's `os.UserCacheDir` finds it on Windows
+/// The per-user cache directory, as found on Windows
 /// (`%LocalAppData%`) and Unix (`$XDG_CACHE_HOME`, else `$HOME/.cache`). `env` is the
 /// environment lookup. `None` when it cannot be worked out.
 pub fn user_cache_dir(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
@@ -41,7 +38,7 @@ pub fn user_cache_dir(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
         return get("LocalAppData").map(PathBuf::from);
     }
     if let Some(xdg) = get("XDG_CACHE_HOME") {
-        // A relative XDG_CACHE_HOME is invalid per the spec; Go refuses it.
+        // A relative XDG_CACHE_HOME is invalid per the spec; it is refused.
         return Path::new(&xdg).is_absolute().then(|| PathBuf::from(xdg));
     }
     get("HOME").map(|home| Path::new(&home).join(".cache"))

@@ -20,7 +20,7 @@ fn load() -> serde_json::Map<String, Value> {
     }
 }
 
-/// Go: parityVideo.
+/// A source video of the matrix.
 fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),

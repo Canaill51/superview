@@ -1,6 +1,6 @@
-//! One ffmpeg run, split as Go's `encode.go` (removed in phase 8; last release with it: v0.2.9) was: the argument list (`args`), the run itself
+//! One ffmpeg run, split in three: the argument list (`args`), the run itself
 //! (`run`: one pass, its progress and its stop reasons) and the fallback cascade (`cascade`:
-//! `EncodeVideo`). `failure` classifies a failed run (`classifyFfmpegFailure`), `progress`
+//! `encode_video`). `failure` classifies a failed run (`classify_ffmpeg_failure`), `progress`
 //! reads one line of ffmpeg's `-progress` output.
 
 pub mod args;

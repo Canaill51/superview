@@ -23,7 +23,6 @@ fn no_streams() -> VideoSpecs {
     }
 }
 
-// Go: testVideoSpecs
 fn test_video_specs(codec: &str) -> VideoSpecs {
     VideoSpecs {
         file: "test.mp4".into(),
@@ -38,7 +37,6 @@ fn test_video_specs(codec: &str) -> VideoSpecs {
     }
 }
 
-// Go: hevcSource
 fn hevc_source(pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "clip.mp4".into(),
@@ -58,7 +56,6 @@ fn found(codec: &str, info: &HashMap<String, String>, video: &VideoSpecs) -> Str
     find_encoder(codec, info, video).unwrap()
 }
 
-// Go: TestAnalyzeMachineProfile
 #[test]
 fn analyze_machine_profile_splits_the_capabilities() {
     let p = analyze_machine_profile(&ffmpeg("cuda,vaapi", "h264_nvenc,libx264"), 8);
@@ -69,7 +66,7 @@ fn analyze_machine_profile_splits_the_capabilities() {
     assert!(empty.hardware_accels.is_empty() && empty.available_encoders.is_empty());
 }
 
-// Go: parityCapabilities "csv_with_spaces"
+// "csv_with_spaces" capabilities.
 #[test]
 fn split_csv_trims_and_drops_empty_items() {
     assert_eq!(split_csv(" libx265 , ,libx264 "), ["libx265", "libx264"]);
@@ -77,7 +74,6 @@ fn split_csv_trims_and_drops_empty_items() {
     assert!(split_csv("").is_empty());
 }
 
-// Go: TestCanUseEncoderWithProfile
 #[test]
 fn can_use_encoder_with_profile_follows_the_list() {
     let p = profile(&["cuda"], &["h264_nvenc", "libx264"]);
@@ -87,8 +83,6 @@ fn can_use_encoder_with_profile_follows_the_list() {
     assert!(!can_use_encoder_with_profile("libx264", None));
 }
 
-// Go: TestCanUseEncoderWithProfile_AllowsNVENCWithoutCUDAAccel, _AllowsAMFWithoutDedicatedAccel,
-// _AllowsQSVWithoutDedicatedAccel
 #[test]
 fn can_use_encoder_with_profile_allows_vendor_encoders_without_their_accel() {
     for enc in ["h264_nvenc", "h264_amf", "h264_qsv"] {
@@ -105,8 +99,6 @@ fn can_use_encoder_with_profile_allows_vendor_encoders_without_their_accel() {
     assert!(can_use_encoder_with_profile("h264_v4l2m2m", Some(&v4l2)));
 }
 
-// Go: TestSelectHardwareDecodeAccel_NVENCPrefersWindowsAccelFallbacks, _AMFPrefersWindowsAccelFallbacks,
-// _QSVFallsBackToWindowsAccels
 #[test]
 fn select_hardware_decode_accel_prefers_the_windows_fallbacks() {
     let p = profile(&["d3d11va", "dxva2"], &[]);
@@ -123,7 +115,6 @@ fn select_hardware_decode_accel_prefers_the_windows_fallbacks() {
     assert_eq!(select_hardware_decode_accel("h264_qsv", Some(&qsv)), "");
 }
 
-// Go: TestDescribeHardwareAccelerationPlan_HardwareFallback
 #[test]
 fn describe_plan_hardware_fallback() {
     let info = ffmpeg("d3d11va,dxva2", "h264_nvenc,libx264");
@@ -133,7 +124,6 @@ fn describe_plan_hardware_fallback() {
     );
 }
 
-// Go: TestDescribeHardwareAccelerationPlan_CPUFallback
 #[test]
 fn describe_plan_cpu_fallback() {
     let info = ffmpeg("", "libx264,libx265");
@@ -143,7 +133,7 @@ fn describe_plan_cpu_fallback() {
     );
 }
 
-// Go: describePlannedHardwarePath, DescribeHardwareAccelerationPlan (the three other lines)
+// The three other lines of the hardware acceleration plan.
 #[test]
 fn describe_plan_other_lines() {
     let info = ffmpeg("", "libx264");
@@ -174,7 +164,6 @@ fn describe_plan_other_lines() {
     );
 }
 
-// Go: BuildHardwarePlan
 #[test]
 fn build_hardware_plan_fills_every_field() {
     let info = ffmpeg("vaapi", "h264_vaapi,libx264,libx265");
@@ -187,7 +176,6 @@ fn build_hardware_plan_fills_every_field() {
     assert!(matches!(err, Error::InvalidVideo(_)));
 }
 
-// Go: TestIsHardwareEncoder_CoversTheVendorNeutralPair
 #[test]
 fn is_hardware_encoder_covers_the_vendor_neutral_pair() {
     for encoder in [
@@ -208,7 +196,6 @@ fn is_hardware_encoder_covers_the_vendor_neutral_pair() {
     }
 }
 
-// Go: TestDeviceTypeForEncoder
 #[test]
 fn device_type_for_encoder_separates_the_upload_paths() {
     let cases = [
@@ -228,7 +215,7 @@ fn device_type_for_encoder_separates_the_upload_paths() {
     }
 }
 
-// Go: hwDeviceArgs, hwUploadFilters (pinned in Go by the encode-args oracle)
+// Device arguments and upload filters (pinned by the encode-args fixtures).
 #[test]
 fn hw_device_args_and_upload_filters() {
     assert_eq!(
@@ -247,7 +234,7 @@ fn hw_device_args_and_upload_filters() {
     assert_eq!(hw_upload_filters("libx264", "yuv420p10le"), "");
 }
 
-// Go: accelForEncoder (E-07: v4l2m2m has none)
+// E-07: v4l2m2m has no accel.
 #[test]
 fn accel_for_encoder_names_the_hwaccel_token() {
     for (enc, want) in [
@@ -264,7 +251,6 @@ fn accel_for_encoder_names_the_hwaccel_token() {
     }
 }
 
-// Go: TestCandidateEncoders_VendorFirstThenTheNeutralPair
 #[test]
 fn candidate_encoders_vendor_first_then_the_neutral_pair() {
     let cases: [(&str, &[&str]); 2] = [
@@ -320,7 +306,6 @@ fn candidate_encoders_vendor_first_then_the_neutral_pair() {
     );
 }
 
-// Go: TestDecodeAccelCandidates_D3D12FallsBackThroughTheOlderWindowsPaths
 #[test]
 fn decode_accel_candidates_d3d12_falls_back_through_the_older_windows_paths() {
     assert_eq!(
@@ -344,23 +329,18 @@ fn decode_accel_candidates_d3d12_falls_back_through_the_older_windows_paths() {
     assert!(decode_accel_candidates_for_encoder("libx264").is_empty());
 }
 
-// Go: TestFindEncoder_UseInputCodec
 #[test]
 fn find_encoder_use_input_codec() {
     let info = ffmpeg("", "libx264,libx265,hevc");
     assert_eq!(found("", &info, &test_video_specs("h264")), "libx264");
 }
 
-// Go: TestFindEncoder_PreferHardwareWhenAvailable
 #[test]
 fn find_encoder_prefer_hardware_when_available() {
     let info = ffmpeg("cuda", "h264_nvenc,libx264,libx265");
     assert_eq!(found("", &info, &test_video_specs("h264")), "h264_nvenc");
 }
 
-// Go: TestFindEncoder_AllowsNVENCWithoutCUDAHwAccel, _AllowsAMFWithoutDedicatedHwAccel,
-// _AllowsQSVWithoutDedicatedHwAccel, _AllowsHEVCNVENCWithoutCUDAHwAccel,
-// _AllowsHEVCAMFWithoutDedicatedHwAccel, _AllowsHEVCQSVWithoutDedicatedHwAccel
 #[test]
 fn find_encoder_allows_vendor_encoders_without_their_accel() {
     for (codec, enc) in [
@@ -376,7 +356,6 @@ fn find_encoder_allows_vendor_encoders_without_their_accel() {
     }
 }
 
-// Go: TestFindEncoder_SelectValidEncoder
 #[test]
 fn find_encoder_select_valid_encoder() {
     let info = ffmpeg("", "libx264,libx265,hevc");
@@ -386,7 +365,6 @@ fn find_encoder_select_valid_encoder() {
     );
 }
 
-// Go: TestFindEncoder_InvalidEncoder
 #[test]
 fn find_encoder_invalid_encoder() {
     let info = HashMap::from([("encoders".to_string(), "libx264,libx265".to_string())]);
@@ -398,7 +376,6 @@ fn find_encoder_invalid_encoder() {
     assert!(matches!(err, Error::Encoder(_)));
 }
 
-// Go: TestFindEncoder_NoStreams
 #[test]
 fn find_encoder_no_streams() {
     let info = ffmpeg("", "libx264,libx265");
@@ -410,7 +387,7 @@ fn find_encoder_no_streams() {
     assert!(matches!(err, Error::InvalidVideo(_)));
 }
 
-// Go: FindEncoder, last resort (the first listed encoder) and "no encoder found"
+// Last resort (the first listed encoder) and "no encoder found".
 #[test]
 fn find_encoder_last_resort_and_nothing() {
     let video = test_video_specs("h264");
@@ -422,28 +399,24 @@ fn find_encoder_last_resort_and_nothing() {
     assert_eq!(err.to_string(), "encoder error: no encoder found");
 }
 
-// Go: TestFindEncoder_UsesHardwareFromTheOtherFamilyWhenTheSourceFamilyHasNone
 #[test]
 fn find_encoder_uses_hardware_from_the_other_family_when_the_source_family_has_none() {
     let info = ffmpeg("vaapi", "h264_vaapi,libx264,libx265");
     assert_eq!(found("", &info, &hevc_source("yuv420p10le")), "h264_vaapi");
 }
 
-// Go: TestFindEncoder_KeepsTheSourceFamilyWhenItsHardwareWorks
 #[test]
 fn find_encoder_keeps_the_source_family_when_its_hardware_works() {
     let info = ffmpeg("vaapi", "h264_vaapi,hevc_vaapi,libx264,libx265");
     assert_eq!(found("", &info, &hevc_source("yuv420p10le")), "hevc_vaapi");
 }
 
-// Go: TestFindEncoder_DoesNotSwitchFamilyForAnotherCPUEncoder
 #[test]
 fn find_encoder_does_not_switch_family_for_another_cpu_encoder() {
     let info = ffmpeg("", "libx264,libx265");
     assert_eq!(found("", &info, &hevc_source("yuv420p")), "libx265");
 }
 
-// Go: TestFindEncoder_ExplicitChoiceIsNotOverridden
 #[test]
 fn find_encoder_explicit_choice_is_not_overridden() {
     let info = ffmpeg("vaapi", "h264_vaapi,libx264,libx265");
@@ -453,7 +426,6 @@ fn find_encoder_explicit_choice_is_not_overridden() {
     );
 }
 
-// Go: TestDescribeCodecFamilySwitch_NamesWhatItCosts
 #[test]
 fn describe_codec_family_switch_names_what_it_costs() {
     let note = describe_codec_family_switch(Some(&hevc_source("yuv420p10le")), "h264_vaapi");
@@ -463,7 +435,6 @@ fn describe_codec_family_switch_names_what_it_costs() {
     );
 }
 
-// Go: TestDescribeCodecFamilySwitch_MentionsBitDepthOnlyWhenItIsLost
 #[test]
 fn describe_codec_family_switch_mentions_bit_depth_only_when_it_is_lost() {
     let note = describe_codec_family_switch(Some(&hevc_source("yuv420p")), "h264_vaapi");
@@ -480,7 +451,6 @@ fn describe_codec_family_switch_mentions_bit_depth_only_when_it_is_lost() {
     );
 }
 
-// Go: TestDescribeCodecFamilySwitch_SaysNothingInTheOrdinaryCase
 #[test]
 fn describe_codec_family_switch_says_nothing_in_the_ordinary_case() {
     let ten = hevc_source("yuv420p10le");
@@ -496,7 +466,6 @@ fn describe_codec_family_switch_says_nothing_in_the_ordinary_case() {
     }
 }
 
-// Go: TestSoftwareEncoderForFallback_ReturnsToTheSourceFamily
 #[test]
 fn software_encoder_for_fallback_returns_to_the_source_family() {
     let p = analyze_machine_profile(&ffmpeg("vaapi", "h264_vaapi,libx264,libx265"), 0);
@@ -506,7 +475,6 @@ fn software_encoder_for_fallback_returns_to_the_source_family() {
     );
 }
 
-// Go: TestSoftwareEncoderForFallback_UsesTheEncoderFamilyWhenTheSourceHasNoneKnown
 #[test]
 fn software_encoder_for_fallback_uses_the_encoder_family_when_the_source_has_none_known() {
     let p = analyze_machine_profile(&ffmpeg("vaapi", "h264_vaapi,libx264,libx265"), 0);
@@ -523,7 +491,6 @@ fn software_encoder_for_fallback_uses_the_encoder_family_when_the_source_has_non
     assert_eq!(software_encoder_for_fallback(None, "foo_bar", Some(&p)), "");
 }
 
-// Go: TestSoftwareEncoderForFallback_SkipsWhatThisFFmpegDoesNotHave
 #[test]
 fn software_encoder_for_fallback_skips_what_this_ffmpeg_does_not_have() {
     // An ffmpeg built without libx265: the source family cannot be honoured, so the
@@ -540,7 +507,6 @@ fn software_encoder_for_fallback_skips_what_this_ffmpeg_does_not_have() {
     );
 }
 
-// Go: TestDescribePlannedHardwarePath_ShowsWhatTheSwitchCosts
 #[test]
 fn describe_planned_hardware_path_shows_what_the_switch_costs() {
     let info = ffmpeg("vaapi", "h264_vaapi,libx264,libx265");
@@ -551,7 +517,6 @@ fn describe_planned_hardware_path_shows_what_the_switch_costs() {
     );
 }
 
-// Go: TestWithCodecSwitchNote_LeavesAnOrdinarySummaryAlone
 #[test]
 fn with_codec_switch_note_leaves_an_ordinary_summary_alone() {
     let summary = "Hardware: used hevc_vaapi encode + VAAPI decode";
@@ -565,8 +530,6 @@ fn with_codec_switch_note_leaves_an_ordinary_summary_alone() {
     );
 }
 
-// Go: normalizeCodecFamily, encoderCodecFamily, otherCodecFamily, softwareEncoderForFamily,
-// displayCodecFamily, crossFamilyHardwareEncoder
 #[test]
 fn codec_family_helpers() {
     assert_eq!(normalize_codec_family(" HEVC "), "hevc");
@@ -601,7 +564,6 @@ fn codec_family_helpers() {
     assert_eq!(source_codec_family(Some(&no_streams())), "");
 }
 
-// Go: TestIsHighBitDepth
 #[test]
 fn is_high_bit_depth_tells_the_formats_apart() {
     let cases = [
@@ -640,7 +602,6 @@ fn is_high_bit_depth_tells_the_formats_apart() {
     }
 }
 
-// Go: TestIsHEVCEncoder
 #[test]
 fn is_hevc_encoder_matches_hevc_and_265() {
     for enc in [
@@ -657,7 +618,7 @@ fn is_hevc_encoder_matches_hevc_and_265() {
     }
 }
 
-// Go: TestBuildEncodeBaseArgs_NoStreamsFallsBackToEightBit (sourcePixelFormat must not panic)
+// No streams falls back to eight bit (the source pixel format must not panic).
 #[test]
 fn source_pixel_format_is_empty_without_streams() {
     assert_eq!(source_pixel_format(None), "");

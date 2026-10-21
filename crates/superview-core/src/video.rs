@@ -1,12 +1,9 @@
 //! What ffprobe says about the input, and its validation.
 //!
-//! Port of Go's `internal/common/video.go` (removed in phase 8; last release with it: v0.2.9) (`VideoSpecs`, `parseFrameRate`,
-//! `Validate`, `parseVideoSpecs`, `CheckVideo`). Verdicts are pinned by the parity oracle
-//! `tests/fixtures/parity/specs.json`.
+//! Verdicts are pinned by the parity oracle `tests/fixtures/parity/specs.json`.
 //!
-//! `check_video` differs from `CheckVideo` in one respect: when ffprobe cannot even be
-//! started, Go's message ends at "output:\n" with nothing after it; here the cause (the
-//! `io::Error`) takes the place of the output, so the user learns that ffprobe is missing.
+//! When ffprobe cannot even be started, `check_video`'s message has the cause (the
+//! `io::Error`) in place of ffprobe's output, so the user learns that ffprobe is missing.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -26,7 +23,7 @@ pub struct VideoSpecs {
 /// JSON; the parsed fields (`duration_float`, `bitrate_int`, `frame_rate`) are
 /// filled by [`parse_video_specs`].
 ///
-/// Go's `int` is 64 bits wide, hence `i64`.
+/// `i64`: the range v0.2.9 read them into, which the parity fixtures assume.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct VideoStream {
@@ -64,19 +61,20 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
-/// `strconv.ParseFloat(s, 64)` for the decimal and `inf`/`nan` forms, measured
-/// against Go rather than assumed:
+/// Float parsing with the rules the parity fixtures recorded, those of Go's
+/// `strconv.ParseFloat(s, 64)` for the decimal and `inf`/`nan` forms, measured rather
+/// than assumed:
 ///
-/// - a finite literal that overflows (`1e999`) is an error in Go, infinity in
-///   Rust: refused here;
-/// - a signed NaN (`-nan`, `+nan`) is an error in Go, accepted by Rust: refused;
-/// - underscores are accepted by Go without any base prefix (`1_0` is 10) as
-///   long as each one sits between two digits: reproduced.
+/// - a finite literal that overflows (`1e999`) is an error there, infinity in Rust:
+///   refused here;
+/// - a signed NaN (`-nan`, `+nan`) is an error there, accepted by Rust: refused;
+/// - underscores are accepted without any base prefix (`1_0` is 10) as long as each one
+///   sits between two digits: reproduced.
 ///
 /// Known differences, not reproduced because ffprobe never prints such text:
-/// hexadecimal floats (`0x1p-2`), which Go accepts and this refuses; JSON keys,
-/// which Go matches without regard to case and serde matches exactly; invalid
-/// UTF-8 in the JSON, which Go replaces with U+FFFD and serde rejects.
+/// hexadecimal floats (`0x1p-2`), which the Go parser accepts and this refuses; JSON keys,
+/// which the Go decoder matches without regard to case and serde matches exactly; invalid
+/// UTF-8 in the JSON, which the Go decoder replaces with U+FFFD and serde rejects.
 pub(crate) fn parse_go_float(text: &str) -> Option<f64> {
     if !underscores_ok(text) {
         return None;
@@ -96,8 +94,7 @@ pub(crate) fn parse_go_float(text: &str) -> Option<f64> {
     Some(value)
 }
 
-/// Go's `underscoreOK` for decimal text: an underscore must have a digit on
-/// each side.
+/// For decimal text, an underscore must have a digit on each side.
 fn underscores_ok(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.iter().enumerate().all(|(i, &b)| {
@@ -108,7 +105,7 @@ fn underscores_ok(text: &str) -> bool {
     })
 }
 
-/// `v <= 0` as Go writes it. Kept as a function so callers can negate it: with
+/// `v <= 0`. Kept as a function so callers can negate it: with
 /// NaN, `!at_most_zero(v)` is true while `v > 0.0` is false.
 fn at_most_zero(v: f64) -> bool {
     v <= 0.0
@@ -117,8 +114,8 @@ fn at_most_zero(v: f64) -> bool {
 /// Turns ffprobe's rational frame rate into frames per second.
 ///
 /// Returns 0 for anything it cannot make sense of, including the "0/0" ffprobe
-/// reports when the rate is unknown. 0 means "unknown" to every caller. Like
-/// Go's, a NaN is not caught by the `<= 0` tests and comes out as NaN.
+/// reports when the rate is unknown. 0 means "unknown" to every caller. A NaN is not
+/// caught by the `<= 0` tests and comes out as NaN.
 pub fn parse_frame_rate(rational: &str) -> f64 {
     let trimmed = rational.trim();
     let Some((num_text, den_text)) = trimmed.split_once('/') else {
@@ -149,7 +146,7 @@ impl VideoSpecs {
                 stream.width, stream.height
             ));
         }
-        // DEC-53: not finite is refused too. Go's bare `<= 0` let NaN through, and inf became
+        // DEC-53: not finite is refused too. v0.2.9's bare `<= 0` let NaN through, and inf became
         // a demand for 8 TB of free space.
         if !stream.duration_float.is_finite() || stream.duration_float <= 0.0 {
             return invalid("invalid or missing duration".into());
@@ -185,7 +182,7 @@ fn check_video_command(resolver: &ToolResolver, file: &str) -> std::process::Com
 }
 
 /// Loads and validates video metadata using ffprobe: codec, dimensions, duration and bitrate
-/// of the first video stream (Go: `CheckVideo`). `InvalidVideo` if required metadata is
+/// of the first video stream. `InvalidVideo` if required metadata is
 /// missing or invalid; `Plain` "ffprobe failed, output:\n..." if ffprobe fails.
 pub fn check_video(resolver: &ToolResolver, file: &str) -> Result<VideoSpecs, Error> {
     // Only stdout is JSON: a warning ffprobe prints on stderr must not be parsed with it.

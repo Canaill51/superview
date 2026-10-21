@@ -8,7 +8,6 @@ fn cache() -> TempDir {
     TempDir::new().unwrap()
 }
 
-// Go: TestParseLogLevel
 #[test]
 fn log_levels_parse_with_info_as_the_fallback() {
     use log::LevelFilter::*;
@@ -30,7 +29,7 @@ fn log_levels_parse_with_info_as_the_fallback() {
     }
 }
 
-// No Go test: os.UserCacheDir is the standard library's.
+// user_cache_dir follows XDG, then HOME.
 #[test]
 #[cfg(unix)]
 fn user_cache_dir_follows_xdg_then_home() {
@@ -64,7 +63,6 @@ fn user_cache_dir_is_local_app_data() {
     assert_eq!(user_cache_dir(&|_| None), None);
 }
 
-// Go: TestOpenLogFile_CreatesAppends
 #[test]
 fn the_file_is_created_and_reopening_appends() {
     let cache = cache();
@@ -80,7 +78,6 @@ fn the_file_is_created_and_reopening_appends() {
     assert_eq!(fs::read_to_string(&path).unwrap(), "first\nsecond\n");
 }
 
-// Go: TestOpenLogFile_TruncatesOversized
 #[test]
 fn a_file_over_the_cap_is_emptied_at_open_and_zero_means_no_cap() {
     let cache = cache();
@@ -114,7 +111,6 @@ fn a_file_over_the_cap_is_emptied_at_open_and_zero_means_no_cap() {
     assert_eq!(fs::metadata(&path).unwrap().len(), 8192);
 }
 
-// Go: TestCappedLogWriter_StaysUnderCap
 #[test]
 fn the_cap_holds_while_writing_and_the_newest_record_survives() {
     let cache = cache();
@@ -142,7 +138,7 @@ fn the_cap_holds_while_writing_and_the_newest_record_survives() {
     );
 }
 
-// No Go test: "a single record larger than the cap is still written whole".
+// "a single record larger than the cap is still written whole".
 #[test]
 fn a_record_larger_than_the_cap_is_written_whole() {
     let cache = cache();
@@ -153,7 +149,7 @@ fn a_record_larger_than_the_cap_is_written_whole() {
     assert_eq!(fs::read(&path).unwrap(), vec![b'b'; 100]);
 }
 
-// No Go test: the line is exact (a write that reaches the cap is kept, one that passes
+// The line is exact (a write that reaches the cap is kept, one that passes
 // it starts over) and the count starts again after a truncation.
 #[test]
 fn the_cap_is_exact_and_the_count_restarts_after_a_truncation() {
@@ -205,7 +201,6 @@ fn a_shared_writer_keeps_records_whole() {
     );
 }
 
-// Go: TestOpenLogFile_Permissions
 #[cfg(unix)]
 #[test]
 fn the_log_is_private() {
@@ -218,7 +213,7 @@ fn the_log_is_private() {
     drop(writer);
 }
 
-// No Go test: the error names what failed.
+// The error names what failed.
 #[test]
 fn an_impossible_directory_is_reported() {
     let cache = cache();

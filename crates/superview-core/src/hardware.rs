@@ -1,26 +1,24 @@
-//! Encoder and hardware-path selection, the pure half of Go's `internal/common/hardware.go` (removed in phase 8; last release with it: v0.2.9)
-//! plus `FindEncoder` from `encode.go`.
+//! Encoder and hardware-path selection: the pure half, with the encoder lookup.
 //!
 //! Every verdict and every string (shown to the user and written to the log) is the
-//! Go one; `tests/fixtures/parity/decisions.json` pins `find_encoder`,
+//! recorded one; `tests/fixtures/parity/decisions.json` pins `find_encoder`,
 //! `software_encoder_for_fallback` and `select_hardware_decode_accel` over ~900 cases
 //! (`tests/parity_decisions.rs`).
 //!
-//! Deliberate differences from the Go code:
-//! - `analyze_machine_profile` takes the core count instead of reading
-//!   `runtime.NumCPU()`; nothing in the selection reads `cpu_cores`, so `find_encoder`
-//!   and `build_hardware_plan` pass 0.
-//! - A Go `nil` map is an empty `HashMap`; a Go `nil` `*MachineProfile` or `*VideoSpecs`
-//!   is `None`.
-//! - Go's nil-returning helpers (`hwDeviceArgs`) return an empty `Vec`.
-//! - `find_encoder`, `is_hevc_encoder`, `is_high_bit_depth` and `source_pixel_format`
-//!   live in `encode.go` in Go; they are here because the selection cannot run without
-//!   them, and the argument builder (PR 4) will reuse them from this module.
-//! - `find_encoder` logs through `log::info!` where Go uses `slog` with attributes, so
-//!   the attributes become `key=value` text (same convention as `config.rs`).
-//! - Not here: `probeEncoderForSizeCached`, `verifyEncoderForOutput`,
-//!   `DescribeVerifiedHardwarePlan` and `outputFrameSize` (they depend on the probe: see
-//!   `probe.rs`).
+//! Design notes:
+//! - `analyze_machine_profile` takes the core count instead of reading it from the
+//!   machine; nothing in the selection reads `cpu_cores`, so `find_encoder` and
+//!   `build_hardware_plan` pass 0.
+//! - An absent map is an empty `HashMap`; an absent `MachineProfile` or `VideoSpecs` is
+//!   `None`.
+//! - The helpers that find nothing (`hw_device_args`) return an empty `Vec`.
+//! - `find_encoder`, `is_hevc_encoder`, `is_high_bit_depth` and `source_pixel_format` are
+//!   here because the selection cannot run without them, and the argument builder reuses
+//!   them from this module.
+//! - `find_encoder` logs through `log::info!`, the attributes as `key=value` text (same
+//!   convention as `config.rs`).
+//! - What depends on the probe (the verified plan, the output frame size) is in
+//!   `probe.rs`.
 
 use std::collections::HashMap;
 

@@ -11,7 +11,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
         .collect()
 }
 
-/// The minimal source the Go tests build for the PGM tests.
+/// The minimal source the PGM tests build.
 pub fn video(width: i64, height: i64) -> VideoSpecs {
     VideoSpecs {
         file: "parity.mp4".into(),

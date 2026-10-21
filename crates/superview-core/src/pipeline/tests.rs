@@ -18,7 +18,7 @@ type FreeReading<'a> = Box<dyn Fn(&Path) -> io::Result<f64> + 'a>;
 struct TestUi<'a> {
     events: Events,
     encoder: &'a str,
-    /// `None`: the interface cannot say (Go: `GetBitrate` returns an error).
+    /// `None`: the interface cannot say (the bitrate query returns an error).
     bitrate: Option<i64>,
     squeeze: bool,
     on_progress: Option<Box<dyn Fn(f64) + 'a>>,
@@ -205,7 +205,6 @@ fn message(result: Result<EncodeOutcome, Error>) -> String {
 
 // ---- refusals that need no process (they run on every platform) ----
 
-// Go: TestPerformEncoding_RefusesOutputEqualToInput
 #[test]
 fn refuses_an_output_that_is_the_input() {
     let rig = Rig::new();
@@ -230,7 +229,7 @@ fn refuses_an_output_that_is_the_input() {
     assert!(events.borrow().is_empty(), "the interface was asked");
 }
 
-/// Go: the first three cases of `TestPerformEncoding_EarlyFailuresAreRecorded`, and
+/// The first three cases of the early failures, and
 /// the order in which they are given.
 fn path_refusals(resolver: &ToolResolver) {
     let rig = Rig::new();
@@ -277,7 +276,7 @@ fn a_bad_path_is_refused_before_anything_else() {
 
 // ---- the working file and the move into place ----
 
-// Go: TestIntegration_RenameFailureKeepsTheFinishedFile (the failing rename itself)
+// The failing rename itself.
 #[test]
 fn a_failed_move_keeps_the_finished_file_and_says_where_it_is() {
     let dir = TempDir::new().unwrap();
@@ -400,7 +399,7 @@ impl PipelineUi for Quiet {
     fn show_progress(&self, _: f64) {}
 }
 
-// Go: an interface that does not implement ProgressDetailHandler is simply not called.
+// An interface that does not implement `show_progress_detail` is simply not called.
 #[test]
 fn the_progress_detail_is_optional() {
     Quiet.show_progress_detail(50.0, Duration::from_secs(3));
@@ -508,7 +507,7 @@ fn assert_no_trace_of(pid: &str) {
 
 // ---- the order of the steps ----
 
-// Go: TestPerformEncoding_EarlyFailuresAreRecorded (the order: no process is launched
+// Early failures are recorded (the order: no process is launched
 // before the paths are valid)
 #[cfg(unix)]
 #[test]
@@ -549,7 +548,7 @@ fn the_tools_get_the_resolved_input_not_the_symlink() {
     }
 }
 
-// The sequence Go follows, seen from the places the interface and the injected readings
+// The sequence followed, seen from the places the interface and the injected readings
 // can see it: encoder, bitrate, room at the destination, squeeze, room for the maps,
 // memory (and no session yet), and only then progress.
 #[cfg(unix)]
@@ -601,7 +600,7 @@ fn the_steps_come_in_the_order_of_the_go_pipeline() {
     assert_eq!(seen[first_progress + 1], "detail", "{seen:?}");
 }
 
-// Go: TestPerformEncoding_EarlyFailuresAreRecorded (the cases after the paths): each
+// The cases after the paths: each
 // refusal is returned, launches no ffmpeg and leaves nothing at the destination or in
 // the temporary directory.
 #[cfg(unix)]
@@ -719,7 +718,7 @@ fn every_early_refusal_is_returned_and_leaves_nothing() {
     }
 }
 
-// Go: TestIntegration_PortraitSourceIsRefusedUpFront. The geometry check is wired into
+// A portrait source is refused up front. The geometry check is wired into
 // the pipeline ahead of the memory check, not merely left to the defensive copy in
 // `generate_pgm`: the memory reading must never be taken.
 #[cfg(unix)]
@@ -760,7 +759,7 @@ fn a_portrait_source_is_refused_before_the_memory_check_and_ffmpeg() {
     rig.assert_clean();
 }
 
-// Go: TestIntegration_CancelDuringEncoding (already cancelled before the start)
+// Already cancelled before the start.
 #[cfg(unix)]
 #[test]
 fn a_conversion_cancelled_before_it_starts_is_interrupted_and_leaves_nothing() {
@@ -783,7 +782,7 @@ fn a_conversion_cancelled_before_it_starts_is_interrupted_and_leaves_nothing() {
 
 // ---- the bitrate ----
 
-// Go: PerformEncoding's `if bitrate == 0 { bitrate = source }`
+// A zero bitrate becomes the source's.
 #[cfg(unix)]
 #[test]
 fn the_source_bitrate_is_used_when_the_interface_gives_none() {
@@ -815,7 +814,7 @@ fn the_source_bitrate_is_used_when_the_interface_gives_none() {
 
 // ---- a conversion, and what it leaves ----
 
-// Go: TestIntegration_PerformEncoding (with a stand-in ffmpeg: the output is the empty
+// With a stand-in ffmpeg: the output is the empty
 // working file, renamed)
 #[cfg(unix)]
 #[test]
@@ -844,7 +843,7 @@ fn a_conversion_ends_with_the_destination_and_nothing_else() {
     assert_eq!(m.input_file_size, CLIP_TEXT.len() as i64);
     assert_eq!(m.output_file_size, 0, "the stand-in wrote nothing");
     assert!(m.last_progress > 0.0);
-    // Go: one ShowProgressDetail per ShowProgress.
+    // One show_progress_detail per show_progress.
     assert!(ui.progress.get() >= 1);
     assert_eq!(ui.detail.get(), ui.progress.get());
     // The encode went to a working file next to the destination, not to the destination.
@@ -858,7 +857,7 @@ fn a_conversion_ends_with_the_destination_and_nothing_else() {
     assert!(!calls[0].contains(&rig.output().display().to_string()));
 }
 
-// Go: TestIntegration_SqueezeKeepsTheSourceWidth (the flag reaches the maps; with a
+// The flag reaches the maps; with a
 // stand-in ffmpeg the width is read in the session's map by the real test below)
 #[cfg(unix)]
 #[test]
@@ -881,7 +880,7 @@ fn the_squeeze_is_asked_once() {
     assert_eq!(asked, 1);
 }
 
-// Go: the deferred cleanup after a failure
+// The deferred cleanup after a failure.
 #[cfg(unix)]
 #[test]
 fn a_failure_after_frames_leaves_nothing_behind() {
@@ -901,7 +900,7 @@ fn a_failure_after_frames_leaves_nothing_behind() {
     rig.assert_clean();
 }
 
-// Go: TestIntegration_CancelLeavesNoPartialOutput, and the same for a system signal
+// Cancel leaves no partial output, and the same for a system signal
 // (stand-in ffmpeg that hangs after its first frame).
 #[cfg(unix)]
 #[test]
@@ -938,7 +937,7 @@ fn a_stop_leaves_no_file_no_session_and_no_process() {
     }
 }
 
-// Go: TestIntegration_CancelLeavesNoPartialOutput, "an existing destination survives"
+// An existing destination survives a cancel.
 #[cfg(unix)]
 #[test]
 fn a_stop_keeps_the_file_that_was_already_there() {
@@ -997,7 +996,7 @@ fn a_stop_raised_during_the_validations_ends_the_run_before_the_session() {
 }
 
 // A session that cannot be created: the error is returned and nothing exists at the
-// destination (Go: `InitEncodingSession` failing).
+// destination.
 #[cfg(unix)]
 #[test]
 fn a_session_that_cannot_be_created_leaves_nothing_at_the_destination() {
@@ -1021,7 +1020,6 @@ fn a_session_that_cannot_be_created_leaves_nothing_at_the_destination() {
     assert_eq!(names(&rig.out_dir), Vec::<String>::new());
 }
 
-// Go: TestIntegration_RenameFailureKeepsTheFinishedFile
 #[cfg(unix)]
 #[test]
 fn a_failed_rename_keeps_the_finished_video_under_its_working_name() {
@@ -1069,7 +1067,7 @@ fn a_failed_rename_keeps_the_finished_video_under_its_working_name() {
 
 // ---- the encoder and the memory guard ----
 
-// Go: TestIntegration_PerformEncodingAsksTheEncoderAboutTheRealFrame
+// The encoder is asked about the real frame.
 #[cfg(unix)]
 #[test]
 fn the_encoder_is_asked_about_the_real_frame() {
@@ -1104,8 +1102,7 @@ fn the_encoder_is_asked_about_the_real_frame() {
     rig.assert_clean();
 }
 
-/// Go: TestIntegration_MemoryCheckStopsBeforeFfmpegRuns and
-/// TestIntegration_MemoryCheckPricesTheConfiguredThreads, against whichever tools.
+/// The memory check stops before ffmpeg runs and prices the configured threads, against whichever tools.
 /// `input` is a 640x480 clip.
 fn memory_wiring(resolver: &ToolResolver, caps: &HashMap<String, String>, input: &Path) {
     // 64 MB free: far under what even this small frame needs. The refusal reaches the
@@ -1235,7 +1232,6 @@ fn dimensions(resolver: &ToolResolver, file: &Path) -> (i64, i64) {
     (w.parse().unwrap(), h.parse().unwrap())
 }
 
-// Go: TestIntegration_PerformEncoding and TestIntegration_SqueezeKeepsTheSourceWidth
 #[test]
 fn a_real_conversion_widens_or_squeezes_the_clip() {
     let _guard = spawn_lock();
@@ -1280,7 +1276,7 @@ fn a_real_conversion_widens_or_squeezes_the_clip() {
     }
 }
 
-// Go: TestIntegration_CancelLeavesNoPartialOutput, against a real ffmpeg
+// Against a real ffmpeg.
 #[test]
 fn a_real_encode_cancelled_from_the_progress_callback_leaves_nothing_behind() {
     let _guard = spawn_lock();
@@ -1355,7 +1351,6 @@ fn a_real_encode_cancelled_from_the_progress_callback_leaves_nothing_behind() {
     }
 }
 
-// Go: TestIntegration_MemoryCheckStopsBeforeFfmpegRuns and ...PricesTheConfiguredThreads
 #[test]
 fn the_memory_guard_in_front_of_a_real_ffmpeg() {
     let _guard = spawn_lock();

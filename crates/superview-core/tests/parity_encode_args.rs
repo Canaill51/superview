@@ -23,7 +23,7 @@ fn load() -> serde_json::Map<String, Value> {
     }
 }
 
-/// Go: parityVideo (the codec is always h264 in this matrix).
+/// A source video of the matrix (the codec is always h264 here).
 fn parity_video(pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
@@ -143,7 +143,7 @@ fn encode_args_match_the_go_oracle() {
             }
         }
     }
-    // Every preset on the families that translate them. Go's %q quotes the name.
+    // Every preset on the families that translate them. The recorded case names quote the preset (%q).
     for enc in preset_encoders {
         for preset in presets {
             add(

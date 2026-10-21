@@ -581,7 +581,7 @@ fn window_scenarios() {
     run();
 }
 
-/// The Go window was titled "Superview " + the build identity; a user reporting a bug reads the
+/// The window is titled "Superview " + the build identity; a user reporting a bug reads the
 /// version off the title bar.
 fn the_title_bar_carries_the_build_identity() {
     let r = rig(FakeEngine::new(), FakeHost::new());

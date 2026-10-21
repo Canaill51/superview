@@ -1,34 +1,26 @@
-//! Spawning ffmpeg and ffprobe, and reading how a process ended. Mirrors
-//! `command-other.go`, `command-windows.go`, `exitsignal_unix.go` and
-//! `exitsignal_windows.go` in Go's `internal/common/` (removed in phase 8; last release with it: v0.2.9).
+//! Spawning ffmpeg and ffprobe, and reading how a process ended.
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - Windows hides the console with `CREATE_NO_WINDOW`, where Go sets
-//!   `HideWindow` (`STARTF_USESHOWWINDOW` + `SW_HIDE`). Both keep a console
-//!   window from flashing up; the creation flag also works for a process that
-//!   never shows a window of its own.
-//! - The window is hidden by [`background_command`] itself, where Go makes each
-//!   call site call `prepareBackgroundCommand`: one place cannot be forgotten.
-//! - [`killed_by_signal`] takes the [`ExitStatus`], not an error: Rust has no
-//!   `exec.ExitError` to unwrap. The signal names are Linux's (the table Go
-//!   uses on Linux); an unknown number reads `signal N`.
-//! - [`combined_output`] interleaves stdout and stderr in the one pipe, as
-//!   `CombinedOutput` does, and decodes lossily (Go keeps raw bytes). Captured output is
-//!   capped at [`CAPTURE_CAP`] bytes at each end (F-04); Go keeps everything.
-//! - `isStopRequest` / `shouldNotRetry` are not here: they classify the
-//!   cancellation sentinels of the fallback cascade, not a process, and arrive
-//!   with it (phase 4, PR 6).
-//! - [`run_with_deadline`] is `exec.CommandContext` + `context.WithTimeout` in one: Go's
-//!   context carries both the deadline and the caller's cancellation, here they are a
-//!   [`Duration`] and an optional [`AtomicBool`], and [`RunEnd`] says which one ended the
+//! Design notes (exhaustive):
+//! - Windows hides the console with `CREATE_NO_WINDOW` (rather than
+//!   `STARTF_USESHOWWINDOW` + `SW_HIDE`). It keeps a console window from flashing up
+//!   and also works for a process that never shows a window of its own.
+//! - The window is hidden by [`background_command`] itself, not at each call site: one
+//!   place cannot be forgotten.
+//! - [`killed_by_signal`] takes the [`ExitStatus`]. The signal names are Linux's; an
+//!   unknown number reads `signal N`.
+//! - [`combined_output`] interleaves stdout and stderr in the one pipe and decodes
+//!   lossily. Captured output is capped at [`CAPTURE_CAP`] bytes at each end (F-04).
+//! - The classification of the cancellation sentinels of the fallback cascade is not here:
+//!   it concerns the cascade, not a process (`error.rs`).
+//! - [`run_with_deadline`] runs a process bounded by a deadline and a cancellation, which
+//!   are a [`Duration`] and an optional [`AtomicBool`]; [`RunEnd`] says which one ended the
 //!   run. It polls `try_wait` every [`POLL_INTERVAL`] rather than take a crate
 //!   (`wait-timeout` would only save the sleep); a cancellation is seen within that
-//!   interval. A cancel flag already raised before the call starts nothing, as Go's
-//!   `Start` refuses a done context.
-//! - Known limit, shared with Go: the kill reaches the process that was started, not its
+//!   interval. A cancel flag already raised before the call starts nothing.
+//! - Known limit: the kill reaches the process that was started, not its
 //!   children. On Windows a `.bat`/`.cmd` ffmpeg would make the kill reach only
-//!   `cmd.exe`; the `PATH` search therefore refuses them (`tools.rs`), where Go accepts them.
-//!   Where Go would then wait on the pipe for as long as a child holds it, the run here
+//!   `cmd.exe`; the `PATH` search therefore refuses them (`tools.rs`).
+//!   Rather than wait on the pipe for as long as a child holds it, the run
 //!   gives the reader [`READER_GRACE`] after a kill and returns the partial output.
 
 use std::collections::VecDeque;
@@ -156,14 +148,14 @@ pub fn collected(buffer: &Mutex<CappedBuffer>) -> String {
 }
 
 /// Runs `cmd` to completion and returns its status with stdout and stderr
-/// interleaved in the order written (Go's `CombinedOutput`), each end capped at
+/// interleaved in the order written, each end capped at
 /// [`CAPTURE_CAP`]. The cap suits text for a person; data to parse should not go through
 /// here once it can pass 128 KiB (use [`split_output`] and read stdout).
 ///
 /// `Err` only when the process cannot be started or read.
 pub fn combined_output(mut cmd: Command) -> io::Result<(ExitStatus, String)> {
     let (reader, writer) = io::pipe()?;
-    // Like Go's nil Stdin: the child reads end-of-file, never our terminal.
+    // The child reads end-of-file, never our terminal.
     cmd.stdin(Stdio::null());
     cmd.stdout(writer.try_clone()?);
     cmd.stderr(writer);
@@ -409,10 +401,9 @@ pub fn killed_by_signal(_status: &ExitStatus) -> Option<String> {
     None
 }
 
-/// Go's `syscall.Signal.String()` on Linux. Not Unix-only: [`crate::error::signal_description`]
-/// names the signal behind a stop request on every platform. (Go's Windows table names only 1 to
-/// 15 and prints "signal 16" beyond; this one keeps Linux's names. No effect: only 2 and 15 are
-/// ever listened to.)
+/// The name of a signal, from the Linux table. Not Unix-only: [`crate::error::signal_description`]
+/// names the signal behind a stop request on every platform. (No effect beyond 2 and 15:
+/// only those are ever listened to.)
 pub(crate) fn signal_name(signal: i32) -> String {
     const NAMES: [&str; 31] = [
         "hangup",

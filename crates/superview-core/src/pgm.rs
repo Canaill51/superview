@@ -1,8 +1,7 @@
 //! The remap maps: output geometry, the distortion formula, and the PGM writer.
 //!
-//! Port of Go's `internal/common/pgm.go` (removed in phase 8; last release with it: v0.2.9). Pinned byte for byte by the parity oracle
-//! `tests/fixtures/parity/pgm.json` and the four golden fingerprints of
-//! `pgm_golden_test.go` (Go, removed; now `tests/pgm_golden.rs`).
+//! Pinned byte for byte by the parity oracle `tests/fixtures/parity/pgm.json` and the four
+//! golden fingerprints of `tests/pgm_golden.rs`.
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -14,8 +13,7 @@ use crate::video::VideoSpecs;
 /// Shared by the writer and the space check so the two cannot drift apart.
 ///
 /// # Panics
-/// When `video` has no stream (Go indexes `Streams[0]` the same way); callers
-/// validate first.
+/// When `video` has no stream; callers validate first.
 pub fn remap_output_size(video: &VideoSpecs, squeeze: bool) -> (i64, i64) {
     let stream = &video.streams[0];
     let out_x = if squeeze {
@@ -35,7 +33,7 @@ pub fn check_geometry(video: &VideoSpecs, squeeze: bool) -> Result<(), InvalidVi
     }
     let (width, height) = (video.streams[0].width, video.streams[0].height);
     let (out_x, _) = remap_output_size(video, squeeze);
-    // Go wraps on overflow; saturating keeps the verdict sensible instead.
+    // Saturating keeps the verdict sensible on overflow.
     if out_x <= width.saturating_mul(2) {
         return Ok(());
     }
@@ -55,8 +53,7 @@ fn header(out_x: i64, out_y: i64) -> String {
 }
 
 /// Bytes the two maps take: two files, one 16-bit sample per pixel, plus a
-/// short ASCII header each. 0 when there is no stream. Go wraps on overflow;
-/// here a size that does not fit in `i64` saturates to `i64::MAX`, which any
+/// short ASCII header each. 0 when there is no stream. A size that does not fit in `i64` saturates to `i64::MAX`, which any
 /// free-space check refuses.
 pub fn remap_map_bytes(video: &VideoSpecs, squeeze: bool) -> i64 {
     if video.streams.is_empty() {
@@ -69,7 +66,7 @@ pub fn remap_map_bytes(video: &VideoSpecs, squeeze: bool) -> i64 {
 }
 
 /// One remap coordinate as the big-endian 16-bit sample PGM P5 mandates,
-/// clamped to the sample range (a guard, see `putMapSample` in pgm.go).
+/// clamped to the sample range (a guard).
 fn put_map_sample(dst: &mut [u8], value: i64) {
     let value = value.clamp(0, 65535) as u16;
     dst[..2].copy_from_slice(&value.to_be_bytes());
@@ -77,7 +74,7 @@ fn put_map_sample(dst: &mut [u8], value: i64) {
 
 /// Writes both maps to the given writers, header included.
 ///
-/// Mirrors `GeneratePGM` in pgm.go: validation, geometry check, then the X map
+/// Validation, geometry check, then the X map
 /// (one row, row-invariant) repeated for every row, and the Y map (the row
 /// index repeated).
 pub fn write_maps<WX: Write, WY: Write>(
@@ -114,8 +111,8 @@ pub fn write_maps<WX: Write, WY: Write>(
         if squeeze {
             let inv = 1.0 - tx.abs();
 
-            // Same expression as pgm.go, which keeps it recognisable against
-            // the reference implementation (DEC-13). The divisions are in
+            // The expression is kept recognisable against the reference
+            // implementation (DEC-13). The divisions are in
             // floating point on purpose: integer ones left a seam in the middle
             // of the frame. `powi(2)`, never `powf(2.0)`: math.Pow(x, 2) is
             // x*x, and powf depends on the platform's libm.
@@ -165,8 +162,7 @@ pub fn generate_pgm_bytes(video: &VideoSpecs, squeeze: bool) -> Result<(Vec<u8>,
 /// paths. The session that owns the directory comes in a later phase.
 ///
 /// On a write error, partial files may remain in `dir`: cleaning them up is the
-/// session's job, as in Go. A close or flush failure is reported, like the
-/// `Close()` errors of `GeneratePGM`.
+/// session's job. A close or flush failure is reported.
 pub fn generate_pgm(
     video: &VideoSpecs,
     squeeze: bool,
@@ -234,7 +230,6 @@ mod tests {
         );
     }
 
-    // Go: TestCheckGeometry
     #[test]
     fn geometry_table() {
         // (width, height, squeeze, refused)
@@ -256,7 +251,7 @@ mod tests {
                 assert!(result.is_ok(), "{name}: refused a geometry the map handles");
                 continue;
             }
-            // Go also asked GeneratePGM itself to refuse each of these.
+            // The map generator must refuse each of these too.
             assert!(
                 generate_pgm_bytes(&video(w, h), squeeze).is_err(),
                 "{name}: the map generator accepted a refused geometry"

@@ -7,7 +7,7 @@ use crate::video::VideoStream;
 
 // ---- fixtures ----
 
-/// Go: hevcSource (crossfamily_test.go).
+/// An HEVC source.
 fn hevc_source(pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "clip.mp4".into(),
@@ -30,7 +30,7 @@ fn caps(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         .collect()
 }
 
-/// Go: vaapiMachine, the laptop from the report.
+/// The laptop from the report.
 fn vaapi_machine() -> HashMap<String, String> {
     caps(&[
         ("encoders", "h264_vaapi,libx264,libx265"),
@@ -38,7 +38,7 @@ fn vaapi_machine() -> HashMap<String, String> {
     ])
 }
 
-/// Go: hd620Refusal.
+/// The Intel HD 620 refusal.
 const HD620_REFUSAL: &str = "[h264_vaapi @ 0x55] Hardware does not support encoding at size 5120x2880 (constraints: width 32-4096 height 32-4096)";
 
 /// A resolver that never finds anything: for tests that must not start a process.
@@ -46,7 +46,7 @@ fn no_tools() -> ToolResolver {
     ToolResolver::new(|_| None, None)
 }
 
-/// Go: seedSizeProbe. The key carries the source depth too (E-01), so the verdict is
+/// Seeds a verdict. The key carries the source depth too (E-01), so the verdict is
 /// seeded for every depth the fixtures use.
 fn seed(prober: &Prober, encoder: &str, size: &str, usable: bool, reason: &str) {
     for pix_fmt in ["", "yuv420p", "yuv420p10le"] {
@@ -132,7 +132,7 @@ pub(crate) fn fake_tools(scripts: &[(&str, &str)]) -> FakeTools {
     install_tools(&files)
 }
 
-/// Go: fakeHangingFFmpeg. On Unix `exec`, so the process the deadline kills is the
+/// A hanging ffmpeg. On Unix `exec`, so the process the deadline kills is the
 /// one that sleeps and holds no pipe behind it. On Windows the `.bat` runs under
 /// cmd.exe, which the kill reaches alone: `ping` keeps the pipe open after it, which
 /// is what the bounded wait for the output is for.
@@ -144,7 +144,7 @@ fn hanging_ffmpeg() -> FakeTools {
     fake_tools(&[("ffmpeg", body)])
 }
 
-/// Go: fakeRefusingFFmpeg: records the argv of every call in `ledger` and refuses.
+/// An ffmpeg that records the argv of every call in `ledger` and refuses.
 fn refusing_ffmpeg(ledger: &std::path::Path) -> FakeTools {
     #[cfg(unix)]
     let body = format!(
@@ -165,7 +165,6 @@ fn joined(args: &[String]) -> String {
 
 // ---- the argv ----
 
-// Go: TestProbeArgs_DeviceFrameEncodersGetADeviceAndAnUpload
 #[test]
 fn device_frame_encoders_get_a_device_and_an_upload() {
     for (encoder, device_type) in [
@@ -198,14 +197,14 @@ fn device_frame_encoders_get_a_device_and_an_upload() {
     }
 }
 
-/// Go: valueOf.
+/// The value of an option in an argv.
 fn value_of<'a>(args: &'a [String], option: &str) -> &'a str {
     args.windows(2)
         .find(|pair| pair[0] == option)
         .map_or("", |pair| pair[1].as_str())
 }
 
-// Go: TestProbeAndConversionAskTheSameQuestion. The whole argv of both builders is
+// The probe and the conversion ask the same question. The whole argv of both builders is
 // compared, minus the differences listed here.
 #[test]
 fn probe_and_conversion_ask_the_same_question() {
@@ -325,7 +324,6 @@ fn probe_and_conversion_ask_the_same_question() {
     }
 }
 
-// Go: TestProbeArgs_NamesTheEncoderAndDiscardsOutput
 #[test]
 fn names_the_encoder_and_discards_output() {
     let args = joined(&probe_args(&sweep_spec("hevc_nvenc")));
@@ -334,7 +332,6 @@ fn names_the_encoder_and_discards_output() {
     assert!(args.contains("-loglevel error"), "{args}");
 }
 
-// Go: TestProbeArgs_UsesTheSizeItIsGiven
 #[test]
 fn uses_the_size_it_is_given() {
     let args = joined(&probe_args(&ProbeSpec {
@@ -347,7 +344,6 @@ fn uses_the_size_it_is_given() {
     assert!(!args.contains(PROBE_FRAME_SIZE), "{args}");
 }
 
-// Go: TestProbeArgs_AskForRateControl
 #[test]
 fn asks_for_rate_control() {
     let args = joined(&probe_args(&sweep_spec("h264_vaapi")));
@@ -356,7 +352,6 @@ fn asks_for_rate_control() {
     }
 }
 
-// Go: TestProbeArgs_AskAtTheSourceDepth
 #[test]
 fn asks_at_the_source_depth() {
     let spec = |pix_fmt: &str| ProbeSpec {
@@ -446,7 +441,6 @@ fn libva_information_lines_do_not_crowd_out_the_error() {
     );
 }
 
-// Go: TestSummarizeProbeFailure
 #[test]
 fn summarizes_a_failure_in_one_line() {
     let ms = Duration::from_millis;
@@ -485,7 +479,7 @@ fn summarizes_a_failure_in_one_line() {
     assert_eq!(got.len(), PROBE_REASON_BUDGET + 3);
 }
 
-// No Go test: the constants are the measured Go ones, spelled out rather than read
+// The constants are the measured ones (v0.2.9), spelled out rather than read
 // back from the code they govern.
 #[test]
 fn the_constants_are_gos() {
@@ -499,7 +493,7 @@ fn the_constants_are_gos() {
     assert_eq!(got, format!("{}...", "x".repeat(300)));
 }
 
-// No Go test: Go cuts a reason at 300 bytes, mid-character if need be; Rust cannot.
+// A reason is cut at 300 bytes, never mid-character.
 #[test]
 fn a_reason_is_cut_on_a_character_boundary() {
     // One ASCII byte, then two-byte characters: byte 300 falls inside a character
@@ -510,14 +504,14 @@ fn a_reason_is_cut_on_a_character_boundary() {
     assert!(got.ends_with("é..."), "{got}");
 }
 
-// No Go test: Windows ffmpeg ends its lines with CRLF.
+// Windows ffmpeg ends its lines with CRLF.
 #[test]
 fn crlf_lines_leave_no_carriage_return() {
     let got = summarize_probe_failure("one\r\ntwo\r\n", "x", false, Duration::ZERO);
     assert_eq!(got, "one; two");
 }
 
-// No Go test: Duration.String after Round(time.Millisecond).
+// Durations print like "1.5s" after rounding to a millisecond.
 #[test]
 fn durations_read_like_go_after_rounding_to_a_millisecond() {
     let ms = Duration::from_millis;
@@ -536,7 +530,6 @@ fn durations_read_like_go_after_rounding_to_a_millisecond() {
 
 // ---- which encoders, what the verdict does ----
 
-// Go: TestEncodersToProbe
 #[test]
 fn encoders_to_probe_keeps_hardware_and_the_cpu_pair() {
     let ffmpeg = caps(&[(
@@ -551,7 +544,6 @@ fn encoders_to_probe_keeps_hardware_and_the_cpu_pair() {
     );
 }
 
-// Go: TestEncodersToProbe_EmptyCapabilities
 #[test]
 fn nothing_advertised_means_nothing_to_probe() {
     assert!(encoders_to_probe(&HashMap::new()).is_empty());
@@ -573,7 +565,6 @@ fn worked(encoder: &str) -> EncoderProbe {
     }
 }
 
-// Go: TestApplyEncoderProbe_RemovesOnlyWhatWasRefused
 #[test]
 fn apply_removes_only_what_was_refused() {
     let ffmpeg = caps(&[
@@ -596,7 +587,6 @@ fn apply_removes_only_what_was_refused() {
     assert_eq!(updated["version"], "8.1.2");
 }
 
-// Go: TestApplyEncoderProbe_DoesNotMutateItsInput
 #[test]
 fn apply_does_not_edit_the_map_it_was_given() {
     let ffmpeg = caps(&[("encoders", "libx264,h264_nvenc")]);
@@ -609,7 +599,6 @@ fn apply_does_not_edit_the_map_it_was_given() {
     assert_eq!(ffmpeg["encoders"], "libx264,h264_nvenc");
 }
 
-// Go: TestApplyEncoderProbe_NilReportChangesNothing
 #[test]
 fn apply_without_a_report_changes_nothing() {
     let ffmpeg = caps(&[("encoders", "libx264,h264_nvenc")]);
@@ -619,7 +608,7 @@ fn apply_without_a_report_changes_nothing() {
     );
 }
 
-// Go: TestEncoderProbeReport_FindAndUnusable (a nil report is an Option here, see the
+// A missing report is an Option here, see the
 // header).
 #[test]
 fn find_and_unusable() {
@@ -634,7 +623,6 @@ fn find_and_unusable() {
     assert_eq!(unusable[0].encoder, "h264_nvenc");
 }
 
-// Go: TestDescribeEncoderProbe_CarriesTheReason
 #[test]
 fn describe_carries_the_reason() {
     let report = EncoderProbeReport {
@@ -659,7 +647,6 @@ fn describe_carries_the_reason() {
     );
 }
 
-// Go: TestDescribeEncoderProbe_DegradedCases
 #[test]
 fn describe_degraded_cases() {
     assert_eq!(describe_encoder_probe(None), "Encoders: not probed\n");
@@ -671,7 +658,6 @@ fn describe_degraded_cases() {
 
 // ---- the sweep, with a cancellation ----
 
-// Go: TestProbeEncoders_StopsOnCancellation
 #[test]
 fn a_cancelled_sweep_probes_nothing() {
     let resolver = no_tools();
@@ -682,7 +668,7 @@ fn a_cancelled_sweep_probes_nothing() {
     assert!(report.results.is_empty(), "{:?}", report.results);
 }
 
-// Go: TestSizeProbeCache_DoesNotRememberACancelledProbe (E-23). Nothing is started
+// A cancelled probe is not remembered (E-23). Nothing is started
 // here (the flag is up at the start), so it runs on every platform.
 #[test]
 fn a_probe_cancelled_before_it_starts_is_not_cached() {
@@ -707,7 +693,7 @@ fn a_probe_cancelled_before_it_starts_is_not_cached() {
     );
 }
 
-// Go: TestSizeProbeCache_DoesNotRememberACancelledProbe, with a probe actually cut
+// A cancelled probe is not remembered, with a probe actually cut
 // short while it runs.
 #[test]
 fn a_probe_cut_short_while_running_is_not_cached() {
@@ -741,7 +727,6 @@ fn a_probe_cut_short_while_running_is_not_cached() {
 
 // ---- the frame, and verifying an encoder against it ----
 
-// Go: TestOutputFrameSize
 #[test]
 fn output_frame_size_follows_the_geometry() {
     let video = hevc_source("yuv420p10le"); // 3840x2880
@@ -756,7 +741,6 @@ fn output_frame_size_follows_the_geometry() {
     assert_eq!(output_frame_size(Some(&no_streams), false), "");
 }
 
-// Go: TestVerifyEncoderForOutput_LeavesSoftwareEncodersAlone
 #[test]
 fn software_encoders_are_left_alone() {
     let resolver = no_tools();
@@ -785,7 +769,6 @@ fn verify(
     prober.verify_encoder_for_output("h264_vaapi", Some(video), squeeze, ffmpeg, "", None)
 }
 
-// Go: TestVerifyEncoderForOutput_KeepsAHardwareEncoderThatAcceptsTheFrame
 #[test]
 fn keeps_a_hardware_encoder_that_accepts_the_frame() {
     let resolver = no_tools();
@@ -800,7 +783,6 @@ fn keeps_a_hardware_encoder_that_accepts_the_frame() {
     assert_eq!((encoder.as_str(), reason.as_str()), ("h264_vaapi", ""));
 }
 
-// Go: TestVerifyEncoderForOutput_StepsBackToTheSourceFamilyWhenRefused
 #[test]
 fn steps_back_to_the_source_family_when_refused() {
     let resolver = no_tools();
@@ -819,7 +801,6 @@ fn steps_back_to_the_source_family_when_refused() {
     );
 }
 
-// Go: TestVerifyEncoderForOutput_KeepsTheEncoderWithNothingToStepBackTo
 #[test]
 fn keeps_the_encoder_with_nothing_to_step_back_to() {
     let resolver = no_tools();
@@ -834,7 +815,6 @@ fn keeps_the_encoder_with_nothing_to_step_back_to() {
     assert!(!reason.is_empty(), "the refusal must still be reported");
 }
 
-// Go: TestVerifyEncoderForOutput_FollowsTheSqueezeGeometry
 #[test]
 fn follows_the_squeeze_geometry() {
     let resolver = no_tools();
@@ -852,7 +832,7 @@ fn follows_the_squeeze_geometry() {
     );
 }
 
-// No Go test: a missing video or an empty encoder name is answered without a probe.
+// A missing video or an empty encoder name is answered without a probe.
 #[test]
 fn nothing_to_verify_without_an_encoder_or_a_frame() {
     let resolver = no_tools();
@@ -869,7 +849,6 @@ fn nothing_to_verify_without_an_encoder_or_a_frame() {
     assert!(prober.cache().is_empty());
 }
 
-// Go: TestDescribeVerifiedHardwarePlan_NamesWhatWillReallyRun
 #[test]
 fn the_plan_names_what_will_really_run() {
     let resolver = no_tools();
@@ -895,7 +874,6 @@ fn the_plan_names_what_will_really_run() {
     );
 }
 
-// Go: TestDescribeVerifiedHardwarePlan_UnchangedWhenTheHardwareAccepts
 #[test]
 fn the_plan_is_unchanged_when_the_hardware_accepts() {
     let resolver = no_tools();
@@ -917,7 +895,7 @@ fn the_plan_is_unchanged_when_the_hardware_accepts() {
     assert!(!line.contains("cannot encode"), "{line}");
 }
 
-// No Go test: the two early returns of DescribeVerifiedHardwarePlan.
+// The two early returns of describe_verified_hardware_plan.
 #[test]
 fn the_plan_without_a_video_or_an_encoder_says_so() {
     let resolver = no_tools();
@@ -945,7 +923,7 @@ fn the_plan_without_a_video_or_an_encoder_says_so() {
 
 // ---- with a stand-in ffmpeg ----
 
-// Go: TestSizeProbeCache_AsksTheDriverOnce. The ledger also shows the argv really
+// The driver is asked once. The ledger also shows the argv really
 // reached the process.
 #[test]
 fn the_driver_is_asked_once_for_the_same_question() {
@@ -976,7 +954,7 @@ fn the_driver_is_asked_once_for_the_same_question() {
     );
 }
 
-// No Go test: a different question (squeeze) is a different cache entry.
+// A different question (squeeze) is a different cache entry.
 #[test]
 fn a_different_frame_size_is_asked_again() {
     let _guard = spawn_lock();
@@ -997,7 +975,7 @@ fn a_different_frame_size_is_asked_again() {
     assert_eq!(data.matches("call").count(), 3, "reset must forget: {data}");
 }
 
-// Go: TestProbeEncoder_BoundsItselfWithoutACallerDeadline. The probe's own timeout is
+// The probe bounds itself without a caller deadline. The probe's own timeout is
 // a field here, so the test shortens it without a global.
 #[test]
 fn the_probe_bounds_itself_without_a_caller_deadline() {
@@ -1022,7 +1000,7 @@ fn the_probe_bounds_itself_without_a_caller_deadline() {
     assert!(probe.took >= Duration::from_millis(300));
 }
 
-// Go: probeEncoderForSizeCached, "only the probe's own deadline is a verdict" (E-23,
+// "Only the probe's own deadline is a verdict" (E-23,
 // the other half): a probe that timed out by itself IS cached, so a wedged driver is
 // not asked again at every click.
 #[test]
@@ -1054,7 +1032,7 @@ fn a_probe_that_timed_out_by_itself_is_cached() {
     );
 }
 
-// Go: TestProbeEncoder_HonoursTheCallerDeadline, as a cancellation.
+// The caller's deadline, as a cancellation.
 #[test]
 fn the_probe_honours_a_cancellation() {
     let _guard = spawn_lock();
@@ -1073,7 +1051,7 @@ fn the_probe_honours_a_cancellation() {
     assert!(started.elapsed() < Duration::from_secs(5));
 }
 
-// Go: TestProbeEncoder_UnknownEncoderIsRefusedWithFFmpegsWords, against a stand-in
+// An unknown encoder is refused with ffmpeg's words, against a stand-in
 // that prints ffmpeg's four lines.
 #[cfg(unix)]
 #[test]
@@ -1095,7 +1073,7 @@ fn a_refusal_carries_ffmpegs_first_words() {
     );
 }
 
-// Go: "a silent failure still says something", end to end.
+// "A silent failure still says something", end to end.
 #[cfg(unix)]
 #[test]
 fn a_silent_refusal_reports_the_exit_status() {
@@ -1106,7 +1084,7 @@ fn a_silent_refusal_reports_the_exit_status() {
     assert!(probe.reason.contains("218"), "{}", probe.reason);
 }
 
-// No Go test: the stand-in's success, so the refusals above cannot come from a
+// The stand-in's success, so the refusals above cannot come from a
 // broken stand-in.
 #[cfg(unix)]
 #[test]
@@ -1119,7 +1097,7 @@ fn an_ffmpeg_that_encodes_makes_the_probe_usable() {
     assert!(probe.took > Duration::ZERO);
 }
 
-// No Go test: no ffmpeg to start is a refusal with the cause, not a panic.
+// No ffmpeg to start is a refusal with the cause, not a panic.
 #[cfg(not(windows))]
 #[test]
 fn a_missing_ffmpeg_is_a_refusal_with_a_reason() {
@@ -1135,7 +1113,7 @@ fn a_missing_ffmpeg_is_a_refusal_with_a_reason() {
     assert!(!probe.reason.is_empty());
 }
 
-// Go: TestProbeHardwareSupport_AgreesWithWhatWasAdvertised, with a stand-in that
+// The probe agrees with what was advertised, with a stand-in that
 // refuses one encoder by name.
 #[cfg(unix)]
 #[test]
@@ -1186,7 +1164,7 @@ fn real_ffmpeg_with_libx264() -> Option<ToolResolver> {
     }
 }
 
-// Go: TestProbeEncoder_SoftwareEncoderWorks. libx264 is the right subject: if this
+// A software encoder works. libx264 is the right subject: if this
 // reddens on a machine that has ffmpeg, the probe itself is malformed.
 #[test]
 fn libx264_accepts_a_256x256_frame() {
@@ -1203,7 +1181,6 @@ fn libx264_accepts_a_256x256_frame() {
     assert!(probe.took > Duration::ZERO);
 }
 
-// Go: TestProbeEncoder_UnknownEncoderIsRefusedWithFFmpegsWords
 #[test]
 fn an_unknown_encoder_is_refused_with_ffmpegs_words() {
     let _guard = spawn_lock();
@@ -1222,7 +1199,6 @@ fn an_unknown_encoder_is_refused_with_ffmpegs_words() {
     );
 }
 
-// Go: TestProbeHardwareSupport_AgreesWithWhatWasAdvertised
 #[test]
 fn the_real_sweep_agrees_with_what_was_advertised() {
     let _guard = spawn_lock();

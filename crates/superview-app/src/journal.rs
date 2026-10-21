@@ -1,9 +1,9 @@
 //! The application log: every `log` record goes to the capped file under the user cache
-//! directory (Go: `common.OpenLogFile` + `slog`). There is no console to write to, and
+//! directory. There is no console to write to, and
 //! discarding the records would make every failure unreportable, so the README asks users to
 //! attach this file to bug reports.
 //!
-//! Differences from Go: the lines read `time=… level=… msg=…` like slog's text handler, but the
+//! The lines read `time=… level=… msg=…` like slog's text handler, but the
 //! message is the whole `key=value` text the core writes. If the file cannot be opened the
 //! records are discarded and the window says so in the Diagnostic report; startup never waits on
 //! logging.
@@ -17,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use log::{LevelFilter, Log, Metadata, Record};
 use superview_core::logfile::{CappedLogWriter, open_log_file, user_cache_dir};
 
-/// The diagnostic log's cap; past this size it restarts empty (Go: `maxLogFileBytes`).
+/// The diagnostic log's cap; past this size it restarts empty.
 pub const MAX_LOG_FILE_BYTES: i64 = 5 << 20;
 
 struct FileLogger {

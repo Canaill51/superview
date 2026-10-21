@@ -1,7 +1,7 @@
 //! Scenarios on the real window under the testing backend: the labels it shows, where its
 //! toolbar sits, what it starts with, that every button reports its click, and the popups.
 //! Plain functions called from the one `#[test]` in `app_tests.rs`: the backend can be initialised
-//! only once per process. Port of Go's `TestToolbarFitsWindow` and `TestToolbarIsCentred`.
+//! only once per process.
 //!
 //! The testing backend does not measure the real font, so nothing here asserts that a label
 //! fits its button, nor that a long path wraps (the text sizes are not real, `word-wrap` passed
@@ -17,7 +17,7 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
-/// The window's size, as the Go window's `windowWidth` and `windowHeight`.
+/// The window's size (fixed, DEC-54).
 const WINDOW_WIDTH: f32 = 980.0;
 const WINDOW_HEIGHT: f32 = 470.0;
 /// The padding around the window's content (`padding` in `main.slint`).

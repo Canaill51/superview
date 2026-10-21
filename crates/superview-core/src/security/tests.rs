@@ -11,7 +11,7 @@ fn write(dir: &Path, name: &str) -> PathBuf {
 }
 
 /// Creates a symlink, or `None` where the OS or its privileges forbid it
-/// (Go's `t.Skipf`).
+/// (a skipped test).
 fn try_symlink(target: &Path, link: &Path) -> Option<()> {
     #[cfg(unix)]
     let made = std::os::unix::fs::symlink(target, link);
@@ -24,7 +24,6 @@ fn try_symlink(target: &Path, link: &Path) -> Option<()> {
     made.ok()
 }
 
-// TestIsValidInputPath
 #[test]
 fn input_path_table() {
     for (name, path) in [
@@ -46,8 +45,8 @@ fn input_path_table() {
     assert!(err_text(is_valid_input_path(dir.path())).contains("is a directory"));
 }
 
-// TestIsValidOutputPath. Go's tmpDir/../../../etc case went through
-// filepath.Join, which erases the ".."; the literal string is the stronger
+// The "tmpDir/../../../etc" case: a path joined with filepath-style normalisation
+// would erase the ".."; the literal string is the stronger
 // test.
 #[test]
 fn output_path_table() {
@@ -71,7 +70,6 @@ fn output_path_table() {
     assert!(err_text(is_valid_output_path(missing)).contains("cannot access output directory"));
 }
 
-// TestSanitizeEncoderInput
 #[test]
 fn sanitize_encoder_input_table() {
     let available = "libx264,libx265,h264_nvenc,hevc_nvenc";
@@ -90,12 +88,11 @@ fn sanitize_encoder_input_table() {
         "encoder \"libx264 -ssof /etc/passwd\" not in approved list"
     );
     assert!(sanitize_encoder_input("mpeg4", available).is_err());
-    // Go trims each approved entry, and matches exactly.
+    // Each approved entry is trimmed, and matched exactly.
     assert_eq!(sanitize_encoder_input("b", "a, b ,c").unwrap(), "b");
     assert!(sanitize_encoder_input("libx26", available).is_err());
 }
 
-// TestPathTraversalPrevention
 #[test]
 fn traversal_attempts_are_refused() {
     for attempt in [
@@ -113,7 +110,6 @@ fn traversal_attempts_are_refused() {
     }
 }
 
-// TestSymlinkResolution_AcceptedWhenTargetIsValid
 #[test]
 fn symlink_to_a_regular_file_is_accepted() {
     let dir = tempfile::tempdir().unwrap();
@@ -126,7 +122,6 @@ fn symlink_to_a_regular_file_is_accepted() {
     assert!(is_valid_input_path(&link).is_ok());
 }
 
-// TestSymlinkResolution_RejectedWhenTargetIsMissing
 #[test]
 fn dangling_symlink_is_refused() {
     let dir = tempfile::tempdir().unwrap();
@@ -138,7 +133,6 @@ fn dangling_symlink_is_refused() {
     assert!(is_valid_input_path(&link).is_err());
 }
 
-// TestSymlinkResolution_RejectedWhenTargetIsDirectory
 #[test]
 fn symlink_to_a_directory_is_refused() {
     let dir = tempfile::tempdir().unwrap();
@@ -152,8 +146,8 @@ fn symlink_to_a_directory_is_refused() {
     assert!(is_valid_input_path(&link).is_err());
 }
 
-// TestIsValidInputPath_RejectsNonRegularFile (/dev/zero would make ffmpeg
-// read forever)
+// /dev/zero would make ffmpeg
+// read forever.
 #[test]
 #[cfg(unix)]
 fn character_device_is_refused() {
@@ -161,7 +155,6 @@ fn character_device_is_refused() {
     assert!(err_text(is_valid_input_path("/dev/zero")).contains("not a regular file"));
 }
 
-// TestHasTraversalComponent
 #[test]
 fn traversal_component_table() {
     for (path, want) in [
@@ -179,21 +172,18 @@ fn traversal_component_table() {
     }
 }
 
-// TestIsValidInputPath_AcceptsDoubleDotInFilename
 #[test]
 fn double_dot_inside_a_filename_is_accepted() {
     let dir = tempfile::tempdir().unwrap();
     assert!(is_valid_input_path(write(dir.path(), "vacances..2024.mp4")).is_ok());
 }
 
-// TestIsValidInputPath_StillRejectsTraversal
 #[test]
 fn traversal_is_still_refused() {
     assert!(err_text(is_valid_input_path("/home/user/../../etc/passwd")).contains("traversal"));
     assert!(err_text(is_valid_output_path("/home/user/../../etc/x.mp4")).contains("traversal"));
 }
 
-// TestIsValidOutputPath_LeavesNoProbeFileBehind
 #[test]
 fn output_check_leaves_no_probe_file_behind() {
     let dir = tempfile::tempdir().unwrap();
@@ -202,7 +192,7 @@ fn output_check_leaves_no_probe_file_behind() {
     assert!(left.is_empty(), "probe file left behind: {left:?}");
 }
 
-// TestIsValidOutputPath_RejectsADirectory (E-04)
+// E-04
 #[test]
 fn output_path_that_is_a_directory_is_refused() {
     let dir = tempfile::tempdir().unwrap();
@@ -212,7 +202,7 @@ fn output_path_that_is_a_directory_is_refused() {
     assert!(is_valid_output_path(dir.path().join("clip.mp4")).is_ok());
 }
 
-// Beyond Go: the parent must be a directory, and an existing file may be
+// The parent must be a directory, and an existing file may be
 // overwritten.
 #[test]
 fn output_parent_must_be_a_directory() {
@@ -223,7 +213,7 @@ fn output_parent_must_be_a_directory() {
     assert!(is_valid_output_path(&file).is_ok());
 }
 
-// TestIsSensitiveSystemPath (E-17, E-19)
+// E-17, E-19
 #[test]
 fn sensitive_path_covers_each_directory_and_its_children_only() {
     let sep = MAIN_SEPARATOR;
@@ -241,7 +231,6 @@ fn sensitive_path_covers_each_directory_and_its_children_only() {
     }
 }
 
-// TestIsSensitiveSystemPath_UnixLiterals
 #[test]
 #[cfg(unix)]
 fn sensitive_path_unix_literals() {
@@ -275,7 +264,7 @@ fn windows_directories_come_from_the_environment() {
 
 // Spellings of a protected directory that the string check on the path as
 // written cannot see: only the second check, on the resolved parent, refuses
-// them. Not in Go's tests; the verdict follows from Go's two-step design.
+// them. The verdict follows from the two-step design.
 #[test]
 #[cfg(windows)]
 fn windows_alternate_spellings_are_refused_after_resolution() {
@@ -297,7 +286,7 @@ fn windows_alternate_spellings_are_refused_after_resolution() {
     }
 }
 
-// TestIsValidOutputPath_SymlinkedParentIntoSystemDirectory (E-17). The
+// E-17. The
 // assertion is on the reason, so the test means the same thing as root.
 #[test]
 #[cfg(unix)]

@@ -1,5 +1,5 @@
 //! The application window: starts the services and hands them to [`app::App`], which wires the
-//! Slint window to the logic (phase 6 of DEC-43).
+//! Slint window to the logic (DEC-43).
 
 // No console window next to the GUI on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -126,14 +126,13 @@ fn main() -> Result<(), slint::PlatformError> {
         Ok(())
     };
     // Every way out waits for a running conversion to unwind; after a Quit or a window close
-    // there is nothing left to wait for and this returns at once (Go: the line after
-    // `ShowAndRun`).
+    // there is nothing left to wait for and this returns at once.
     app.shutdown("event loop stopped");
     result
 }
 
 /// The path without a trailing separator (`std::env::temp_dir()` keeps one on Windows, and the
-/// disk messages of the Diagnostic would differ from Go's by that character).
+/// disk messages of the Diagnostic would differ by that character).
 fn clean_dir(path: &std::path::Path) -> std::path::PathBuf {
     path.components().collect()
 }
@@ -143,8 +142,7 @@ mod tests {
     use super::*;
 
     /// On Wayland the compositor finds the taskbar icon through a desktop file named after the
-    /// window's app_id; the AppImage script must build the same ID (Go:
-    /// `TestAppImageDesktopFileIsNamedAfterTheAppID`).
+    /// window's app_id; the AppImage script must build the same ID.
     #[test]
     fn the_appimage_desktop_file_is_named_after_the_app_id() {
         let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

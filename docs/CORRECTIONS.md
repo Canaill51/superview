@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Les commentaires du code Rust ne renvoient plus à Go (plan « traces de Go », PR 3)
+
+| | |
+| --- | --- |
+| **Constat** | ~720 lignes de commentaires (66 fichiers) citaient des fonctions ou des tests Go (« (Go: `fn`) », « Port of … », « Deliberate differences from the Go code ») |
+| **Cause** | Go retiré en DEC-49 sans repasser sur les commentaires |
+| **Fichiers** | les `.rs` et `main.slint` des trois crates ; commentaires seulement, aucun code, aucune chaîne, aucun identifiant |
+| **Règle** | retirer le renvoi, garder le pourquoi ; restent les fixtures enregistrées par l'oracle Go, les écarts voulus avec la v0.2.9 (DEC-43, 45, 52, 53) et les règles de `strconv.ParseFloat` suivies par `parse_go_float` |
+| **Reste (PR 4)** | identifiants et chaînes : `parse_go_float`, `*_match_the_go_*`, `the_constants_are_gos`, `validate_bitrate_messages_are_gos`, `reason = "…Go…"` des `allow(clippy::too_many_arguments)`, `"errors.Is looks through %w"`, « LookPath » dans `tools/tests.rs` ; les `// Go: TestParity_*` des tests de parité sont gardés (fixtures enregistrées par l'oracle Go) |
+| **Vérification** | `git diff -U0 -- crates/ \| grep '^[-+]' \| grep -vE '^(\+\+\+\|---)' \| grep -vE '^[-+]\s*(//\|#\[doc)'` vide ; `scripts/check.sh` vert |
+
 ### [2026-10-21] Les docs vivantes ne parlent plus de Go que par une phrase d'histoire (plan « traces de Go », PR 2)
 
 | | |

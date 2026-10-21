@@ -50,7 +50,7 @@ fn a_value_is_read_after_trimming() {
     assert!(!negative.produced_output());
 }
 
-// Go's loop tests Contains, then removes the first occurrence only: what surrounds the key
+// The loop tests Contains, then removes the first occurrence only: what surrounds the key
 // stays, and a prefix makes the value unreadable.
 #[test]
 fn the_key_only_has_to_be_contained_and_the_first_one_goes() {
@@ -114,7 +114,7 @@ fn only_a_time_above_zero_marks_output() {
     assert!(!parse_progress_line("frame=3").produced_output());
 }
 
-// Go: TestEncodeVideo_ProgressNotAvailableIsNotAWarning, at the level of the line.
+// At the level of the line: progress not available is not a warning.
 #[test]
 fn not_available_is_debug_never_a_warning() {
     let records = logged(&[
@@ -135,7 +135,7 @@ fn not_available_is_debug_never_a_warning() {
     );
 }
 
-// Go: TestEncodeVideo_UnparsableProgressIsStillAWarning
+// An unparsable progress value is still a warning.
 #[test]
 fn an_unparsable_value_still_warns() {
     let records = logged(&["out_time_ms=soon"]);
@@ -163,7 +163,7 @@ fn the_percentage_is_the_elapsed_share_capped_at_100() {
     assert_eq!(percent(f64::INFINITY, 60.0), 100.0);
 }
 
-// Go: math.Min(NaN, 100) is NaN, not 100 ("done").
+// A NaN ratio stays NaN; `f64::min` would give 100 ("done").
 #[test]
 fn a_nan_percentage_stays_nan() {
     assert!(percent(f64::NAN, 60.0).is_nan());

@@ -2,7 +2,7 @@
 //! Behind the [`Host`](crate::app::Host) trait, so that the tests choose what a picker answers.
 //!
 //! The pickers are `dialogs.rs`'s: rfd, then zenity and kdialog on a Linux machine with no
-//! portal, then a text field in the window (PR 6.4).
+//! portal, then a text field in the window.
 
 use std::process::Command;
 

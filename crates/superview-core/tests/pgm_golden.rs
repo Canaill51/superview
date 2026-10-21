@@ -1,11 +1,10 @@
-//! Port of Go's `pgm_golden_test.go` (removed in phase 8; last release with it: v0.2.9): golden fingerprints and map properties.
+//! Golden fingerprints and map properties.
 
 mod common;
 
 use common::{parse_p5, sha256_hex, video};
 use superview_core::pgm::{generate_pgm, generate_pgm_bytes, remap_map_bytes};
 
-// Go: TestGeneratePGM_Golden
 #[test]
 fn golden_fingerprints() {
     // (width, height, squeeze, size, x sha256, y sha256)
@@ -52,7 +51,6 @@ fn golden_fingerprints() {
     }
 }
 
-// Go: TestGeneratePGM_XMapIsRowInvariant
 #[test]
 fn x_map_is_row_invariant() {
     let (x, _) = generate_pgm_bytes(&video(160, 120), false).unwrap();
@@ -68,7 +66,6 @@ fn x_map_is_row_invariant() {
     }
 }
 
-// Go: TestGeneratePGM_MapsAreBigEndianP5
 #[test]
 fn maps_are_big_endian_p5() {
     let (_, y) = generate_pgm_bytes(&video(640, 480), false).unwrap();
@@ -79,7 +76,6 @@ fn maps_are_big_endian_p5() {
     assert_eq!(&body[256 * width * 2..256 * width * 2 + 2], &[0x01, 0x00]);
 }
 
-// Go: TestRemapMapBytes_MatchesWhatGeneratePGMWrites
 #[test]
 fn remap_map_bytes_matches_what_is_written() {
     let dir = std::env::temp_dir().join(format!("superview-core-pgm-{}", std::process::id()));
@@ -104,7 +100,6 @@ fn remap_map_bytes_matches_what_is_written() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
-// Go: TestRemapMapBytes_NoStreams
 #[test]
 fn remap_map_bytes_without_streams_is_zero() {
     let empty = superview_core::video::VideoSpecs {
@@ -118,7 +113,6 @@ fn sample(body: &[u8], x: usize) -> i64 {
     i64::from(body[x * 2]) << 8 | i64::from(body[x * 2 + 1])
 }
 
-// Go: TestGeneratePGM_SqueezeMapIsContinuous
 #[test]
 fn squeeze_map_is_continuous() {
     for (w, h) in [
@@ -142,7 +136,6 @@ fn squeeze_map_is_continuous() {
     }
 }
 
-// Go: TestGeneratePGM_SqueezeMapStaysWellFormed
 #[test]
 fn squeeze_map_stays_well_formed() {
     for (w, h) in [(640, 480), (1440, 1080), (2880, 2160), (4064, 3048)] {
@@ -160,7 +153,6 @@ fn squeeze_map_stays_well_formed() {
     }
 }
 
-// Go: TestGeneratePGM_WidenMapStaysWellFormed
 #[test]
 fn widen_map_stays_well_formed() {
     for (w, h) in [
@@ -194,7 +186,6 @@ fn widen_map_stays_well_formed() {
     }
 }
 
-// Go: TestGeneratePGM_YMapIsIdentity
 #[test]
 fn y_map_is_identity() {
     for squeeze in [false, true] {

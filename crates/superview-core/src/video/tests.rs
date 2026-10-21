@@ -25,13 +25,11 @@ fn reason(specs: &VideoSpecs) -> String {
     specs.validate().unwrap_err().reason
 }
 
-// Go: TestVideoSpecs_ValidateValid
 #[test]
 fn validate_accepts_a_valid_video() {
     assert_eq!(specs(stream()).validate(), Ok(()));
 }
 
-// Go: TestVideoSpecs_ValidateNoStreams
 #[test]
 fn validate_refuses_no_streams() {
     let none = VideoSpecs {
@@ -41,7 +39,6 @@ fn validate_refuses_no_streams() {
     assert_eq!(reason(&none), "no video streams found");
 }
 
-// Go: TestVideoSpecs_ValidateInvalidDimensions
 #[test]
 fn validate_refuses_bad_dimensions() {
     for (w, h) in [(0, 1080), (1920, 0), (-100, 1080), (1920, -100)] {
@@ -54,7 +51,7 @@ fn validate_refuses_bad_dimensions() {
     }
 }
 
-// Go: TestVideoSpecs_ValidateInvalidDuration (and the "0" and NaN limits)
+// Includes the "0" and NaN limits.
 #[test]
 fn validate_duration_limits() {
     let with = |d: f64| {
@@ -68,7 +65,7 @@ fn validate_duration_limits() {
         assert_eq!(reason(&with(bad)), "invalid or missing duration");
     }
     assert_eq!(with(f64::MIN_POSITIVE).validate(), Ok(()));
-    // DEC-53: a duration that is not a finite number is refused, where Go let NaN through
+    // DEC-53: a duration that is not a finite number is refused, where v0.2.9 let NaN through
     // (`NaN <= 0` is false) and inf became a demand for 8 TB of free space.
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(reason(&with(bad)), "invalid or missing duration", "{bad}");
@@ -92,7 +89,6 @@ fn a_duration_of_inf_or_nan_in_ffprobes_json_is_refused() {
     }
 }
 
-// Go: TestVideoSpecs_ValidateInvalidBitrate
 #[test]
 fn validate_bitrate_limits() {
     for bad in [0, -1] {
@@ -111,7 +107,6 @@ fn validate_bitrate_limits() {
     assert_eq!(one.validate(), Ok(()));
 }
 
-// Go: TestVideoSpecs_ValidateMissingCodec
 #[test]
 fn validate_refuses_a_missing_codec() {
     let s = specs(VideoStream {
@@ -152,7 +147,6 @@ fn validate_reports_the_first_defect() {
     assert_eq!(reason(&specs(only_codec)), "no codec information");
 }
 
-// Go: TestParseFrameRate
 #[test]
 fn frame_rate_go_cases() {
     for (text, want) in [
@@ -173,7 +167,7 @@ fn frame_rate_nan_is_not_caught_as_in_go() {
     for text in ["nan", "NaN", "nan/1", "30/nan", "NAN/NAN"] {
         assert!(parse_frame_rate(text).is_nan(), "{text}");
     }
-    // A signed NaN does not parse in Go, hence 0.
+    // A signed NaN does not parse, hence 0.
     for text in ["-nan", "+nan", "-NaN/1"] {
         assert_eq!(parse_frame_rate(text), 0.0, "{text}");
     }
@@ -257,7 +251,7 @@ fn ffprobe_printing(fixture_name: &str) -> (crate::probe::tests::FakeTools, temp
     (fake_tools(&[("ffprobe", &body)]), dir)
 }
 
-// No Go test of CheckVideo against a recorded output (the Go tests run the real ffprobe).
+// check_video against a recorded output (the real ffprobe runs in the integration tests).
 #[test]
 fn check_video_parses_what_ffprobe_prints() {
     let _guard = spawn_lock();
@@ -382,7 +376,7 @@ fn real_ffprobe() -> Option<ToolResolver> {
     works.then_some(resolver)
 }
 
-// Go: the integration tests' CheckVideo on a missing file.
+// check_video on a missing file.
 #[test]
 fn check_video_refuses_a_file_that_does_not_exist() {
     let _guard = spawn_lock();
@@ -398,7 +392,7 @@ fn check_video_refuses_a_file_that_does_not_exist() {
     );
 }
 
-// Go: makeTestClip + CheckVideo (cancel_leak_test.go, integration tests).
+// A generated test clip, then check_video.
 #[test]
 fn check_video_reads_a_real_clip() {
     let _guard = spawn_lock();

@@ -1,35 +1,32 @@
-//! The ffmpeg argument list of one encode, ported from Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9)
-//! (`ValidateBitrate` to `mapVideoPresetForEncoder`).
+//! The ffmpeg argument list of one encode, from the bitrate validation to the preset mapping.
 //!
-//! Every argument and its order are the Go ones: `tests/fixtures/parity/encode_args.json`
+//! Every argument and its order are the recorded ones: `tests/fixtures/parity/encode_args.json`
 //! pins the full argv of `build_encode_base_args` over 237 cases
 //! (`tests/parity_encode_args.rs`), and a different argv is a defect.
 //!
-//! Deliberate differences from the Go code:
+//! Design notes:
 //! - `requested_encoder_threads` and `effective_encoder_threads` take the logical core
-//!   count as a parameter instead of reading `runtime.NumCPU()`: the logic reads nothing
-//!   from the machine, and a test can pick the count.
-//! - A Go `nil` `*Config` is `None`; the Go `nil` slices returned by `encoderThreadArgs`
-//!   are empty `Vec`s.
-//! - `clamp_encoder_threads` logs through `log::debug!` where Go uses `slog` with
-//!   attributes, so the attributes become `key=value` text (same convention as
-//!   `hardware.rs`).
-//! - `ValidateBitrate` returns [`Error::Plain`]; the messages are Go's.
-//! - `build_encode_base_args` takes the video as `&VideoSpecs` (never absent here, like
-//!   Go, which dereferences `video.File`), and the sizes as `i64` for Go's `int`.
-//! - `is_hevc_encoder`, `is_high_bit_depth` and `source_pixel_format`, which live in
-//!   `encode.go` in Go, are in `hardware.rs` (PR 3) and are reused from there.
-//! - `encoder_rate_args` saturates `-bufsize` for a bit rate above i64::MAX / 2, where Go
-//!   wraps around to a negative number (and a debug build here would panic). Only an
+//!   count as a parameter: the logic reads nothing from the machine, and a test can pick
+//!   the count.
+//! - An absent `Config` is `None`; no thread arguments is an empty `Vec`.
+//! - `clamp_encoder_threads` logs through `log::debug!`, the attributes as `key=value` text
+//!   (same convention as `hardware.rs`).
+//! - The bitrate validation returns [`Error::Plain`].
+//! - `build_encode_base_args` takes the video as `&VideoSpecs` (never absent), and the
+//!   sizes as `i64`.
+//! - `is_hevc_encoder`, `is_high_bit_depth` and `source_pixel_format` are in `hardware.rs`
+//!   and are reused from there.
+//! - `encoder_rate_args` saturates `-bufsize` for a bit rate above i64::MAX / 2 (v0.2.9
+//!   wrapped around to a negative number, and a debug build here would panic). Only an
 //!   absurd ffprobe figure with no `max_bitrate` ceiling gets there.
 //! - `map_video_preset_for_encoder` lowercases with Rust's `to_lowercase`, which applies
-//!   the final-sigma rule that Go's `strings.ToLower` does not (`"ΟΣ"`); ffmpeg refuses
-//!   such a preset either way.
+//!   the final-sigma rule (`"ΟΣ"`) that Go's `strings.ToLower`, used by v0.2.9, did not;
+//!   ffmpeg refuses such a preset either way.
 //! - [`RateControl`] is new (DEC-48): the default, [`RateControl::Bitrate`], builds the
 //!   argv the oracle pins, byte for byte; [`RateControl::ConstantQuality`] exists only for
-//!   a VAAPI driver that answers "supported modes: CQP", and Go has no equivalent.
-//! - Left out: `classifyFfmpegFailure` and `EncodeVideo` (the run, PR 6) and `FindEncoder`
-//!   (already in `hardware.rs`).
+//!   a VAAPI driver that answers "supported modes: CQP", which v0.2.9 had no answer for.
+//! - The run and the failure classification are in `run.rs` and `failure.rs`, the encoder
+//!   choice in `hardware.rs`.
 
 use crate::config::Config;
 use crate::error::Error;
@@ -57,7 +54,7 @@ pub const X265_MAX_FRAME_THREADS: i64 = 16;
 /// refused outright and a fixed quantiser is the only thing that works.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum RateControl {
-    /// `-b:v` with a `-maxrate` ceiling; the default, and the only mode Go knows.
+    /// `-b:v` with a `-maxrate` ceiling; the default.
     #[default]
     Bitrate,
     /// `-rc_mode CQP -qp N`: a constant quality, the file size follows the content.
@@ -186,7 +183,7 @@ pub fn clamp_encoder_threads(encoder: &str, threads: i64) -> i64 {
 }
 
 /// The thread count asked for, before any encoder clamps it: the configured value, else
-/// one per core (`cpu_count`, which Go reads from `runtime.NumCPU()`).
+/// one per core (`cpu_count`).
 pub fn requested_encoder_threads(cfg: Option<&Config>, cpu_count: i64) -> i64 {
     match cfg {
         Some(cfg) if cfg.encoder_threads > 0 => cfg.encoder_threads,

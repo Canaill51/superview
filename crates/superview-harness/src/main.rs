@@ -1,7 +1,6 @@
 //! Test bench: never shipped, not a product CLI (DEC-44).
 //!
-//! Two subcommands that print JSON on stdout, for the cross tests that once ran against Go (removed in phase 8) and for the
-//! real-ffmpeg tests. Progress and the log go to stderr so that stdout stays pure JSON.
+//! Two subcommands that print JSON on stdout, for the real-ffmpeg tests. Progress and the log go to stderr so that stdout stays pure JSON.
 //! Exit code: 0 success, 1 failure, 2 wrong arguments (a non-UTF-8 argument included), 101 a
 //! panic of the bench itself (Rust's own code for it).
 

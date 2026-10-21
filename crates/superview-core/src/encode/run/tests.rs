@@ -126,7 +126,7 @@ fn ping_for_a_long_time() -> Command {
 
 // ---- stops ----
 
-// Go: TestEncodeVideo_CancelReapsProcess (the zombie is looked for by the pid the
+// Cancel reaps the process (the zombie is looked for by the pid the
 // process wrote, not by counting the zombies of the whole test process: other tests run
 // processes in parallel).
 #[cfg(unix)]
@@ -145,7 +145,7 @@ fn cancel_leaves_no_process_behind() {
     }
 }
 
-// Go: TestEncodeVideo_CancelReapsProcess, on Windows (an `.exe`, killed directly).
+// Cancel reaps the process, on Windows (an `.exe`, killed directly).
 #[cfg(windows)]
 #[test]
 fn cancel_stops_a_running_exe() {
@@ -158,7 +158,7 @@ fn cancel_stops_a_running_exe() {
     assert!(run.started.elapsed() < Duration::from_secs(15));
 }
 
-// Go: TestEncodeVideo_SystemSignalIsNotReportedAsUserCancellation
+// A system signal is not reported as a user cancellation.
 #[cfg(unix)]
 #[test]
 fn a_system_signal_is_not_reported_as_a_user_cancellation() {
@@ -195,9 +195,9 @@ fn a_system_signal_is_not_reported_as_a_user_cancellation_on_windows() {
     );
 }
 
-// Go: TestEncodeVideo_CancellationStopsTheFallbackCascade (the part that concerns one
+// A cancellation stops the fallback cascade (the part that concerns one
 // run: the request lands from the progress callback while ffmpeg is provably running,
-// and ends that run. That nothing else is launched is the cascade's, PR 6c).
+// and ends that run. That nothing else is launched is the cascade's).
 #[cfg(unix)]
 #[test]
 fn a_cancellation_raised_from_the_progress_callback_stops_the_run() {
@@ -214,8 +214,8 @@ fn a_cancellation_raised_from_the_progress_callback_stops_the_run() {
     assert_no_trace_of(&wait_for_pid(&pidfile), "after the cancellation");
 }
 
-// Go: the already-closed channel; E-02 -- a stop request launches no ffmpeg. The
-// script would leave a witness file: Go starts it and kills it, here it never runs.
+// A stop already requested; E-02 -- a stop request launches no ffmpeg. The
+// script would leave a witness file if it ran; here it never does.
 #[cfg(unix)]
 #[test]
 fn a_stop_already_requested_starts_nothing() {
@@ -297,7 +297,7 @@ fn an_exit_code_decides_the_outcome_on_windows() {
     assert!(err.to_string().starts_with("ffmpeg failed: exit"), "{err}");
 }
 
-// Go: a nil Stdin is /dev/null. The command arrives with a pipe as stdin: only a run that
+// A missing stdin is /dev/null. The command arrives with a pipe as stdin: only a run that
 // replaces it can pass, whatever `cargo test` itself reads from.
 #[cfg(target_os = "linux")]
 #[test]
@@ -310,9 +310,8 @@ fn ffmpeg_gets_dev_null_as_stdin() {
     assert!(result.is_ok(), "stdin is not /dev/null: {result:?}");
 }
 
-// No Go test: the progress arrives in order, as percentages of the duration, and the
-// lines that say nothing are skipped (Go: ProgressNotAvailableIsNotAWarning, the
-// callback half).
+// The progress arrives in order, as percentages of the duration, and the
+// lines that say nothing are skipped.
 #[cfg(unix)]
 #[test]
 fn progress_arrives_in_order_as_percentages() {
@@ -336,7 +335,7 @@ fn invalid_utf8_in_the_progress_does_not_end_it() {
     assert_eq!(seen, vec![10.0]);
 }
 
-// No Go test: the progress of a long encode is many lines (about 50 000 over an hour at
+// The progress of a long encode is many lines (about 50 000 over an hour at
 // ffmpeg's rate, more with a short period), and none may be lost or block the process.
 #[cfg(unix)]
 #[test]
@@ -349,7 +348,7 @@ fn a_large_progress_output_is_read_to_the_end() {
     assert!(seen.iter().all(|p| *p == 10.0));
 }
 
-// Go: TestClassifyFfmpegFailure_KeepsStderrForOrdinaryFailures, through a real run.
+// An ordinary failure keeps stderr, through a real run.
 #[cfg(unix)]
 #[test]
 fn an_ordinary_failure_carries_ffmpegs_stderr() {
@@ -367,7 +366,7 @@ fn an_ordinary_failure_carries_ffmpegs_stderr() {
     assert!(!err.should_not_retry(), "a failure to open is retried");
 }
 
-// Go: errFailedAfterOutput -- a failure after frames have been written is not retried.
+// A failure after frames have been written is not retried (FailedAfterOutput).
 #[cfg(unix)]
 #[test]
 fn a_failure_after_frames_is_marked() {
@@ -394,7 +393,7 @@ fn a_failure_before_frames_is_not_marked() {
     assert!(!err.should_not_retry());
 }
 
-// Go: `stopped` is read only when Wait fails -- a run that succeeded stays a success
+// A stop is looked at only when the run fails -- a run that succeeded stays a success
 // although a stop is requested after it. The flags are raised once the process has
 // been reaped (its pid is then gone), so that the run has certainly seen it end; a
 // grandchild holds the pipes for the length of the grace, which leaves the test time
@@ -481,7 +480,7 @@ fn a_kill_from_outside_keeps_its_diagnosis_although_a_signal_is_raised() {
     assert!(err.to_string().contains("killed by the system"), "{err}");
 }
 
-// No Go test (cmd.StderrPipe deadlock): more than a pipe holds on stderr must not block
+// More than a pipe holds on stderr must not block
 // ffmpeg. 10 MB: a Linux pipe grows up to 1 MiB. The error keeps the start and the end of
 // what ffmpeg wrote (F-04): the first lines say what it was doing, the last say why it
 // stopped, and the middle is not worth a window the size of the screen.
@@ -553,7 +552,7 @@ impl Read for FailsAfter {
     }
 }
 
-// Go: TestEncodeVideo_ProgressReaderNonEOFErrorDoesNotHang -- any error ends the
+// Any error ends the
 // reader. Run in a thread: a reader that loops on the error would spin for ever.
 #[test]
 fn a_progress_reader_that_fails_ends_instead_of_hanging() {

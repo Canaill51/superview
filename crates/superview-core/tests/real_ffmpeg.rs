@@ -1,11 +1,11 @@
-//! Go tests that need a real ffmpeg and have no other Rust equivalent: the remap stability
+//! Tests that need a real ffmpeg and are covered by no other test: the remap stability
 //! of the binary maps, what a conversion preserves, the HEVC tag, and the device-frame
 //! encoders. Public API only.
 //!
 //! Without ffmpeg, ffprobe or the encoder a test needs, it skips with a message, unless
 //! `SUPERVIEW_REQUIRE_FFMPEG=1` (CI), where it panics instead. A clip that cannot be rendered
-//! panics in every case: stricter than Go, which skips unless the variable is set. The
-//! device-frame test skips even then, as in Go, and has never run on a CI runner (no GPU). The
+//! panics in every case: stricter than a skip. The
+//! device-frame test skips even then, and has never run on a CI runner (no GPU). The
 //! tests start processes, so
 //! they run one at a time. Nothing here modifies the process environment.
 
@@ -103,7 +103,7 @@ fn probe_entry(resolver: &ToolResolver, file: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-/// The Go `makeTestClip` (here with `-preset ultrafast`): a 4:3 `testsrc` clip, `seconds` long
+/// Makes a test clip (here with `-preset ultrafast`): a 4:3 `testsrc` clip, `seconds` long
 /// at 30 fps.
 fn test_clip(resolver: &ToolResolver, dir: &Path, w: i64, h: i64, seconds: i64) -> PathBuf {
     let file = dir.join("clip.mp4");
@@ -173,9 +173,9 @@ fn convert(
         .unwrap_or_else(|e| panic!("perform_encoding with {}: {e}", ui.encoder))
 }
 
-// ---- Go: TestGeneratePGM_RemapOutputIsStable ----
+// ---- remap output is stable ----
 
-/// Rewrites a binary map as the ASCII form, every sample kept (Go: `transcodePGMP5ToP2`).
+/// Rewrites a binary map as the ASCII form, every sample kept.
 fn p5_to_p2(src: &Path, dst: &Path) {
     let data = std::fs::read(src).unwrap();
     let (_, body, width, height) = parse_p5(&data);
@@ -245,7 +245,7 @@ fn the_binary_maps_remap_like_the_ascii_ones() {
     }
 }
 
-// ---- Go: TestIntegration_PreservesDepthTracksAndMetadata ----
+// ---- depth, tracks and metadata are preserved ----
 
 const CREATION_TIME: &str = "2026-01-15T10:30:00Z";
 
@@ -364,7 +364,7 @@ fn a_conversion_keeps_the_depth_the_tracks_and_the_date() {
     );
 }
 
-// ---- Go: TestIntegration_HEVCOutputIsTaggedHvc1 ----
+// ---- HEVC output is tagged hvc1 ----
 
 // MP4 can tag HEVC "hev1" or "hvc1"; ffmpeg's default is hev1, which Apple players refuse.
 #[test]
@@ -397,7 +397,7 @@ fn hevc_output_is_tagged_hvc1() {
     assert_eq!(tag, "hvc1", "Apple players refuse hev1");
 }
 
-// ---- Go: TestIntegration_DeviceFrameEncoderRunsTheWholePipeline ----
+// ---- a device-frame encoder runs the whole pipeline ----
 
 // VAAPI, Vulkan and D3D12 need -init_hw_device before the input and an hwupload after the
 // remap. A mistake in either does not fail loudly: the encode falls back to the CPU and
@@ -423,7 +423,7 @@ fn a_device_frame_encoder_runs_the_whole_pipeline() {
             }
             probe.usable
         });
-    // A plain skip, even under SUPERVIEW_REQUIRE_FFMPEG=1, as in Go: this is about the
+    // A plain skip, even under SUPERVIEW_REQUIRE_FFMPEG=1: this is about the
     // machine's GPU, not about ffmpeg being installed, and CI runners have no usable one.
     // Failing here would make the suite red on hardware grounds.
     let Some(encoder) = encoder else {

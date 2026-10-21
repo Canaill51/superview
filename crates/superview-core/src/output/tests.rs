@@ -7,7 +7,7 @@ fn clip(dir: &Path) -> PathBuf {
     path
 }
 
-// ---- same_output_as_input (Go: TestPerformEncoding_RefusesOutputEqualToInput) ----
+// ---- same_output_as_input ----
 
 #[test]
 fn the_same_path_is_the_same_file() {
@@ -90,7 +90,7 @@ fn case_matters_only_on_unix() {
 
 // ---- new_partial_output_path ----
 
-// Go: TestNewPartialOutputPath_HonoursUmask (E-10). Go sets the umask to 022; changing
+// E-10: the umask is not set to 022 here; changing
 // it here needs `unsafe` or a process-wide effect that would reach parallel tests. So
 // the mode is compared with that of a file created plainly with 0666, whatever the
 // umask of the test process: 0600 (a `tempfile`-style creation) differs from it under
@@ -207,7 +207,7 @@ fn the_name_is_random_enough_not_to_repeat() {
 
 // ---- check_output_space ----
 
-// Go: TestCheckOutputSpace_RefusesAFullDestination (E-16)
+// A full destination is refused (E-16).
 #[test]
 fn a_22_gb_output_is_refused_on_a_1_gb_volume_and_allowed_on_100_gb() {
     let dir = TempDir::new().unwrap();
@@ -225,7 +225,7 @@ fn a_22_gb_output_is_refused_on_a_1_gb_volume_and_allowed_on_100_gb() {
         .expect("a 22 GB output was refused on a 100 GB volume");
 }
 
-// Go: TestCheckOutputSpace_UnreadableFreeSpaceAllowsTheEncode
+// An unreadable free-space reading allows the encode.
 #[test]
 fn an_unreadable_free_space_allows_the_encode() {
     let out = Path::new("/videos/out.mp4");

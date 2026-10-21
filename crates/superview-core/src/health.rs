@@ -1,35 +1,29 @@
-//! The Diagnostic button's checks and report. Port of Go's `internal/common/health.go` (removed in phase 8; last release with it: v0.2.9):
-//! `CheckHealth`, `checkFFmpegHealth`, `checkFFprobeHealth`, `checkDiskSpaceHealth`,
-//! `LogHealth` and `GetHealthReport` (the disk reading is `disk::free_disk_gb`).
+//! The Diagnostic button's checks and report (the disk reading is `disk::free_disk_gb`).
 //!
-//! The README asks users to attach this report to a bug report, so its text is Go's, word
-//! for word, for everything that stays.
+//! The README asks users to attach this report to a bug report, so its text is the one
+//! v0.2.9 printed, word for word, for everything that stays.
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - **VISIBLE CHANGE OF THE DIAGNOSTIC: no memory line and no CPU line.** The port plan
-//!   keeps only the ffmpeg, ffprobe and disk checks plus the encoder report;
-//!   `checkMemoryHealth`, `checkCPUHealth` and the `Memory` / `CPU` fields are gone. The
-//!   report therefore has three check lines where Go's has five, `AllChecks` has three
-//!   entries, and the `memory=` and `cpu=` attributes leave the log line. Neither ever
-//!   counted in `Overall`. (Decided in the plan; do not reopen here.)
+//! Design notes (exhaustive):
+//! - **VISIBLE CHANGE OF THE DIAGNOSTIC: no memory line and no CPU line.** Only the ffmpeg,
+//!   ffprobe and disk checks are kept, plus the encoder report; the `Memory` / `CPU`
+//!   fields are gone. The report therefore has three check lines where v0.2.9's had five,
+//!   `AllChecks` has three entries, and the `memory=` and `cpu=` attributes leave the log
+//!   line. Neither ever counted in `Overall`. (Decided; do not reopen here.)
 //! - The tool lookup, the temporary directory and the free-space reading are parameters
-//!   ([`check_health`]), where Go reads `PATH`, `os.TempDir()` and the disk. The
-//!   encoder probe's cancellation is an optional flag, where Go passes
-//!   `context.Background()`.
-//! - ffmpeg is queried once: Go calls `CheckFfmpeg` in `checkFFmpegHealth` and again to
-//!   probe the encoders; here the first answer is reused.
-//! - Go never cancels this probe sweep (`context.Background()`); here a cancel flag raised
-//!   before it leaves `encoders` at `None` (no encoder section in the report, as in Go for a nil
-//!   `Encoders`; never an empty "none to probe" one), and
-//!   one raised during it stops the sweep after the encoder being probed.
-//! - `std::env::temp_dir()` keeps a trailing separator on Windows where Go's `os.TempDir()`
-//!   is cleaned, so the path in the disk messages differs by that character unless the
-//!   caller (the GUI) passes a cleaned `temp_dir`. It should.
-//! - A Go `nil` `*SystemHealth` is `None` in [`log_health`] and [`get_health_report`], and
-//!   a nil `Encoders` report is `Option` too.
+//!   ([`check_health`]), not read from the machine. The encoder probe's cancellation is an
+//!   optional flag.
+//! - ffmpeg is queried once; the first answer is reused to probe the encoders.
+//! - A cancel flag raised before the probe sweep leaves `encoders` at `None` (no encoder
+//!   section in the report; never an empty "none to probe" one), and one raised during it
+//!   stops the sweep after the encoder being probed. (v0.2.9 never cancelled this sweep.)
+//! - `std::env::temp_dir()` keeps a trailing separator on Windows, so the path in the disk
+//!   messages differs by that character unless the caller (the GUI) passes a cleaned
+//!   `temp_dir`. It should.
+//! - An absent health is `None` in [`log_health`] and [`get_health_report`], and an
+//!   absent encoders report is an `Option` too.
 //! - Messages carrying a system error (`Could not check temp disk: ...`) carry Rust's text
-//!   for it, not Go's.
-//! - The log is `log` records with `key=value` text, where Go uses `slog` attributes.
+//!   for it.
+//! - The log is `log` records with `key=value` text.
 
 use std::io;
 use std::path::Path;

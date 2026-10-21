@@ -1,13 +1,11 @@
 //! Where an encode writes: the guard against overwriting the source, the working file next
 //! to the destination, and the check that the destination volume has room.
-//! Port of `canonicalPath`, `sameOutputAsInput`, `newPartialOutputPath`, `checkOutputSpace`
-//! and `outputSpaceAllowance` (Go's `pipeline.go` (removed in phase 8; last release with it: v0.2.9)).
 //!
-//! Deliberate differences from the Go code:
+//! Design notes:
 //! - Same-file detection (`os.SameFile`) is device plus inode on Unix. std has no stable
 //!   file identity on Windows, so there both files are compared through their canonical
 //!   paths (`dunce`, no `\\?\` prefix, case-insensitive); a hard link to the source under
-//!   another name is therefore not recognised on Windows. Go recognises it. The risk is
+//!   another name is therefore not recognised on Windows. The risk is
 //!   small (the rename of the partial file onto a hard link replaces the name, not the
 //!   source's data) and no safe std API closes it.
 //! - The fallback "absolute, cleaned" form uses `std::path::absolute` and the cleaning of
@@ -18,12 +16,11 @@
 //!   picks alphanumerics, and its mode would have to be forced and its file kept. The name
 //!   only has to be unlikely to collide, and `create_new` (`O_EXCL`) is what makes a
 //!   collision, or a planted symlink, a retry rather than a hazard.
-//! - Go removes the working file if closing it fails; here `Drop` ignores a close error
-//!   (a network share could report one), which is harmless: ffmpeg rewrites the file.
+//! - `Drop` ignores an error on closing the working file (a network share could report
+//!   one), which is harmless: ffmpeg rewrites the file.
 //! - `check_output_space` and `new_partial_output_path` take `&Path` and return
-//!   [`Error::Plain`] where Go has `fmt.Errorf`; the cause inside a message is Rust's
-//!   `io::Error` text. The free-space reading is a parameter (Go swaps a variable in
-//!   tests); `disk::free_disk_gb` is the real one.
+//!   [`Error::Plain`]; the cause inside a message is Rust's `io::Error` text. The
+//!   free-space reading is a parameter; `disk::free_disk_gb` is the real one.
 
 use std::collections::hash_map::RandomState;
 use std::fs::{self, OpenOptions};
@@ -89,7 +86,7 @@ pub fn same_output_as_input(input: &Path, output: &Path) -> bool {
     path_equal(&a.to_string_lossy(), &b.to_string_lossy())
 }
 
-/// The directory that holds `output` (Go: `filepath.Dir`, which says `.` for a bare name).
+/// The directory that holds `output` (`.` for a bare name).
 fn destination_dir(output: &Path) -> &Path {
     match output.parent() {
         Some(dir) if !dir.as_os_str().is_empty() => dir,

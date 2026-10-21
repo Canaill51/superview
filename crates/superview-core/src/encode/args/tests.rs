@@ -35,7 +35,6 @@ fn joined(args: &[String]) -> String {
     args.join(" ")
 }
 
-// Go: TestValidateBitrate_ValidBitrate
 #[test]
 fn validate_bitrate_cases() {
     // (name, bitrate, min, max, wants an error)
@@ -82,7 +81,6 @@ fn validate_bitrate_cases() {
     }
 }
 
-// Go: TestValidateBitrate_WithConfig
 #[test]
 fn validate_bitrate_with_config() {
     let cfg = Config {
@@ -105,7 +103,7 @@ fn validate_bitrate_with_config() {
     }
 }
 
-// No Go test pins the messages; the parity of the text with Go is checked here.
+// The messages are pinned here.
 #[test]
 fn validate_bitrate_messages_are_gos() {
     let text = |r: Result<(), Error>| r.unwrap_err().to_string();
@@ -123,7 +121,6 @@ fn validate_bitrate_messages_are_gos() {
     );
 }
 
-// Go: TestBuildEncodeBaseArgs_Defaults
 #[test]
 fn build_encode_base_args_defaults() {
     let args = build(&no_streams(), "libx264", 2_000_000, "aac", 6, 0, "");
@@ -136,7 +133,6 @@ fn build_encode_base_args_defaults() {
     assert!(j.contains("-b:v 2000000"), "{args:?}");
 }
 
-// Go: TestBuildEncodeBaseArgs_PerformanceWithPresetAndFilterThreads
 #[test]
 fn build_encode_base_args_preset_and_filter_threads() {
     let args = build(&no_streams(), "libx264", 2_000_000, "copy", 8, 4, "fast");
@@ -159,7 +155,6 @@ fn preset_of(encoder: &str, preset: &str) -> String {
     ))
 }
 
-// Go: TestBuildEncodeBaseArgs_AMFMapsFastPreset
 #[test]
 fn amf_maps_fast_preset() {
     let j = preset_of("h264_amf", "fast");
@@ -167,43 +162,36 @@ fn amf_maps_fast_preset() {
     assert!(!j.contains("-preset fast"), "{j}");
 }
 
-// Go: TestBuildEncodeBaseArgs_AMFMapsMediumPreset
 #[test]
 fn amf_maps_medium_preset() {
     assert!(preset_of("hevc_amf", "medium").contains("-preset balanced"));
 }
 
-// Go: TestBuildEncodeBaseArgs_AMFSuppressesUnsupportedPreset
 #[test]
 fn amf_suppresses_unsupported_preset() {
     assert!(!preset_of("h264_amf", "p4").contains("-preset"));
 }
 
-// Go: TestBuildEncodeBaseArgs_QSVKeepsSupportedPreset
 #[test]
 fn qsv_keeps_supported_preset() {
     assert!(preset_of("h264_qsv", "fast").contains("-preset fast"));
 }
 
-// Go: TestBuildEncodeBaseArgs_QSVMapsUltrafastPreset
 #[test]
 fn qsv_maps_ultrafast_preset() {
     assert!(preset_of("h264_qsv", "ultrafast").contains("-preset veryfast"));
 }
 
-// Go: TestBuildEncodeBaseArgs_QSVMapsPlaceboPreset
 #[test]
 fn qsv_maps_placebo_preset() {
     assert!(preset_of("hevc_qsv", "placebo").contains("-preset veryslow"));
 }
 
-// Go: TestBuildEncodeBaseArgs_QSVSuppressesUnsupportedPreset
 #[test]
 fn qsv_suppresses_unsupported_preset() {
     assert!(!preset_of("h264_qsv", "p4").contains("-preset"));
 }
 
-// Go: TestBuildEncodeBaseArgs_Libx265AddsQuietParams
 #[test]
 fn libx265_adds_quiet_params() {
     let args = build(&no_streams(), "libx265", 2_000_000, "aac", 4, 0, "slow");
@@ -215,7 +203,6 @@ fn libx265_adds_quiet_params() {
     assert!(!joined(&other).contains("-x265-params"), "{other:?}");
 }
 
-// Go: TestRemapFilterChain
 #[test]
 fn remap_filter_chain_cases() {
     let head = "[0:v:0][1:v:0][2:v:0]remap,";
@@ -287,7 +274,6 @@ fn remap_filter_chain_cases() {
     }
 }
 
-// Go: TestBuildEncodeBaseArgs_DeviceOptionsComeBeforeTheInput
 #[test]
 fn device_options_come_before_the_input() {
     let args = build(&no_streams(), "h264_vulkan", 2_000_000, "aac", 6, 0, "");
@@ -308,7 +294,6 @@ fn device_options_come_before_the_input() {
     assert!(!cpu.contains("-init_hw_device"), "{cpu}");
 }
 
-// Go: TestBuildEncodeBaseArgs_MapsStreamsAndMetadata
 #[test]
 fn maps_streams_and_metadata() {
     let video = VideoSpecs {
@@ -335,7 +320,6 @@ fn maps_streams_and_metadata() {
     assert!(j.contains("format=yuv420p10le[v]"), "{args:?}");
 }
 
-// Go: TestBuildEncodeBaseArgs_NoStreamsFallsBackToEightBit
 #[test]
 fn no_streams_falls_back_to_eight_bit() {
     let args = build(&no_streams(), "libx265", 2_000_000, "aac", 6, 0, "");
@@ -345,7 +329,6 @@ fn no_streams_falls_back_to_eight_bit() {
     );
 }
 
-// Go: TestClampEncoderThreads
 #[test]
 fn clamp_encoder_threads_cases() {
     assert_eq!(clamp_encoder_threads("libx265", 24), X265_MAX_FRAME_THREADS);
@@ -356,14 +339,12 @@ fn clamp_encoder_threads_cases() {
     assert_eq!(clamp_encoder_threads("hevc_nvenc", 24), 24);
 }
 
-// Go: TestBuildEncodeBaseArgs_Libx265ThreadsAreCapped
 #[test]
 fn libx265_threads_are_capped() {
     let args = build(&no_streams(), "libx265", 2_000_000, "aac", 32, 0, "");
     assert!(joined(&args).contains("-threads 16"), "{args:?}");
 }
 
-// Go: TestBuildEncodeBaseArgs_ConstrainsTheBitrateCeiling
 #[test]
 fn constrains_the_bitrate_ceiling() {
     let args = build(&no_streams(), "libx264", 8_000_000, "aac", 6, 0, "");
@@ -373,7 +354,6 @@ fn constrains_the_bitrate_ceiling() {
     assert!(j.contains("-bufsize 16000000"), "{args:?}");
 }
 
-// Go: TestEncoderThreadArgs
 #[test]
 fn encoder_thread_args_cases() {
     assert_eq!(joined(&encoder_thread_args("libx264", 24)), "-threads 24");
@@ -389,14 +369,13 @@ fn encoder_thread_args_cases() {
     }
 }
 
-// Go: TestBuildEncodeBaseArgs_NoThreadsForHardwareEncoders
 #[test]
 fn no_threads_for_hardware_encoders() {
     let args = build(&no_streams(), "h264_nvenc", 2_000_000, "aac", 24, 0, "");
     assert!(!joined(&args).contains("-threads"), "{args:?}");
 }
 
-// Go: TestEffectiveEncoderThreads (the core count is a parameter here)
+// The core count is a parameter here.
 #[test]
 fn effective_encoder_threads_cases() {
     let cfg = Config {
@@ -425,7 +404,6 @@ fn effective_encoder_threads_cases() {
     assert_eq!(requested_encoder_threads(Some(&negative), 12), 12);
 }
 
-// Go: TestMapVideoPreset_NVENCTakesItsOwnScale
 #[test]
 fn nvenc_takes_its_own_scale() {
     let cases = [
@@ -453,7 +431,6 @@ fn nvenc_takes_its_own_scale() {
     }
 }
 
-// Go: TestMapVideoPreset_DeviceFrameEncodersTakeNone
 #[test]
 fn device_frame_encoders_take_no_preset() {
     for encoder in ["h264_vaapi", "hevc_vulkan", "h264_d3d12va", "h264_v4l2m2m"] {
@@ -468,12 +445,11 @@ fn device_frame_encoders_take_no_preset() {
         map_video_preset_for_encoder("libx264", "veryslow"),
         "veryslow"
     );
-    // Case and whitespace are normalised, as Go's TrimSpace + ToLower do.
+    // Case and whitespace are normalised.
     assert_eq!(map_video_preset_for_encoder("libx264", " FAST "), "fast");
     assert_eq!(map_video_preset_for_encoder("h264_qsv", " SLOW "), "slow");
 }
 
-// Go: TestEncoderFacingArgs_TagsHEVCForApplePlayers
 #[test]
 fn hevc_is_tagged_for_apple_players() {
     for encoder in ["libx265", "hevc_nvenc", "hevc_vaapi"] {
@@ -545,7 +521,7 @@ fn bitrate_mode_is_untouched_by_the_constant_quality_option() {
     assert_eq!(RateControl::default(), RateControl::Bitrate);
 }
 
-// Go: TestBuildEncodeBaseArgs's ten-bit rule, which encodesInTenBits names.
+// The ten-bit rule, which `encodes_in_ten_bits` names.
 #[test]
 fn ten_bits_need_a_high_depth_source_and_an_hevc_encoder() {
     assert!(encodes_in_ten_bits("yuv420p10le", "libx265"));

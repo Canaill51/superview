@@ -1,7 +1,6 @@
-//! One whole conversion: `PerformEncoding` in Go's `internal/common/pipeline.go` (removed in phase 8; last release with it: v0.2.9) (and the
-//! `UIHandler` / `ProgressDetailHandler` interfaces at the top of that file).
+//! One whole conversion: [`perform_encoding`], and the [`PipelineUi`] trait it reports to.
 //!
-//! The order of the steps is Go's, and it is the contract: the cheap refusals come first, so
+//! The order of the steps is the contract: the cheap refusals come first, so
 //! that a run that cannot work leaves nothing behind, and the session (the temporary
 //! directory) is created only once every refusal has been given.
 //!
@@ -18,42 +17,36 @@
 //! is the finished video that could not be renamed), then the session directory, and the
 //! stage timings are logged last, in every case.
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - No global. Go stores the metrics and the hardware summary in `lastEncodingMetrics` and
-//!   `lastHardwareAccelerationSummary`; [`perform_encoding`] returns them in an
+//! Design notes (exhaustive):
+//! - No global. [`perform_encoding`] returns the metrics and the hardware summary in an
 //!   [`EncodeOutcome`]. Only `Ok` returns the metrics: on failure there is only the error,
 //!   and `record_error` and `record_stage_durations` work on metrics that are then thrown
-//!   away (the log line says the same thing). Go left the previous "Hardware: ..." summary
-//!   in place after an error, stale; the caller must clear that label itself on `Err`.
+//!   away (the log line says the same thing). The caller must clear the "Hardware: ..."
+//!   label itself on `Err` (v0.2.9 left the previous summary in place, stale).
 //! - A stop requested while the validations ran (Cancel ends the encoder probe at once; a
 //!   system signal is only seen once it returns) is returned as it is just before the
-//!   session is created: nothing is created, no map is generated, no ffmpeg is started. Go
-//!   goes on to create the session and the maps, launches ffmpeg and kills it.
-//! - The event bus of `observability.go` (`RecordEncodingEvent`, `RecordEncodingError`,
-//!   `RecordEncodingProgress`, `RecordEncodingCompletion`) and `LogMetrics` are not ported.
-//!   Each failure is one `error` log record naming the stage (the `stage` attribute of Go's
-//!   events); the line "Encoding completed successfully" is kept.
+//!   session is created: nothing is created, no map is generated, no ffmpeg is started.
+//! - There is no event bus. Each failure is one `error` log record naming the stage; the
+//!   line "Encoding completed successfully" is logged on success.
 //! - The session's parent directory, the core count, the free-space and memory readings,
-//!   the tool lookup and the probe cache are [`PipelineServices`] (Go reads `os.TempDir()`,
-//!   `runtime.NumCPU()`, package variables and globals).
-//! - `ProgressDetailHandler` is optional in Go (a type assertion). Here
-//!   [`PipelineUi::show_progress_detail`] has an empty default body, which is the same
-//!   thing: an interface that does not override it ignores the estimate.
-//!   `ShowError` and `ShowInfo` are never called by `PerformEncoding` and are not in the
-//!   trait.
+//!   the tool lookup and the probe cache are [`PipelineServices`], not read from the
+//!   machine behind the caller's back.
+//! - The estimate of the remaining time is optional:
+//!   [`PipelineUi::show_progress_detail`] has an empty default body, so an interface that
+//!   does not override it ignores the estimate. The pipeline never shows an error or an
+//!   information itself; its caller does, from the returned `Result`.
 //! - The core installs no signal handler: the stop requests are the [`StopControl`] given to
 //!   [`perform_encoding`], passed to the encode as it is.
 //! - The input path is a [`Path`]; one that is not valid UTF-8 is refused (ffprobe's and
 //!   the metrics' side of the interface is text, as `VideoSpecs::file` is).
-//! - The wrapped errors of Go (`%w`) keep their type only where it matters: the error of the
-//!   encode is returned as it is (so [`Error::is_stop_request`] and
-//!   [`Error::should_not_retry`] still work on it), and so are those Go returns bare. The
-//!   ones Go prefixes ("invalid input file: ...", "video validation failed: ...", "invalid
-//!   encoder selection: ...", the failed move) become [`Error::Plain`] with Go's text.
-//!   Nothing in Go matches on their type.
+//! - Errors keep their type only where it matters: the error of the encode is returned as
+//!   it is (so [`Error::is_stop_request`] and [`Error::should_not_retry`] still work on
+//!   it), and so are the ones returned bare. The ones given a prefix ("invalid input
+//!   file: ...", "video validation failed: ...", "invalid encoder selection: ...", the
+//!   failed move) become [`Error::Plain`] with v0.2.9's text. Nothing matches on
+//!   their type.
 //! - The cause inside the failed-move message is Rust's `io::Error` text.
-//! - Go removes the working file with `os.Remove` in a `defer`; here a guard does, so a
-//!   panic cleans up too.
+//! - A guard removes the working file, so a panic cleans up too.
 
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -80,12 +73,10 @@ use crate::session::EncodingSession;
 use crate::tools::ToolResolver;
 use crate::video::check_video;
 
-/// What a stage that fails before ffmpeg ever ran records as ffmpeg's exit code
-/// (Go: `exitCodeUnavailable`).
+/// What a stage that fails before ffmpeg ever ran records as ffmpeg's exit code.
 const EXIT_CODE_UNAVAILABLE: i32 = -1;
 
-/// What the pipeline asks of the interface (Go: `UIHandler`, reduced to what
-/// `PerformEncoding` calls).
+/// What the pipeline asks of the interface.
 pub trait PipelineUi {
     /// The encoder selection (for example "libx265"); "" means the source's codec.
     fn get_encoder(&self) -> String;
@@ -95,26 +86,24 @@ pub trait PipelineUi {
     fn get_squeeze(&self) -> bool;
     /// The progress, 0 to 100 percent.
     fn show_progress(&self, percent: f64);
-    /// The progress with the estimated time left (Go: `ProgressDetailHandler`). `remaining`
+    /// The progress with the estimated time left. `remaining`
     /// is zero while there is not enough data to estimate, which is "no estimate", not "no
     /// time left". Called after [`PipelineUi::show_progress`], once per update. The default
     /// does nothing: an interface that has no use for the estimate need not know about it.
     fn show_progress_detail(&self, _percent: f64, _remaining: Duration) {}
 }
 
-/// What the pipeline reads from the machine, injected so that a test can choose it (the
-/// package variables and globals of the Go code).
+/// What the pipeline reads from the machine, injected so that a test can choose it.
 pub struct PipelineServices<'a> {
     /// Finds ffmpeg and ffprobe.
     pub resolver: &'a ToolResolver,
     /// Asks hardware encoders about the real frame; its cache outlives one conversion.
     pub prober: &'a Prober<'a>,
-    /// The host's core count (Go: `runtime.NumCPU()`).
+    /// The host's core count.
     pub cpu_count: i64,
-    /// The directory the session is created in, and whose room the maps are checked against
-    /// (Go: `os.TempDir()`).
+    /// The directory the session is created in, and whose room the maps are checked against.
     pub temp_dir: PathBuf,
-    /// The room, in GB, a user may still write at a path (Go: `readFreeDiskGB`).
+    /// The room, in GB, a user may still write at a path.
     pub free_gb: &'a dyn Fn(&Path) -> io::Result<f64>,
     /// The memory available, in bytes; `None` when it cannot be read.
     pub available_memory: &'a dyn Fn() -> Option<u64>,
@@ -135,8 +124,8 @@ impl<'a> PipelineServices<'a> {
     }
 }
 
-/// What a successful conversion reports (Go: `GetLastEncodingMetrics` and
-/// `GetLastHardwareAccelerationSummary`, plus what the log line carries).
+/// What a successful conversion reports: the metrics and the hardware summary, plus what
+/// the log line carries.
 #[derive(Debug, Clone)]
 pub struct EncodeOutcome {
     /// The line the window shows about the path that encoded.
@@ -168,8 +157,7 @@ struct Context<'a> {
     stop: &'a StopControl<'a>,
 }
 
-/// Owns the session; closing it on the way out is the cleanup stage (Go's deferred
-/// `CleanUp`). A failed removal is a warning, never the run's error.
+/// Owns the session; closing it on the way out is the cleanup stage. A failed removal is a warning, never the run's error.
 struct SessionGuard<'a> {
     session: Option<EncodingSession>,
     cleanup: &'a Cell<Duration>,
@@ -241,24 +229,22 @@ fn move_into_place(partial: &mut PartialFile, output: &Path) -> Result<(), Error
     })
 }
 
-/// Records a failure the way Go's `RecordError` + `RecordEncodingError` pair does and gives
-/// the error back.
+/// Records a failure in the metrics and the log, and gives the error back.
 fn fail(metrics: &mut EncodingMetrics, stage: &str, metrics_message: &str, err: Error) -> Error {
     metrics.record_error(EXIT_CODE_UNAVAILABLE, metrics_message);
     log::error!("Encoding failed: stage={stage} error={err}");
     err
 }
 
-/// [`fail`] for an error Go wraps with a prefix: the metrics and the caller get the same text.
+/// [`fail`] for an error given a prefix: the metrics and the caller get the same text.
 fn fail_prefixed(metrics: &mut EncodingMetrics, stage: &str, prefix: &str, cause: &Error) -> Error {
     let message = format!("{prefix}: {cause}");
     fail(metrics, stage, &message, Error::Plain(message.clone()))
 }
 
-/// Converts `input` into `output`, from the first check to the rename (Go:
-/// `PerformEncoding`). `cfg` `None` is the default configuration; `ffmpeg` is what
+/// Converts `input` into `output`, from the first check to the rename. `cfg` `None` is the default configuration; `ffmpeg` is what
 /// `check_ffmpeg` returned. See the module header for the order of the steps and the
-/// differences from Go.
+/// design notes.
 ///
 /// On failure or stop, nothing is left behind: no working file, no session directory, no
 /// ffmpeg process. The exception is a destination that could not be written at the end: the
@@ -293,7 +279,7 @@ pub fn perform_encoding(
     };
 
     // Every guard of `run` is gone when it returns, so the timings below are the last thing
-    // said, as with Go's first deferred function.
+    // said.
     let result = run(&context, &mut metrics, &stages);
 
     metrics.record_stage_durations(
@@ -426,7 +412,7 @@ fn run(
     // Ask a hardware encoder whether it will take the frame it is about to be given, and
     // step back to the CPU here if it will not. Here rather than inside the encode, because
     // everything downstream is entitled to know which encoder will really run. The reason
-    // for a refusal is dropped, as in Go (`encoder, _ =`); the probe logs it.
+    // for a refusal is dropped; the probe logs it.
     //
     // The same answer says how the encoder it keeps must be asked to spend bits: a VAAPI
     // driver that knows CQP only is used in constant quality instead of being refused

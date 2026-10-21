@@ -1,6 +1,5 @@
 //! Pure functions of the window, with no dependency on Slint: the texts it shows and the
-//! rules that turn a choice into numbers. Port of the free functions of
-//! Go's `cmd/superview/gui_main.go` (removed in phase 8; last release with it: v0.2.9); the Go test that guarded each one is named beside it.
+//! rules that turn a choice into numbers.
 
 use std::error::Error as StdError;
 use std::path::Path;
@@ -20,7 +19,7 @@ pub const USE_INPUT_CODEC: &str = "Use same video codec as input file";
 pub const STARTING_ENCODER_STATUS: &str =
     "Status: Starting the encoder... (no progress until the first frame)";
 
-/// The extensions the file pickers offer (Go: `supportedInputExtensions`). Both cases, because
+/// The extensions the file pickers offer. Both cases, because
 /// extension filters are case-sensitive.
 pub const SUPPORTED_INPUT_EXTENSIONS: [&str; 2] = [".mp4", ".MP4"];
 
@@ -32,8 +31,8 @@ pub const SUPPORTED_INPUT_EXTENSIONS: [&str; 2] = [".mp4", ".MP4"];
 /// source's own quality, so 4/3 carries a small margin).
 const WIDENED_PIXEL_RATIO: f64 = 4.0 / 3.0;
 
-/// Appends ".mp4" unless the path already carries it, whatever the case (Go:
-/// `ensureMP4Extension`). The extension is read as Go's `filepath.Ext` does: from the last dot
+/// Appends ".mp4" unless the path already carries it, whatever the case.
+/// The extension is read as follows: from the last dot
 /// after the last separator, so the hidden name `.mp4` counts as carrying it.
 pub fn ensure_mp4_extension(path: &str) -> String {
     if path.is_empty() {
@@ -58,7 +57,7 @@ pub fn ensure_mp4_extension(path: &str) -> String {
 }
 
 /// Whether an error is the "ffmpeg is not installed" case, which gets a dedicated dialog with
-/// an install link (Go: `isMissingFFmpegError`, which looks for "cannot find ffmpeg/ffprobe").
+/// an install link (it looks for "cannot find ffmpeg/ffprobe").
 /// The whole chain of causes is read, as callers wrap errors on the way up.
 pub fn is_missing_ffmpeg_error(err: &(dyn StdError + 'static)) -> bool {
     let mut current: Option<&(dyn StdError + 'static)> = Some(err);
@@ -77,7 +76,7 @@ fn round_to_second(duration: Duration) -> Duration {
     Duration::from_secs(u64::try_from(seconds).unwrap_or(u64::MAX))
 }
 
-/// The results line (Go: `formatResultsPanel`). `None` before any completed run.
+/// The results line. `None` before any completed run.
 pub fn format_results_panel(metrics: Option<&EncodingMetrics>) -> String {
     let Some(metrics) = metrics else {
         return "Results: no completed run yet".to_string();
@@ -96,7 +95,7 @@ pub fn format_results_panel(metrics: Option<&EncodingMetrics>) -> String {
     )
 }
 
-/// The line shown while a conversion runs (Go: `formatEncodingStatus`).
+/// The line shown while a conversion runs.
 ///
 /// The estimate is left out until there is one: "about 0s left" would read as "nearly done" at
 /// the very moment the encode starts. The test is on the *rounded* value, so 499 ms is none.
@@ -117,7 +116,7 @@ pub struct Vcs<'a> {
     pub modified: bool,
 }
 
-/// Names the running binary, for the diagnostic report and the log (Go: `buildIdentity`).
+/// Names the running binary, for the diagnostic report and the log.
 ///
 /// `stamped` says whether anything injected a version at all; an unstamped binary and a binary
 /// stamped with a blank version are both "dev", because to the reader of a bug report they mean
@@ -140,8 +139,8 @@ pub fn build_identity(version: &str, stamped: bool, vcs: Option<&Vcs>) -> String
     }
 }
 
-/// Maps a quality profile onto an output bitrate and an ffmpeg preset (Go:
-/// `qualityProfileSettings`). Both profiles ask for the same bitrate; they differ by encoder
+/// Maps a quality profile onto an output bitrate and an ffmpeg preset.
+/// Both profiles ask for the same bitrate; they differ by encoder
 /// preset alone, which is what "Fast" claims to be: quicker, not coarser. An unexpected value
 /// behaves like "Balanced".
 pub fn quality_profile_settings(profile: &str, input_bitrate: i64) -> (i64, &'static str) {
@@ -172,8 +171,8 @@ pub fn resolve_start_settings(cfg: &Config, profile: &str, input_bitrate: i64) -
     (bitrate, preset)
 }
 
-/// The codec dropdown's entries from ffmpeg's comma-separated encoder list (Go:
-/// `encoderOptionsFor`). Empty items are ignored, so a missing ffmpeg gives the first entry
+/// The codec dropdown's entries from ffmpeg's comma-separated encoder list.
+/// Empty items are ignored, so a missing ffmpeg gives the first entry
 /// alone and not a bogus " encoder".
 pub fn encoder_options_for(encoder_list: &str) -> Vec<String> {
     let mut options = vec![USE_INPUT_CODEC.to_string()];
@@ -187,7 +186,7 @@ pub fn encoder_options_for(encoder_list: &str) -> Vec<String> {
     options
 }
 
-/// The encoder name behind a dropdown entry (Go: `ParseEncoderSelection`): "" for the first
+/// The encoder name behind a dropdown entry: "" for the first
 /// entry or nothing, else the first word.
 pub fn parse_encoder_selection(selected: &str) -> String {
     let selected = selected.trim();
@@ -201,11 +200,11 @@ pub fn parse_encoder_selection(selected: &str) -> String {
         .to_string()
 }
 
-/// Loads the configuration and never fails (Go: `loadStartupConfig`).
+/// Loads the configuration and never fails.
 ///
 /// A file `load_config` refuses (an unknown key, `min_bitrate` above `max_bitrate`) is logged
-/// in its own words and the built-in defaults apply. Go then tried the environment alone; the
-/// port reads no `SUPERVIEW_*` variable, so there is no step in between.
+/// in its own words and the built-in defaults apply. No `SUPERVIEW_*` variable is read (DEC-43), so
+/// there is no step in between.
 pub fn load_startup_config(config_path: Option<&Path>) -> Config {
     match load_config(config_path) {
         Ok(cfg) => cfg,

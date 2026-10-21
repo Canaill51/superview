@@ -1,5 +1,5 @@
 //! Finding and invoking ffmpeg/ffprobe, and reading what the binary says about
-//! itself. Mirrors Go's `internal/common/tools.go` (removed in phase 8; last release with it: v0.2.9).
+//! itself.
 //!
 //! The search order is the contract (CONTRATS.md): `SUPERVIEW_FFMPEG_DIR`, the
 //! copy bundled next to the executable or under `../lib/superview`, `PATH`,
@@ -7,37 +7,35 @@
 //! `PATH` on purpose: the FFmpeg a machine has installed is the variable this
 //! program cannot control (U-03).
 //!
-//! Deliberate differences from the Go code (exhaustive):
+//! Design notes (exhaustive):
 //! - There is no global cache. [`ToolResolver`] owns its cache and receives the
 //!   environment, the executable's directory and the "usable file" test, so
 //!   tests run in parallel without touching the process environment (L-114).
-//!   [`ToolResolver::reset_cache`] is `ResetToolResolutionCache`.
-//! - `PATH` is searched here, by [`lookup_in_path`], not by `exec.LookPath`:
+//!   [`ToolResolver::reset_cache`] empties the cache.
+//! - `PATH` is searched here, by [`lookup_in_path`], not by the standard library:
 //!   the environment is injected. It ignores a relative `PATH` entry and goes
-//!   on, where Go's `LookPath` stops with an error on one. On Windows it
+//!   on rather than stopping with an error. On Windows it
 //!   tries each `PATHEXT` extension that names a program (default `.COM;.EXE`).
 //! - The command constructors pass the injected `PATH` on to the child, so a
 //!   tool left unresolved is looked up in the same `PATH` that was searched.
 //! - The command constructors hand the child a `PATH` reduced to its absolute
 //!   entries (never empty: see [`absolute_path_entries`]), so a bare name can
 //!   never be found through a relative entry.
-//! - Environment values are `OsString`, read with `var_os`: Go's strings are
-//!   bytes too, and a non-UTF-8 `PATH` must not blind the search. Only the
+//! - Environment values are `OsString`, read with `var_os`: a non-UTF-8 `PATH`
+//!   must not blind the search. Only the
 //!   trimming of the override and `PATHEXT` need text; a non-UTF-8 override
 //!   is used as it is, a non-UTF-8 `PATHEXT` is replaced by the default.
-//! - `lookup_in_path` accepts only `.COM` and `.EXE` on Windows, where Go also
-//!   takes `.BAT` and `.CMD`: a batch file runs through `cmd.exe`, so a
+//! - `lookup_in_path` accepts only `.COM` and `.EXE` on Windows and refuses
+//!   `.BAT` and `.CMD` (v0.2.9 took them): a batch file runs through `cmd.exe`, so a
 //!   cancellation would kill `cmd.exe` and leave ffmpeg running, against the
 //!   "cancellation leaves nothing behind" contract. Decided by the user on
 //!   2026-10-17. Only the tests' stand-ins on Windows are batch files, and
 //!   they opt in with `ToolResolver::with_batch_stand_ins`.
 //! - `usable_tool_file` answers with a `bool`, not the path or `""`.
-//! - Unlike the Go test helper, a failing query reports "exit status: N" (Rust's
-//!   `ExitStatus` text); only the leading text of a message is comparable.
-//! - `newFFmpegCommandContext` (the encoder probe's deadline) arrives with the
-//!   probe, phase 4 PR 5.
+//! - A failing query reports "exit status: N" (Rust's `ExitStatus` text); only the
+//!   leading text of a message is comparable.
 //! - The Windows branch of the lookup is a pure function over the injected
-//!   environment, like Go's, so it is tested on every OS.
+//!   environment, so it is tested on every OS.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -206,7 +204,7 @@ impl ToolResolver {
     pub fn find_bundled(&self, tool: &str) -> Option<PathBuf> {
         let dir = self.exe_dir.as_deref()?;
         let name = tool_file_name(tool);
-        // `..` is taken lexically (`parent`), as Go's filepath.Join cleans it.
+        // `..` is taken lexically (`parent`), never through a symlink (v0.2.9 cleaned it the same way).
         let lib = dir.parent().unwrap_or(dir).join("lib").join("superview");
         [dir.join(&name), lib.join(&name)]
             .into_iter()
@@ -286,8 +284,7 @@ fn is_executable_file(path: &Path) -> bool {
 ///
 /// A tool left unresolved is a bare name, which the spawner looks up in the
 /// child's `PATH`; a relative entry (`.`, an empty one, `x/bin`) would find a
-/// planted program in the working directory, the lookup Go's `LookPath` refuses
-/// with `ErrDot` (L-16). When nothing absolute is left the result is a
+/// planted program in the working directory (L-16). When nothing absolute is left the result is a
 /// directory that does not exist, never `""`: `execvp` reads an empty `PATH` as
 /// "the current directory".
 fn absolute_path_entries(path: OsString) -> OsString {
@@ -335,7 +332,7 @@ fn program_extensions(pathext: Option<&str>, batch_files: bool) -> Vec<String> {
         .collect()
 }
 
-/// `exec.LookPath` over the injected environment.
+/// Looks `tool` up in the `PATH` of the injected environment.
 fn lookup_in_path(tool: &str, env: &EnvFn, batch_files: bool) -> Option<PathBuf> {
     let path = env("PATH")?;
     let names: Vec<String> = if cfg!(windows) {
@@ -411,7 +408,7 @@ pub fn find_windows_tool_binary(
 }
 
 /// The entries of `dir` by name, with whether each is a directory (symlinks
-/// are not followed, as in Go's `WalkDir`). Empty when unreadable.
+/// are not followed). Empty when unreadable.
 fn sorted_entries(dir: &Path) -> Vec<(PathBuf, bool)> {
     let Ok(read) = fs::read_dir(dir) else {
         return Vec::new();

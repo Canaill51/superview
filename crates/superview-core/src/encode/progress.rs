@@ -1,15 +1,15 @@
-//! One line of ffmpeg's `-progress` output. Port of the read loop of `EncodeVideo` in
-//! Go's `internal/common/encode.go` (removed in phase 8; last release with it: v0.2.9) (the `out_time_ms=` branch).
+//! One line of ffmpeg's `-progress` output (the `out_time_ms=` branch).
 //!
-//! Deliberate differences from the Go code (exhaustive):
-//! - The line is a `&str`; Go reads bytes, and a line that is not UTF-8 never reaches here.
-//! - The number is read by `parse_go_float` (`video.rs`), the port of `strconv.ParseFloat`:
-//!   `1e3`, `+5`, `inf` and `nan` are values as in Go. Not reproduced: hexadecimal floats,
-//!   which ffmpeg never prints (see `parse_go_float`).
-//! - The logs are `log` records with `key=value` text, where Go uses `slog` attributes, and
-//!   the `error` text of an unreadable value is always `invalid syntax`, where Go's is
-//!   `strconv.ParseFloat: parsing "...": invalid syntax` (or `value out of range`, for `1e999`);
-//!   the classification is the same, a warning and the line skipped.
+//! Design notes (exhaustive):
+//! - The line is a `&str`; a line that is not UTF-8 never reaches here.
+//! - The number is read by `parse_go_float` (`video.rs`), which follows the rules of Go's
+//!   `strconv.ParseFloat` that the fixtures recorded: `1e3`, `+5`, `inf` and `nan` are
+//!   values. Hexadecimal floats are not read, ffmpeg never prints them (see
+//!   `parse_go_float`).
+//! - The logs are `log` records with `key=value` text, and the `error` text of an unreadable
+//!   value is always `invalid syntax` (v0.2.9 logged Go's own `strconv.ParseFloat` message,
+//!   or `value out of range` for `1e999`); the classification is the same, a warning and the
+//!   line skipped.
 //! - The log goes through a `&dyn Log` ([`log_progress_line_to`]): the `log` crate has one
 //!   global logger per process and the tests of `health.rs` already own it. Production
 //!   passes `log::logger()`.
@@ -36,7 +36,7 @@ pub enum ProgressLine {
 }
 
 impl ProgressLine {
-    /// Whether this line shows a frame written: a time above zero (Go's `timeF > 0`).
+    /// Whether this line shows a frame written: a time above zero.
     pub fn produced_output(&self) -> bool {
         matches!(self, Self::Value(t) if *t > 0.0)
     }
@@ -61,11 +61,11 @@ pub fn parse_progress_line(line: &str) -> ProgressLine {
 
 /// The progress percentage: `min(t / (duration * 10000), 100)`. `out_time_ms` is in
 /// microseconds and the duration in seconds, so this is the elapsed share times 100. A NaN
-/// stays NaN, as in Go.
+/// stays NaN.
 pub fn percent(out_time_ms: f64, duration_float: f64) -> f64 {
     let ratio = out_time_ms / (duration_float * 10000.0);
-    // Go's `math.Min(NaN, 100)` is NaN; `f64::min` would answer 100 ("done") for a NaN
-    // duration (ffprobe can say "nan") or time.
+    // `f64::min` would answer 100 ("done") for a NaN duration (ffprobe can say "nan") or
+    // time.
     if ratio.is_nan() {
         ratio
     } else {

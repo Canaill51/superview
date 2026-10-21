@@ -83,13 +83,12 @@ fn healthy_tools() -> crate::probe::tests::FakeTools {
 
 // ---- the report ----
 
-// Go: TestGetHealthReportNil
 #[test]
 fn a_missing_health_has_a_report_of_its_own() {
     assert_eq!(get_health_report(None), "No health data available");
 }
 
-// Go: TestGetHealthReportFormatting, with the exact text
+// The exact text of the report, word for word, v0.2.9's, the one the README asks users to attach.
 #[test]
 fn the_report_lists_every_check() {
     let health = SystemHealth {
@@ -109,7 +108,7 @@ fn the_report_lists_every_check() {
     );
 }
 
-// No Go test: a healthy report, a check without a value, and the encoder section
+// A healthy report, a check without a value, and the encoder section
 // appended after a blank line.
 #[test]
 fn a_healthy_report_ends_with_the_encoder_section() {
@@ -130,7 +129,7 @@ fn a_healthy_report_ends_with_the_encoder_section() {
 
 // ---- the individual checks ----
 
-// Go: TestCheckDiskSpaceHealth (the real reading)
+// The real reading.
 #[test]
 fn the_real_disk_reading_fills_the_check() {
     let result = check_disk_space_health(&std::env::temp_dir(), crate::disk::free_disk_gb, 42);
@@ -140,7 +139,7 @@ fn the_real_disk_reading_fills_the_check() {
     assert!(result.value.ends_with(" GB free"), "{}", result.value);
 }
 
-// No Go test of the three outcomes (it reads the real disk).
+// The three outcomes (it reads the real disk).
 #[test]
 fn disk_space_reports_plenty_little_and_unreadable() {
     let ok = check_disk_space_health(&temp(), plenty, 7);
@@ -173,7 +172,7 @@ fn disk_space_reports_plenty_little_and_unreadable() {
 
 // ---- check_health ----
 
-// Go: TestCheckHealth_WithoutFFmpeg / withoutFFmpegOnPath. Not on Windows, where
+// Without ffmpeg the report says so. Not on Windows, where
 // winget directories PATH does not govern could still answer.
 #[cfg(not(windows))]
 #[test]
@@ -204,7 +203,7 @@ fn without_ffmpeg_the_report_says_so() {
     assert!(!report.contains("Encoders"), "{report}");
 }
 
-// Go: TestCheckHealth_ReportsEveryCheck (names, order, timestamps), Memory and CPU
+// Names, order, timestamps; Memory and CPU
 // left out on purpose, see the header.
 #[cfg(unix)]
 #[test]
@@ -227,7 +226,6 @@ fn every_check_is_reported_in_order_with_a_timestamp() {
     assert!(health.overall);
 }
 
-// Go: TestCheckHealth_WithFFmpegInstalled
 #[cfg(unix)]
 #[test]
 fn a_healthy_machine_reports_versions_and_values() {
@@ -260,7 +258,7 @@ fn a_healthy_machine_reports_versions_and_values() {
     }
 }
 
-// Go: TestCheckHealth_ReportsEveryCheck, the Overall half: the three critical checks,
+// Overall needs the three critical checks,
 // disk included.
 #[cfg(unix)]
 #[test]
@@ -279,7 +277,7 @@ fn overall_needs_the_disk_too() {
     assert!(!health.overall, "a full disk is unhealthy");
 }
 
-// Go: Overall = FFmpeg && FFprobe && Disk, the ffprobe term.
+// Overall = FFmpeg && FFprobe && Disk, the ffprobe term.
 #[cfg(unix)]
 #[test]
 fn overall_needs_ffprobe_too() {
@@ -297,7 +295,6 @@ fn overall_needs_ffprobe_too() {
     assert!(!health.overall);
 }
 
-// Go: TestCheckHealth_ReportsWhatTheEncodersAnswered
 #[cfg(unix)]
 #[test]
 fn the_report_carries_what_the_encoders_answered() {
@@ -334,7 +331,7 @@ fn the_report_carries_what_the_encoders_answered() {
     assert!(health.overall);
 }
 
-// No Go test: a cancelled diagnostic starts no probe.
+// A cancelled diagnostic starts no probe.
 #[cfg(unix)]
 #[test]
 fn a_cancelled_diagnostic_probes_no_encoder() {
@@ -350,12 +347,12 @@ fn a_cancelled_diagnostic_probes_no_encoder() {
     );
     assert!(health.ffmpeg.healthy, "the checks themselves still ran");
     assert!(health.encoders.is_none(), "{:?}", health.encoders);
-    // As in Go, a report without verdicts has no encoder section at all (it does not
+    // A report without verdicts has no encoder section at all (it does not
     // claim "none to probe").
     assert!(!get_health_report(Some(&health)).contains("Encoders"));
 }
 
-// L-50, Go: TestCheckHealth_WithFFmpegInstalled / ReportsWhatTheEncodersAnswered on the
+// L-50: the encoders' answers on the
 // machine's own tools -- the one health test that runs on Windows. Skipped without
 // ffmpeg unless SUPERVIEW_REQUIRE_FFMPEG=1, which CI sets.
 #[test]
@@ -416,7 +413,6 @@ fn the_real_machine_is_diagnosed() {
 
 // ---- log_health ----
 
-// Go: TestLogHealth_WritesFailuresAtWarn
 #[test]
 fn failures_are_logged_at_warn() {
     let health = SystemHealth {
@@ -457,7 +453,7 @@ fn failures_are_logged_at_warn() {
     assert!(!all.contains("ffprobe check failed"), "{all}");
 }
 
-// Go: TestLogHealth_WritesFailuresAtWarn, the overall line
+// The overall line.
 #[test]
 fn the_overall_status_is_logged_at_info() {
     let health = SystemHealth {
@@ -484,7 +480,6 @@ fn the_overall_status_is_logged_at_info() {
     assert!(records[0].1.starts_with("✅ HEALTHY: "), "{}", records[0].1);
 }
 
-// Go: TestLogHealthWithNil
 #[test]
 fn logging_a_missing_health_does_nothing() {
     log_health(None);

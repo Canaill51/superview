@@ -105,7 +105,7 @@ fn outcome(summary: &str) -> EncodeOutcome {
 
 // ---- the lists of controls ----
 
-// TestEncodingControls_RoundTripReEnablesEverything (P-01)
+// (P-01)
 #[test]
 fn locking_and_unlocking_round_trips_every_control() {
     let mut view = ViewModel::default();
@@ -119,7 +119,7 @@ fn locking_and_unlocking_round_trips_every_control() {
     }
 }
 
-// TestWindowControls_LockDiagnosticDuringAConversion (E-14)
+// (E-14)
 #[test]
 fn the_locked_list_holds_diagnostic_and_not_quit() {
     assert!(
@@ -150,7 +150,6 @@ fn requires_ffmpeg_is_locked_minus_diagnostic_and_never_quit() {
 
 // ---- can_start and the transitions of the files ----
 
-// TestAppState_CanStart
 #[test]
 fn can_start_needs_input_output_ffmpeg_and_no_conversion() {
     type Setup = fn(&mut AppState);
@@ -194,7 +193,6 @@ fn can_start_needs_input_output_ffmpeg_and_no_conversion() {
     }
 }
 
-// TestAppState_SetInputAndOutputRefreshStart
 #[test]
 fn setting_input_and_output_refreshes_start() {
     let mut state = fixture();
@@ -311,7 +309,6 @@ fn a_picker_closing_during_a_conversion_leaves_the_control_locked() {
     assert!(state.view.is_enabled(Control::Open));
 }
 
-// TestAppState_AChosenFileIsIgnoredDuringAConversion
 #[test]
 fn a_chosen_input_is_ignored_during_a_conversion() {
     let mut state = fixture();
@@ -374,7 +371,7 @@ fn a_chosen_input_when_idle_is_loaded() {
     assert_eq!(state.view.status, "Status: Input loaded");
 }
 
-// The invalid-input branch of the same Go test.
+// The invalid-input branch of the same scenario.
 #[test]
 fn an_invalid_input_when_idle_is_reported_and_not_recorded() {
     let mut state = fixture();
@@ -431,7 +428,6 @@ fn a_non_utf8_input_path_is_refused_with_a_clear_message() {
 
 // ---- the hardware line ----
 
-// TestAppState_HardwareLineWaitsForTheProbe
 #[test]
 fn the_hardware_line_waits_for_the_probe() {
     let mut state = fixture();
@@ -455,7 +451,6 @@ fn the_hardware_line_waits_for_the_probe() {
     );
 }
 
-// TestAppState_ProbeRefusalRemovesTheEncoderFromThePlan
 #[test]
 fn a_probe_refusal_removes_the_encoder_from_the_plan() {
     let mut state = fixture();
@@ -478,7 +473,6 @@ fn a_probe_refusal_removes_the_encoder_from_the_plan() {
     assert!(plan.contains("libx264"), "{plan:?}");
 }
 
-// TestAppState_RefreshHardwareStatus
 #[test]
 fn refresh_hardware_status_reports_a_missing_ffmpeg() {
     let mut state = fixture();
@@ -515,7 +509,7 @@ fn refresh_hardware_status_describes_the_planned_path() {
     );
 }
 
-// TestAppState_NilWidgetsAreTolerated: the closest thing here is a state fresh from `new`
+// There is no widget to be missing here; the closest thing is a state fresh from `new`
 // taking every transition in any order.
 #[test]
 fn every_transition_is_safe_on_a_fresh_state() {
@@ -532,7 +526,6 @@ fn every_transition_is_safe_on_a_fresh_state() {
     assert!(state.shutdown("test"));
 }
 
-// TestAppState_SetFFmpegUnblocksTheWindow
 #[test]
 fn set_ffmpeg_unblocks_the_window() {
     let mut state = fixture();
@@ -572,7 +565,7 @@ fn set_ffmpeg_unblocks_the_window() {
     }
 }
 
-// TestAppState_DiagnosticStaysUsableWithoutFFmpeg (E-14, first review finding)
+// (E-14, first review finding)
 #[test]
 fn diagnostic_stays_usable_without_ffmpeg() {
     let mut state = fixture();
@@ -611,7 +604,6 @@ fn diagnostic_stays_usable_without_ffmpeg() {
     assert!(state.view.is_enabled(Control::Quit));
 }
 
-// TestAppState_AStaleVerificationDoesNotOverwriteANewerLine
 #[test]
 fn a_stale_verification_does_not_overwrite_a_newer_line() {
     let mut state = fixture();
@@ -625,7 +617,6 @@ fn a_stale_verification_does_not_overwrite_a_newer_line() {
     assert_eq!(state.view.hardware, "the answer for the current state");
 }
 
-// TestAppState_RefreshInvalidatesAVerificationInFlight
 #[test]
 fn a_refresh_invalidates_a_verification_in_flight() {
     let mut state = fixture();
@@ -641,7 +632,7 @@ fn a_refresh_invalidates_a_verification_in_flight() {
     assert_eq!(state.view.hardware, settled);
 }
 
-// Wanted improvement (a): Go left the unverified plan on screen when a verification could
+// Wanted improvement (a): the unverified plan must not stay on screen when a verification could
 // not be completed.
 #[test]
 fn a_failed_verification_replaces_the_line_with_a_neutral_text() {
@@ -706,7 +697,7 @@ fn the_verification_is_requested_only_when_it_can_be_answered() {
 
 // ---- the lifecycle of a conversion ----
 
-// TestAppState_EncodingRoundTripRestoresEveryControl (P-01)
+// (P-01)
 #[test]
 fn the_encoding_round_trip_restores_every_control() {
     let mut state = fixture();
@@ -744,7 +735,7 @@ fn the_encoding_round_trip_restores_every_control() {
     );
 }
 
-// TestAppState_BeginEncodingReturnsTheChannel (P-02)
+// (P-02)
 #[test]
 fn begin_encoding_returns_a_flag_that_request_cancel_raises() {
     let mut state = fixture();
@@ -764,7 +755,6 @@ fn begin_encoding_returns_a_flag_that_request_cancel_raises() {
     );
 }
 
-// TestAppState_RequestCancel
 #[test]
 fn request_cancel_does_nothing_when_idle() {
     let mut state = fixture();
@@ -809,7 +799,7 @@ fn a_cancelled_conversion_still_finishes_cleanly() {
     }
 }
 
-// TestAppState_CompleteEncoding (E-14): the dialogs of Go are the `Completion` returned.
+// (E-14) The dialogs are the `Completion` returned.
 fn running(video_and_output: bool) -> Fixture {
     let mut state = fixture();
     state.view.hardware = "Hardware: planned h264_nvenc".into();
@@ -842,7 +832,7 @@ fn a_cancellation_is_not_a_failure() {
 
 #[test]
 fn only_a_real_cancellation_is_one() {
-    // A text carrying the cancellation message is a failure (Go's errors.Is, not a match
+    // A text carrying the cancellation message is a failure (not a match
     // on the string).
     let mut state = running(true);
     let text = Error::Plain("encoding failed: encoding interrupted by user".into());
@@ -1010,7 +1000,7 @@ fn complete_encoding_does_nothing_once_the_application_is_shutting_down() {
     assert!(state.is_encoding(), "the closing window is not touched");
 }
 
-// TestAppState_Shutdown (E-03). The thread stands in for the real one: it stops on the
+// (E-03) The thread stands in for the real one: it stops on the
 // cancel flag, takes a moment to "clean up", and only then releases done -- the order the
 // pipeline's cleanup imposes.
 fn wait_for(flag: &AtomicBool) {
@@ -1087,7 +1077,6 @@ fn shutdown_is_idempotent() {
     assert!(state.shutdown("first") && state.shutdown("second"));
 }
 
-// TestAppState_ShutdownFromTheCompletionPathDoesNotWaitForItself
 #[test]
 fn shutdown_from_the_completion_path_does_not_wait_for_itself() {
     let mut state = fixture();
@@ -1121,7 +1110,6 @@ fn shutdown_from_the_completion_path_does_not_wait_for_itself() {
     );
 }
 
-// TestAppState_RunEncodingReleasesDoneOnPanic
 #[test]
 fn run_encoding_releases_done_on_panic() {
     let mut state = fixture();
@@ -1153,7 +1141,6 @@ fn run_encoding_releases_done_before_it_completes() {
     assert!(released_at_completion.get());
 }
 
-// TestAppState_ShutdownWaitsOnlyOnce
 #[test]
 fn shutdown_waits_only_once() {
     let mut state = fixture();
@@ -1173,7 +1160,7 @@ fn shutdown_waits_only_once() {
 
 // ---- the codec dropdown and the preferences ----
 
-// TestAppState_RefreshEncoderOptionsKeepsTheSavedPreference (E-15)
+// (E-15)
 const SAVED: &str = "hevc_nvenc encoder";
 
 fn with_saved_encoder() -> Fixture {
@@ -1232,7 +1219,7 @@ fn a_user_choice_is_still_persisted() {
     assert_eq!(state.saved().encoder_selection, "libx264 encoder");
 }
 
-// TestAppState_RefreshEncoderOptionsPrefersTheSavedChoice (sixth review finding)
+// (sixth review finding)
 #[test]
 fn refresh_encoder_options_prefers_the_saved_choice_over_a_fallback() {
     let mut state = with_saved_encoder();
@@ -1316,7 +1303,6 @@ fn handler_with_sink() -> (GuiHandler, Arc<Recorder>) {
     (handler, recorder)
 }
 
-// TestGUIHandler_ShowProgressSetsTheBarAsAFraction
 #[test]
 fn show_progress_sets_the_bar_as_a_fraction() {
     let (handler, recorder) = handler_with_sink();
@@ -1326,7 +1312,7 @@ fn show_progress_sets_the_bar_as_a_fraction() {
     assert!((bars[0] - 0.42).abs() < 1e-9, "bar = {} after 42%", bars[0]);
 }
 
-// TestGUIHandler_ShowProgressWithoutBarDoesNotPanic, and the same for the detail.
+// The same for the detail.
 #[test]
 fn a_handler_without_a_sink_ignores_progress() {
     let handler = GuiHandler::new(1, String::new(), false, None, None);
@@ -1334,8 +1320,7 @@ fn a_handler_without_a_sink_ignores_progress() {
     handler.show_progress_detail(50.0, Duration::from_secs(10));
 }
 
-// TestGUIHandler_ShowProgressDetailWritesTheStatusLine and
-// TestGUIHandler_ImplementsProgressDetail: reached through the trait object the pipeline
+// Reached through the trait object the pipeline
 // holds, so that a method that stopped overriding the trait's no-op default is caught.
 #[test]
 fn show_progress_detail_writes_the_status_line() {
@@ -1352,7 +1337,6 @@ fn show_progress_detail_writes_the_status_line() {
     );
 }
 
-// TestGUIHandler_GetEncoderWithoutVideo and TestGUIHandler_GetEncoderReturnsTheCapturedName
 // (E-15)
 #[test]
 fn get_encoder_returns_the_captured_name_and_nothing_without_a_video() {
@@ -1374,7 +1358,7 @@ fn get_encoder_returns_the_captured_name_and_nothing_without_a_video() {
     assert_eq!(no_stream.get_encoder(), "");
 }
 
-// TestGUIHandler_GetSqueezeAndBitrate (E-19, L-106): both directions, so that a constant
+// E-19, L-106: both directions, so that a constant
 // answer either way reddens it.
 #[test]
 fn the_handler_hands_the_pipeline_the_values_it_was_built_with() {
