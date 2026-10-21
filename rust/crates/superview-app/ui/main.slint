@@ -171,12 +171,11 @@ export component MainWindow inherits Window {
     title: window-title;
     // The window icon, next to this file (`build.rs` embeds it in the binary).
     icon: @image-url("Icon.png");
-    // 980x470 to open with, and no larger than the layout needs at the least: a 1366x768 screen
-    // at 150 % is 910x512 logical pixels, which the former fixed size did not fit.
-    preferred-width: 980px;
-    preferred-height: 470px;
-    min-width: 760px;
-    min-height: 440px;
+    // Fixed size (DEC-54): minimum and maximum are the same, so the window cannot be resized.
+    min-width: 980px;
+    max-width: 980px;
+    min-height: 470px;
+    max-height: 470px;
 
     // Dark theme, whatever the desktop uses.
     init => { Palette.color-scheme = ColorScheme.dark; }

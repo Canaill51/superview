@@ -119,7 +119,6 @@ pub fn run() {
     every_label_is_present();
     the_window_has_the_designed_size();
     the_toolbar_stays_in_the_frame();
-    the_window_fits_its_smallest_size();
     the_toolbar_is_centred();
     the_window_starts_in_its_initial_state();
     every_button_reports_its_click();
@@ -188,32 +187,6 @@ fn the_toolbar_stays_in_the_frame() {
             pos.x + size.width
         );
     }
-}
-
-/// The window can shrink to fit a 1366x768 screen at 150 % (910x512 logical pixels), and
-/// nothing is cut at the smallest size it accepts (F-27).
-fn the_window_fits_its_smallest_size() {
-    let window = shown();
-    let (width, height) = (760.0_f32, 440.0_f32);
-    window
-        .window()
-        .set_size(slint::LogicalSize::new(width, height));
-    for label in TOOLBAR {
-        let button = only(&window, label);
-        let (pos, size) = (button.absolute_position(), button.size());
-        assert!(
-            pos.x >= 0.0 && pos.x + size.width <= width,
-            "{label:?} spans x={}..{}, outside the {width}px window",
-            pos.x,
-            pos.x + size.width
-        );
-    }
-    let progress = only(&window, "Progress");
-    let bottom = progress.absolute_position().y + progress.size().height;
-    assert!(
-        bottom <= height,
-        "the progress row ends at y={bottom}, below the {height}px window"
-    );
 }
 
 /// The row sits in the middle: equal margins within a pixel, and not flush left.

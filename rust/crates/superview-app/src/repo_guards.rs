@@ -1,5 +1,5 @@
 //! Guards on files of the repository that no compiler reads: the README anchor the
-//! application links to, and the workflow files. Ports of two Go tests that lived beside
+//! application links to, the workflow files and the window's fixed size. Ports of two Go tests that lived beside
 //! the Go window (removed in phase 8; last release with it: v0.2.9).
 
 use std::collections::HashSet;
@@ -176,4 +176,30 @@ fn workflows_do_not_cut_a_tools_output_short() {
         "these cut a tool's output short; capture it whole first (L-115):\n{}",
         offenders.join("\n")
     );
+}
+
+/// The value of a `<name>: <N>px;` line written at the window's own indentation (four
+/// spaces) in `main.slint`; nested items use deeper indentation.
+fn window_constraint(slint: &str, name: &str) -> Option<f32> {
+    let prefix = format!("    {name}: ");
+    slint.lines().find_map(|line| {
+        line.strip_prefix(&prefix)?
+            .strip_suffix("px;")?
+            .parse()
+            .ok()
+    })
+}
+
+/// The window has one size (DEC-54): its minimum and maximum are equal, so a desktop cannot
+/// resize it. The testing backend applies no such constraint, so only the source can say.
+#[test]
+fn the_window_has_one_size_so_it_cannot_be_resized() {
+    let slint = read(&repo_file("rust/crates/superview-app/ui/main.slint"));
+    for axis in ["width", "height"] {
+        let min = window_constraint(&slint, &format!("min-{axis}"))
+            .unwrap_or_else(|| panic!("main.slint sets no window min-{axis}"));
+        let max = window_constraint(&slint, &format!("max-{axis}"))
+            .unwrap_or_else(|| panic!("main.slint sets no window max-{axis}"));
+        assert_eq!(min, max, "the window's min-{axis} and max-{axis} differ");
+    }
 }
