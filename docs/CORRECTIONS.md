@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Fenêtre 860×332 : réglages à gauche, panneau de conversion à droite (DEC-56, étude d'interface, PR 1)
+
+| | |
+| --- | --- |
+| **Constat** | fenêtre de 980×470 aux menus étirés, valeurs loin de leurs libellés, Status, Results et Hardware au-dessus de la barre |
+| **Cause** | une seule colonne pour tout, sans largeur propre aux menus |
+| **Fichiers** | `superview-app/ui/main.slint` (en-tête sur une ligne, `GridLayout` à gauche avec Hardware dessous, panneau à droite, 860×332), `src/window_tests.rs` (tailles, `the_conversion_panel_sits_beside_the_settings`), `docs/DECISIONS.md` (DEC-56, DEC-54 remplacée), `docs/ARCHITECTURE.md` |
+| **Règle** | une disposition se prouve par les positions des éléments, pas par les textes ; l'ajustement des textes à la vraie police se juge sur une capture |
+| **Vérification** | le nouveau test rouge sur l'ancienne mise en page (« a menu ends at x=968, past the panel that starts at x=12 »), vert ensuite ; capture sous Xvfb à 860×332 ; `scripts/check.sh` |
+
 ### [2026-10-21] Les journaux gardent Go dans leur texte, archivés plutôt que réécrits (DEC-55, plan « traces de Go », PR 5)
 
 | | |

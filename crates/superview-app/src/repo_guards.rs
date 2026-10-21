@@ -189,7 +189,7 @@ fn window_constraint(slint: &str, name: &str) -> Option<f32> {
     })
 }
 
-/// The window has one size (DEC-54): its minimum and maximum are equal, so a desktop cannot
+/// The window has one size (DEC-54, DEC-56): its minimum and maximum are equal, so a desktop cannot
 /// resize it. The testing backend applies no such constraint, so only the source can say.
 #[test]
 fn the_window_has_one_size_so_it_cannot_be_resized() {

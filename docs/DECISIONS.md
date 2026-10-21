@@ -87,8 +87,9 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | *Remplacée par DEC-54* |
 | [DEC-52](#dec-52) | L'entrée est lue avec `-f mov` (ffprobe et ffmpeg), jamais devinée d'après le contenu | Acceptée |
 | [DEC-53](#dec-53) | Une durée qui n'est pas un nombre fini (`inf`, `nan`) est refusée | Acceptée |
-| [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | Acceptée (remplace DEC-51) |
+| [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | *Remplacée par DEC-56* |
 | [DEC-55](#dec-55) | Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas | Acceptée (amende DEC-49) |
+| [DEC-56](#dec-56) | La fenêtre est fixe, 860×332, avec un panneau de conversion à droite | Acceptée (remplace DEC-54) |
 
 ---
 
@@ -555,7 +556,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-54
 **La fenêtre reprend sa taille fixe : 980×470, non redimensionnable.**
-2026-10-21 · Acceptée · à la demande de l'utilisateur, après essai de la fenêtre redimensionnable · remplace DEC-51
+2026-10-21 · *Remplacée par [DEC-56](#dec-56)* · à la demande de l'utilisateur, après essai de la fenêtre redimensionnable · remplace DEC-51
 
 **Contexte** — DEC-51 (#150) avait rendu la fenêtre redimensionnable (980×470 à l'ouverture, 760×440 au minimum) pour qu'elle tienne sur un 1366×768 à 150 % (910×512 logiques). À l'essai, l'utilisateur ne veut pas d'une fenêtre qui bouge : il préfère la taille fixe d'avant.
 **Décision** — `min-width` = `max-width` = 980 px et `min-height` = `max-height` = 470 px dans `main.slint`, comme avant #150 (DEC-32). Le garde `the_window_has_one_size_so_it_cannot_be_resized` (`repo_guards.rs`) lit le fichier `.slint` et exige min = max sur les deux axes, car le backend de test n'applique pas les contraintes (un `set_size` y passe) : rouge avec la fenêtre de DEC-51, vert avec celle-ci (mesuré). `the_window_fits_its_smallest_size` est retiré, il n'a plus de minimum à vérifier ; `the_window_has_the_designed_size` reste. Le reste de #150 (Échap et Entrée dans les dialogues, « Cancelling... », menu de qualité) est conservé.
@@ -570,3 +571,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — Un bandeau « Go et Fyne » en tête de chaque journal : les noms y décrivent le code retiré, relisible par `git show v0.2.9:<chemin>`. Les liens vers `cmd/` et `internal/` deviennent du texte (`chemin`, v0.2.9). Les sept pièges Go de `PIEGES.md` passent dans une section « Historique (Go) ». Les corrections antérieures au 2026-10-17 quittent `CORRECTIONS.md` pour `docs/archives/CORRECTIONS-ere-go.md`, texte inchangé, avec un titre-renvoi laissé en place (même procédé que DEC-40) pour que les renvois « CORRECTIONS … » restent vrais.
 **Conséquences** — `CORRECTIONS.md` ne tient plus que l'ère Rust. Un nom de fonction Go dans un journal n'est ni une erreur ni une dette : ne pas le « corriger ». Le contenu des entrées n'est jamais réécrit, seulement déplacé ou précédé d'un bandeau.
 **À rouvrir si** — Les journaux deviennent illisibles sans le contexte Go (alors les condenser, pas les réécrire), ou si `v0.2.9` cesse d'être joignable (tag supprimé).
+
+### DEC-56
+**La fenêtre est fixe, 860×332, avec un panneau de conversion à droite.**
+2026-10-21 · Acceptée · étude d'interface, scénario C variante « Resserrée », choisie par l'utilisateur · remplace DEC-54
+
+**Contexte** — La fenêtre de 980×470 laissait beaucoup d'espace vide : menus étirés sur toute la colonne, valeurs loin de leurs libellés, Status, Results et Hardware empilés au-dessus de la barre. L'utilisateur a comparé des maquettes et retenu deux colonnes : les réglages à gauche, un panneau de conversion à droite.
+**Décision** — `min-` = `max-` à 860×332 px logiques dans `main.slint`. À gauche, Input file, Output file, Quality profile, Video codec et Input format, puis la ligne Hardware sous Input format ; les deux menus ont une largeur fixe (170 et 300 px), pas celle de la colonne. À droite, un panneau de 290 px : « Progress », la barre, puis Status et Results dessous. Les textes ne changent pas. Le garde `the_window_has_one_size_so_it_cannot_be_resized` lit toujours `min = max` ; `the_conversion_panel_sits_beside_the_settings` (`window_tests.rs`) fige la disposition (rouge avec l'ancienne mise en page : un menu dépassait le panneau, mesuré).
+**Conséquences** — La fenêtre est plus petite que 980×470 et tient donc sur plus d'écrans, mais reste non redimensionnable (DEC-54). La hauteur de 332 px laisse trois lignes à Hardware (un refus de sonde peut être long) ; Status et Results, mesurés sur capture avec leurs textes les plus longs, tiennent dans le panneau. Le backend de test ne mesure pas la vraie police : l'ajustement se juge sur capture. Une carte de popup est plus haute que la fenêtre dès qu'elle dépasse ~330 px : le Diagnostic dispose d'une liste d'environ 190 px, et le popup Error, dont le message peut reprendre le stderr d'ffmpeg, déborderait avant sans défilement (défaut déjà présent à 470 px, aggravé ; à traiter à part).
+**À rouvrir si** — Un texte coupé ou un écran trop petit est signalé : agrandir ou rendre la fenêtre redimensionnable avec un minimum, pas retirer le panneau.

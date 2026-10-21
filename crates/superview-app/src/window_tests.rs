@@ -17,9 +17,9 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
-/// The window's size (fixed, DEC-54).
-const WINDOW_WIDTH: f32 = 980.0;
-const WINDOW_HEIGHT: f32 = 470.0;
+/// The window's size (fixed, DEC-56).
+const WINDOW_WIDTH: f32 = 860.0;
+const WINDOW_HEIGHT: f32 = 332.0;
 /// The padding around the window's content (`padding` in `main.slint`).
 const PADDING: f32 = 12.0;
 
@@ -120,6 +120,7 @@ pub fn run() {
     the_window_has_the_designed_size();
     the_toolbar_stays_in_the_frame();
     the_toolbar_is_centred();
+    the_conversion_panel_sits_beside_the_settings();
     the_window_starts_in_its_initial_state();
     every_button_reports_its_click();
     the_form_follows_the_host_after_the_user_chose();
@@ -204,6 +205,42 @@ fn the_toolbar_is_centred() {
     assert!(
         (left - right).abs() <= 1.0,
         "margins are {left}px left and {right}px right: the toolbar is off-centre"
+    );
+}
+
+/// The conversion panel sits to the right of the settings, with the bar first and then Status
+/// and Results under it; Hardware is under Input format, in the settings column.
+fn the_conversion_panel_sits_beside_the_settings() {
+    let window = shown();
+    let x = |e: &ElementHandle| e.absolute_position().x;
+    let y = |e: &ElementHandle| e.absolute_position().y;
+    let progress = only(&window, "Progress");
+    let status = only(&window, "Status: Ready");
+    let results = only(&window, "Results: no completed run yet");
+    let hardware = only(&window, "Hardware: waiting for input video");
+    let input_format = only(&window, "Input format");
+
+    let combos = selectors(&window);
+    assert_eq!(combos.len(), 2, "expected the quality and codec menus");
+    for combo in combos {
+        let right = x(&combo) + combo.size().width;
+        assert!(
+            right <= x(&progress),
+            "a menu ends at x={right}, past the panel that starts at x={}",
+            x(&progress)
+        );
+    }
+    assert!(
+        y(&status) > y(&progress) && y(&results) > y(&status),
+        "Status and Results must come under the progress bar, in that order"
+    );
+    assert!(
+        x(&status) >= x(&progress) - 0.5 && x(&results) >= x(&progress) - 0.5,
+        "Status and Results must sit in the panel, not under the settings"
+    );
+    assert!(
+        y(&hardware) > y(&input_format) && x(&hardware) < x(&progress),
+        "Hardware must be under Input format, in the settings column"
     );
 }
 
