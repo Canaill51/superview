@@ -19,6 +19,16 @@
 | **PR** | Return the window to its fixed size |
 | **Vérification** | contre-preuve : le garde est rouge sur le `main.slint` de `master` (« sets no window max-width »), vert après. Un premier essai par `set_size` dans `window_tests.rs` ne prouvait rien : le backend de test ne clampe pas, le test restait rouge même avec le correctif ; abandonné. **Test retiré par décision** : `the_window_fits_its_smallest_size`, sans objet sans minimum. À la main : fenêtre non redimensionnable à vérifier sous KDE/Wayland (winit applique min = max). **Limite** : écran de 910×512 logiques ou moins, fenêtre coupée (DEC-51 le corrigeait) |
 
+### [2026-10-21] Documentation remise d'aplomb avec le code après les sessions 1 à 9 de la 14ᵉ passe
+
+| | |
+| --- | --- |
+| **Constat** | audit de tous les `.md` vivants confronté au code, aux workflows et à `git log` : `cargo deny` absent de CONTRATS, ARCHITECTURE et du `Makefile` ; binaire « non strippé » de 24,8 Mo (DEC-50 : 18,4 Mo) ; recherche d'ffmpeg sans `SUPERVIEW_FFMPEG_DIR` ; `XDG_CONFIG_HOME` absent des README ; `0.43 GB` pour 0.42 ; `✅` pour `[OK]` ; « 473 crates » pour 463 ; skill `/publier` qui cherchait des runs `Test` et `Lint` inexistants (`Rust` et `Lint & Code Quality`) ; `SUITE.md` contradictoire (sessions en futur et au passé, ordre 9-8-7-6-1…5, phase 8 « à porter » alors que Go est retiré, « pas de champ texte de secours » alors que `dialogs.rs` en a un) ; DEC-50 absente de l'index, DEC-04 non amendée par DEC-41, DEC-35 citant `test.yml` ; L-115 et la fiche `pieges/` renvoyant à un test Go supprimé ; `AGENTS.md` citant L-114 pour l'environnement injecté ; dependabot « quotidien » et `gomod` dans RELEASING et `.github/release.yml` |
+| **Cause** | chaque PR de la 14ᵉ passe mettait à jour le code et son entrée de journal, pas les documents de synthèse qui les citent ; la prose Go du retrait (DEC-49) n'avait pas été balayée dans les pointeurs vers des tests |
+| **Fichiers** | `AGENTS.md`, `README.md`/`README_FR.md` (dont la taille de l'installateur), `RELEASING.md`, `THIRD_PARTY_NOTICES.md`, `docs/{ARCHITECTURE,CONTRATS,DECISIONS,ENVIRONNEMENT,LECONS,PIEGES,SUITE,TESTS-MANUELS}.md`, `docs/pieges/2026-10-14-tube-coupe-sortie-outil.md`, `.claude/skills/publier/SKILL.md`, `Makefile`, `scripts/checks/rust.sh`, `.github/release.yml` et un commentaire de `.github/workflows/release.yml` |
+| **PR** | Bring the documentation back in line with the code after the fourteenth pass |
+| **Vérification** | chaque écart a été constaté dans le code avant d'être corrigé (preuve citée par l'audit) ; 463 recompté par `cargo tree -p superview-app -e normal --target all` ; `scripts/check.sh` vert ; aucun code Rust touché. **Leçon L-117** écrite (environnement injecté), que `AGENTS.md` citait sous un mauvais numéro. **Volontairement laissés** : les liens vers `cmd/` et `internal/` des journaux historiques (`ANALYSE.md`, `archives/`), qui décrivent l'état d'avant DEC-49. **Essai à blanc (L-114)** : `release.yml` lancé sur la branche sans version (run 39573847465, commit `d9790e9`), vert : tests, builds Windows et Linux, `Create GitHub Release` sautée. Le même run a mesuré l'installateur Windows (artefact de 57 Mio) : « environ 95 Mo » devient « environ 60 Mo » dans les deux README |
+
 ### [2026-10-20] Entrée lue comme du MP4 et durée non finie refusée (Q-04 et Q-05, session 9)
 
 | | |

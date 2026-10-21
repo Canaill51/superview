@@ -51,7 +51,7 @@ with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three 
 
 - **No test modifies the process environment.** Tests run in parallel in one process and
   `std::env::set_var` is `unsafe` in edition 2024; tool lookup takes the environment as a
-  parameter (L-114).
+  parameter (L-117).
 - **`powi(2)`, never `powf(2.0)`**, where Go's `pgm.go` had `math.Pow(x, 2)`: the latter depends
   on the platform's libm and would break the golden fingerprints
   (`superview-core/tests/pgm_golden.rs`).

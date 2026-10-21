@@ -18,7 +18,7 @@
 | `libfontconfig1-dev` (le seul paquet de développement) | système | oui |
 
 > **Pourquoi FFmpeg reste nécessaire ici alors que les paquets de release (installateur, AppImage) en embarquent
-> un.** `ToolResolver::resolve` cherche d'abord la copie livrée à côté de l'exécutable ; un
+> un.** `ToolResolver::resolve` cherche d'abord `SUPERVIEW_FFMPEG_DIR` si elle est définie, puis la copie livrée à côté de l'exécutable ; un
 > `cargo build` n'en produit aucune, donc un poste de développement travaille avec celui du
 > `PATH`. Conséquence à garder en tête : **les sondes d'encodeurs et les tests
 > d'intégration mesurent le FFmpeg du système, pas celui que les utilisateurs
@@ -59,12 +59,13 @@ sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 su
 - La CI Linux installe `ffmpeg` et `libfontconfig1-dev` pour compiler et tester
   (`.github/workflows/rust.yml`, jobs *Rust on ubuntu-latest* et *Rust coverage and audit*) ; pour
   lancer la fenêtre sous `xvfb`, elle ajoute `xvfb` et `libxkbcommon-x11-0`. La seule
-  bibliothèque dynamique graphique liée par le binaire est `libfontconfig.so.1` ; X11, Wayland et xkbcommon
+  bibliothèque graphique à installer est `libfontconfig.so.1` (le binaire lie aussi ses
+  dépendances : freetype, expat, zlib…) ; X11, Wayland et xkbcommon
   sont chargés à l'exécution.
 - Pour **empaqueter** l'AppImage (`packaging/linux/build_appimage.sh`), le poste doit avoir
   `libxkbcommon0`, `libxkbcommon-x11-0` et `libxcb-xkb1` : ils sont copiés dans l'image (DEC-47).
 - Build complet à froid (dépendances comprises) : environ 35 s en debug, 67 s en release (machine multicœur) ;
-  binaire release : 24,8 Mo (non strippé).
+  binaire release : 18,4 Mo (LTO et symboles retirés, DEC-50 ; 24,8 Mo avant).
 - Lancement : `timeout 5 cargo run -p superview-app --locked` sort avec le code 124 (fenêtre restée ouverte),
   sous Wayland comme sous X11 (`env -u WAYLAND_DISPLAY`). Sans session graphique, la CI utilise
   `xvfb-run -a timeout 10`.

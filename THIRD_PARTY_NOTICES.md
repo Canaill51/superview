@@ -54,7 +54,7 @@ it.
 ## Superview's own dependencies (Rust)
 
 The application shipped in the releases is the Rust program under
-[`rust/`](rust/). It links 473 crates (the three of the workspace included, build tools excluded), whose exact
+[`rust/`](rust/). It links 463 crates (the three of the workspace included, build tools excluded), whose exact
 versions and checksums are in [`rust/Cargo.lock`](rust/Cargo.lock). List them
 with their licences with:
 
@@ -76,7 +76,7 @@ The main ones:
 | `log` | logging | MIT OR Apache-2.0 |
 | `tiny-skia`, `skrifa`, `ab_glyph`, `fontdb` | drawing and text | BSD-3-Clause, MIT OR Apache-2.0, Apache-2.0, MIT |
 
-Across all 473 crates the licences are: MIT or Apache-2.0 (or both, as an
+Across all 463 crates the licences are: MIT or Apache-2.0 (or both, as an
 option) for the large majority, plus Unicode-3.0, Zlib, BSD-2/3-Clause, ISC,
 BSL-1.0, 0BSD, CC0-1.0 and the Slint licence above. Where a crate offers a
 choice, Superview uses the permissive one (or GPL-3.0 for Slint). Each crate's
