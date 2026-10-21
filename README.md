@@ -28,7 +28,7 @@ hardware encoding works at all.
 
 1. Open the **[latest release](https://github.com/Canaill51/superview/releases/latest)**.
    Under **Assets**, click the file whose name ends in **`-windows-x86_64-setup.exe`**.
-   It is around 95 MB — most of that is FFmpeg — and it lands in your
+   It is around 60 MB — most of that is FFmpeg — and it lands in your
    `Downloads` folder.
 
 2. Your browser may say the file is not commonly downloaded and offer to discard

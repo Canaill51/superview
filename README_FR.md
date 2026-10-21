@@ -31,7 +31,7 @@ l'encodage matériel fonctionne, tout simplement.
 
 1. Ouvrez la **[dernière version](https://github.com/Canaill51/superview/releases/latest)**.
    Sous **Assets**, cliquez sur le fichier dont le nom se termine par
-   **`-windows-x86_64-setup.exe`**. Il pèse environ 95 Mo — c'est FFmpeg qui
+   **`-windows-x86_64-setup.exe`**. Il pèse environ 60 Mo — c'est FFmpeg qui
    occupe l'essentiel — et il arrive dans votre dossier `Téléchargements`.
 
 2. Votre navigateur peut signaler que le fichier est rarement téléchargé et
