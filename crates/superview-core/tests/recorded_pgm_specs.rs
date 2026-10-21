@@ -1,4 +1,4 @@
-//! Reproduces the frozen parity fixtures (`tests/fixtures/parity/*.json`) field by field.
+//! Reproduces the frozen recorded fixtures (`tests/fixtures/recorded/*.json`) field by field.
 //! The JSON files are frozen: they were recorded once by the Go tests `TestParity_PGM` and
 //! `TestParity_Specs`, and are never regenerated.
 
@@ -54,8 +54,8 @@ fn assert_error(case: &str, want: &Value, got: &Error) {
 
 // Go: TestParity_PGM
 #[test]
-fn pgm_matches_the_go_oracle() {
-    let oracle = load("parity/pgm.json");
+fn pgm_matches_the_recording() {
+    let oracle = load("recorded/pgm.json");
     assert_eq!(oracle.len(), 14);
     let mut seen_error = false;
     for (name, want) in &oracle {
@@ -82,7 +82,7 @@ fn pgm_matches_the_go_oracle() {
                 assert_error(name, &want["error"], &err);
                 assert!(
                     want.get("x_sha256").is_none(),
-                    "{name}: Go wrote maps, Rust refused"
+                    "{name}: recorded maps, Rust refused"
                 );
                 // The pipeline refuses on the geometry check before anything.
                 assert!(check_geometry(&video, squeeze).is_err(), "{name}");
@@ -90,7 +90,7 @@ fn pgm_matches_the_go_oracle() {
             Ok((x, y)) => {
                 assert!(
                     want.get("error").is_none(),
-                    "{name}: Go refused, Rust wrote maps"
+                    "{name}: recorded a refusal, Rust wrote maps"
                 );
                 assert_eq!(
                     x.len() as i64,
@@ -125,8 +125,8 @@ fn pgm_matches_the_go_oracle() {
 
 // Go: TestParity_Specs
 #[test]
-fn specs_match_the_go_oracle() {
-    let oracle = load("parity/specs.json");
+fn specs_match_the_recording() {
+    let oracle = load("recorded/specs.json");
     let fixtures_dir = fixtures("ffprobe");
     let mut fixtures: Vec<String> = std::fs::read_dir(&fixtures_dir)
         .unwrap()
@@ -149,7 +149,7 @@ fn specs_match_the_go_oracle() {
             Ok(specs) => {
                 assert!(
                     want.get("error").is_none(),
-                    "{name}: Go refused, Rust accepted"
+                    "{name}: recorded a refusal, Rust accepted"
                 );
                 assert_eq!(specs.file, want["file"].as_str().unwrap(), "{name}: file");
                 let streams = want["streams"].as_array().unwrap();

@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Les noms hérités de Go sont renommés (plan « traces de Go », PR 4)
+
+| | |
+| --- | --- |
+| **Constat** | `parse_go_float`, une quinzaine de tests (`*_match_the_go_oracle`, `the_constants_are_gos`…), les fichiers `tests/parity_*.rs`, le dossier `fixtures/parity/` et quatre `reason` de `allow(clippy::too_many_arguments)` portaient le nom de Go |
+| **Cause** | Go retiré en DEC-49 sans repasser sur les noms |
+| **Fichiers** | `parse_go_float` → `parse_ffprobe_float` ; `parity_*.rs` → `recorded_*.rs` (`parity_oracle.rs` → `recorded_pgm_specs.rs`) ; `fixtures/parity/` → `fixtures/recorded/` (`git mv`, contenu gelé inchangé) ; `parity_video` → `recorded_video` ; tests renommés sans « go » ; AGENTS, ARCHITECTURE, CONTRATS (chemins) |
+| **Règle** | un nom décrit le comportement ou dit « enregistré » / « v0.2.9 », jamais « Go » ; les `// Go: TestParity_*` et « oracle Go » restent (généalogie des fixtures). Les journaux gardent les anciens noms (PR 5) |
+| **Vérification** | la liste des tests (`cargo test -- --list`) avant et après : 646 des deux côtés, seuls des noms changent (21 lignes, fichiers de tests compris) ; `scripts/check.sh` vert ; contre-épreuve : un octet changé dans une fixture fait rougir son test |
+
 ### [2026-10-21] Les commentaires du code Rust ne renvoient plus à Go (plan « traces de Go », PR 3)
 
 | | |

@@ -1,6 +1,6 @@
 //! The remap maps: output geometry, the distortion formula, and the PGM writer.
 //!
-//! Pinned byte for byte by the parity oracle `tests/fixtures/parity/pgm.json` and the four
+//! Pinned byte for byte by the recorded oracle `tests/fixtures/recorded/pgm.json` and the four
 //! golden fingerprints of `tests/pgm_golden.rs`.
 
 use std::io::{self, Write};

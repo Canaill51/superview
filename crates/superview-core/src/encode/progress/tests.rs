@@ -70,7 +70,7 @@ fn the_key_only_has_to_be_contained_and_the_first_one_goes() {
 
 // The text is read as strconv.ParseFloat does, not as str::parse does.
 #[test]
-fn the_number_is_read_as_go_reads_it() {
+fn the_number_is_read_by_the_recorded_rules() {
     assert_eq!(
         parse_progress_line("out_time_ms=1e3"),
         ProgressLine::Value(1000.0)

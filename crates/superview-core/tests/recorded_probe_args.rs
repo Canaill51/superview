@@ -1,4 +1,4 @@
-//! Reproduces the frozen parity fixture `tests/fixtures/parity/probe_args.json` field by field:
+//! Reproduces the frozen recorded fixture `tests/fixtures/recorded/probe_args.json` field by field:
 //! the full argv of `probe_args` over the matrix `TestParity_ProbeArgs` records.
 //!
 //! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
@@ -14,7 +14,7 @@ use superview_core::probe::{PROBE_BITRATE, ProbeSpec, probe_args, sweep_spec};
 
 fn load() -> serde_json::Map<String, Value> {
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/probe_args.json");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recorded/probe_args.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("probe_args.json: not an object: {other}"),
@@ -23,7 +23,7 @@ fn load() -> serde_json::Map<String, Value> {
 
 // Go: TestParity_ProbeArgs
 #[test]
-fn probe_args_match_the_go_oracle() {
+fn probe_args_match_the_recording() {
     let mut got: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut add = |name: String, spec: ProbeSpec| {
         assert!(

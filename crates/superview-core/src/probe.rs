@@ -5,7 +5,7 @@
 //! have, `docs/hardware-support.md`). The only honest question is the one asked here:
 //! encode one frame and see. The argv comes from the functions the conversion uses
 //! (`hw_device_args`, `pixel_format_chain`, `encoder_facing_args`), so the two cannot
-//! drift (E-01); `tests/parity_probe_args.rs` pins it against the recorded fixtures.
+//! drift (E-01); `tests/recorded_probe_args.rs` pins it against the recorded fixtures.
 //!
 //! Design notes (exhaustive):
 //! - A VAAPI driver that answers "supported modes: CQP" is asked again in constant quality

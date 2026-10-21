@@ -553,7 +553,7 @@ fn the_tools_get_the_resolved_input_not_the_symlink() {
 // memory (and no session yet), and only then progress.
 #[cfg(unix)]
 #[test]
-fn the_steps_come_in_the_order_of_the_go_pipeline() {
+fn the_steps_come_in_v0_2_9s_order() {
     let _guard = spawn_lock();
     let tools = fake(act::PROBE_OK, act::OK);
     let rig = Rig::new();

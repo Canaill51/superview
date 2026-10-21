@@ -843,7 +843,7 @@ fn only_a_real_cancellation_is_one() {
     );
     assert_eq!(state.view.status, "Status: Failed");
 
-    // A cancellation seen through a failure after output is one, as %w is looked through.
+    // A cancellation seen through a failure after output is one.
     let mut state = running(true);
     let wrapped = Error::FailedAfterOutput(Box::new(Error::Cancelled));
     let completion = state.complete_encoding(Err(wrapped), "out.mp4");

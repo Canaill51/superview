@@ -54,7 +54,7 @@ fn killed_by_signal_is_always_none_on_windows() {
 
 #[cfg(unix)]
 #[test]
-fn signal_names_follow_go_and_unknown_numbers_are_numbered() {
+fn signal_names_follow_v0_2_9_and_unknown_numbers_are_numbered() {
     assert_eq!(signal_name(1), "hangup");
     assert_eq!(signal_name(15), "terminated");
     assert_eq!(signal_name(31), "bad system call");

@@ -70,7 +70,7 @@ const RUNNING_DIAGNOSTIC: &str = "Status: Running diagnostic...";
 /// The core's report marks each check with an emoji (✅ and ❌). The window's
 /// software renderer draws no colour emoji, and a machine without a symbols font shows nothing
 /// at all, so the window swaps them for plain text. The core's text stays as it is, which a
-/// parity test pins; only what is shown changes.
+/// recorded-text test pins; only what is shown changes.
 fn plain_marks(report: &str) -> String {
     report.replace('✅', "[OK]").replace('❌', "[FAIL]")
 }

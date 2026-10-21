@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn leading_zeros_are_accepted_as_the_go_build_did() {
+    fn leading_zeros_are_accepted() {
         assert_eq!(ok("01.2.3").as_deref(), Some("01.2.3"));
     }
 

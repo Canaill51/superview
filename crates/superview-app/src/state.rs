@@ -424,7 +424,7 @@ fn base_name(path: &str) -> String {
         .map_or_else(|| path.to_string(), |n| n.to_string_lossy().into_owned())
 }
 
-/// The error at the bottom of a `FailedAfterOutput` chain, as `errors.Is` looks through `%w`.
+/// The error at the bottom of a `FailedAfterOutput` chain.
 fn root_cause(err: &Error) -> &Error {
     match err {
         Error::FailedAfterOutput(inner) => root_cause(inner),

@@ -54,9 +54,9 @@ with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three 
 - **`powi(2)`, never `powf(2.0)`**, where the old code had `math.Pow(x, 2)`: `powf` depends
   on the platform's libm and would break the golden fingerprints
   (`superview-core/tests/pgm_golden.rs`).
-- The parity fixtures under `superview-core/tests/fixtures/` (`parity/*.json`, `ffprobe/`) were
+- The recorded fixtures under `superview-core/tests/fixtures/` (`recorded/*.json`, `ffprobe/`) were
   recorded by the Go oracle (`internal/common/parity_test.go`, #101, on code identical to v0.2.9; read it with `git show 915dc2c^:<path>`) and are now frozen: they are the specification, not output to
-  regenerate. A failing parity test means the Rust changed, not that the fixture is stale.
+  regenerate. A failing test on them means the Rust changed, not that the fixture is stale.
 - `superview-harness` is a test bench, not a CLI, and is never shipped (DEC-44). It stays for the tests that run a real conversion in a
   separate process and send it SIGINT/SIGTERM (`superview-harness/tests/harness.rs`).
 

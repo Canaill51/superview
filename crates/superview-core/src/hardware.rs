@@ -1,9 +1,9 @@
 //! Encoder and hardware-path selection: the pure half, with the encoder lookup.
 //!
 //! Every verdict and every string (shown to the user and written to the log) is the
-//! recorded one; `tests/fixtures/parity/decisions.json` pins `find_encoder`,
+//! recorded one; `tests/fixtures/recorded/decisions.json` pins `find_encoder`,
 //! `software_encoder_for_fallback` and `select_hardware_decode_accel` over ~900 cases
-//! (`tests/parity_decisions.rs`).
+//! (`tests/recorded_decisions.rs`).
 //!
 //! Design notes:
 //! - `analyze_machine_profile` takes the core count instead of reading it from the

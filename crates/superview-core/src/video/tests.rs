@@ -148,7 +148,7 @@ fn validate_reports_the_first_defect() {
 }
 
 #[test]
-fn frame_rate_go_cases() {
+fn frame_rate_cases() {
     for (text, want) in [
         ("60/1", 60.0),
         ("120/1", 120.0),
@@ -163,7 +163,7 @@ fn frame_rate_go_cases() {
 }
 
 #[test]
-fn frame_rate_nan_is_not_caught_as_in_go() {
+fn frame_rate_nan_is_not_caught_as_in_v0_2_9() {
     for text in ["nan", "NaN", "nan/1", "30/nan", "NAN/NAN"] {
         assert!(parse_frame_rate(text).is_nan(), "{text}");
     }
@@ -174,20 +174,20 @@ fn frame_rate_nan_is_not_caught_as_in_go() {
 }
 
 #[test]
-fn go_float_underscores_and_signs() {
+fn float_underscores_and_signs() {
     // Measured with strconv.ParseFloat.
-    assert_eq!(parse_go_float("1_0"), Some(10.0));
-    assert_eq!(parse_go_float("1_0.5"), Some(10.5));
+    assert_eq!(parse_ffprobe_float("1_0"), Some(10.0));
+    assert_eq!(parse_ffprobe_float("1_0.5"), Some(10.5));
     for bad in ["_1", "1_", "1__0", "1_.5", "1._5", "in_f", "1e_5"] {
-        assert_eq!(parse_go_float(bad), None, "{bad}");
+        assert_eq!(parse_ffprobe_float(bad), None, "{bad}");
     }
-    assert_eq!(parse_go_float("+Inf"), Some(f64::INFINITY));
-    assert_eq!(parse_go_float("-infinity"), Some(f64::NEG_INFINITY));
-    assert_eq!(parse_go_float("1e999"), None);
-    assert_eq!(parse_go_float("-1e999"), None);
-    assert_eq!(parse_go_float("-nan"), None);
-    assert_eq!(parse_go_float("+NaN"), None);
-    assert!(parse_go_float("nan").unwrap().is_nan());
+    assert_eq!(parse_ffprobe_float("+Inf"), Some(f64::INFINITY));
+    assert_eq!(parse_ffprobe_float("-infinity"), Some(f64::NEG_INFINITY));
+    assert_eq!(parse_ffprobe_float("1e999"), None);
+    assert_eq!(parse_ffprobe_float("-1e999"), None);
+    assert_eq!(parse_ffprobe_float("-nan"), None);
+    assert_eq!(parse_ffprobe_float("+NaN"), None);
+    assert!(parse_ffprobe_float("nan").unwrap().is_nan());
     assert_eq!(parse_frame_rate("1_0/1"), 10.0);
 }
 

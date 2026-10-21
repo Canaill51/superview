@@ -1,6 +1,6 @@
 //! What ffprobe says about the input, and its validation.
 //!
-//! Verdicts are pinned by the parity oracle `tests/fixtures/parity/specs.json`.
+//! Verdicts are pinned by the recorded oracle `tests/fixtures/recorded/specs.json`.
 //!
 //! When ffprobe cannot even be started, `check_video`'s message has the cause (the
 //! `io::Error`) in place of ffprobe's output, so the user learns that ffprobe is missing.
@@ -23,7 +23,7 @@ pub struct VideoSpecs {
 /// JSON; the parsed fields (`duration_float`, `bitrate_int`, `frame_rate`) are
 /// filled by [`parse_video_specs`].
 ///
-/// `i64`: the range v0.2.9 read them into, which the parity fixtures assume.
+/// `i64`: the range v0.2.9 read them into, which the recorded fixtures assume.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct VideoStream {
@@ -61,7 +61,7 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
-/// Float parsing with the rules the parity fixtures recorded, those of Go's
+/// Float parsing with the rules the fixtures recorded, those of Go's
 /// `strconv.ParseFloat(s, 64)` for the decimal and `inf`/`nan` forms, measured rather
 /// than assumed:
 ///
@@ -75,7 +75,7 @@ where
 /// hexadecimal floats (`0x1p-2`), which the Go parser accepts and this refuses; JSON keys,
 /// which the Go decoder matches without regard to case and serde matches exactly; invalid
 /// UTF-8 in the JSON, which the Go decoder replaces with U+FFFD and serde rejects.
-pub(crate) fn parse_go_float(text: &str) -> Option<f64> {
+pub(crate) fn parse_ffprobe_float(text: &str) -> Option<f64> {
     if !underscores_ok(text) {
         return None;
     }
@@ -119,14 +119,14 @@ fn at_most_zero(v: f64) -> bool {
 pub fn parse_frame_rate(rational: &str) -> f64 {
     let trimmed = rational.trim();
     let Some((num_text, den_text)) = trimmed.split_once('/') else {
-        return match parse_go_float(trimmed) {
+        return match parse_ffprobe_float(trimmed) {
             Some(value) if !at_most_zero(value) => value,
             _ => 0.0,
         };
     };
     match (
-        parse_go_float(num_text.trim()),
-        parse_go_float(den_text.trim()),
+        parse_ffprobe_float(num_text.trim()),
+        parse_ffprobe_float(den_text.trim()),
     ) {
         (Some(num), Some(den)) if den != 0.0 && !at_most_zero(num) => num / den,
         _ => 0.0,
@@ -223,7 +223,7 @@ pub fn parse_video_specs(file: &str, out: &[u8]) -> Result<VideoSpecs, Error> {
     }
 
     let first = &mut streams[0];
-    first.duration_float = parse_go_float(&first.duration)
+    first.duration_float = parse_ffprobe_float(&first.duration)
         .ok_or_else(|| plain(format!("invalid duration value '{}'", first.duration)))?;
 
     if first.bitrate.is_empty() {

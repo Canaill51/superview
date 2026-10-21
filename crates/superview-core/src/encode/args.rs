@@ -1,8 +1,8 @@
 //! The ffmpeg argument list of one encode, from the bitrate validation to the preset mapping.
 //!
-//! Every argument and its order are the recorded ones: `tests/fixtures/parity/encode_args.json`
+//! Every argument and its order are the recorded ones: `tests/fixtures/recorded/encode_args.json`
 //! pins the full argv of `build_encode_base_args` over 237 cases
-//! (`tests/parity_encode_args.rs`), and a different argv is a defect.
+//! (`tests/recorded_encode_args.rs`), and a different argv is a defect.
 //!
 //! Design notes:
 //! - `requested_encoder_threads` and `effective_encoder_threads` take the logical core
@@ -216,7 +216,7 @@ pub fn encoder_thread_args(encoder: &str, threads: i64) -> Vec<String> {
 /// The argument list of one encode, up to and including the audio and filter options.
 #[allow(
     clippy::too_many_arguments,
-    reason = "a 1:1 port of the Go signature; the parity matrix drives every parameter"
+    reason = "the recorded matrix drives every parameter"
 )]
 pub fn build_encode_base_args(
     video: &VideoSpecs,

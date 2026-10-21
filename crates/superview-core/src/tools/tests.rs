@@ -676,7 +676,7 @@ fn check_ffmpeg_reads_a_healthy_stand_in() {
     assert_eq!(got["version"], "9.9");
     assert_eq!(got["accels"], "cuda");
     assert_eq!(got["encoders"], "libx264");
-    assert_eq!(got.len(), 3, "the map keys are the Go ones: {got:?}");
+    assert_eq!(got.len(), 3, "the map keys are the recorded ones: {got:?}");
 }
 
 // "-encoders fails" and

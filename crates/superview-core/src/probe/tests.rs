@@ -482,7 +482,7 @@ fn summarizes_a_failure_in_one_line() {
 // The constants are the measured ones (v0.2.9), spelled out rather than read
 // back from the code they govern.
 #[test]
-fn the_constants_are_gos() {
+fn the_constants_are_v0_2_9s() {
     assert_eq!(PROBE_TIMEOUT, Duration::from_secs(15));
     assert_eq!(PROBE_FRAME_SIZE, "256x256");
     assert_eq!(PROBE_REASON_LINES, 3);
@@ -513,7 +513,7 @@ fn crlf_lines_leave_no_carriage_return() {
 
 // Durations print like "1.5s" after rounding to a millisecond.
 #[test]
-fn durations_read_like_go_after_rounding_to_a_millisecond() {
+fn durations_print_in_h_m_s_after_rounding_to_a_millisecond() {
     let ms = Duration::from_millis;
     assert_eq!(format_duration(Duration::from_micros(499)), "0s");
     assert_eq!(format_duration(Duration::from_micros(500)), "1ms");

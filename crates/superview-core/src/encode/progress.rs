@@ -2,10 +2,10 @@
 //!
 //! Design notes (exhaustive):
 //! - The line is a `&str`; a line that is not UTF-8 never reaches here.
-//! - The number is read by `parse_go_float` (`video.rs`), which follows the rules of Go's
+//! - The number is read by `parse_ffprobe_float` (`video.rs`), which follows the rules of Go's
 //!   `strconv.ParseFloat` that the fixtures recorded: `1e3`, `+5`, `inf` and `nan` are
 //!   values. Hexadecimal floats are not read, ffmpeg never prints them (see
-//!   `parse_go_float`).
+//!   `parse_ffprobe_float`).
 //! - The logs are `log` records with `key=value` text, and the `error` text of an unreadable
 //!   value is always `invalid syntax` (v0.2.9 logged Go's own `strconv.ParseFloat` message,
 //!   or `value out of range` for `1e999`); the classification is the same, a warning and the
@@ -16,7 +16,7 @@
 
 use log::{Level, Log, Record};
 
-use crate::video::parse_go_float;
+use crate::video::parse_ffprobe_float;
 
 const KEY: &str = "out_time_ms=";
 
@@ -53,7 +53,7 @@ pub fn parse_progress_line(line: &str) -> ProgressLine {
     if raw.eq_ignore_ascii_case("N/A") {
         return ProgressLine::NotYetAvailable;
     }
-    match parse_go_float(raw) {
+    match parse_ffprobe_float(raw) {
         Some(value) => ProgressLine::Value(value),
         None => ProgressLine::Unparsable(raw.to_string()),
     }
