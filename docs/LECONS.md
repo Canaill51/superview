@@ -1255,8 +1255,9 @@ ligne, l'outil écrit dans un tube fermé et sort avec un code non nul. Sous bas
 l'étape Linux n'a passé que parce que la sortie de `-version` tient dans ce tampon.
 → **Capturer toute la sortie avant d'en garder la première ligne** (`$out = & outil -version`, puis
 `$out[0]` ; sous bash, vers un fichier, puis `head -n 1 fichier`), et tester le code de sortie sur la
-commande elle-même. Contrôle : `go test ./cmd/superview -run TestWorkflows_DoNotCut`
-(`cmd/superview/workflow_pipes_test.go`) refuse ce motif dans `.github/workflows/*.yml` ; contre-preuve faite en
+commande elle-même. Contrôle : le test `workflows_do_not_cut_a_tools_output_short`
+(`rust/crates/superview-app/src/repo_guards.rs`, repris du test Go `cmd/superview/workflow_pipes_test.go`
+retiré avec Go, DEC-49) refuse ce motif dans `.github/workflows/*.yml` ; contre-preuve faite en
 le réintroduisant dans `release.yml`. Trouvé par l'essai à blanc de la release (L-114), qui a donc payé.
 
 ### L-116 — Deux encodages multi-fil du même clip ne donnent pas les mêmes images — 2026-10-17
@@ -1272,6 +1273,16 @@ sous `taskset -c 0`, ce qui ramène `available_parallelism` à 1) : libx264 devi
 conclure à une régression d'un seul écart d'empreinte avant d'avoir lancé la même commande deux fois.
 Limite connue : un PSNR ne voit pas un débit faux sur un clip court qui sature (1 Mbit/s contre
 2 Mbit/s donne 63 dB). Prolonge L-36 (ne pas figer une empreinte qui dépend d'un outil externe).
+
+### L-117 — Un test ne modifie pas l'environnement du processus : on le passe en paramètre — 2026-10-21
+Les tests d'un crate Rust tournent en parallèle dans **un seul** processus. Un test qui pose une variable
+(`std::env::set_var`, `unsafe` depuis l'édition 2024) change ce que voient tous les autres : un résultat
+qui dépend de l'ordre d'exécution, vert sur une machine et rouge sur une autre. C'est la même famille
+que le global de configuration, interdit par `AGENTS.md` : une dépendance cachée rend le test dépendant de la machine.
+→ **Toute fonction qui lit l'environnement le reçoit en paramètre** (`&dyn Fn(&str) -> Option<String>`) ;
+le code de production lui passe le vrai (`ToolResolver`, `user_config_dir` dans `superview-core`), le test lui
+passe un dictionnaire. Aucun test ne touche `std::env::set_var`. La règle est dans `AGENTS.md`
+(« The Rust workspace »).
 
 ## 3. Corrections appliquées
 
@@ -1316,3 +1327,4 @@ Limite connue : un PSNR ne voit pas un débit faux sur un clip court qui sature 
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée** (#90) : garde-fou mémoire à +4 % par fil au-delà de 4 (DEC-37) ; pas de télémétrie GoPro (DEC-38). Leçon L-113. |
 | 2026-10-14 | **Essai à blanc de la release** après le déplacement vers `cmd/` (#92) : Windows vert ; Linux rouge à l'étape ajoutée par #82 (pas de ffmpeg dans le `PATH`), sans lien avec le déplacement. Leçon L-114. |
 | 2026-10-14 | **Docs alignées sur le gabarit** (DEC-39, DEC-40) : le § 3 devient [CORRECTIONS.md](CORRECTIONS.md) (texte inchangé, les nouvelles entrées vont là-bas) ; index [PIEGES.md](PIEGES.md) ; chemins `internal/common/` et `cmd/superview/`. |
+| 2026-10-21 | **Docs remises d'aplomb après la 14ᵉ passe** : L-115 pointe le garde Rust (`repo_guards.rs`) et non plus le test Go retiré ; leçon L-117 (environnement injecté, que `AGENTS.md` citait sous un mauvais numéro). |

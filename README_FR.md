@@ -180,7 +180,7 @@ dossier qui contient les deux — il l'emporte sur la copie embarquée et sur le
 
 **`not enough memory for this conversion`** est Superview qui refuse de démarrer
 ce que la machine ne peut pas tenir. Un encodage sur processeur demande environ
-0,27 Go de mémoire par mégapixel de l'image **de sortie**, et 0,43 Go quand la
+0,27 Go de mémoire par mégapixel de l'image **de sortie**, et 0,42 Go quand la
 source est en 10 bits — un clip 4K en 4:3 s'élargit en 5120×2880, soit environ
 6 Go. Le message cite les deux chiffres. Fermez d'autres applications,
 convertissez une vidéo comptant moins de pixels, ou choisissez un encodeur
@@ -265,7 +265,7 @@ Superview cherche `superview.yaml` dans cet ordre, et utilise le premier fichier
 trouvé :
 
 1. à côté de l'exécutable
-2. `~/.config/superview/superview.yaml` (Linux) ou `%AppData%\superview\superview.yaml` (Windows)
+2. `$XDG_CONFIG_HOME/superview/superview.yaml`, ou `~/.config/superview/superview.yaml` si cette variable n'est pas définie (Linux), ou `%AppData%\superview\superview.yaml` (Windows)
 3. le répertoire de travail courant
 
 Si aucun n'existe, les valeurs par défaut internes s'appliquent. Voici le

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Vérifications Rust de Superview (port en cours, DEC-43) : format + clippy + tests.
-# Recette de AGENTS.md § « Rust ». Option --fast : sans les tests.
+# Vérifications Rust de Superview : format + clippy + tests.
+# Recette de AGENTS.md § « Verifying a change ». Option --fast : sans les tests.
 # À exécuter depuis la racine du projet (scripts/check.sh s'en charge).
 set -euo pipefail
 

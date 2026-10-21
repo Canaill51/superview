@@ -20,5 +20,5 @@ puis `$out | Select-Object -First 1` (Windows) ; vers un fichier puis `head -n 1
 Voir `.github/workflows/release.yml`, étapes « The installer must install… » et « The AppImage must carry… ».
 
 ## Prévention
-- [x] Test ajouté : `cmd/superview/workflow_pipes_test.go` (`TestWorkflows_DoNotCutAToolsOutputShort`) — rouge si le motif réapparaît dans `.github/workflows/*.yml` (contre-preuve faite)
+- [x] Test ajouté : `workflows_do_not_cut_a_tools_output_short` dans `rust/crates/superview-app/src/repo_guards.rs` (d'abord `cmd/superview/workflow_pipes_test.go`, retiré avec Go, DEC-49) — rouge si le motif réapparaît dans `.github/workflows/*.yml` (contre-preuve faite)
 - [x] Leçon L-115 dans `docs/LECONS.md` § 2, ligne dans `docs/PIEGES.md`

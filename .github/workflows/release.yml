@@ -223,7 +223,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # The FFmpeg shipped inside the Windows archive.
+      # The FFmpeg shipped inside the Windows installer.
       #
       # 8.1.1 rather than 8.1.2, and the reason is the whole point of bundling.
       # The NVENC driver floor is fixed when FFmpeg is compiled, by the

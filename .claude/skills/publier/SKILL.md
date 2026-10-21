@@ -28,7 +28,7 @@ resolves to the parent without it.
    lands after the release is not in it. Ask whether to wait.
 3. **`master` is green.**
    `gh run list --repo Canaill51/superview --branch master --limit 5 --json workflowName,conclusion,headSha`
-   — the latest `Test` / `Lint` runs on the current `origin/master` commit must be
+   — the latest `Rust` and `Lint & Code Quality` runs on the current `origin/master` commit must be
    successes.
 4. **The release workflow has been tried since its last change (L-114).**
    `git log -1 --format=%H -- .github/workflows/release.yml packaging` gives the
@@ -41,7 +41,7 @@ resolves to the parent without it.
 
 1. `gh release list --repo Canaill51/superview --limit 3` gives the latest.
 2. If the user named a version, use it. Otherwise **propose** the next patch
-   (`0.2.8` → `0.2.9`) and say why (new minor or major only if the user says so).
+   (`0.3.0` → `0.3.1`) and say why (new minor or major only if the user says so).
    Never choose it silently.
 3. It must be `x.y.z` with nothing else, and the tag must not exist already
    (`gh release list` and `gh api repos/Canaill51/superview/git/matching-refs/tags/v<version>`).
@@ -72,8 +72,9 @@ gh workflow run release.yml --repo Canaill51/superview --ref master -f version=<
    and stop. The tag is only created after both platforms build, so a failed run
    has not spent the version number. Do not rerun blindly.
 3. On success, `gh release view v<version> --repo Canaill51/superview --json assets,isDraft,url`
-   must list **exactly** `superview-v<version>-windows-x86_64-setup.exe`,
-   `superview-v<version>-linux-x86_64.AppImage` and `checksums.txt`, and
+   (`RC-<version>` for a release candidate) must list **exactly**
+   `superview-<tag>-windows-x86_64-setup.exe`,
+   `superview-<tag>-linux-x86_64.AppImage` and `checksums.txt`, and
    `isDraft` must match what was asked.
 4. Report the release URL and the three files. Say plainly what was **not** checked:
    the published binary on a real Windows machine, and any GPU encoder

@@ -47,7 +47,7 @@ The body of a published release is:
 
 1. the download list and the `sha256sum -c checksums.txt` line, written by the run;
 2. **Changes** — one entry per pull request merged since the previous release;
-3. **Dependencies** — the Dependabot bumps, kept separate so a week of daily
+3. **Dependencies** — the Dependabot bumps, kept separate so a week of
    `cargo` updates cannot bury the rest;
 4. a **Full Changelog** compare link.
 
@@ -222,7 +222,7 @@ not see these, which move only when someone edits the file:
 
 | Pin | Where |
 | --- | --- |
-| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2) | `test` job of `.github/workflows/release.yml` and `rust-coverage-audit` of `rust.yml`, `cargo install --locked --version` — keep both identical |
+| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2), `cargo-deny` (0.20.2) | `test` job of `.github/workflows/release.yml` and `rust-coverage-audit` of `rust.yml`, `cargo install --locked --version` — keep both identical |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `rust.yml`, `rust-windows` — keep both identical |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Linux (BtbN n8.1.2) | `release.yml`, `build-gui-linux` |
 

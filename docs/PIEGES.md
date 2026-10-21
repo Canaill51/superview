@@ -7,7 +7,7 @@
 > Le modèle `docs/pieges/_modele.md` sert aux pièges qui méritent un fichier à eux.
 > Les pièges valables pour TOUS les projets vont aussi dans `~/.claude/pieges/`.
 >
-> Ce fichier n'est volontairement **pas** importé dans `CLAUDE.md` : 114 lignes à chaque
+> Ce fichier n'est volontairement **pas** importé dans `CLAUDE.md` : plus de cent lignes à chaque
 > session pour un index qu'on consulte par mot-clé (DEC-40).
 
 > Les lignes marquées *(historique, Go retiré)* parlent de Go, de Fyne ou de leurs outils (DEC-49) : la leçon est gardée
@@ -131,3 +131,4 @@
 | 2026-10-14 | L-114 | Une étape ajoutée à `release.yml` n'est pas vérifiée tant qu'un essai à blanc ne l'a pas fait tourner |
 | 2026-10-14 | L-115 | Couper la sortie d'un outil dans un tube (`\| head`, `\| Select-Object -First 1`) le fait échouer |
 | 2026-10-17 | L-116 | Deux encodages multi-fil du même clip ne donnent pas les mêmes images |
+| 2026-10-21 | L-117 | Un test ne modifie pas l'environnement du processus : on le passe en paramètre |

@@ -22,7 +22,7 @@ build:
 test:
 	cd rust && SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
 
-# Needs cargo-llvm-cov and cargo-audit (cargo install --locked …); versions: rust.yml.
+# Needs cargo-llvm-cov, cargo-audit and cargo-deny (cargo install --locked …); versions: rust.yml.
 coverage-audit:
 	cd rust && SUPERVIEW_REQUIRE_FFMPEG=1 cargo llvm-cov --workspace --locked --fail-under-lines 50
 	cd rust && cargo audit

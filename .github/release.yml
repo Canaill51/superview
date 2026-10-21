@@ -21,7 +21,7 @@ changelog:
         labels:
           - dependencies
 
-    # Dependabot, kept last: gomod runs daily, so on a long release these would
+    # Dependabot, kept last: the weekly cargo updates add up, so on a long release these would
     # otherwise outnumber and bury the work worth reading about.
     - title: Dependencies
       labels:

@@ -38,7 +38,7 @@ Un workspace Cargo sous `rust/`, trois crates :
 | `pipeline` | `perform_encoding` : validations, fichier de travail, métriques ; le trait `PipelineUi` et les services sont injectés |
 | `session` | `EncodingSession` : dossier temporaire isolé, supprimé au `Drop` |
 | `output`, `disk`, `memory` | sortie ≠ entrée et fichier partiel, espace libre (`fs4`), garde-fou mémoire (lecture injectée) |
-| `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal plafonné à 5 Mio |
+| `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal à plafond injecté (5 Mio, fixé par `superview-app`) |
 
 ### `superview-app`
 | Fichier | Rôle |
@@ -82,7 +82,7 @@ dossier temporaire.
 | rfd (portail xdg, sans GTK) | sélecteurs de fichiers ; charge `libdbus` à l'exécution | DEC-43 |
 | `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
 | `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
-| Rust (rustup, `rust/rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov` et `cargo audit` pour le contrôle de couverture | `docs/ENVIRONNEMENT.md` |
+| Rust (rustup, `rust/rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/ENVIRONNEMENT.md` |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)

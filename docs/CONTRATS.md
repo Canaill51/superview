@@ -23,7 +23,7 @@
 | 1quater | `superview-core/tests/fixtures/ffprobe/` et `fixtures/parity/` | Sorties ffprobe enregistrées (la forme exacte de la seule entrée que le programme ne produit pas lui-même) et oracle de parité (`decisions.json`, `encode_args.json`, `memory.json`, `pgm.json`, `probe_args.json`, `specs.json`). Enregistrés sur le code Go, **gelés** (DEC-49). | fait foi |
 | 2 | `rust/Cargo.toml`, `rust/Cargo.lock`, `rust/rust-toolchain.toml` | Versions exactes (Slint et `i-slint-backend-testing` en `=`) avant toute modification d'API. | fait foi |
 | 3 | `scripts/checks/rust.sh` | Ce que le pre-commit exige : `cargo fmt --check`, `cargo clippy -D warnings`, tests avec `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
-| 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `rust.yml` (Linux, Windows, et *Rust coverage and audit* = seuil de 50 % de lignes + `cargo audit`), `lint.yml` (parité des README). | fait foi |
+| 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `rust.yml` (Linux, Windows, et *Rust coverage and audit* = seuil de 50 % de lignes + `cargo audit` + `cargo deny` sur les avis et les licences), `lint.yml` (parité des README). | fait foi |
 | 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
 | 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Le fichier livré et le défaut interne (`Config::default`) concordent (`performance_mode: safe_performance`, DEC-33) ; garder les deux alignés. |  |
@@ -75,7 +75,7 @@ cargo fmt --all --check          # doit ne rien afficher — la CI échoue sinon
 cargo clippy --workspace --all-targets --locked -- -D warnings
 SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
 
-make coverage-audit              # seuil 50 % de lignes (cargo llvm-cov) puis cargo audit
+make coverage-audit              # seuil 50 % de lignes (cargo llvm-cov), cargo audit puis cargo deny
 ```
 
 C'est ce que la CI exécute, et rien de plus : un outil lancé à côté de la configuration finit par

@@ -157,7 +157,7 @@ bundled copy and over `PATH`.
 
 **`not enough memory for this conversion`** is Superview declining to start
 something the machine cannot hold. Encoding on the CPU needs roughly 0.27 GB of
-memory per megapixel of the *output* frame, and 0.43 GB when the source is
+memory per megapixel of the *output* frame, and 0.42 GB when the source is
 10-bit — a 4:3 4K clip widens to 5120×2880, which is about 6 GB. The message
 quotes both figures. Close other applications, convert a video with fewer
 pixels, or pick a hardware encoder in the codec dropdown if *Diagnostic* says
@@ -234,7 +234,7 @@ belongs to the FFmpeg build rather than to FFmpeg:
 Superview looks for `superview.yaml` in this order, and uses the first file it finds:
 
 1. next to the executable
-2. `~/.config/superview/superview.yaml` (Linux) or `%AppData%\superview\superview.yaml` (Windows)
+2. `$XDG_CONFIG_HOME/superview/superview.yaml`, or `~/.config/superview/superview.yaml` when that variable is not set (Linux), or `%AppData%\superview\superview.yaml` (Windows)
 3. the current working directory
 
 If none exists, built-in defaults apply. This is the `superview.yaml` shipped with
