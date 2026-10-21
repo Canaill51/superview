@@ -108,6 +108,7 @@ pub struct ViewModel {
     picking: [bool; CONTROL_COUNT],
     /// The progress bar, 0 to 1.
     pub progress: f64,
+    pub bar: BarState,
     /// "Fast" or "Balanced".
     pub quality: String,
     /// The "source already stretched" box.
@@ -131,6 +132,7 @@ impl Default for ViewModel {
             enabled: [true; CONTROL_COUNT],
             picking: [false; CONTROL_COUNT],
             progress: 0.0,
+            bar: BarState::Idle,
             quality: prefs::DEFAULT_QUALITY_PROFILE.into(),
             squeeze: false,
             theme: prefs::DEFAULT_THEME.into(),
@@ -348,6 +350,17 @@ pub enum ChosenOutcome {
     Ignored,
     /// The file is refused; the text is for an error dialog. The status says so.
     Rejected(String),
+}
+
+/// What the progress bar says by its colour (DEC-58): the accent at rest, red while a conversion
+/// goes, green once it is done, grey when it was stopped or failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BarState {
+    #[default]
+    Idle,
+    Running,
+    Done,
+    Stopped,
 }
 
 /// What the window must show once a conversion ends (the dialog, if any).
@@ -631,6 +644,8 @@ impl AppState {
             }
             Ok(video) => {
                 self.view.input_name = base_name(&video.file);
+                self.view.bar = BarState::Idle;
+                self.view.progress = 0.0;
                 self.set_input(video);
                 self.verify_hardware_in_background();
                 self.view.status = "Status: Input loaded".into();
@@ -761,6 +776,7 @@ impl AppState {
         self.view.set_enabled(locked(), !in_progress);
         if in_progress {
             self.view.progress = 0.0;
+            self.view.bar = BarState::Running;
             self.view.start_enabled = false;
             self.view.cancel_enabled = true;
             return;
@@ -853,16 +869,19 @@ impl AppState {
                     &format_results_panel(Some(&outcome.metrics)),
                 );
                 self.view.progress = 1.0;
+                self.view.bar = BarState::Done;
                 Completion::Succeeded {
                     message: format!("Transform complete. Output file:\n{output}"),
                 }
             }
             Err(err) if matches!(root_cause(&err), Error::Cancelled) => {
                 // The user asked for this: nothing to report, and certainly not an error.
+                self.view.bar = BarState::Stopped;
                 self.set_status_and_results("Status: Cancelled", "Results: last run cancelled");
                 Completion::Cancelled
             }
             Err(err) => {
+                self.view.bar = BarState::Stopped;
                 self.set_status_and_results("Status: Failed", "Results: last run failed");
                 Completion::Failed {
                     missing_ffmpeg: is_missing_ffmpeg_error(&err),
@@ -897,6 +916,7 @@ impl AppState {
             return false;
         }
         self.cancelling = true;
+        self.view.bar = BarState::Stopped;
         self.view.status = "Status: Cancelling...".into();
         true
     }

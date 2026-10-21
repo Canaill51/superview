@@ -132,6 +132,7 @@ pub fn run() {
     a_popup_blocks_the_window_behind_it();
     the_theme_menu_switches_the_colours();
     an_active_button_answers_the_first_mouse_click();
+    the_bar_changes_colour_with_its_state();
 }
 
 fn every_label_is_present() {
@@ -391,6 +392,43 @@ fn the_form_follows_the_host_after_the_user_chose() {
     assert_eq!(selectors[1].accessible_value().as_deref(), Some("libx264"));
     window.set_quality("Fast".into());
     assert_eq!(selectors[0].accessible_value().as_deref(), Some("Fast"));
+}
+
+/// The bar is red while a conversion goes and green once it is done, and the two differ from
+/// each other and from the idle and stopped ones (a bar that kept one colour would pass a
+/// check of one state alone).
+fn the_bar_changes_colour_with_its_state() {
+    use super::BarState;
+    let window = shown();
+    let mut seen = Vec::new();
+    for state in [
+        BarState::Idle,
+        BarState::Running,
+        BarState::Done,
+        BarState::Stopped,
+    ] {
+        window.set_bar_state(state);
+        seen.push(window.get_bar_fill());
+    }
+    for (i, a) in seen.iter().enumerate() {
+        for b in &seen[i + 1..] {
+            assert_ne!(a, b, "two bar states share a colour");
+        }
+    }
+    // A screen reader reads the bar's figure, as it read Slint's own indicator.
+    window.set_progress(0.25);
+    let bars: Vec<_> = ElementHandle::find_by_element_type_name(&window, "ProgressBar").collect();
+    assert_eq!(bars.len(), 1);
+    assert_eq!(
+        bars[0].accessible_role(),
+        Some(AccessibleRole::ProgressIndicator)
+    );
+    assert_eq!(bars[0].accessible_value().as_deref(), Some("0.25"));
+    let theme = window.global::<Theme>();
+    window.set_bar_state(BarState::Running);
+    assert_eq!(window.get_bar_fill(), theme.get_running());
+    window.set_bar_state(BarState::Done);
+    assert_eq!(window.get_bar_fill(), theme.get_done());
 }
 
 /// A press on an enabled button is a click the first time: a focus scope over the button took

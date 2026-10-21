@@ -618,6 +618,7 @@ fn an_input_is_chosen_and_read_off_the_ui_thread() {
     r.ready();
     r.pick_input_and_wait("clip.mp4");
     assert_eq!(r.status(), "Status: Input loaded");
+    assert_eq!(r.window.get_bar_state(), crate::BarState::Idle);
     assert!(r.window.get_open_enabled(), "the button must come back");
     let threads = lock(&r.engine.check_video_threads).clone();
     assert_eq!(threads.len(), 1, "ffprobe ran {} times", threads.len());
@@ -786,6 +787,7 @@ fn a_conversion_runs_and_then_another() {
     assert!((r.window.get_progress() - 0.4).abs() < 0.001);
     assert!(r.window.get_cancel_enabled());
     assert!(!r.window.get_start_enabled());
+    assert_eq!(r.window.get_bar_state(), crate::BarState::Running);
     for locked in ["Choose input file", "Choose output file", "Diagnostic"] {
         assert!(
             !r.enabled(locked),
@@ -803,6 +805,7 @@ fn a_conversion_runs_and_then_another() {
     );
     assert_eq!(r.status(), "Status: Completed");
     assert!((r.window.get_progress() - 1.0).abs() < 0.001);
+    assert_eq!(r.window.get_bar_state(), crate::BarState::Done);
     assert_eq!(r.window.get_hardware(), "Hardware: the CPU did it");
     assert!(r.window.get_results().starts_with("Results:"));
     assert!(!r.window.get_cancel_enabled());
@@ -854,6 +857,7 @@ fn cancel_stops_a_conversion_at_once() {
         w.get_status() == "Status: Cancelled"
     });
     assert_eq!(r.window.get_results(), "Results: last run cancelled");
+    assert_eq!(r.window.get_bar_state(), crate::BarState::Stopped);
     assert_eq!(r.popup(), Popup::None, "a cancel is not an error");
     assert_eq!(
         r.window.get_hardware(),
@@ -945,6 +949,7 @@ fn a_panicking_encoder_does_not_freeze_the_window() {
     );
     assert_eq!(r.status(), "Status: Failed");
     assert_eq!(r.window.get_results(), "Results: last run failed");
+    assert_eq!(r.window.get_bar_state(), crate::BarState::Stopped);
     assert!(!r.window.get_cancel_enabled(), "the window is still locked");
     assert!(r.window.get_open_enabled());
     assert!(r.window.get_start_enabled());

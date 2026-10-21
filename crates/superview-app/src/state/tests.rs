@@ -1401,3 +1401,48 @@ fn done_wait_returns_false_on_timeout_and_true_once_released() {
     assert!(waiter.join().expect("waiter"));
     assert!(done.wait(Duration::ZERO));
 }
+
+// ---- the colour of the progress bar (DEC-58) ----
+
+#[test]
+fn the_bar_is_idle_until_a_conversion_starts_and_running_while_it_goes() {
+    let mut state = fixture();
+    assert_eq!(state.view.bar, BarState::Idle);
+    state.begin_encoding();
+    assert_eq!(state.view.bar, BarState::Running);
+}
+
+#[test]
+fn the_bar_turns_done_on_success() {
+    let mut state = running(true);
+    state.complete_encoding(Ok(outcome("Hardware: x")), "out.mp4");
+    assert_eq!(state.view.bar, BarState::Done);
+}
+
+#[test]
+fn the_bar_is_stopped_after_a_cancel_request_a_cancellation_and_a_failure() {
+    let mut state = running(true);
+    state.request_cancel();
+    assert_eq!(state.view.bar, BarState::Stopped, "at the Cancel press");
+
+    let mut state = running(true);
+    state.complete_encoding(Err(Error::Cancelled), "out.mp4");
+    assert_eq!(state.view.bar, BarState::Stopped, "after a cancellation");
+
+    let mut state = running(true);
+    state.complete_encoding(Err(Error::Plain("boom".into())), "out.mp4");
+    assert_eq!(state.view.bar, BarState::Stopped, "after a failure");
+}
+
+#[test]
+fn a_new_input_resets_the_bar() {
+    let mut state = running(true);
+    state.complete_encoding(Ok(outcome("Hardware: x")), "out.mp4");
+    assert_eq!(state.view.bar, BarState::Done);
+    state.apply_chosen_input(Path::new("clip.mp4"), |_| Ok(test_video()));
+    assert_eq!(state.view.bar, BarState::Idle);
+    assert!(
+        state.view.progress.abs() < f64::EPSILON,
+        "the bar kept its fill"
+    );
+}

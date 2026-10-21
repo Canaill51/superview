@@ -91,6 +91,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-55](#dec-55) | Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas | Acceptée (amende DEC-49) |
 | [DEC-56](#dec-56) | La fenêtre est fixe, 860×332, avec un panneau de conversion à droite | Acceptée (remplace DEC-54) |
 | [DEC-57](#dec-57) | Menu Theme (Light / Dark, sombre par défaut) et accent cyan par un global `Theme` | Acceptée (remplace le thème sombre forcé de DEC-32) |
+| [DEC-58](#dec-58) | La barre de progression est rouge en cours, verte à la fin, grise si arrêtée, et glisse vers sa valeur | Acceptée |
 
 ---
 
@@ -590,3 +591,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `ui/theme.slint` : un global `Theme` (`name` = « Light » ou « Dark », `dark` en dérive, puis fond, panneau, surface, bordure, texte, texte atténué, accent, couleur sur accent, rouge « en cours », vert « terminé », erreur, voile des popups), avec les deux jeux de la planche. `ui/components.slint` : `AppButton` (normal ou primaire, rôle accessible bouton, Entrée et Espace, anneau de focus) et `Card`, qui remplacent `Button` et le rectangle du panneau. `main.slint` recopie le choix dans `Theme.name` et dans `Palette.color-scheme` (les menus, champs et barres de défilement de Slint suivent le thème, sans l'accent) ; le menu **Theme** est dans l'en-tête. La préférence `theme` de `preferences.json` vaut « Dark » par défaut, une valeur inconnue y revient (`sanitized`) et un ancien fichier sans la clé reste lisible. Le bouton accessible d'`AppButton` ne regarde pas `enabled`, comme le `Button` de Slint (des scénarios de `app_tests.rs` appuient sur un bouton derrière un popup par cette voie) ; la souris et le clavier, eux, le respectent.
 **Conséquences** — Les widgets que Slint dessine (ComboBox, CheckBox, ProgressIndicator) gardent son style et non l'accent cyan : le décalage est visible sur capture. La barre est reprise en PR 3 ; les menus le seront dans une PR dédiée si le décalage gêne. Le `changed theme` de la fenêtre s'exécute au tour suivant de la boucle d'événements : un thème écrit par l'hôte n'est donc visible qu'après ce tour (le test le fait avancer par `drive(async {})`).
 **À rouvrir si** — Le décalage des widgets Slint gêne, ou un thème de plus est demandé (alors une liste de jeux, pas un troisième booléen).
+
+### DEC-58
+**La barre de progression est rouge en cours, verte à la fin, grise si arrêtée, et glisse vers sa valeur.**
+2026-10-21 · Acceptée · refonte de l'interface, PR 3 · demande de l'utilisateur
+
+**Contexte** — Le `ProgressIndicator` de Slint a un seul aspect et avance par à-coups à chaque rapport d'ffmpeg.
+**Décision** — `BarState { Idle, Running, Done, Stopped }` dans `ViewModel` (`state.rs`), fixé là où l'état change déjà : `set_encoding(true)` → Running, succès → Done, annulation, échec et demande d'annulation → Stopped, nouveau fichier d'entrée → Idle (et remise à zéro ; le choix d'un fichier de sortie ne touche pas la barre). `app.rs` le pousse à la fenêtre (`bar-state`). `ProgressBar` (`components.slint`) remplace `ProgressIndicator` : couleur d'accent au repos, `Theme.running` en cours, `Theme.done` à la fin, `Theme.text-muted` si arrêtée ; la largeur du remplissage glisse en 400 ms (`ease-out`) seulement en Running et au-dessus de 0, donc la remise à zéro d'un départ ou l'arrivée à 100 % ne s'animent pas. Les textes ne changent pas.
+**Conséquences** — Le lissage ne se prouve pas par le backend de test (pas d'horloge d'animation utilisée ici) : il se juge à la main sur une vraie conversion. Les couleurs et chaque transition sont testées. La barre garde le rôle `progress-indicator` et sa valeur (0 à 1), comme celle de Slint ; un test les lit.
+**À rouvrir si** — Le rouge « en cours » est pris pour une erreur par des utilisateurs (alors accent en cours, vert à la fin), ou si une barre verte et pleine après le choix d'un autre fichier de sortie gêne (alors remise à zéro aussi dans `apply_chosen_output`).
