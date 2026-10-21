@@ -17,11 +17,11 @@
 
 | # | Source | Quand la consulter | Fiabilité |
 | --- | --- | --- | --- |
-| 1 | tests unitaires (`#[cfg(test)]`) à côté du code, dans `rust/crates/*/src/` | **Avant de modifier une fonction** : le test décrit le contrat attendu. | fait foi |
-| 1bis | `rust/crates/superview-core/tests/pgm_golden.rs` | **Avant de toucher à `generate_pgm`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | fait foi |
+| 1 | tests unitaires (`#[cfg(test)]`) à côté du code, dans `crates/*/src/` | **Avant de modifier une fonction** : le test décrit le contrat attendu. | fait foi |
+| 1bis | `crates/superview-core/tests/pgm_golden.rs` | **Avant de toucher à `generate_pgm`** : empreintes SHA-256 figeant la sortie exacte de l'algorithme. | fait foi |
 | 1ter | `superview-core/tests/real_ffmpeg.rs` et les tests à vrai ffmpeg de `src/pipeline.rs` | Contrat bout-en-bout avec un vrai FFmpeg (profondeur, pistes, date, annulation). | fait foi |
 | 1quater | `superview-core/tests/fixtures/ffprobe/` et `fixtures/parity/` | Sorties ffprobe enregistrées (la forme exacte de la seule entrée que le programme ne produit pas lui-même) et oracle de parité (`decisions.json`, `encode_args.json`, `memory.json`, `pgm.json`, `probe_args.json`, `specs.json`). Enregistrés sur le code Go, **gelés** (DEC-49). | fait foi |
-| 2 | `rust/Cargo.toml`, `rust/Cargo.lock`, `rust/rust-toolchain.toml` | Versions exactes (Slint et `i-slint-backend-testing` en `=`) avant toute modification d'API. | fait foi |
+| 2 | `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` | Versions exactes (Slint et `i-slint-backend-testing` en `=`) avant toute modification d'API. | fait foi |
 | 3 | `scripts/checks/rust.sh` | Ce que le pre-commit exige : `cargo fmt --check`, `cargo clippy -D warnings`, tests avec `SUPERVIEW_REQUIRE_FFMPEG=1`. | fait foi |
 | 4 | `.github/workflows/*.yml` | Ce qui est réellement vérifié en CI : `rust.yml` (Linux, Windows, et *Rust coverage and audit* = seuil de 50 % de lignes + `cargo audit` + `cargo deny` sur les avis et les licences), `lint.yml` (parité des README). | fait foi |
 | 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
@@ -61,7 +61,7 @@
 2. Lire le test correspondant (module `tests` du fichier, ou `superview-core/tests/`).
 3. Vérifier que le symbole n'est pas du code mort (constats C-01, C-02, C-03, C-06) :
    ```bash
-   grep -rn "nom_du_symbole" --include='*.rs' rust/ | grep -v '/tests/'
+   grep -rn "nom_du_symbole" --include='*.rs' crates/ | grep -v '/tests/'
    ```
    Deux occurrences seulement (déclaration + commentaire) = jamais appelé (`cargo clippy` signale aussi le code mort).
 
@@ -70,7 +70,7 @@
 ```bash
 scripts/check.sh                 # tout : fmt, clippy, tests ; --fast s'arrête avant les tests
 
-# ou porte par porte, depuis rust/ (c'est la recette de la CI)
+# ou porte par porte, depuis la racine (c'est la recette de la CI)
 cargo fmt --all --check          # doit ne rien afficher — la CI échoue sinon
 cargo clippy --workspace --all-targets --locked -- -D warnings
 SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
@@ -84,7 +84,7 @@ la contredire (L-62).
 `SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les tests qui sautent faute d'ffmpeg. Sans elle,
 une suite verte peut n'avoir encodé aucune image ; la CI la positionne pour cette raison.
 
-> Les sorties de couverture (`cargo llvm-cov`) vont sous `rust/target/`, ignoré par git : ne pas
+> Les sorties de couverture (`cargo llvm-cov`) vont sous `target/`, ignoré par git : ne pas
 > écrire de profil à la racine, un fichier généré à la racine reste du bruit.
 
 ### Vérification fonctionnelle réelle
@@ -92,7 +92,7 @@ une suite verte peut n'avoir encodé aucune image ; la CI la positionne pour cet
 Une compilation verte ne prouve pas que la GUI démarre ni que la conversion fonctionne :
 
 ```bash
-cd rust && cargo build -p superview-app --locked
+cargo build -p superview-app --locked
 timeout 12 target/debug/superview            # code 124 = toujours vivant, donc OK
 # sans session graphique : env -u WAYLAND_DISPLAY xvfb-run -a timeout 12 target/debug/superview
 cat ~/.cache/superview/superview.log          # les diagnostics y atterrissent (O-02)

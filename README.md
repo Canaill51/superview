@@ -280,14 +280,14 @@ SUPERVIEW_FFMPEG_DIR=/usr/bin ./superview
 
 ```
 superview/
-├── rust/                       # The Cargo workspace (the shipped product)
-│   ├── crates/superview-core/      # Encoding logic, with no window code
-│   │   └── src/                    # pgm (distortion maps), encode/ (ffmpeg arguments, run, fallback
-│   │                               #   cascade), pipeline, video (ffprobe), tools (finding ffmpeg),
-│   │                               #   hardware + probe (encoder choice), memory, disk, session,
-│   │                               #   health (the Diagnostic), config, security, metrics, logfile
-│   ├── crates/superview-app/       # The window (Slint): state, dialogs, preferences, journal
-│   └── crates/superview-harness/   # A test bench, never shipped
+├── Cargo.toml, Cargo.lock      # The Cargo workspace (the shipped product); rust-toolchain.toml pins the toolchain
+├── crates/superview-core/      # Encoding logic, with no window code
+│   └── src/                    # pgm (distortion maps), encode/ (ffmpeg arguments, run, fallback
+│                               #   cascade), pipeline, video (ffprobe), tools (finding ffmpeg),
+│                               #   hardware + probe (encoder choice), memory, disk, session,
+│                               #   health (the Diagnostic), config, security, metrics, logfile
+├── crates/superview-app/       # The window (Slint): state, dialogs, preferences, journal
+├── crates/superview-harness/   # A test bench, never shipped
 ├── packaging/                  # The Windows installer script and the Linux AppImage script
 ├── scripts/                    # check.sh, the single entry point of verification
 ├── docs/                       # Technical contracts, audit journal, hardware support
@@ -311,7 +311,7 @@ Input → check_video (ffprobe) → session (temporary directory) → PGM maps �
 ## Development
 
 > Superview is written in **Rust**; the compiler version is pinned in
-> `rust/rust-toolchain.toml`, and [rustup](https://rustup.rs) provides it. The window is drawn by Slint's software renderer.
+> `rust-toolchain.toml`, and [rustup](https://rustup.rs) provides it. The window is drawn by Slint's software renderer.
 
 A source build ships no FFmpeg, so a development machine needs one on `PATH`.
 
@@ -359,7 +359,6 @@ C++" workload.
 A source build produces no bundle, so it uses whatever FFmpeg is on `PATH`.
 
 ```bash
-cd rust
 cargo build --release --locked -p superview-app
 ./target/release/superview        # superview.exe on Windows
 ```

@@ -15,4 +15,7 @@ coverage.html
 CLAUDE.local.md
 
 # Rust (port, DEC-43)
-/rust/target/
+/target/
+
+# cargo llvm-cov
+lcov.info

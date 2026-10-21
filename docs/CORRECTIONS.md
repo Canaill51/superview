@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Le workspace Cargo remonte de `rust/` à la racine (plan « traces de Go », PR 1)
+
+| | |
+| --- | --- |
+| **Constat** | `rust/` n'existait que parce que le code Go occupait la racine ; Go retiré (DEC-49), le dossier ne servait plus qu'à allonger chaque chemin et chaque commande |
+| **Cause** | héritage de la cohabitation Go/Rust pendant le port |
+| **Fichiers** | `git mv` de `Cargo.toml`, `Cargo.lock`, `crates/`, `deny.toml`, `rust-toolchain.toml` ; chemins relatifs de `build.rs`, `main.rs`, `repo_guards.rs`, `config/tests.rs` (`../../..` → `../..`) ; `rust.yml` et `release.yml` (`working-directory`, `workspaces`, `target/`, `lcov.info`) ; `dependabot.yml` (`directory: "/"`, sinon les mises à jour cargo s'arrêtaient sans erreur) ; `Makefile`, `scripts/checks/rust.sh`, `build_appimage.sh`, `.gitignore`, docs vivantes (les journaux gardent `rust/`, c'est l'histoire) |
+| **PR** | Move the Cargo workspace from rust/ to the repository root |
+| **Vérification** | `cargo clean` puis `scripts/check.sh` vert (un `target/` déplacé garde les anciens `CARGO_MANIFEST_DIR` : le test de parité ne trouvait plus sa fixture avant le `clean`) ; essai à blanc de `release.yml` à faire AVANT fusion (L-114) |
+
 ### [2026-10-21] La fenêtre reprend sa taille fixe (DEC-54, remplace DEC-51)
 
 | | |

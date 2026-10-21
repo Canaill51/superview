@@ -168,7 +168,7 @@ fn empty_encoder_codecs_fall_back_to_the_defaults() {
 // TestLoadConfig_ShippedFileStillLoads
 #[test]
 fn shipped_file_still_loads() {
-    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../superview.yaml");
+    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../superview.yaml");
     // A missing file loads as defaults: prove the path is right first.
     assert!(shipped.is_file(), "{} not found", shipped.display());
     assert_eq!(load_config(Some(&shipped)).unwrap(), Config::default());

@@ -16,7 +16,7 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
-cd "$(dirname "$0")/../../rust"
+cd "$(dirname "$0")/../.."
 
 echo "==> Format (cargo fmt --check)"
 cargo fmt --all --check

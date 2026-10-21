@@ -34,7 +34,7 @@ command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || echo "ffmpeg/ff
 ## Reconstruire depuis zéro
 
 ```bash
-# 1. Toolchain Rust, sans sudo -- la version exacte est épinglée par rust/rust-toolchain.toml
+# 1. Toolchain Rust, sans sudo -- la version exacte est épinglée par rust-toolchain.toml
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
 sh /tmp/rustup-init.sh -y --profile minimal
 . "$HOME/.cargo/env" && rustup component add rustfmt clippy rust-docs && cargo --version
@@ -88,12 +88,12 @@ cargo install --locked --version 0.20.2 cargo-deny
 ```
 
 `cargo audit` lit la base d'avis la plus récente, qui n'est pas épinglée : un avis publié le matin
-peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans `rust/deny.toml` (`cargo deny` ; `cargo audit` n’a pas de fichier de configuration ici), pas le retrait de l'étape.
+peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans `deny.toml` (`cargo deny` ; `cargo audit` n’a pas de fichier de configuration ici), pas le retrait de l'étape.
 
 ## Lancer la suite comme la CI la lance
 
 ```bash
-cd rust && SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
+SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --workspace --locked
 ```
 
 `SUPERVIEW_REQUIRE_FFMPEG=1` transforme en échec les tests qui sautent faute d'ffmpeg. Sans

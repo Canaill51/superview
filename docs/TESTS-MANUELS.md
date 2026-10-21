@@ -102,7 +102,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       AppImage ne se monte pas sous `bwrap` (FUSE) : lancer avec `APPIMAGE_EXTRACT_AND_RUN=1`.
 - [x] **Test « device frame »** : sur le portable Intel VAAPI, passer
       `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test -p superview-core --test real_ffmpeg -- device_frame`
-      (`rust/crates/superview-core/tests/real_ffmpeg.rs`). Il saute en silence sans GPU : un
+      (`crates/superview-core/tests/real_ffmpeg.rs`). Il saute en silence sans GPU : un
       vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
       ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
@@ -134,7 +134,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 Pour lancer la fenêtre réelle sans écran, il faut **retirer `WAYLAND_DISPLAY`** :
 
 ```bash
-env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1280x800x24" rust/target/debug/superview
+env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1280x800x24" target/debug/superview
 ```
 
 Sans cela, winit vise Wayland (la session de la machine), ne trouve pas son affichage et

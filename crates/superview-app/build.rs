@@ -117,7 +117,7 @@ fn embed_windows_resources() {
         return;
     }
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
-    let icon = manifest.join("../../../packaging/windows/superview.ico");
+    let icon = manifest.join("../../packaging/windows/superview.ico");
     println!("cargo:rerun-if-changed={}", icon.display());
     let raw = std::env::var("SUPERVIEW_VERSION").ok();
     let (text, [major, minor, patch]) = build_support::stamped_version(raw.as_deref())
