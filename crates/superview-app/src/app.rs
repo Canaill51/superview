@@ -52,7 +52,7 @@ use superview_core::video::VideoSpecs;
 
 use crate::dialogs::{Kind, Pick, parse_typed_path};
 use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_start_settings};
-use crate::prefs::{Preferences, QUALITY_PROFILES};
+use crate::prefs::{Preferences, QUALITY_PROFILES, THEMES};
 use crate::report::{Row, RowKind, parse_report};
 use crate::state::{
     AppState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink, ViewModel,
@@ -300,14 +300,19 @@ impl Core {
     }
 }
 
-/// Gives the quality menu its profiles. Before the first `apply_view`: a menu with no entries
-/// empties the choice it is bound to.
+/// Gives the quality and Theme menus their entries. Before the first `apply_view`: a menu with no
+/// entries empties the choice it is bound to.
 pub(crate) fn set_quality_profiles(window: &MainWindow) {
     let profiles: Vec<SharedString> = QUALITY_PROFILES
         .iter()
         .map(|profile| SharedString::from(*profile))
         .collect();
     window.set_quality_profiles(ModelRc::new(VecModel::from(profiles)));
+    let themes: Vec<SharedString> = THEMES
+        .iter()
+        .map(|theme| SharedString::from(*theme))
+        .collect();
+    window.set_theme_options(ModelRc::new(VecModel::from(themes)));
 }
 
 /// Writes the view into the window.
@@ -320,6 +325,7 @@ fn apply_view(window: &MainWindow, view: &ViewModel) {
     window.set_progress(view.progress as f32);
     window.set_quality(view.quality.as_str().into());
     window.set_squeeze(view.squeeze);
+    window.set_theme(view.theme.as_str().into());
     // The list is replaced only when it changed: a new model would close an open dropdown.
     let shown: Vec<String> = window
         .get_encoder_options()
@@ -505,6 +511,10 @@ fn register(core: &Arc<Core>, window: &MainWindow) {
     {
         let core = Arc::clone(core);
         window.on_quality_changed(move |profile| core.state().quality_changed(&profile));
+    }
+    {
+        let core = Arc::clone(core);
+        window.on_theme_changed(move |theme| core.state().theme_changed(&theme));
     }
     {
         let core = Arc::clone(core);

@@ -128,6 +128,9 @@ donnés tels qu'ils apparaissent à l'écran.
 
 ![Capture de l'interface](.github/sample-gui.png)
 
+Le menu **Theme** (thème), en haut, bascule entre **Light** (clair) et **Dark**
+(sombre, par défaut) ; la fenêtre retient votre choix.
+
 **MP4 en entrée, MP4 en sortie.** Les sélecteurs de fichiers ne proposent que du
 MP4, et l'extension de sortie est imposée.
 

@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Menu Theme et palette cyan (DEC-57, refonte de l'interface, PR 2)
+
+| | |
+| --- | --- |
+| **Constat** | thème sombre forcé, couleurs en dur (`#5aa9ff`, `#a8a8a8`, `#ff7070`, voile) dans `main.slint`, aucune couleur d'accent |
+| **Cause** | `Palette` de Slint est en lecture seule : l'accent et le thème clair n'étaient pas réglables sans global propre |
+| **Fichiers** | `ui/theme.slint` et `ui/components.slint` (nouveaux), `ui/main.slint` (menu Theme, `AppButton`, `Card`, couleurs par `Theme`), `src/prefs.rs` (`theme`, `THEMES`), `src/state.rs` (`theme_changed`), `src/app.rs`, `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-57), README.md et README_FR.md |
+| **Règle** | un composant maison garde le rôle et le libellé accessibles du widget qu'il remplace, sinon les tests de fenêtre ne le trouvent plus (le texte interne en `accessible-role: none`, sinon le libellé existe deux fois) ; un nouveau modèle de menu sélectionne son premier élément : fixer le choix après |
+| **Relecture** | le premier clic souris était perdu : un `FocusScope` pleine taille au-dessus du `TouchArea` prenait l'appui pour le focus (corrigé : largeur 0, comme le `Button` de Slint ; `an_active_button_answers_the_first_mouse_click`, rouge avant) ; accent clair foncé à `#0a7385` (contraste ≥ 4,5:1 avec le blanc) ; `Palette.color-scheme` vérifié (`scheme-dark`) ; Entrée ignorée sur un bouton désactivé |
+| **Vérification** | `the_theme_menu_switches_the_colours` rouge sans `Theme.name = root.theme`, `the_theme_defaults_to_dark_and_an_unknown_one_becomes_dark` rouge sans le filtre de `sanitized` (mesuré) ; captures Xvfb en Light et en Dark ; `scripts/check.sh` |
+
 ### [2026-10-21] Fenêtre 860×332 : réglages à gauche, panneau de conversion à droite (DEC-56, étude d'interface, PR 1)
 
 | | |

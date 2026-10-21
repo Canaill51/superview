@@ -1,5 +1,5 @@
-//! The user's three choices, kept between sessions: the quality profile, the codec dropdown
-//! and the "source already stretched" box.
+//! The user's choices, kept between sessions: the quality profile, the codec dropdown,
+//! the "source already stretched" box and the theme.
 //!
 //! A new file (`<user config dir>/superview/preferences.json`), not a reading of what the
 //! earlier window saved: it starts clean (decision of 2026-10-17). Loading never fails:
@@ -19,6 +19,10 @@ pub const FILE_NAME: &str = "preferences.json";
 pub const QUALITY_PROFILES: [&str; 2] = ["Fast", "Balanced"];
 pub const DEFAULT_QUALITY_PROFILE: &str = "Balanced";
 
+/// The themes the Theme menu offers (DEC-57); dark is the default.
+pub const THEMES: [&str; 2] = ["Light", "Dark"];
+pub const DEFAULT_THEME: &str = "Dark";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
@@ -27,6 +31,8 @@ pub struct Preferences {
     /// The codec dropdown's entry, for example "hevc_nvenc encoder"; "" = none saved yet.
     pub encoder_selection: String,
     pub squeeze_source: bool,
+    /// "Light" or "Dark".
+    pub theme: String,
 }
 
 impl Default for Preferences {
@@ -35,15 +41,19 @@ impl Default for Preferences {
             quality_profile: DEFAULT_QUALITY_PROFILE.to_string(),
             encoder_selection: String::new(),
             squeeze_source: false,
+            theme: DEFAULT_THEME.to_string(),
         }
     }
 }
 
 impl Preferences {
-    /// A quality profile the dropdown does not offer becomes the default one.
+    /// A quality profile or a theme the menus do not offer becomes the default one.
     pub(crate) fn sanitized(mut self) -> Self {
         if !QUALITY_PROFILES.contains(&self.quality_profile.as_str()) {
             self.quality_profile = DEFAULT_QUALITY_PROFILE.to_string();
+        }
+        if !THEMES.contains(&self.theme.as_str()) {
+            self.theme = DEFAULT_THEME.to_string();
         }
         self
     }

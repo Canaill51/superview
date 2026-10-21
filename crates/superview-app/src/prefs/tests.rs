@@ -5,6 +5,7 @@ fn sample() -> Preferences {
         quality_profile: "Fast".into(),
         encoder_selection: "hevc_nvenc encoder".into(),
         squeeze_source: true,
+        theme: "Light".into(),
     }
 }
 
@@ -136,4 +137,19 @@ fn the_default_path_is_under_the_injected_user_config_dir() {
         Some(dir.path().join("superview").join(FILE_NAME))
     );
     assert_eq!(default_path(&|_| None), None);
+}
+
+#[test]
+fn the_theme_defaults_to_dark_and_an_unknown_one_becomes_dark() {
+    assert_eq!(Preferences::default().theme, "Dark");
+    // A file written before the theme existed has no key: it stays readable, and dark.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join(FILE_NAME);
+    std::fs::write(&path, r#"{"quality_profile":"Fast"}"#).expect("write");
+    let loaded = load(&path);
+    assert_eq!(loaded.quality_profile, "Fast");
+    assert_eq!(loaded.theme, "Dark");
+    // A value the menu does not offer gives way to the default.
+    std::fs::write(&path, r#"{"theme":"Solarized"}"#).expect("write");
+    assert_eq!(load(&path).theme, "Dark");
 }

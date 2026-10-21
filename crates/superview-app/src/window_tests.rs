@@ -15,7 +15,7 @@ use i_slint_backend_testing::{AccessibleRole, ElementHandle};
 use slint::platform::PointerEventButton;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
-use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
+use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind, Theme};
 
 /// The window's size (fixed, DEC-56).
 const WINDOW_WIDTH: f32 = 860.0;
@@ -70,9 +70,11 @@ pub(crate) fn is_shown(window: &MainWindow, label: &str) -> bool {
     !find(window, label).is_empty()
 }
 
-/// The two selectors, quality then codec.
+/// The two selectors of the settings, quality then codec (the Theme menu is not one of them).
 fn selectors(window: &MainWindow) -> Vec<ElementHandle> {
-    ElementHandle::find_by_element_type_name(window, "ComboBox").collect()
+    ElementHandle::find_by_element_type_name(window, "ComboBox")
+        .filter(|combo| combo.accessible_label().as_deref() != Some("Theme"))
+        .collect()
 }
 
 /// A shown window has its layout computed.
@@ -82,6 +84,7 @@ fn shown() -> MainWindow {
     // first entry).
     crate::app::set_quality_profiles(&window);
     window.set_quality("Balanced".into());
+    window.set_theme("Dark".into());
     window.show().expect("show");
     window
 }
@@ -127,6 +130,8 @@ pub fn run() {
     the_popups_open_close_and_say_what_they_should();
     the_prerequisite_popup_without_retry();
     a_popup_blocks_the_window_behind_it();
+    the_theme_menu_switches_the_colours();
+    an_active_button_answers_the_first_mouse_click();
 }
 
 fn every_label_is_present() {
@@ -386,6 +391,65 @@ fn the_form_follows_the_host_after_the_user_chose() {
     assert_eq!(selectors[1].accessible_value().as_deref(), Some("libx264"));
     window.set_quality("Fast".into());
     assert_eq!(selectors[0].accessible_value().as_deref(), Some("Fast"));
+}
+
+/// A press on an enabled button is a click the first time: a focus scope over the button took
+/// the first press for the focus and the click was lost (it took two).
+fn an_active_button_answers_the_first_mouse_click() {
+    let window = shown();
+    window.set_start_enabled(true);
+    let (started, bump) = counter();
+    window.on_start(bump());
+    let start = only(&window, "Start transformation");
+    drive(async move { start.single_click(PointerEventButton::Left).await });
+    assert_eq!(
+        started.get(),
+        1,
+        "the first click on an active button was lost"
+    );
+}
+
+/// The Theme menu (DEC-57): dark to start with, the user's pick is reported and changes the
+/// colours, and a theme the host writes (the saved one, at start-up) changes them too.
+fn the_theme_menu_switches_the_colours() {
+    let window = shown();
+    assert!(
+        window.global::<Theme>().get_dark(),
+        "the window must start dark"
+    );
+    assert!(window.get_scheme_dark(), "Slint's widgets must start dark");
+    let dark_background = window.global::<Theme>().get_background();
+
+    let chosen = Rc::new(std::cell::RefCell::new(String::new()));
+    {
+        let chosen = Rc::clone(&chosen);
+        window.on_theme_changed(move |value| *chosen.borrow_mut() = value.to_string());
+    }
+    let combo = ElementHandle::find_by_element_type_name(&window, "ComboBox")
+        .find(|combo| combo.accessible_label().as_deref() == Some("Theme"))
+        .expect("the Theme menu");
+    assert_eq!(combo.accessible_value().as_deref(), Some("Dark"));
+    drive(async move { combo.single_click(PointerEventButton::Left).await });
+    let item = only(&window, "Light");
+    drive(async move { item.single_click(PointerEventButton::Left).await });
+    assert_eq!(*chosen.borrow(), "Light", "picking Light did not report it");
+    assert!(
+        !window.global::<Theme>().get_dark(),
+        "Light left the colours dark"
+    );
+    assert_ne!(window.global::<Theme>().get_background(), dark_background);
+    assert!(
+        !window.get_scheme_dark(),
+        "Slint's widgets stay dark in Light"
+    );
+
+    // The host writes the saved theme: the colours follow, the menu shows it.
+    window.set_theme("Dark".into());
+    // `changed` handlers run on the next turn of the event loop.
+    drive(async {});
+    assert!(window.global::<Theme>().get_dark());
+    assert!(window.get_scheme_dark());
+    assert_eq!(window.global::<Theme>().get_background(), dark_background);
 }
 
 /// Opens a popup through `open`, checks the texts, clicks `button` and checks `fired`, then
