@@ -1,0 +1,24 @@
+// The colours of the window, in two sets (DEC-57). Slint's `Palette` is read-only, so the cyan accent
+// is ours: every colour the window draws itself comes from here, and `main.slint` sets `name` from the
+// Theme menu. The widgets Slint draws (menus, fields, scroll bars) follow `Palette.color-scheme`,
+// which `main.slint` keeps in step with `dark`.
+export global Theme {
+    // "Light" or "Dark"; anything else is dark.
+    in-out property <string> name: "Dark";
+    out property <bool> dark: root.name != "Light";
+
+    out property <color> background: root.dark ? #0b1215 : #f0f6f7;
+    out property <color> panel: root.dark ? #121b1f : #ffffff;
+    out property <color> surface: root.dark ? #1a272c : #e7f0f2;
+    out property <color> border: root.dark ? #24343a : #cfdfe2;
+    out property <color> text: root.dark ? #e6f1f3 : #10252b;
+    out property <color> text-muted: root.dark ? #8fa5ab : #5a727a;
+    out property <color> accent: root.dark ? #3cc4d6 : #0a7385;
+    out property <color> on-accent: root.dark ? #06161a : #ffffff;
+    // A conversion in progress, and a finished one.
+    out property <color> running: root.dark ? #ef5a5f : #d93a41;
+    out property <color> done: root.dark ? #32b87a : #1c9a60;
+    // A failure, and the dimmed window behind a popup.
+    out property <color> error: root.dark ? #ff7070 : #c62828;
+    out property <color> scrim: #000000a0;
+}

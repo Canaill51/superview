@@ -1,0 +1,75 @@
+// The widgets that carry the accent. Each keeps the accessible role and label of the Slint widget it
+// replaces, because the window tests find their targets by label and role.
+import { Theme } from "theme.slint";
+
+// A button: `primary` fills it with the accent. Enter and Space press it when it has the focus.
+export component AppButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    min-width: label.preferred-width + 28px;
+    min-height: 32px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.primary ? Theme.accent : Theme.border;
+    background: !root.enabled ? Theme.surface
+        : root.primary ? (touch.pressed ? Theme.accent.darker(0.2) : touch.has-hover ? (Theme.dark ? Theme.accent.brighter(0.15) : Theme.accent.darker(0.1)) : Theme.accent)
+        : (touch.pressed ? Theme.border : touch.has-hover ? Theme.surface : Theme.panel);
+    opacity: root.enabled ? 1 : 0.5;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    // Like Slint's Button, the accessible action does not look at `enabled`: the window tests press
+    // buttons behind a popup that way. The mouse and the keys do look at it (the TouchArea and the
+    // FocusScope below are disabled with the button).
+    accessible-action-default => { root.clicked(); }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+    // Zero width, like Slint's own Button: a FocusScope that covered the button would take the
+    // press to get the focus and the TouchArea below would never see the first click.
+    key := FocusScope {
+        x: 0;
+        width: 0;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (!root.enabled) {
+                return reject;
+            }
+            if (event.text == Key.Return || event.text == " ") {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+    // The focus ring: only while the keyboard has the focus here.
+    Rectangle {
+        visible: key.has-focus;
+        border-radius: root.border-radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    // Not announced on its own: the button already carries the same label.
+    label := Text {
+        accessible-role: none;
+        text: root.text;
+        color: root.primary ? Theme.on-accent : Theme.text;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// A raised panel: the background of a group of controls.
+export component Card inherits Rectangle {
+    background: Theme.panel;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: 8px;
+}

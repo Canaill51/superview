@@ -1,6 +1,11 @@
 // The application window, laid out as v0.2.9's window, with its labels word for word. Nothing is computed here: the window shows
 // properties it is given and reports clicks through callbacks, and `app.rs` owns every decision (DEC-43).
-import { Palette, Button, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView, TextEdit } from "std-widgets.slint";
+import { Palette, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView, TextEdit } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { AppButton, Card } from "components.slint";
+
+// The colours, for the Rust side to read in tests.
+export { Theme }
 
 // The popup that is open: one at a time, `none` when the window is free.
 export enum Popup {
@@ -96,7 +101,7 @@ component ReportLine inherits Rectangle {
         font-family: "monospace";
         font-weight: root.line.kind == ReportRowKind.section
             || root.line.kind == ReportRowKind.status ? 700 : 400;
-        color: root.line.kind == ReportRowKind.value ? #a8a8a8 : Palette.foreground;
+        color: root.line.kind == ReportRowKind.value ? Theme.text-muted : Theme.text;
         wrap: char-wrap;
     }
 }
@@ -119,7 +124,7 @@ component Modal inherits Rectangle {
     callback confirmed();
     callback dismissed();
 
-    background: #000000a0;
+    background: Theme.scrim;
     TouchArea { }
     // Takes the keyboard focus, so keys do not reach the window behind the card. The card is
     // its child: a key that a button or a field refuses rises to it.
@@ -143,9 +148,9 @@ component Modal inherits Rectangle {
         Rectangle {
             width: min(parent.width - 40px, root.card-max-width);
             height: root.fill ? parent.height - 24px : card.preferred-height + 32px;
-            background: Palette.background;
+            background: Theme.panel;
             border-width: 1px;
-            border-color: Palette.border;
+            border-color: Theme.border;
             border-radius: 6px;
             card := VerticalLayout {
                 padding: 16px;
@@ -176,8 +181,16 @@ export component MainWindow inherits Window {
     min-height: 332px;
     max-height: 332px;
 
-    // Dark theme, whatever the desktop uses.
-    init => { Palette.color-scheme = ColorScheme.dark; }
+    background: Theme.background;
+    // The theme the user chose (DEC-57), not the desktop's: the global and Slint's own widgets follow it.
+    init => { root.apply-theme(); }
+    changed theme => { root.apply-theme(); }
+    // What Slint's own widgets draw with, for the tests.
+    out property <bool> scheme-dark: Palette.color-scheme == ColorScheme.dark;
+    function apply-theme() {
+        Theme.name = root.theme;
+        Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light;
+    }
 
     // What the window shows.
     in property <string> status: "Status: Ready";
@@ -196,6 +209,9 @@ export component MainWindow inherits Window {
     in-out property <bool> squeeze: false;
     in property <[string]> encoder-options: [];
     in-out property <string> encoder-selected: "";
+    // The Theme menu: `prefs::THEMES`, and "Light" or "Dark".
+    in property <[string]> theme-options;
+    in-out property <string> theme: "Dark";
 
     // What the user can do now.
     in property <bool> start-enabled: false;
@@ -238,6 +254,7 @@ export component MainWindow inherits Window {
     callback quality-changed(string);
     callback squeeze-toggled(bool);
     callback encoder-changed(string);
+    callback theme-changed(string);
 
     callback done-ok();
     callback error-ok();
@@ -273,6 +290,17 @@ export component MainWindow inherits Window {
                 text: "Convert 4:3 to 16:9 in one workflow";
                 horizontal-alignment: left;
                 vertical-alignment: center;
+                color: Theme.text-muted;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text { text: "Theme"; vertical-alignment: center; }
+            ComboBox {
+                width: 100px;
+                accessible-label: "Theme";
+                model: root.theme-options;
+                current-value <=> root.theme;
+                enabled: root.free;
+                selected(value) => { root.theme-changed(value); }
             }
         }
 
@@ -280,32 +308,33 @@ export component MainWindow inherits Window {
         HorizontalLayout {
             alignment: center;
             spacing: 8px;
-            Button {
+            AppButton {
                 text: "Choose input file";
                 enabled: root.free && root.open-enabled;
                 clicked => { root.choose-input(); }
             }
-            Button {
+            AppButton {
                 text: "Choose output file";
                 enabled: root.free && root.output-enabled;
                 clicked => { root.choose-output(); }
             }
-            Button {
+            AppButton {
                 text: "Start transformation";
+                primary: true;
                 enabled: root.free && root.start-enabled;
                 clicked => { root.start(); }
             }
-            Button {
+            AppButton {
                 text: "Cancel";
                 enabled: root.free && root.cancel-enabled;
                 clicked => { root.cancel(); }
             }
-            Button {
+            AppButton {
                 text: "Diagnostic";
                 enabled: root.free && root.diagnostic-enabled;
                 clicked => { root.diagnostic(); }
             }
-            Button {
+            AppButton {
                 text: "Quit";
                 enabled: root.free;
                 clicked => { root.quit(); }
@@ -376,12 +405,8 @@ export component MainWindow inherits Window {
             }
 
             // The conversion: the bar, then what is going on and what it gave.
-            Rectangle {
+            Card {
                 width: 290px;
-                background: Palette.alternate-background;
-                border-width: 1px;
-                border-color: Palette.border;
-                border-radius: 8px;
 
                 VerticalLayout {
                     padding: 10px;
@@ -402,7 +427,7 @@ export component MainWindow inherits Window {
         confirmed => { root.done-ok(); }
         dismissed => { root.done-ok(); }
         Text { text: root.done-message; wrap: char-wrap; }
-        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.done-ok(); } } }
+        ModalButtons { AppButton { text: "OK"; primary: true; clicked => { root.done-ok(); } } }
     }
 
     if root.popup == Popup.error: Modal {
@@ -410,7 +435,7 @@ export component MainWindow inherits Window {
         confirmed => { root.error-ok(); }
         dismissed => { root.error-ok(); }
         Text { text: root.error-message; wrap: char-wrap; }
-        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.error-ok(); } } }
+        ModalButtons { AppButton { text: "OK"; primary: true; clicked => { root.error-ok(); } } }
     }
 
     if root.popup == Popup.prerequisite: Modal {
@@ -428,7 +453,7 @@ export component MainWindow inherits Window {
         // The link: a click is reported with the address, the host opens the browser.
         Text {
             text: root.install-url;
-            color: #5aa9ff;
+            color: Theme.accent;
             wrap: char-wrap;
             TouchArea {
                 accessible-role: button;
@@ -440,12 +465,12 @@ export component MainWindow inherits Window {
         }
         if root.prerequisite-retry: Text { text: "Already installed it? Use Retry."; }
         ModalButtons {
-            if root.prerequisite-retry: Button {
+            if root.prerequisite-retry: AppButton {
                 text: "Retry";
                 primary: true;
                 clicked => { root.prerequisite-retry-clicked(); }
             }
-            Button {
+            AppButton {
                 text: root.prerequisite-retry ? "Close" : "OK";
                 clicked => { root.prerequisite-close(); }
             }
@@ -457,8 +482,8 @@ export component MainWindow inherits Window {
         dismissed => { root.overwrite-no(); }
         Text { text: "The selected output file already exists. Overwrite it?"; wrap: word-wrap; }
         ModalButtons {
-            Button { text: "Yes"; primary: true; clicked => { root.overwrite-yes(); } }
-            Button { text: "No"; clicked => { root.overwrite-no(); } }
+            AppButton { text: "Yes"; primary: true; clicked => { root.overwrite-yes(); } }
+            AppButton { text: "No"; clicked => { root.overwrite-no(); } }
         }
     }
 
@@ -470,8 +495,8 @@ export component MainWindow inherits Window {
             wrap: word-wrap;
         }
         ModalButtons {
-            Button { text: "Yes"; primary: true; clicked => { root.quit-yes(); } }
-            Button { text: "No"; clicked => { root.quit-no(); } }
+            AppButton { text: "Yes"; primary: true; clicked => { root.quit-yes(); } }
+            AppButton { text: "No"; clicked => { root.quit-no(); } }
         }
     }
 
@@ -480,7 +505,7 @@ export component MainWindow inherits Window {
         confirmed => { root.no-input-ok(); }
         dismissed => { root.no-input-ok(); }
         Text { text: "Please open an input video first."; wrap: word-wrap; }
-        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-input-ok(); } } }
+        ModalButtons { AppButton { text: "OK"; primary: true; clicked => { root.no-input-ok(); } } }
     }
 
     if root.popup == Popup.no-output: Modal {
@@ -488,7 +513,7 @@ export component MainWindow inherits Window {
         confirmed => { root.no-output-ok(); }
         dismissed => { root.no-output-ok(); }
         Text { text: "Please choose an output file first."; wrap: word-wrap; }
-        ModalButtons { Button { text: "OK"; primary: true; clicked => { root.no-output-ok(); } } }
+        ModalButtons { AppButton { text: "OK"; primary: true; clicked => { root.no-output-ok(); } } }
     }
 
     if root.popup == Popup.diagnostic: Modal {
@@ -504,9 +529,9 @@ export component MainWindow inherits Window {
         if !root.diagnostic-as-text: Rectangle {
             vertical-stretch: 1;
             min-height: 120px;
-            background: Palette.alternate-background;
+            background: Theme.panel;
             border-width: 1px;
-            border-color: Palette.border;
+            border-color: Theme.border;
             ScrollView {
                 x: 4px;
                 y: 4px;
@@ -533,11 +558,11 @@ export component MainWindow inherits Window {
             min-height: 120px;
         }
         ModalButtons {
-            Button {
+            AppButton {
                 text: root.diagnostic-as-text ? "Show as list" : "Show as text";
                 clicked => { root.diagnostic-as-text = !root.diagnostic-as-text; }
             }
-            Button { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
+            AppButton { text: "Close"; primary: true; clicked => { root.diagnostic-close(); } }
         }
     }
 
@@ -558,12 +583,12 @@ export component MainWindow inherits Window {
         }
         if root.path-entry-error != "": Text {
             text: root.path-entry-error;
-            color: #ff7070;
+            color: Theme.error;
             wrap: word-wrap;
         }
         ModalButtons {
-            Button { text: "OK"; primary: true; clicked => { root.path-entry-ok(); } }
-            Button { text: "Cancel"; clicked => { root.path-entry-cancel(); } }
+            AppButton { text: "OK"; primary: true; clicked => { root.path-entry-ok(); } }
+            AppButton { text: "Cancel"; clicked => { root.path-entry-cancel(); } }
         }
     }
 }

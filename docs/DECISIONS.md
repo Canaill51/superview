@@ -65,7 +65,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-29](#dec-29) | Les fichiers temporaires vivent dans un répertoire de session isolé sous `os.TempDir()` | Acceptée |
 | [DEC-30](#dec-30) | `-threads` = `NumCPU()` plafonné à 16 pour `libx265`, jamais émis pour un encodeur matériel | Acceptée |
 | [DEC-31](#dec-31) | Pas de `-re` : l'encodage n'est pas bridé au temps réel | Acceptée |
-| [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée ; la taille fixe est remplacée par DEC-51, le thème reste |
+| [DEC-32](#dec-32) | Fenêtre à taille fixe, thème sombre forcé | Acceptée ; la taille fixe est remplacée par DEC-51, le thème sombre forcé par le menu Theme de DEC-57 |
 | [DEC-33](#dec-33) | Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README | Acceptée |
 | [DEC-34](#dec-34) | Les dialogues de fichiers sont natifs d'abord, Fyne en repli | Acceptée, amendée par DEC-43 (6.4) et DEC-49 |
 | [DEC-35](#dec-35) | La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict | Acceptée |
@@ -90,6 +90,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | *Remplacée par DEC-56* |
 | [DEC-55](#dec-55) | Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas | Acceptée (amende DEC-49) |
 | [DEC-56](#dec-56) | La fenêtre est fixe, 860×332, avec un panneau de conversion à droite | Acceptée (remplace DEC-54) |
+| [DEC-57](#dec-57) | Menu Theme (Light / Dark, sombre par défaut) et accent cyan par un global `Theme` | Acceptée (remplace le thème sombre forcé de DEC-32) |
 
 ---
 
@@ -328,7 +329,7 @@ origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49
 
 **Décision** — `SetFixedSize(true)`, taille = max(constantes, `MinSize` du contenu) ; `forcedDarkTheme` plutôt que `theme.DarkTheme()` déprécié. Ajouter un widget est un changement de mise en page : `TestToolbarFitsWindow` mesure le rendu.
 
-**Amendée par [DEC-51](#dec-51), puis [DEC-54](#dec-54)** : la taille fixe, remplacée par DEC-51, est rétablie par DEC-54 ; le thème sombre forcé reste.
+**Amendée par [DEC-51](#dec-51), puis [DEC-54](#dec-54)** : la taille fixe, remplacée par DEC-51, est rétablie par DEC-54 ; le thème sombre forcé est remplacé par le menu Theme de [DEC-57](#dec-57).
 
 ### DEC-33
 **Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README.**
@@ -580,3 +581,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `min-` = `max-` à 860×332 px logiques dans `main.slint`. À gauche, Input file, Output file, Quality profile, Video codec et Input format, puis la ligne Hardware sous Input format ; les deux menus ont une largeur fixe (170 et 300 px), pas celle de la colonne. À droite, un panneau de 290 px : « Progress », la barre, puis Status et Results dessous. Les textes ne changent pas. Le garde `the_window_has_one_size_so_it_cannot_be_resized` lit toujours `min = max` ; `the_conversion_panel_sits_beside_the_settings` (`window_tests.rs`) fige la disposition (rouge avec l'ancienne mise en page : un menu dépassait le panneau, mesuré).
 **Conséquences** — La fenêtre est plus petite que 980×470 et tient donc sur plus d'écrans, mais reste non redimensionnable (DEC-54). La hauteur de 332 px laisse trois lignes à Hardware (un refus de sonde peut être long) ; Status et Results, mesurés sur capture avec leurs textes les plus longs, tiennent dans le panneau. Le backend de test ne mesure pas la vraie police : l'ajustement se juge sur capture. Une carte de popup est plus haute que la fenêtre dès qu'elle dépasse ~330 px : le Diagnostic dispose d'une liste d'environ 190 px, et le popup Error, dont le message peut reprendre le stderr d'ffmpeg, déborderait avant sans défilement (défaut déjà présent à 470 px, aggravé ; à traiter à part).
 **À rouvrir si** — Un texte coupé ou un écran trop petit est signalé : agrandir ou rendre la fenêtre redimensionnable avec un minimum, pas retirer le panneau.
+
+### DEC-57
+**Un menu Theme (Light / Dark, sombre par défaut) et un accent cyan portés par un global `Theme`.**
+2026-10-21 · Acceptée · refonte de l'interface, PR 2 · remplace le thème sombre forcé de DEC-32
+
+**Contexte** — L'utilisateur a choisi la palette cyan sur la planche des maquettes, avec un thème clair et un thème sombre. `Palette` de Slint est en lecture seule (sauf `color-scheme`) : l'accent ne s'y règle pas.
+**Décision** — `ui/theme.slint` : un global `Theme` (`name` = « Light » ou « Dark », `dark` en dérive, puis fond, panneau, surface, bordure, texte, texte atténué, accent, couleur sur accent, rouge « en cours », vert « terminé », erreur, voile des popups), avec les deux jeux de la planche. `ui/components.slint` : `AppButton` (normal ou primaire, rôle accessible bouton, Entrée et Espace, anneau de focus) et `Card`, qui remplacent `Button` et le rectangle du panneau. `main.slint` recopie le choix dans `Theme.name` et dans `Palette.color-scheme` (les menus, champs et barres de défilement de Slint suivent le thème, sans l'accent) ; le menu **Theme** est dans l'en-tête. La préférence `theme` de `preferences.json` vaut « Dark » par défaut, une valeur inconnue y revient (`sanitized`) et un ancien fichier sans la clé reste lisible. Le bouton accessible d'`AppButton` ne regarde pas `enabled`, comme le `Button` de Slint (des scénarios de `app_tests.rs` appuient sur un bouton derrière un popup par cette voie) ; la souris et le clavier, eux, le respectent.
+**Conséquences** — Les widgets que Slint dessine (ComboBox, CheckBox, ProgressIndicator) gardent son style et non l'accent cyan : le décalage est visible sur capture. La barre est reprise en PR 3 ; les menus le seront dans une PR dédiée si le décalage gêne. Le `changed theme` de la fenêtre s'exécute au tour suivant de la boucle d'événements : un thème écrit par l'hôte n'est donc visible qu'après ce tour (le test le fait avancer par `drive(async {})`).
+**À rouvrir si** — Le décalage des widgets Slint gêne, ou un thème de plus est demandé (alors une liste de jeux, pas un troisième booléen).

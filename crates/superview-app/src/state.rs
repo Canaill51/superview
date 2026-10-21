@@ -112,6 +112,8 @@ pub struct ViewModel {
     pub quality: String,
     /// The "source already stretched" box.
     pub squeeze: bool,
+    /// "Light" or "Dark".
+    pub theme: String,
     pub encoder_options: Vec<String>,
     pub encoder_selected: String,
 }
@@ -131,6 +133,7 @@ impl Default for ViewModel {
             progress: 0.0,
             quality: prefs::DEFAULT_QUALITY_PROFILE.into(),
             squeeze: false,
+            theme: prefs::DEFAULT_THEME.into(),
             encoder_options: Vec::new(),
             encoder_selected: String::new(),
         }
@@ -440,6 +443,7 @@ impl AppState {
         let view = ViewModel {
             quality: prefs.quality_profile.clone(),
             squeeze: prefs.squeeze_source,
+            theme: prefs.theme.clone(),
             ..ViewModel::default()
         };
         Self {
@@ -951,6 +955,13 @@ impl AppState {
         self.save_prefs();
         self.refresh_hardware_status();
         self.verify_hardware_in_background();
+    }
+
+    /// The Theme menu changed. Nothing else depends on it, so nothing is recomputed.
+    pub fn theme_changed(&mut self, theme: &str) {
+        self.view.theme = theme.to_string();
+        self.prefs.theme = theme.to_string();
+        self.save_prefs();
     }
 
     fn save_prefs(&self) {

@@ -1264,6 +1264,17 @@ fn quality_and_squeeze_are_persisted_and_restored() {
 }
 
 #[test]
+fn the_theme_is_persisted_and_restored() {
+    let mut state = fixture();
+    assert_eq!(state.view.theme, "Dark");
+    state.theme_changed("Light");
+    assert_eq!(state.view.theme, "Light");
+    assert_eq!(state.saved().theme, "Light");
+    // A new session starts from it.
+    assert_eq!(AppState::new(state.saved(), None).view.theme, "Light");
+}
+
+#[test]
 fn a_state_without_a_preferences_path_saves_nothing_and_does_not_fail() {
     let mut state = AppState::default();
     state.quality_changed("Fast");

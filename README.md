@@ -112,6 +112,9 @@ They must show the same 64 characters, ignoring case.
 
 ![GUI Screenshot](.github/sample-gui.png)
 
+The **Theme** menu at the top switches between **Light** and **Dark** (dark by
+default); the window remembers your choice.
+
 **MP4 in, MP4 out.** The file pickers offer MP4 only, and the output extension
 is enforced.
 
