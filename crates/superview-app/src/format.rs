@@ -8,6 +8,7 @@ use std::time::Duration;
 use superview_core::config::{Config, load_config};
 use superview_core::metrics::EncodingMetrics;
 use superview_core::probe::format_duration;
+use superview_core::video::VideoSpecs;
 
 /// The first entry of the codec dropdown.
 pub const USE_INPUT_CODEC: &str = "Use same video codec as input file";
@@ -92,6 +93,22 @@ pub fn format_results_panel(metrics: Option<&EncodingMetrics>) -> String {
         "Results: in={input_mb:.1} MB | out={output_mb:.1} MB ({ratio:.1}%) | total={} | encode={}",
         format_duration(round_to_second(metrics.elapsed())),
         format_duration(metrics.encode_duration),
+    )
+}
+
+/// The line under the input's name: codec, size and length of its first video stream; empty when
+/// the file has none.
+pub fn input_specs(video: &VideoSpecs) -> String {
+    let Some(stream) = video.streams.first() else {
+        return String::new();
+    };
+    let length = Duration::try_from_secs_f64(stream.duration_float.max(0.0)).unwrap_or_default();
+    format!(
+        "{} · {}×{} · {}",
+        stream.codec,
+        stream.width,
+        stream.height,
+        format_duration(length)
     )
 }
 

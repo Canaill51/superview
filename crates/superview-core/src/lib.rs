@@ -18,6 +18,7 @@ pub mod probe;
 pub mod process;
 pub mod security;
 pub mod session;
+pub mod thumbnail;
 pub mod tools;
 pub mod video;
 

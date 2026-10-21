@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Vignette et ligne de spécifications du fichier d'entrée (DEC-60, refonte de l'interface, PR 5)
+
+| | |
+| --- | --- |
+| **Constat** | la carte du fichier avait un cadre vide et ne disait rien du fichier |
+| **Cause** | aucun module du cœur ne décodait une image ; `process.rs` ne capture que du texte |
+| **Fichiers** | `superview-core/src/thumbnail.rs` (+ `thumbnail/tests.rs`, `tests/real_ffmpeg.rs`), `superview-app/src/{engine,app,state,format}.rs`, `ui/main.slint`, tests d'application et de format, `docs/DECISIONS.md` (DEC-60), README.md et README_FR.md |
+| **Règle** | un travail d'arrière-plan qui répond à un choix de l'utilisateur porte la génération du choix et se jette s'il arrive après le suivant ; une image facultative n'ouvre jamais de popup |
+| **Relecture** | le fil de vignette possède un dossier et un processus : il est attendu à la fermeture (l'en-tête d'`app.rs` le dit) ; `thumbnail_time` testé, et sa version d'origine laissait passer NaN (`clamp` le conserve) ; chemin de sortie préfixé `file:` |
+| **Vérification** | rouges chacun avec le défaut réintroduit (mesuré) : annulation non transmise (`a_cancelled_thumbnail_starts_nothing_and_leaves_nothing`), `pad` retiré (`a_thumbnail_is_a_real_frame_fitted_in_the_card`), `-f mov` retiré (test des arguments), génération comparée par `<=` (test d'état et scénario « thumbnail stale »), cadre non vidé (« thumbnail replaced by a failure »), fil non attendu à la fermeture (« thumbnail shutdown ») ; extraction réelle sous ffmpeg (`SUPERVIEW_REQUIRE_FFMPEG=1`), annulation sans processus ni dossier laissés ; `scripts/check.sh` |
+
 ### [2026-10-21] Fenêtre 1000×520 : carte du fichier, qualité en segments, interrupteur (DEC-59, refonte de l'interface, PR 4)
 
 | | |
