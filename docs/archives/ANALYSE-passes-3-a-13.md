@@ -7,8 +7,7 @@
 > d'avancement. Les renvois « § 3bis … § 3duodecies » des autres documents désignent
 > les sections ci-dessous. Chercher un constat : `grep -rn "U-03" docs/`.
 >
-> Les chemins `common/` et les fichiers `gui_*.go` de la racine y sont ceux d'avant
-> DEC-39 : aujourd'hui `internal/common/` et `cmd/superview/`.
+> **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
 
 ## 3bis. Troisième passe d'analyse (2026-09-04) — axes non couverts
 
@@ -274,7 +273,7 @@ Convention : **P-xx** pour les constats de cette passe.
 ### N-03 / N-04 / N-05 — un correctif unique, vérifié
 
 Les trois pertes de contenu relevées en § 3bis proviennent de la **même ligne**
-([`common/common.go:685`](../../internal/common/common.go#L685)) et se corrigent ensemble. Reproduction et
+(`common/common.go:685` (code Go retiré)) et se corrigent ensemble. Reproduction et
 correction validées ce jour :
 
 | Entrée | Sortie actuelle | Avec le correctif |
@@ -293,12 +292,12 @@ Chaîne corrigée, exécutée et vérifiée :
 Le `?` de `0:a?` est indispensable : sans lui, une source muette fait échouer FFmpeg. Le choix
 entre la variante 8 bits et la variante 10 bits doit suivre le `pix_fmt` de la source, que
 `CheckVideo` **ne demande pas encore** à ffprobe : il faut l'ajouter au `-show_entries`
-([`common/common.go`, `CheckVideo`](../../internal/common/common.go)).
+(`common/common.go`, `CheckVideo` (code Go retiré)).
 
 ### P-01 ✅ — ~~La case « squeeze » n'est jamais réactivée après un encodage réussi~~ — **CORRIGÉ**
 
-[`gui_main.go:469`](../../cmd/superview/gui_main.go#L469) (échec) contre
-[`gui_main.go:487-492`](../../cmd/superview/gui_main.go#L487-L492) (succès)
+`gui_main.go:469` (code Go retiré) (échec) contre
+`gui_main.go:487-492` (code Go retiré) (succès)
 
 Les deux branches de fin d'encodage réactivent les widgets une par une. La branche d'échec
 appelle `squeezeCheck.Enable()` ; **la branche de succès l'a oublié**. Après un premier
@@ -311,9 +310,9 @@ branches, sans rien pour garantir qu'elles restent symétriques.
 
 ### P-02 ✅ — ~~Course de données sur le canal d'annulation~~ — **CORRIGÉ**
 
-`cancelEncoding` est écrit depuis le fil UI ([`gui_main.go:397`](../../cmd/superview/gui_main.go#L397),
+`cancelEncoding` est écrit depuis le fil UI (`gui_main.go:397` (code Go retiré),
 `cancelEncoding = nil`) et lu depuis la goroutine d'encodage
-([`gui_main.go:459`](../../cmd/superview/gui_main.go#L459)) :
+(`gui_main.go:459` (code Go retiré)) :
 
 ```go
 if err := common.PerformEncoding(&effectiveCfg, video.File, uri, handler, ffmpeg, cancelEncoding); err != nil {
@@ -329,7 +328,7 @@ passer cette locale.
 
 ### P-03 ✅ — ~~L'annulation ne court-circuite pas la cascade de repli~~ — **CORRIGÉ**
 
-[`common/common.go:903-955`](../../internal/common/common.go#L903-L955)
+`common/common.go:903-955` (code Go retiré)
 
 `run` signale l'annulation par `errors.New("encoding interrupted by user")` — une erreur
 indistinguable d'un échec d'encodeur. La cascade la traite donc comme un motif de repli et
@@ -364,11 +363,11 @@ et les valeurs par défaut sont correctes comme bits (209 715 200 → 209,7 Mbps
 
 | Emplacement | Texte |
 | --- | --- |
-| [`common/config.go:19-23`](../../internal/common/config.go#L19-L23) | `// Bitrate constraints in bytes/second`, `// 100k bytes/sec (~0.1 Mbps)` |
-| [`common/config.go:293-295`](../../internal/common/config.go#L293-L295) | `"  Min Bitrate: %d bytes/sec (%.2f Mbps)"` |
-| [`common/common.go:189`](../../internal/common/common.go#L189) | `// GetBitrate returns the desired output bitrate in bytes/second.` |
-| [`common/common.go:618-621`](../../internal/common/common.go#L618-L621) | messages d'erreur **montrés à l'utilisateur** : `"bitrate %d is below minimum %d bytes/second"` |
-| [`common/metrics.go:12`](../../internal/common/metrics.go#L12), `:26`, `:34` | `All bitrates in bytes/sec` |
+| `common/config.go:19-23` (code Go retiré) | `// Bitrate constraints in bytes/second`, `// 100k bytes/sec (~0.1 Mbps)` |
+| `common/config.go:293-295` (code Go retiré) | `"  Min Bitrate: %d bytes/sec (%.2f Mbps)"` |
+| `common/common.go:189` (code Go retiré) | `// GetBitrate returns the desired output bitrate in bytes/second.` |
+| `common/common.go:618-621` (code Go retiré) | messages d'erreur **montrés à l'utilisateur** : `"bitrate %d is below minimum %d bytes/second"` |
+| `common/metrics.go:12` (code Go retiré), `:26`, `:34` | `All bitrates in bytes/sec` |
 | [`superview.yaml`](../../superview.yaml) | `# Bitrate constraints in bytes/second` |
 
 Un utilisateur qui règle `max_bitrate` en croyant écrire des octets se trompe d'un facteur 8.
@@ -377,7 +376,7 @@ Correction purement textuelle, sans aucun changement de comportement — mais el
 
 ### P-06 ✅ — ~~`EncodingSpeed` repose sur un 30 fps codé en dur~~ — **CORRIGÉ**
 
-[`common/metrics.go:261`](../../internal/common/metrics.go#L261)
+`common/metrics.go:261` (code Go retiré)
 
 ```go
 totalFrames := m.InputDuration * 30 // Assuming ~30fps average
@@ -393,7 +392,7 @@ qu'une métrique absente.
 
 ### P-07 ✅ — ~~`EstimatedRemaining` est calculé à chaque tick et jamais affiché~~ — **CORRIGÉ**
 
-[`common/metrics.go:125`](../../internal/common/metrics.go#L125) calcule le temps restant à chaque mise à
+`common/metrics.go:125` (code Go retiré) calcule le temps restant à chaque mise à
 jour de progression. Aucun appelant ne le lit. La GUI n'affiche qu'un pourcentage, pour une
 opération qui dure plusieurs minutes en 4K.
 
@@ -431,7 +430,7 @@ le bouton Diagnostic — **avant** `InitEncodingSession`, avec le besoin réel
 
 ### P-09 ✅ — ~~Verrouillage trop large et coût par événement de progression~~ — **PARTIELLEMENT CORRIGÉ**
 
-- [`common/observability.go:232`](../../internal/common/observability.go#L232) : `RecordEvent` prend
+- `common/observability.go:232` (code Go retiré) : `RecordEvent` prend
   `r.mu.Lock()` (verrou d'**écriture**) pour une simple itération en lecture sur `r.handlers`.
   `RLock` suffit, et c'est déjà ce que font `RecordProgress`, `RecordError` et
   `RecordCompletion` juste en dessous.
@@ -439,7 +438,7 @@ le bouton Diagnostic — **avant** `InitEncodingSession`, avec le besoin réel
   `RecordEncodingProgress`, qui alloue une `map[string]interface{}`, formate une chaîne et
   prend deux verrous, pour finir le plus souvent ignorée par un handler réglé sur `info`.
   Un court-circuit sur `logger.Enabled(ctx, slog.LevelDebug)` supprime ce coût.
-- [`common/common.go`](../../internal/common/common.go) : `-threads runtime.NumCPU()` est posé même quand
+- `common/common.go` (code Go retiré) : `-threads runtime.NumCPU()` est posé même quand
   l'encodeur est NVENC, AMF ou QSV, où l'option n'a pas de sens.
 
 > ✅ **Corrigé le 2026-09-04** : `RecordEvent` prend un `RLock`, et `encoderThreadArgs` n'émet
@@ -493,7 +492,7 @@ actif parmi quatre contrôles grisés.
 
 ### P-11 ✅ — ~~`libx265` échoue systématiquement au-delà de 16 cœurs~~ — **DÉCOUVERT ET CORRIGÉ**
 
-[`common/common.go`](../../internal/common/common.go) — `buildEncodeBaseArgs`, option `-threads`
+`common/common.go` (code Go retiré) — `buildEncodeBaseArgs`, option `-threads`
 
 Découvert en écrivant le test de non-régression de N-03 : il exige un encodeur HEVC, et
 `libx265` refusait de démarrer sur cette machine.
@@ -1792,7 +1791,7 @@ et rejouée : 7 PASS.
 
 **Découvert en chemin, non corrigé** — `TestEncodeVideo_ProgressNotAvailableIsNotAWarning`
 et `TestEncodeVideo_UnparsableProgressIsStillAWarning`
-([`common/lognoise_test.go`](../../internal/common/lognoise_test.go)) remplacent
+(`common/lognoise_test.go` (code Go retiré)) remplacent
 `commandStdoutPipe` mais appellent le vrai `EncodeVideo`, donc le vrai `ffmpeg` : sans
 lui, elles échouent au lieu de se sauter, n'étant pas gardées par `skipWithoutFFmpeg`.
 Ce sont les deux « échecs avant » du tableau. Troisième cas de la même famille, hors

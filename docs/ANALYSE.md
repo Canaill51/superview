@@ -1,7 +1,6 @@
 # Superview — Analyse complète du projet
 
-> **Chemins.** Ce journal date d'avant le 2026-10-14 (DEC-39) : `common/` y désigne
-> aujourd'hui `internal/common/`, et les fichiers `gui_*.go` de la racine sont dans `cmd/superview/`.
+> **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
 >
 > **Journal d'audit, pas documentation de référence.** Ce fichier consigne quatorze
 > passes d'analyse et les 162 constats qu'elles ont produits, avec ce qui a été
@@ -969,7 +968,7 @@ au passif du projet.
 
 ### Q-01 — D'où vient le facteur 1,6 du profil de qualité « Balanced » ?
 
-[`gui_main.go:58-65`](../cmd/superview/gui_main.go#L58-L65)
+`gui_main.go:58-65` (code Go retiré)
 
 ```go
 case "Fast":
@@ -1061,7 +1060,7 @@ réelle est probablement plus large que mesurée, le contenu choisi étant défa
 
 ### Q-02 — Le garde-fou mémoire est-il juste au nombre de fils réellement utilisé ? — **TRANCHÉE**
 
-[`common/common.go:771-790`](../internal/common/common.go#L771-L790), [`:1443`](../internal/common/common.go#L1443)
+`common/common.go:771-790` (code Go retiré), `:1443` (code Go retiré)
 
 Les 290 et 455 octets par pixel (U-11) ont été mesurés avec `libx265 -threads 4`
 (`pools=4`). L'encodage réel passe `-threads runtime.NumCPU()`, plafonné à 16 (P-11). Or
@@ -1075,7 +1074,7 @@ pixel.
 
 ### Q-03 — Faut-il conserver la télémétrie GoPro ? — **TRANCHÉE**
 
-[`common/common.go:1314`](../internal/common/common.go#L1314)
+`common/common.go:1314` (code Go retiré)
 
 `-map "[v]" -map "0:a?"` ne garde aucun flux de données : la piste `gpmd` (GPS, IMU,
 température) d'un fichier HERO est perdue, de la même famille que N-04/N-05. `-map 0:d?
