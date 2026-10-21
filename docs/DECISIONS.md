@@ -7,6 +7,8 @@
 > les retrouve que s'il sait déjà où chercher. Ce registre les met à plat, une par
 > entrée, avec ce qui la rendrait caduque.
 >
+> **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
+>
 > **Ce qu'il n'est pas.** Ni un journal (c'est [`LECONS.md`](LECONS.md)), ni une
 > liste de constats (c'est [`ANALYSE.md`](ANALYSE.md)). Une décision ici n'est pas
 > un fait mesuré : c'est un choix, pris pour des raisons datées, et qu'on peut
@@ -80,12 +82,13 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-46](#dec-46) | Interface Rust : préférences neuves, aucune reprise des choix Fyne | Acceptée |
 | [DEC-47](#dec-47) | La release livre le binaire Rust ; AppImage sans `LD_LIBRARY_PATH` (DT_RPATH) | Acceptée |
 | [DEC-48](#dec-48) | Un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante, automatiquement (Rust seulement) | Acceptée |
-| [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée |
+| [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée, amendée par DEC-55 |
 | [DEC-50](#dec-50) | Le profil release est `lto = "fat"`, `codegen-units = 1`, `strip = "symbols"` ; pas de `panic = "abort"` | Acceptée |
 | [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | *Remplacée par DEC-54* |
 | [DEC-52](#dec-52) | L'entrée est lue avec `-f mov` (ffprobe et ffmpeg), jamais devinée d'après le contenu | Acceptée |
 | [DEC-53](#dec-53) | Une durée qui n'est pas un nombre fini (`inf`, `nan`) est refusée | Acceptée |
 | [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | Acceptée (remplace DEC-51) |
+| [DEC-55](#dec-55) | Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas | Acceptée (amende DEC-49) |
 
 ---
 
@@ -511,6 +514,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Contexte** — Depuis RC-0.3.0 (2026-10-20, DEC-47) la release livre le binaire Rust ; Go ne servait plus qu'à la CI, aux oracles de parité et de référence. Deux chaînes d'outils coûtaient chaque commit (le pre-commit exigeait Go **et** cargo) et la prose décrivait un produit qui n'était plus celui livré. Le plan DEC-43 prévoyait ce retrait comme dernière phase.
 **Décision** — (1) Le code Go (`cmd/superview/`, `internal/common/`, `go.mod`, `.golangci.yml`, `FyneApp.toml`) et ses jobs CI sont supprimés (#137), après que #136 a porté en Rust ce qu'ils protégeaient : les gardes de géométrie des cartes PGM, la source portrait refusée avant tout, l'annulation avant démarrage, l'ancre `#download-and-install` du README et l'interdiction d'un `| head` qui coupe la sortie d'un outil dans les workflows (`superview-app/src/repo_guards.rs`, L-115). (2) Les fixtures de parité (`parity/*.json`, `ffprobe/`) sont **gelées** sous `rust/crates/superview-core/tests/fixtures/` : enregistrées sur Go, elles sont désormais la spécification, on ne les régénère pas. (3) Le contrôle de couverture (50 % de lignes, `cargo llvm-cov`) et l'audit (`cargo audit`) tournent à **chaque PR** dans le job *Rust coverage and audit* de `rust.yml`, avec les versions épinglées de la release. (4) Les checks requis du ruleset de `master` sont les checks Rust (*Rust on ubuntu-latest*, *Rust on windows-latest*, *Rust coverage and audit*) et *README parity (EN/FR)* ; plus aucun check Go n'y figure (ruleset modifié avant la fusion de #137 et vérifié le 2026-10-20 par `gh api repos/Canaill51/superview/rulesets/22935151`). (5) La dernière version Go, **v0.2.9**, reste publiée et dans l'historique git. (6) La prose est réécrite pour Rust seul (`AGENTS.md`, `ARCHITECTURE.md`, `CONTRATS.md`, `ENVIRONNEMENT.md`, READMEs, `RELEASING.md`) ; les journaux (`CORRECTIONS.md`, `LECONS.md`, `ANALYSE.md`, `archives/`) et le texte des DEC antérieures ne sont pas réécrits : ils décrivent l'état d'avant.
 **Conséquences** — Un seul `scripts/check.sh` (format, clippy, tests Rust). Les noms de fonctions Go cités dans les DEC et les journaux (`GeneratePGM`, `PerformEncoding`…) sont ceux du code retiré ; leur équivalent Rust est en `snake_case` (même nom) dans `superview-core`. Les « écarts voulus avec Go » écrits dans les en-têtes de modules Rust deviennent de l'histoire : on n'« aligne » plus rien sur Go. `go.sum`, `govulncheck` et `golangci-lint` n'existent plus ; `cargo audit` les remplace pour les dépendances. Pour relire le comportement Go : `git show v0.2.9:<chemin>`.
+**Amendée par [DEC-55](#dec-55)** : les journaux ne sont toujours pas réécrits, mais ils sont bandeautés et les corrections de l'ère Go archivées.
 **À rouvrir si** — Jamais vers une seconde chaîne d'outils dans le même dépôt ; si une régression exige de comparer au Go, on ouvre le tag `v0.2.9` dans un répertoire jetable, pas le dépôt courant.
 
 ### DEC-50
@@ -557,3 +561,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `min-width` = `max-width` = 980 px et `min-height` = `max-height` = 470 px dans `main.slint`, comme avant #150 (DEC-32). Le garde `the_window_has_one_size_so_it_cannot_be_resized` (`repo_guards.rs`) lit le fichier `.slint` et exige min = max sur les deux axes, car le backend de test n'applique pas les contraintes (un `set_size` y passe) : rouge avec la fenêtre de DEC-51, vert avec celle-ci (mesuré). `the_window_fits_its_smallest_size` est retiré, il n'a plus de minimum à vérifier ; `the_window_has_the_designed_size` reste. Le reste de #150 (Échap et Entrée dans les dialogues, « Cancelling... », menu de qualité) est conservé.
 **Conséquences** — Retour du défaut que DEC-51 corrigeait : sur un écran de 910×512 logiques ou moins (1366×768 à 150 %), la fenêtre est coupée et ne peut pas être réduite. Accepté par l'utilisateur.
 **À rouvrir si** — Un utilisateur signale une fenêtre coupée sur son écran : la solution est alors un minimum plus petit, pas un retour à la taille libre sans réflexion.
+
+### DEC-55
+**Les journaux gardent Go dans leur texte : on archive, on ne réécrit pas.**
+2026-10-21 · Acceptée · plan « traces de Go », PR 5 · amende DEC-49
+
+**Contexte** — DEC-49 retirait Go du code et de la prose vivante, et laissait les journaux (`LECONS.md`, `ANALYSE.md`, `CORRECTIONS.md`, `DECISIONS.md`, `CONTRATS.md`) « pas réécrits ». Il en restait plus de 2 000 lignes d'histoire mêlées au vivant (surtout les corrections d'avant le 2026-10-17), des bandeaux qui disaient que `internal/common/` existait encore, 22 liens vers des fichiers supprimés et sept lignes de `PIEGES.md` sur des outils disparus.
+**Décision** — Un bandeau « Go et Fyne » en tête de chaque journal : les noms y décrivent le code retiré, relisible par `git show v0.2.9:<chemin>`. Les liens vers `cmd/` et `internal/` deviennent du texte (`chemin`, v0.2.9). Les sept pièges Go de `PIEGES.md` passent dans une section « Historique (Go) ». Les corrections antérieures au 2026-10-17 quittent `CORRECTIONS.md` pour `docs/archives/CORRECTIONS-ere-go.md`, texte inchangé, avec un titre-renvoi laissé en place (même procédé que DEC-40) pour que les renvois « CORRECTIONS … » restent vrais.
+**Conséquences** — `CORRECTIONS.md` ne tient plus que l'ère Rust. Un nom de fonction Go dans un journal n'est ni une erreur ni une dette : ne pas le « corriger ». Le contenu des entrées n'est jamais réécrit, seulement déplacé ou précédé d'un bandeau.
+**À rouvrir si** — Les journaux deviennent illisibles sans le contexte Go (alors les condenser, pas les réécrire), ou si `v0.2.9` cesse d'être joignable (tag supprimé).

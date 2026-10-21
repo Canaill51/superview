@@ -1,7 +1,6 @@
 # Superview — Journal des corrections et leçons
 
-> **Chemins.** Ce journal date d'avant le 2026-10-14 (DEC-39) : `common/` y désigne
-> aujourd'hui `internal/common/`, et les fichiers `gui_*.go` de la racine sont dans `cmd/superview/`.
+> **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
 >
 > **Ce fichier se met à jour après CHAQUE correction appliquée au code.**
 > Procédure : (1) ajouter une entrée dans [CORRECTIONS.md](CORRECTIONS.md) (ex-§ 3) avec le gabarit ci-dessous, (2) si la
