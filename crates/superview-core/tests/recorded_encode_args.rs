@@ -1,4 +1,4 @@
-//! Reproduces the frozen parity fixture `tests/fixtures/parity/encode_args.json` field by field:
+//! Reproduces the frozen recorded fixture `tests/fixtures/recorded/encode_args.json` field by field:
 //! the full argv of `build_encode_base_args` over the matrix `TestParity_EncodeArgs`
 //! records.
 //!
@@ -16,7 +16,7 @@ use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/encode_args.json");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recorded/encode_args.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("encode_args.json: not an object: {other}"),
@@ -24,7 +24,7 @@ fn load() -> serde_json::Map<String, Value> {
 }
 
 /// A source video of the matrix (the codec is always h264 here).
-fn parity_video(pix_fmt: &str) -> VideoSpecs {
+fn recorded_video(pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
         streams: vec![VideoStream {
@@ -55,7 +55,7 @@ fn with_forced_demuxer(mut oracle: Vec<&str>) -> Vec<&str> {
 
 // Go: TestParity_EncodeArgs
 #[test]
-fn encode_args_match_the_go_oracle() {
+fn encode_args_match_the_recording() {
     let mut got: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut add = |name: String,
                    pix_fmt: &str,
@@ -66,7 +66,7 @@ fn encode_args_match_the_go_oracle() {
                    filter_threads: i64,
                    preset: &str| {
         let argv = build_encode_base_args(
-            &parity_video(pix_fmt),
+            &recorded_video(pix_fmt),
             "x.pgm",
             "y.pgm",
             encoder,

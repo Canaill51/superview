@@ -225,7 +225,7 @@ fn without_the_fallback_a_quick_nothing_is_a_cancel() {
 }
 
 #[test]
-fn the_arguments_are_go_s_with_the_title_filter_and_default_name() {
+fn the_arguments_carry_the_title_filter_and_default_name() {
     assert_eq!(
         tool_args(Tool::Zenity, Kind::Input),
         [
@@ -265,7 +265,7 @@ fn the_arguments_reach_the_tool_unchanged() {
 }
 
 #[test]
-fn exit_codes_are_read_as_go_reads_them() {
+fn exit_codes_are_read_the_way_v0_2_9_read_them() {
     assert_eq!(
         classify_exit(Some(0), b"/a.mp4\n", b""),
         ToolRun::Selected("/a.mp4".into())

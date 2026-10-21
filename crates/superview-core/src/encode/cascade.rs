@@ -65,7 +65,7 @@ pub struct EncodeSummary {
 /// fallback always goes back to a bit rate. Reads the real available memory for the guard of the CPU-encoder fallback.
 #[allow(
     clippy::too_many_arguments,
-    reason = "a 1:1 port of the Go signature; each parameter replaces a global or a channel of the Go code"
+    reason = "one parameter per former global or channel, kept explicit rather than bundled"
 )]
 pub fn encode_video(
     cfg: Option<&Config>,
@@ -101,7 +101,7 @@ pub fn encode_video(
 /// [`encode_video`] with the memory reading chosen (`None` = cannot be read).
 #[allow(
     clippy::too_many_arguments,
-    reason = "a 1:1 port of the Go signature, plus the seam Go has as a package variable"
+    reason = "the parameters of encode_video, plus the injected memory reading"
 )]
 pub fn encode_video_with_memory(
     cfg: Option<&Config>,
@@ -293,7 +293,7 @@ fn map_paths(x: &Path, y: &Path) -> Result<(String, String), Error> {
 /// the encoder that is about to take over.
 #[allow(
     clippy::too_many_arguments,
-    reason = "the parts of the Go block, each from a different owner"
+    reason = "what the guard reads, each from a different owner"
 )]
 fn guard_fallback(
     stop: &StopControl,

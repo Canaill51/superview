@@ -105,7 +105,7 @@ fn validate_bitrate_with_config() {
 
 // The messages are pinned here.
 #[test]
-fn validate_bitrate_messages_are_gos() {
+fn validate_bitrate_messages_are_v0_2_9s() {
     let text = |r: Result<(), Error>| r.unwrap_err().to_string();
     assert_eq!(
         text(validate_bitrate(0, 0, 0)),

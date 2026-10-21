@@ -1,8 +1,8 @@
 //! The memory guard: what a software encode is measured to need, and the refusal, plus the
 //! real reading of the available memory (cgroup limit, `/proc/meminfo`).
 //!
-//! `tests/fixtures/parity/memory.json` pins the estimate over ~1000 cases
-//! (`tests/parity_memory.rs`); the refusal text is v0.2.9's, word for word.
+//! `tests/fixtures/recorded/memory.json` pins the estimate over ~1000 cases
+//! (`tests/recorded_memory.rs`); the refusal text is v0.2.9's, word for word.
 //!
 //! Design notes:
 //! - The reading is a parameter of the checks (`available: impl Fn() -> Option<u64>`).

@@ -81,7 +81,7 @@ fn a_kill_is_diagnosed_as_memory_exhaustion() {
 // The whole text, written out by hand.
 #[cfg(unix)]
 #[test]
-fn the_kill_message_is_the_go_text_word_for_word() {
+fn the_kill_message_is_v0_2_9s_text_word_for_word() {
     let head = "ffmpeg was killed by the system (signal: killed). Nothing in Superview sent that signal, \
 which on this platform almost always means the machine ran out of memory.";
     let tail = " Close other applications, choose a hardware encoder if this machine offers one, \

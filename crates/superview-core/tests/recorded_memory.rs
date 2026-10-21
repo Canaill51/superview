@@ -1,4 +1,4 @@
-//! Reproduces the frozen parity fixture `tests/fixtures/parity/memory.json` case by case: the memory
+//! Reproduces the frozen recorded fixture `tests/fixtures/recorded/memory.json` case by case: the memory
 //! a software encode is estimated to need, over the matrix `TestParity_Memory` records.
 //!
 //! (A fixture frozen from the former Go test of the same name, now removed; not regenerated.)
@@ -13,7 +13,8 @@ use superview_core::memory::{memory_needed_for_encode, memory_needed_for_frame};
 use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/memory.json");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recorded/memory.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("memory.json: not an object: {other}"),
@@ -21,7 +22,7 @@ fn load() -> serde_json::Map<String, Value> {
 }
 
 /// A source video of the matrix.
-fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
+fn recorded_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
         streams: vec![VideoStream {
@@ -40,7 +41,7 @@ fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
 
 // Go: TestParity_Memory
 #[test]
-fn memory_estimates_match_the_go_oracle() {
+fn memory_estimates_match_the_recording() {
     let mut got: BTreeMap<String, u64> = BTreeMap::new();
     let mut add = |name: String, value: u64| {
         assert!(
@@ -68,7 +69,7 @@ fn memory_estimates_match_the_go_oracle() {
         for enc in encoders {
             for pf in ["yuv420p", "yuv420p10le"] {
                 for threads in [0, 1, 4, 5, 8, 16, 32] {
-                    let video = parity_video("hevc", pf);
+                    let video = recorded_video("hevc", pf);
                     add(
                         format!("{width}x{height}/enc={enc}/pix={pf}/threads={threads}"),
                         memory_needed_for_frame(width, height, Some(&video), enc, threads),
@@ -79,7 +80,7 @@ fn memory_estimates_match_the_go_oracle() {
     }
     // Degenerate cases: zero or negative size, missing source or no stream.
     for (x, y) in [(0, 1080), (1920, 0), (-1, 1080)] {
-        let video = parity_video("h264", "");
+        let video = recorded_video("h264", "");
         add(
             format!("degenerate/{x}x{y}"),
             memory_needed_for_frame(x, y, Some(&video), "libx264", 8),
@@ -101,7 +102,7 @@ fn memory_estimates_match_the_go_oracle() {
     // The same estimate from the source: goes through remap_output_size.
     for squeeze in [false, true] {
         for enc in ["libx264", "libx265"] {
-            let video = parity_video("h264", "yuv420p");
+            let video = recorded_video("h264", "yuv420p");
             add(
                 format!("from_source/1440x1080/squeeze={squeeze}/enc={enc}/threads=8"),
                 memory_needed_for_encode(Some(&video), squeeze, enc, 8),

@@ -1,7 +1,7 @@
 //! Typed errors.
 //!
 //! The Display text of each variant is v0.2.9's; the `InvalidVideo` and `Encoder` texts
-//! are pinned by the parity fixtures.
+//! are pinned by the recorded fixtures.
 //!
 //! Design notes:
 //! - The three sentinels of the fallback cascade (cancelled, stopped by a signal, failed
@@ -105,7 +105,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn messages_match_the_go_text() {
+    fn messages_match_v0_2_9s_text() {
         let invalid = InvalidVideoError {
             reason: "no codec information".into(),
         };
@@ -130,7 +130,7 @@ mod tests {
 
     // The message of each sentinel, and the `(signal: …)` form of a stop by signal.
     #[test]
-    fn the_stop_messages_match_the_go_text() {
+    fn the_stop_messages_match_v0_2_9s_text() {
         assert_eq!(Error::Cancelled.to_string(), "encoding interrupted by user");
         assert_eq!(
             Error::StoppedBySignal(signal_description(15)).to_string(),
@@ -190,7 +190,7 @@ mod tests {
         assert!(Error::StoppedBySignal("interrupt".into()).is_stop_request());
         assert!(
             Error::FailedAfterOutput(Box::new(Error::Cancelled)).is_stop_request(),
-            "errors.Is looks through %w"
+            "a stop request is looked for through the wrapper"
         );
         let after = Error::FailedAfterOutput(Box::new(Error::Plain("x".into())));
         assert!(!after.is_stop_request());

@@ -1,4 +1,4 @@
-//! Reproduces the frozen parity fixture `tests/fixtures/parity/decisions.json` field by field:
+//! Reproduces the frozen recorded fixture `tests/fixtures/recorded/decisions.json` field by field:
 //! `find_encoder`, `software_encoder_for_fallback` and `select_hardware_decode_accel`
 //! over the matrix `TestParity_Decisions` records.
 //!
@@ -18,7 +18,7 @@ use superview_core::video::{VideoSpecs, VideoStream};
 
 fn load() -> serde_json::Map<String, Value> {
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parity/decisions.json");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recorded/decisions.json");
     match serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap() {
         Value::Object(map) => map,
         other => panic!("decisions.json: not an object: {other}"),
@@ -26,7 +26,7 @@ fn load() -> serde_json::Map<String, Value> {
 }
 
 /// A source video of the matrix.
-fn parity_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
+fn recorded_video(codec: &str, pix_fmt: &str) -> VideoSpecs {
     VideoSpecs {
         file: "input.mp4".into(),
         streams: vec![VideoStream {
@@ -112,14 +112,14 @@ fn capabilities() -> Vec<(&'static str, HashMap<String, String>)> {
 /// The `sources` table.
 fn sources() -> Vec<(&'static str, VideoSpecs)> {
     vec![
-        ("src=h264", parity_video("h264", "yuv420p")),
-        ("src=avc", parity_video("avc", "yuv420p")),
-        ("src=hevc_padded", parity_video(" hevc ", "yuv420p")),
-        ("src=hevc_10bit", parity_video("hevc", "yuv420p10le")),
-        ("src=h265", parity_video("h265", "yuv420p")),
-        ("src=HEVC_upper", parity_video("HEVC", "yuv420p")),
-        ("src=av1", parity_video("av1", "yuv420p")),
-        ("src=no_codec_name", parity_video("", "")),
+        ("src=h264", recorded_video("h264", "yuv420p")),
+        ("src=avc", recorded_video("avc", "yuv420p")),
+        ("src=hevc_padded", recorded_video(" hevc ", "yuv420p")),
+        ("src=hevc_10bit", recorded_video("hevc", "yuv420p10le")),
+        ("src=h265", recorded_video("h265", "yuv420p")),
+        ("src=HEVC_upper", recorded_video("HEVC", "yuv420p")),
+        ("src=av1", recorded_video("av1", "yuv420p")),
+        ("src=no_codec_name", recorded_video("", "")),
         (
             "src=no_streams",
             VideoSpecs {
@@ -161,7 +161,7 @@ fn encoder_result(result: Result<String, Error>) -> Value {
 
 // Go: TestParity_Decisions
 #[test]
-fn decisions_match_the_go_oracle() {
+fn decisions_match_the_recording() {
     let mut got: BTreeMap<String, Value> = BTreeMap::new();
     let mut add = |name: String, value: Value| {
         assert!(
