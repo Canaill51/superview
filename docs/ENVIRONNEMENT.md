@@ -4,10 +4,9 @@
 > prérequis pour utiliser Superview. Pour compiler et tester, il faut Rust (installé par
 > rustup, sans `sudo`), FFmpeg et ffprobe, et un seul paquet de développement.
 >
-> Il y avait ici, du temps de Go et Fyne, un montage de « sysroot » d'en-têtes GL/X11/Wayland pour
-> compiler sans `sudo` (`/tmp/glue/sysroot`, `/tmp/guienv.sh`). Il est **inutile** depuis le retrait
-> de Go (DEC-49) : la fenêtre Slint ne lie que `libfontconfig`. Les journaux anciens le mentionnent
-> encore ; ne pas le reconstruire.
+> Les journaux anciens parlent d'un montage de « sysroot » d'en-têtes GL/X11/Wayland (`/tmp/glue/sysroot`,
+> `/tmp/guienv.sh`) : il datait de Go + Fyne (retiré en DEC-49), la fenêtre Slint ne lie que `libfontconfig`.
+> Ne pas le reconstruire.
 
 ## Ce qui survit à un redémarrage, et ce qui n'y survit pas
 

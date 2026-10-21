@@ -7,8 +7,8 @@
 Convertir une vidéo MP4 en 4:3 vers du 16:9 par distorsion dynamique : les bords sont étirés, le
 centre garde son ratio. Une interface graphique (Rust + Slint, Windows et Linux, **pas de CLI**) qui
 génère deux cartes de remappage PGM et les confie au filtre `remap` de FFmpeg. MP4 en entrée, MP4 en
-sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + Fyne jusqu'à la v0.2.9
-(dernière version Go, toujours dans l'historique) ; Go a été retiré après la RC-0.3.0 (DEC-49).
+sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + Fyne jusqu'à la v0.2.9 ;
+Go a été retiré en DEC-49 (`git show v0.2.9:<chemin>` pour relire l'ancien code).
 
 ## Vue d'ensemble
 Un workspace Cargo à la racine (`crates/`), trois crates :
@@ -57,7 +57,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 | Dossier | Rôle |
 |---------|------|
 | `Cargo.toml`, `crates/` | le workspace Cargo ci-dessus (à la racine) ; `rust-toolchain.toml` épingle la version |
-| `crates/superview-core/tests/fixtures/` | fixtures de parité (`parity/*.json`, `ffprobe/`) : enregistrées sur le code Go, **gelées**, ce sont la spécification que le Rust doit reproduire |
+| `crates/superview-core/tests/fixtures/` | fixtures de parité (`parity/*.json`, `ffprobe/`) : enregistrées par l'oracle Go (`internal/common/parity_test.go`, #101, sur un code identique à la v0.2.9 ; `git show 915dc2c^:<chemin>`), **gelées**, ce sont la spécification que le Rust doit reproduire |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/rust.sh` |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 |

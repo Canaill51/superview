@@ -40,7 +40,7 @@ fn compile_window() {
 }
 
 /// The version comes from the release (`SUPERVIEW_VERSION`, DEC-22), the revision from git.
-/// No git, or a git that fails, means no revision: the same as Go without vcs information.
+/// No git, or a git that fails, means no revision: the same as a build without vcs information.
 fn stamp_build() {
     println!("cargo:rerun-if-env-changed=SUPERVIEW_VERSION");
     let raw = std::env::var("SUPERVIEW_VERSION").ok();
