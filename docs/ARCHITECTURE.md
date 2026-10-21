@@ -45,7 +45,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 | Fichier | Rôle |
 |---------|------|
 | `ui/theme.slint`, `ui/components.slint` | le global `Theme` (jeux Light et Dark, accent cyan, DEC-57) ; `AppButton`, `Card`, `ProgressBar` (barre rouge/verte, DEC-58), `SegmentedControl`, `Switch` et `Pill` |
-| `ui/main.slint` | la fenêtre (1000×600, taille fixe, DEC-61 : la disposition de la maquette cyan, boutons en contexte), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
+| `ui/main.slint` | la fenêtre (1000×570, taille fixe, DEC-61 : la disposition de la maquette cyan, boutons en contexte), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
 | `state.rs`, `format.rs`, `report.rs`, `prefs.rs` | `AppState` + `ViewModel` ; textes et règles pures ; le rapport du Diagnostic lu ligne à ligne (aucun texte perdu) ; préférences JSON (DEC-46) |
 | `app.rs` | la colle : callbacks, fils de travail, popups en file ; tout widget touché par `upgrade_in_event_loop` |
 | `engine.rs`, `host.rs` | ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; le bureau derrière `Host` (navigateur sans shell, fin de la boucle) |

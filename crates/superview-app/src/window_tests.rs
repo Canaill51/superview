@@ -19,7 +19,7 @@ use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind, Theme};
 
 /// The window's size (fixed, DEC-61).
 const WINDOW_WIDTH: f32 = 1000.0;
-const WINDOW_HEIGHT: f32 = 600.0;
+const WINDOW_HEIGHT: f32 = 570.0;
 
 const BUTTONS: [&str; 6] = [
     "Choose input file",
@@ -150,7 +150,6 @@ fn every_label_is_present() {
         "Output file",
         "Quality profile",
         "Video codec",
-        "Input format",
         SQUEEZE,
         "Status: Ready",
         "Results: no completed run yet",
@@ -188,7 +187,7 @@ fn the_buttons_and_the_settings_sit_where_the_mockup_puts_them() {
     let y = |e: &ElementHandle| e.absolute_position().y;
     let quality = only(&window, "Quality profile");
     let codec = only(&window, "Video codec");
-    let input_format = only(&window, "Input format");
+    let input_format = only(&window, SQUEEZE);
     let hardware = only(&window, "Hardware: waiting for input video");
     let progress = only(&window, "Progress");
     let status = only(&window, "Status: Ready");
@@ -201,7 +200,7 @@ fn the_buttons_and_the_settings_sit_where_the_mockup_puts_them() {
     );
     for (name, element) in [
         ("Video codec", &codec),
-        ("Input format", &input_format),
+        ("the switch", &input_format),
         ("Hardware", &hardware),
         ("Progress", &progress),
         ("Status", &status),

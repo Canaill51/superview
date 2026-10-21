@@ -18,6 +18,7 @@
 | **Fichiers** | `ui/main.slint` (disposition), `ui/components.slint` (`Pill`, fond des boutons, étiquette de la barre), `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-61) |
 | **Règle** | avant d'écrire la disposition d'une maquette validée, relire la maquette elle-même et pas le plan qui la résume ; une remarque de l'utilisateur sur l'écart se traite par le texte de la maquette |
 | **Relecture** | la ligne Hardware est plafonnée à trois lignes (`height: min(preferred, 48px)` : un `max-height` seul perdait contre la hauteur minimale du texte replié) et le test prend le pire cas réel (préfixe + deux raisons de `PROBE_REASON_BUDGET`) ; bouton désactivé sans fond ; texte de la pastille testé ; vocabulaire « toolbar » retiré des tests |
+| **Essai à la main** | un vide visible sous la ligne Hardware : les espacements dépassaient ceux de la maquette (étiquette à 12 px de son champ au lieu de 6, ligne du pourcentage plus haute) ; refaits à l'identique, fenêtre 570 px au lieu de 620, textes variables plafonnés, étiquette « Input format » retirée |
 | **Vérification** | `the_buttons_and_the_settings_sit_where_the_mockup_puts_them` (place de chaque bouton) et `the_right_column_fits_with_the_longest_texts` (rouge à 560 puis 600 px : mesuré) ; captures Xvfb en Dark et en Light ; essai à la main par l'utilisateur avant la PR ; `scripts/check.sh` |
 
 ### [2026-10-21] Vignette et ligne de spécifications du fichier d'entrée (DEC-60, refonte de l'interface, PR 5)
