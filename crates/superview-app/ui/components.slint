@@ -73,3 +73,45 @@ export component Card inherits Rectangle {
     border-color: Theme.border;
     border-radius: 8px;
 }
+
+// What the bar's colour says (`state::BarState`, DEC-58).
+export enum BarState {
+    idle,
+    running,
+    done,
+    stopped,
+}
+
+// The progress bar: a track and a fill that eases towards the figure it is given. The ease runs only
+// while a conversion goes and has begun: a fill that jumps back to nothing for a new start, or lands
+// on a finished one, is not animated.
+export component ProgressBar inherits Rectangle {
+    // 0 to 1.
+    in property <float> progress;
+    in property <BarState> state: BarState.idle;
+    // The fill's colour, read by the window tests.
+    out property <color> fill: root.state == BarState.running ? Theme.running
+        : root.state == BarState.done ? Theme.done
+        : root.state == BarState.stopped ? Theme.text-muted
+        : Theme.accent;
+
+    height: 10px;
+    border-radius: 5px;
+    background: Theme.surface;
+    accessible-role: progress-indicator;
+    accessible-value: root.progress;
+    accessible-value-minimum: 0;
+    accessible-value-maximum: 1;
+    clip: true;
+    Rectangle {
+        x: 0px;
+        width: parent.width * clamp(root.progress, 0, 1);
+        height: parent.height;
+        border-radius: root.border-radius;
+        background: root.fill;
+        animate width {
+            duration: root.state == BarState.running && root.progress > 0 ? 400ms : 0ms;
+            easing: ease-out;
+        }
+    }
+}

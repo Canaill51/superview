@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Barre de progression rouge, verte et lissée (DEC-58, refonte de l'interface, PR 3)
+
+| | |
+| --- | --- |
+| **Constat** | une barre Slint d'un seul aspect, qui avançait par à-coups |
+| **Cause** | `ProgressIndicator` n'a ni couleur d'état ni animation réglables |
+| **Fichiers** | `ui/components.slint` (`BarState`, `ProgressBar`), `ui/main.slint`, `src/state.rs` (`BarState`, transitions), `src/app.rs` (`apply_view`), `src/state/tests.rs`, `src/window_tests.rs`, `src/app_tests.rs`, `docs/DECISIONS.md` (DEC-58) |
+| **Règle** | un état d'affichage se fixe là où l'état métier change déjà, pas dans la colle ; un test de couleur compare tous les états entre eux, pas un seul |
+| **Vérification** | rouges chacun avec le défaut réintroduit (mesuré) : Done remplacé par Idle (`the_bar_turns_done_on_success`, `a_new_input_resets_the_bar`) ; Stopped retiré de l'échec (test d'état et scénario d'échec) ; arms Idle et Stopped intervertis dans `apply_view` (scénarios d'`app_tests.rs`) ; rôle `progress-indicator` retiré (`the_bar_changes_colour_with_its_state`) ; `scripts/check.sh` |
+| **Relecture** | la barre garde son rôle accessible et sa valeur (le `ProgressIndicator` les avait) ; DEC-58 précise que seul un nouveau fichier d'entrée remet la barre à zéro |
+
 ### [2026-10-21] Menu Theme et palette cyan (DEC-57, refonte de l'interface, PR 2)
 
 | | |

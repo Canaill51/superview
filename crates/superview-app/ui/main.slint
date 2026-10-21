@@ -1,11 +1,11 @@
 // The application window, laid out as v0.2.9's window, with its labels word for word. Nothing is computed here: the window shows
 // properties it is given and reports clicks through callbacks, and `app.rs` owns every decision (DEC-43).
-import { Palette, CheckBox, ComboBox, LineEdit, ProgressIndicator, ScrollView, TextEdit } from "std-widgets.slint";
+import { Palette, CheckBox, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { AppButton, Card } from "components.slint";
+import { AppButton, BarState, Card, ProgressBar } from "components.slint";
 
 // The colours, for the Rust side to read in tests.
-export { Theme }
+export { BarState, Theme }
 
 // The popup that is open: one at a time, `none` when the window is free.
 export enum Popup {
@@ -200,6 +200,9 @@ export component MainWindow inherits Window {
     in property <string> output-name: "No file selected";
     // 0 to 1.
     in property <float> progress: 0;
+    in property <BarState> bar-state: BarState.idle;
+    // The colour of the bar's fill, for the tests.
+    out property <color> bar-fill: bar.fill;
     // The profiles the menu offers: `prefs::QUALITY_PROFILES`, the list a saved choice is
     // validated against.
     in property <[string]> quality-profiles;
@@ -414,7 +417,7 @@ export component MainWindow inherits Window {
                     alignment: LayoutAlignment.start;
 
                     Text { text: "Progress"; }
-                    ProgressIndicator { progress: root.progress; }
+                    bar := ProgressBar { progress: root.progress; state: root.bar-state; }
                     Text { text: root.status; font-weight: 700; wrap: word-wrap; }
                     Text { text: root.results; wrap: word-wrap; }
                 }

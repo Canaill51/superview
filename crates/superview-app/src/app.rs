@@ -55,8 +55,8 @@ use crate::format::{is_missing_ffmpeg_error, parse_encoder_selection, resolve_st
 use crate::prefs::{Preferences, QUALITY_PROFILES, THEMES};
 use crate::report::{Row, RowKind, parse_report};
 use crate::state::{
-    AppState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink, ViewModel,
-    run_encoding,
+    AppState, BarState, ChosenOutcome, Completion, Control, GuiHandler, Lifecycle, ProgressSink,
+    ViewModel, run_encoding,
 };
 use crate::{DiagnosticRow, MainWindow, Popup, ReportRowKind};
 
@@ -323,6 +323,12 @@ fn apply_view(window: &MainWindow, view: &ViewModel) {
     window.set_input_name(view.input_name.as_str().into());
     window.set_output_name(view.output_name.as_str().into());
     window.set_progress(view.progress as f32);
+    window.set_bar_state(match view.bar {
+        BarState::Idle => crate::BarState::Idle,
+        BarState::Running => crate::BarState::Running,
+        BarState::Done => crate::BarState::Done,
+        BarState::Stopped => crate::BarState::Stopped,
+    });
     window.set_quality(view.quality.as_str().into());
     window.set_squeeze(view.squeeze);
     window.set_theme(view.theme.as_str().into());
