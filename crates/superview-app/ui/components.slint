@@ -13,11 +13,10 @@ export component AppButton inherits Rectangle {
     min-height: 32px;
     border-radius: 6px;
     border-width: 1px;
-    border-color: root.primary ? Theme.accent : Theme.border;
+    border-color: root.primary && root.enabled ? Theme.accent : Theme.border;
     background: !root.enabled ? Theme.surface
         : root.primary ? (touch.pressed ? Theme.accent.darker(0.2) : touch.has-hover ? (Theme.dark ? Theme.accent.brighter(0.15) : Theme.accent.darker(0.1)) : Theme.accent)
         : (touch.pressed ? Theme.border : touch.has-hover ? Theme.surface : Theme.panel);
-    opacity: root.enabled ? 1 : 0.5;
     accessible-role: button;
     accessible-label: root.text;
     accessible-enabled: root.enabled;
@@ -59,7 +58,7 @@ export component AppButton inherits Rectangle {
     label := Text {
         accessible-role: none;
         text: root.text;
-        color: root.primary ? Theme.on-accent : Theme.text;
+        color: !root.enabled ? Theme.text-muted : root.primary ? Theme.on-accent : Theme.text;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -130,13 +129,13 @@ export component SegmentedControl inherits Rectangle {
     border-width: 1px;
     border-color: Theme.border;
     background: Theme.surface;
-    opacity: root.enabled ? 1 : 0.5;
     HorizontalLayout {
         padding: 3px;
         spacing: 3px;
         for item in root.model: Rectangle {
             border-radius: 6px;
-            background: item == root.current ? Theme.accent : touch.has-hover && root.enabled ? Theme.border : transparent;
+            // Disabled: the chosen segment turns grey, not a fainter accent that its text cannot be read on.
+            background: item == root.current ? (root.enabled ? Theme.accent : Theme.border) : touch.has-hover && root.enabled ? Theme.border : transparent;
             accessible-role: radio-button;
             accessible-label: item;
             accessible-checkable: true;
@@ -175,7 +174,7 @@ export component SegmentedControl inherits Rectangle {
                 accessible-role: none;
                 text: item;
                 font-weight: 600;
-                color: item == root.current ? Theme.on-accent : Theme.text;
+                color: !root.enabled ? Theme.text-muted : item == root.current ? Theme.on-accent : Theme.text;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }

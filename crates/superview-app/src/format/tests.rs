@@ -403,6 +403,10 @@ fn the_input_line_names_the_codec_the_size_and_the_length() {
         }],
     };
     assert_eq!(input_specs(&video), "h264 · 1440×1080 · 2m15s");
+    // A length with milliseconds reads in whole seconds.
+    let mut odd = video.clone();
+    odd.streams[0].duration_float = 115.991;
+    assert_eq!(input_specs(&odd), "h264 · 1440×1080 · 1m56s");
     // No stream, nothing to say: never a panic on an index.
     let none = VideoSpecs {
         file: "x.mp4".into(),

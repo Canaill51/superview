@@ -102,7 +102,9 @@ pub fn input_specs(video: &VideoSpecs) -> String {
     let Some(stream) = video.streams.first() else {
         return String::new();
     };
-    let length = Duration::try_from_secs_f64(stream.duration_float.max(0.0)).unwrap_or_default();
+    // Whole seconds: ffprobe reports 115.991, and "1m55.991s" is noise on a card.
+    let length =
+        Duration::try_from_secs_f64(stream.duration_float.max(0.0).round()).unwrap_or_default();
     format!(
         "{} · {}×{} · {}",
         stream.codec,
