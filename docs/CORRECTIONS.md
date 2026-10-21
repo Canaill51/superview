@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] La fenêtre reprend sa taille fixe (DEC-54, remplace DEC-51)
+
+| | |
+| --- | --- |
+| **Constat** | essai de l'application par l'utilisateur : la fenêtre redimensionnable de DEC-51 « bouge », il préfère la taille fixe |
+| **Cause** | choix de la 14ᵉ passe (F-27) pour les petits écrans, désormais écarté |
+| **Fichiers** | `superview-app/ui/main.slint` (`min-` = `max-` à 980×470), `src/repo_guards.rs` (garde `the_window_has_one_size_so_it_cannot_be_resized`), `src/window_tests.rs` (`the_window_fits_its_smallest_size` retiré), `DECISIONS.md` (DEC-54, DEC-51 *Remplacée*, DEC-32), `ARCHITECTURE.md` |
+| **PR** | Return the window to its fixed size |
+| **Vérification** | contre-preuve : le garde est rouge sur le `main.slint` de `master` (« sets no window max-width »), vert après. Un premier essai par `set_size` dans `window_tests.rs` ne prouvait rien : le backend de test ne clampe pas, le test restait rouge même avec le correctif ; abandonné. **Test retiré par décision** : `the_window_fits_its_smallest_size`, sans objet sans minimum. À la main : fenêtre non redimensionnable à vérifier sous KDE/Wayland (winit applique min = max). **Limite** : écran de 910×512 logiques ou moins, fenêtre coupée (DEC-51 le corrigeait) |
+
 ### [2026-10-20] Entrée lue comme du MP4 et durée non finie refusée (Q-04 et Q-05, session 9)
 
 | | |

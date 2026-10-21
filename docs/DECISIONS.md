@@ -81,9 +81,10 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-47](#dec-47) | La release livre le binaire Rust ; AppImage sans `LD_LIBRARY_PATH` (DT_RPATH) | Acceptée |
 | [DEC-48](#dec-48) | Un pilote VAAPI qui n'accepte que CQP est utilisé en qualité constante, automatiquement (Rust seulement) | Acceptée |
 | [DEC-49](#dec-49) | Go est retiré du dépôt ; le Rust est la seule base de code | Acceptée |
-| [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | Acceptée (remplace la taille fixe de DEC-32) |
+| [DEC-51](#dec-51) | Fenêtre redimensionnable : 980×470 à l'ouverture, minimum 760×440, pas de maximum | *Remplacée par DEC-54* |
 | [DEC-52](#dec-52) | L'entrée est lue avec `-f mov` (ffprobe et ffmpeg), jamais devinée d'après le contenu | Acceptée |
 | [DEC-53](#dec-53) | Une durée qui n'est pas un nombre fini (`inf`, `nan`) est refusée | Acceptée |
+| [DEC-54](#dec-54) | La fenêtre reprend sa taille fixe : 980×470, non redimensionnable | Acceptée (remplace DEC-51) |
 
 ---
 
@@ -321,7 +322,7 @@ origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49
 
 **Décision** — `SetFixedSize(true)`, taille = max(constantes, `MinSize` du contenu) ; `forcedDarkTheme` plutôt que `theme.DarkTheme()` déprécié. Ajouter un widget est un changement de mise en page : `TestToolbarFitsWindow` mesure le rendu.
 
-**Amendée par [DEC-51](#dec-51)** : la taille fixe est *Remplacée* ; le thème sombre forcé reste.
+**Amendée par [DEC-51](#dec-51), puis [DEC-54](#dec-54)** : la taille fixe, remplacée par DEC-51, est rétablie par DEC-54 ; le thème sombre forcé reste.
 
 ### DEC-33
 **Le mode audio par défaut est `safe_performance` partout : code, YAML livré, README.**
@@ -521,7 +522,7 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 
 ### DEC-51
 **La fenêtre est redimensionnable : 980×470 à l'ouverture, 760×440 au minimum, pas de maximum.**
-2026-10-20 · Acceptée · session 7 de la 14ᵉ passe (F-27) · remplace la taille fixe de DEC-32
+2026-10-20 · *Remplacée par [DEC-54](#dec-54)* · session 7 de la 14ᵉ passe (F-27) · remplace la taille fixe de DEC-32
 
 **Contexte** — Fixe à 980×470 px logiques, la fenêtre dépassait un 1366×768 à 150 % (910×512) : coupée, non redimensionnable.
 **Décision** — `preferred-width/height` 980×470, `min-width/height` 760×440, plus de maximum. `the_window_fits_its_smallest_size` vérifie la barre d'outils et la dernière ligne au minimum ; les tests de la taille d'ouverture restent.
@@ -545,3 +546,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `!duration_float.is_finite() || duration_float <= 0.0`. Le message, déjà visible par l'utilisateur, ne change pas. `parse_go_float` et `parse_frame_rate` ne changent pas (le premier sert aussi à la progression ; la cadence n'est lue nulle part ensuite). Aucune fixture gelée n'est touchée : `specs.json` n'a aucun cas `inf` ou `nan`.
 **Conséquences** — `validate_duration_limits` attendait « NaN passe, comme en Go » : **test modifié par décision**. `a_duration_of_inf_or_nan_in_ffprobes_json_is_refused` le prouve de bout en bout sur le JSON d'ffprobe.
 **À rouvrir si** — ffprobe se met à rendre légitimement `inf` pour un flux sans fin (un MP4 n'en a pas).
+
+### DEC-54
+**La fenêtre reprend sa taille fixe : 980×470, non redimensionnable.**
+2026-10-21 · Acceptée · à la demande de l'utilisateur, après essai de la fenêtre redimensionnable · remplace DEC-51
+
+**Contexte** — DEC-51 (#150) avait rendu la fenêtre redimensionnable (980×470 à l'ouverture, 760×440 au minimum) pour qu'elle tienne sur un 1366×768 à 150 % (910×512 logiques). À l'essai, l'utilisateur ne veut pas d'une fenêtre qui bouge : il préfère la taille fixe d'avant.
+**Décision** — `min-width` = `max-width` = 980 px et `min-height` = `max-height` = 470 px dans `main.slint`, comme avant #150 (DEC-32). Le garde `the_window_has_one_size_so_it_cannot_be_resized` (`repo_guards.rs`) lit le fichier `.slint` et exige min = max sur les deux axes, car le backend de test n'applique pas les contraintes (un `set_size` y passe) : rouge avec la fenêtre de DEC-51, vert avec celle-ci (mesuré). `the_window_fits_its_smallest_size` est retiré, il n'a plus de minimum à vérifier ; `the_window_has_the_designed_size` reste. Le reste de #150 (Échap et Entrée dans les dialogues, « Cancelling... », menu de qualité) est conservé.
+**Conséquences** — Retour du défaut que DEC-51 corrigeait : sur un écran de 910×512 logiques ou moins (1366×768 à 150 %), la fenêtre est coupée et ne peut pas être réduite. Accepté par l'utilisateur.
+**À rouvrir si** — Un utilisateur signale une fenêtre coupée sur son écran : la solution est alors un minimum plus petit, pas un retour à la taille libre sans réflexion.
