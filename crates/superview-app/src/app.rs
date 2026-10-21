@@ -26,7 +26,8 @@
 //!   for the one address the program knows.
 //! * The probe, the hardware verification and the Diagnostic threads are not joined at exit:
 //!   they watch the `leaving` flag (a probe cut short is not remembered), and the process ends
-//!   under them. Only the conversion is waited for, because it owns files and a process.
+//!   under them. The conversion is waited for, because it owns files and a process, and so are
+//!   the thumbnail threads (2 s at most): each owns a temporary directory and an ffmpeg.
 //! * The path from a system signal to the exit (signal handler, end of the event loop,
 //!   `App::shutdown`) is not covered by a test here: the window's tests simulate the encoder's
 //!   answer to a signal (`StoppedBySignal`) but cannot send one. `superview-harness` covers the
@@ -48,6 +49,7 @@ use superview_core::config::Config;
 use superview_core::error::Error;
 use superview_core::pipeline::{EncodeOutcome, PipelineUi};
 use superview_core::probe::EncoderProbeReport;
+use superview_core::thumbnail::Thumbnail;
 use superview_core::video::VideoSpecs;
 
 use crate::dialogs::{Kind, Pick, parse_typed_path};
@@ -117,6 +119,8 @@ pub trait Engine: Send + Sync + 'static {
     ) -> EncoderProbeReport;
     /// ffprobe on a file.
     fn check_video(&self, path: &str) -> Result<VideoSpecs, Error>;
+    /// One picture of the input, for the file card. `cancel` ends it early.
+    fn thumbnail(&self, video: &VideoSpecs, cancel: &AtomicBool) -> Result<Thumbnail, Error>;
     /// The "Hardware: …" line, with the planned encoder asked about this file's frame.
     fn verify_hardware(
         &self,
@@ -264,6 +268,9 @@ struct Core {
     /// Raised when the application is leaving: ends the probes (a cancelled probe is not
     /// remembered as a verdict).
     leaving: AtomicBool,
+    /// The thumbnail threads: each owns a temporary directory and a process, so they are waited
+    /// for (briefly) when the application leaves.
+    thumbnails: Mutex<Vec<std::thread::JoinHandle<()>>>,
 }
 
 impl Core {
@@ -293,9 +300,26 @@ impl Core {
         apply_popup(window, popups.current());
     }
 
+    /// `leaving` ends a thumbnail's ffmpeg within about 10 ms and its directory goes with the
+    /// thread; waiting a little (2 s at most) is what keeps the process and the directory from
+    /// outliving the window.
+    fn wait_for_thumbnails(&self) {
+        let handles = std::mem::take(&mut *lock(&self.thumbnails));
+        let give_up = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        for handle in handles {
+            while !handle.is_finished() && std::time::Instant::now() < give_up {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            if handle.is_finished() {
+                let _ = handle.join();
+            }
+        }
+    }
+
     /// Asks a running conversion to stop and waits, within a bound, for it to have unwound.
     fn shutdown(&self, reason: &str) -> bool {
         self.leaving.store(true, Ordering::Release);
+        self.wait_for_thumbnails();
         self.lifecycle.shutdown(reason)
     }
 }
@@ -323,6 +347,7 @@ fn apply_view(window: &MainWindow, view: &ViewModel) {
     window.set_input_name(view.input_name.as_str().into());
     window.set_output_name(view.output_name.as_str().into());
     window.set_progress(view.progress as f32);
+    window.set_input_specs(view.input_specs.as_str().into());
     window.set_bar_state(match view.bar {
         BarState::Idle => crate::BarState::Idle,
         BarState::Running => crate::BarState::Running,
@@ -464,6 +489,7 @@ impl App {
             temp_dir: setup.temp_dir,
             window: window.as_weak(),
             leaving: AtomicBool::new(false),
+            thumbnails: Mutex::new(Vec::new()),
         });
 
         {
@@ -752,10 +778,57 @@ fn finish_input_pick(core: &Arc<Core>, chosen: Option<PathBuf>) {
             })
         };
         core.refresh(window);
-        if let Some(ChosenOutcome::Rejected(message)) = outcome {
-            core.show(window, PopupKind::Error(message));
+        match outcome {
+            Some(ChosenOutcome::Applied) => start_thumbnail(core, window),
+            Some(ChosenOutcome::Rejected(message)) => core.show(window, PopupKind::Error(message)),
+            _ => {}
         }
     });
+}
+
+/// Decodes one frame of the new input off the UI thread and puts it on the file card. The card is
+/// emptied first, so the previous file's picture never stays under the new name; a picture that
+/// arrives after another input was chosen is dropped. Without one (a decoder refusing, a
+/// timeout) the card stays empty: the picture is a courtesy, never an error.
+fn start_thumbnail(core: &Arc<Core>, window: &MainWindow) {
+    window.set_has_thumbnail(false);
+    let Some((generation, video)) = core.state().thumbnail_request() else {
+        return;
+    };
+    let thread_core = Arc::clone(core);
+    let spawned = spawn("thumbnail", move || {
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            thread_core.engine.thumbnail(&video, &thread_core.leaving)
+        }));
+        post(&thread_core, move |core, window| {
+            if !core.state().thumbnail_is_current(generation) {
+                return;
+            }
+            match result {
+                Ok(Ok(shot)) => {
+                    let pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                        &shot.rgba,
+                        shot.width,
+                        shot.height,
+                    );
+                    window.set_thumbnail(slint::Image::from_rgba8(pixels));
+                    window.set_has_thumbnail(true);
+                }
+                Ok(Err(e)) => log::debug!("No thumbnail for the input: error={e}"),
+                Err(payload) => {
+                    panic_error("the thumbnail", payload.as_ref());
+                }
+            }
+        });
+    });
+    match spawned {
+        Ok(handle) => {
+            let mut threads = lock(&core.thumbnails);
+            threads.retain(|thread| !thread.is_finished());
+            threads.push(handle);
+        }
+        Err(e) => log::warn!("Cannot start the thumbnail thread: error={e}"),
+    }
 }
 
 /// Applies the chosen output on the UI thread (`.mp4` enforced by the state); `None` is a

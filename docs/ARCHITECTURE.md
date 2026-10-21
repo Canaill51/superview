@@ -36,6 +36,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 | `encode::cascade` | `encode_video`, la cascade de repli à trois niveaux |
 | `encode::failure`, `encode::progress` | classement d'un échec (mort par signal = mémoire) ; lecture de `out_time_ms=` |
 | `pipeline` | `perform_encoding` : validations, fichier de travail, métriques ; le trait `PipelineUi` et les services sont injectés |
+| `thumbnail` | une image brute RGBA de la vidéo (192×144) par ffmpeg, dossier temporaire privé, délai et annulation (DEC-60) |
 | `session` | `EncodingSession` : dossier temporaire isolé, supprimé au `Drop` |
 | `output`, `disk`, `memory` | sortie ≠ entrée et fichier partiel, espace libre (`fs4`), garde-fou mémoire (lecture injectée) |
 | `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal à plafond injecté (5 Mio, fixé par `superview-app`) |

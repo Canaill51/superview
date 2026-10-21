@@ -128,6 +128,9 @@ donnés tels qu'ils apparaissent à l'écran.
 
 ![Capture de l'interface](.github/sample-gui.png)
 
+Une fois le fichier choisi, sa carte montre une image de la vidéo, son codec,
+sa taille et sa durée.
+
 Le menu **Theme** (thème), en haut, bascule entre **Light** (clair) et **Dark**
 (sombre, par défaut) ; la fenêtre retient votre choix.
 

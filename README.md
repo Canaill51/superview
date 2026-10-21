@@ -112,6 +112,9 @@ They must show the same 64 characters, ignoring case.
 
 ![GUI Screenshot](.github/sample-gui.png)
 
+Once a file is chosen, its card shows a picture from the video and its codec,
+size and length.
+
 The **Theme** menu at the top switches between **Light** and **Dark** (dark by
 default); the window remembers your choice.
 

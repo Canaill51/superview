@@ -4,6 +4,7 @@ use std::time::Instant;
 use superview_core::error::Error;
 #[cfg(unix)]
 use superview_core::tools::{ToolResolver, check_ffmpeg};
+use superview_core::video::VideoStream;
 
 use super::*;
 
@@ -387,4 +388,29 @@ fn load_startup_config_never_returns_an_unusable_config() {
         Config::default()
     );
     assert_eq!(load_startup_config(None), Config::default());
+}
+
+#[test]
+fn the_input_line_names_the_codec_the_size_and_the_length() {
+    let video = VideoSpecs {
+        file: "clip.mp4".into(),
+        streams: vec![VideoStream {
+            codec: "h264".into(),
+            width: 1440,
+            height: 1080,
+            duration_float: 135.0,
+            ..VideoStream::default()
+        }],
+    };
+    assert_eq!(input_specs(&video), "h264 · 1440×1080 · 2m15s");
+    // A length with milliseconds reads in whole seconds.
+    let mut odd = video.clone();
+    odd.streams[0].duration_float = 115.991;
+    assert_eq!(input_specs(&odd), "h264 · 1440×1080 · 1m56s");
+    // No stream, nothing to say: never a panic on an index.
+    let none = VideoSpecs {
+        file: "x.mp4".into(),
+        streams: Vec::new(),
+    };
+    assert_eq!(input_specs(&none), "");
 }

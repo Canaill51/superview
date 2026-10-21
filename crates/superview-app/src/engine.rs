@@ -18,6 +18,7 @@ use superview_core::error::Error;
 use superview_core::health::{check_health, get_health_report, log_health};
 use superview_core::pipeline::{EncodeOutcome, PipelineServices, PipelineUi, perform_encoding};
 use superview_core::probe::{EncoderProbeReport, Prober};
+use superview_core::thumbnail::{Thumbnail, extract_thumbnail};
 use superview_core::tools::{ToolResolver, check_ffmpeg};
 use superview_core::video::{VideoSpecs, check_video};
 
@@ -75,6 +76,16 @@ impl SystemEngine {
     }
 }
 
+/// Where in the video the picture is taken: a tenth of the way in, but no later than five
+/// seconds. Past the opening titles of a short clip, and not a long seek into a long one; never
+/// at or after the end, which decodes nothing.
+fn thumbnail_time(length: f64) -> f64 {
+    if !length.is_finite() {
+        return 0.0;
+    }
+    (length * 0.1).clamp(0.0, 5.0)
+}
+
 impl Engine for SystemEngine {
     fn check_ffmpeg(&self) -> Result<HashMap<String, String>, Error> {
         check_ffmpeg(&self.cfg, self.resolver)
@@ -97,6 +108,11 @@ impl Engine for SystemEngine {
 
     fn check_video(&self, path: &str) -> Result<VideoSpecs, Error> {
         check_video(self.resolver, path)
+    }
+
+    fn thumbnail(&self, video: &VideoSpecs, cancel: &AtomicBool) -> Result<Thumbnail, Error> {
+        let length = video.streams.first().map_or(0.0, |s| s.duration_float);
+        extract_thumbnail(self.resolver, &video.file, thumbnail_time(length), cancel)
     }
 
     fn verify_hardware(&self, request: &VerificationRequest, cancel: &AtomicBool) -> String {
@@ -150,6 +166,18 @@ impl Engine for SystemEngine {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_picture_is_taken_a_tenth_in_and_never_past_five_seconds() {
+        use super::thumbnail_time;
+        assert!((thumbnail_time(10.0) - 1.0).abs() < 1e-9);
+        assert!((thumbnail_time(3600.0) - 5.0).abs() < 1e-9);
+        // Unusable lengths read as the first frame, never as a seek past the end.
+        assert!(thumbnail_time(0.0).abs() < 1e-9);
+        assert!(thumbnail_time(-4.0).abs() < 1e-9);
+        assert!(thumbnail_time(f64::NAN).abs() < 1e-9);
+        assert!(thumbnail_time(2.0) < 2.0);
+    }
+
     use super::*;
 
     /// The Diagnostic's report on a directory of its own, which the test removes afterwards: the

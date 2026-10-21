@@ -22,6 +22,7 @@ use superview_core::error::Error;
 use superview_core::metrics::EncodingMetrics;
 use superview_core::pipeline::{EncodeOutcome, PipelineUi};
 use superview_core::probe::{EncoderProbe, EncoderProbeReport};
+use superview_core::thumbnail::Thumbnail;
 use superview_core::video::{VideoSpecs, VideoStream};
 
 use crate::app::{App, EncodeJob, Engine, Host, INSTALL_URL, Setup};
@@ -65,6 +66,17 @@ fn wait_for_cancel(cancel: &AtomicBool) {
     let start = Instant::now();
     while !cancel.load(Ordering::Acquire) && start.elapsed() < Duration::from_secs(10) {
         std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+type ThumbnailFn = dyn Fn(&VideoSpecs) -> Result<Thumbnail, Error> + Send + Sync;
+
+/// A picture of one grey level, so that a test can tell which one the card shows.
+fn solid_thumbnail(grey: u8) -> Thumbnail {
+    Thumbnail {
+        width: 192,
+        height: 144,
+        rgba: [grey, grey, grey, 255].repeat(192 * 144),
     }
 }
 
@@ -115,6 +127,10 @@ struct FakeEngine {
     encode: Box<EncodeFn>,
     jobs: Mutex<Vec<EncodeJob>>,
     health: Box<dyn Fn(&Path) -> String + Send + Sync>,
+    thumbnail: Box<ThumbnailFn>,
+    /// When set, a thumbnail waits for the cancel flag, like ffmpeg waiting on a slow file.
+    thumbnail_blocks: AtomicBool,
+    thumbnails_ended: AtomicU32,
 }
 
 impl FakeEngine {
@@ -134,6 +150,9 @@ impl FakeEngine {
             probe: Box::new(EncoderProbeReport::default),
             encode: Box::new(|_, _, _| Ok(outcome("Hardware: the CPU did it"))),
             jobs: Mutex::new(Vec::new()),
+            thumbnail: Box::new(|_| Ok(solid_thumbnail(200))),
+            thumbnail_blocks: AtomicBool::new(false),
+            thumbnails_ended: AtomicU32::new(0),
             health: Box::new(|temp_dir| {
                 format!(
                     "=== Health ===\ntemp: {}\n✅ FFMPEG: ok\n❌ DISK: low\nnote: ✅ inside\n",
@@ -141,6 +160,14 @@ impl FakeEngine {
                 )
             }),
         }
+    }
+
+    fn thumbnailing(
+        mut self,
+        thumbnail: impl Fn(&VideoSpecs) -> Result<Thumbnail, Error> + Send + Sync + 'static,
+    ) -> Self {
+        self.thumbnail = Box::new(thumbnail);
+        self
     }
 
     fn encoding(
@@ -197,6 +224,17 @@ impl Engine for FakeEngine {
     fn check_video(&self, path: &str) -> Result<VideoSpecs, Error> {
         lock(&self.check_video_threads).push(std::thread::current().id());
         (self.check_video)(path)
+    }
+
+    fn thumbnail(&self, video: &VideoSpecs, cancel: &AtomicBool) -> Result<Thumbnail, Error> {
+        if self.thumbnail_blocks.load(Ordering::SeqCst) {
+            wait_for_cancel(cancel);
+            // A little later than the flag, as ffmpeg's kill and the directory's removal are.
+            std::thread::sleep(Duration::from_millis(100));
+            self.thumbnails_ended.fetch_add(1, Ordering::SeqCst);
+            return Err(Error::Cancelled);
+        }
+        (self.thumbnail)(video)
     }
 
     fn verify_hardware(&self, request: &VerificationRequest, _: &AtomicBool) -> String {
@@ -464,7 +502,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 40] = [
+    let scenarios: [(&str, fn()); 45] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -551,6 +589,23 @@ pub fn run() {
             "overwrite frozen",
             the_overwrite_question_is_about_the_files_it_was_asked_on,
         ),
+        ("thumbnail", the_input_gets_its_picture_and_its_specs),
+        (
+            "thumbnail failure",
+            a_thumbnail_that_fails_leaves_the_card_empty_and_quiet,
+        ),
+        (
+            "thumbnail replaced by a failure",
+            the_card_is_emptied_when_the_next_picture_fails,
+        ),
+        (
+            "thumbnail shutdown",
+            closing_waits_for_a_thumbnail_in_flight,
+        ),
+        (
+            "thumbnail stale",
+            a_slow_thumbnail_cannot_land_on_the_next_input,
+        ),
         (
             "late progress",
             a_late_progress_does_not_overwrite_cancelling,
@@ -627,6 +682,118 @@ fn an_input_is_chosen_and_read_off_the_ui_thread() {
         std::thread::current().id(),
         "ffprobe ran on the UI thread"
     );
+}
+
+/// The picture and the specs line of the chosen input reach the card, off the UI thread.
+fn the_input_gets_its_picture_and_its_specs() {
+    let host = FakeHost::new().picking_inputs(vec![Some("/videos/trip/clip.mp4".into())]);
+    let r = rig(FakeEngine::new(), host);
+    r.ready();
+    assert!(!r.window.get_has_thumbnail());
+    assert_eq!(r.window.get_input_specs(), "");
+    r.pick_input_and_wait("clip.mp4");
+    r.wait("the picture", |w| w.get_has_thumbnail());
+    assert_eq!(r.window.get_input_specs(), "h264 · 1440×1080 · 10s");
+    let size = r.window.get_thumbnail().size();
+    assert_eq!((size.width, size.height), (192, 144));
+}
+
+/// No picture is not an error: no popup, the status says the input is loaded, the card is empty.
+fn a_thumbnail_that_fails_leaves_the_card_empty_and_quiet() {
+    let asked = Arc::new(AtomicU32::new(0));
+    let for_engine = Arc::clone(&asked);
+    let engine = FakeEngine::new().thumbnailing(move |_| {
+        for_engine.fetch_add(1, Ordering::SeqCst);
+        Err(Error::Plain("no frame".into()))
+    });
+    let host = FakeHost::new().picking_inputs(vec![Some("/videos/clip.mp4".into())]);
+    let r = rig(engine, host);
+    r.ready();
+    r.pick_input_and_wait("clip.mp4");
+    let seen = Arc::clone(&asked);
+    r.wait("the decoder to be asked", move |_| {
+        seen.load(Ordering::SeqCst) == 1
+    });
+    pump(Duration::from_millis(150));
+    assert!(!r.window.get_has_thumbnail());
+    assert_eq!(r.popup(), Popup::None);
+    assert_eq!(r.status(), "Status: Input loaded");
+}
+
+/// A file whose picture fails must not keep the previous file's picture under its name.
+fn the_card_is_emptied_when_the_next_picture_fails() {
+    let engine = FakeEngine::new().thumbnailing(|video| {
+        if video.file.ends_with("first.mp4") {
+            Ok(solid_thumbnail(200))
+        } else {
+            Err(Error::Plain("no frame".into()))
+        }
+    });
+    let host = FakeHost::new().picking_inputs(vec![
+        Some("/videos/first.mp4".into()),
+        Some("/videos/second.mp4".into()),
+    ]);
+    let r = rig(engine, host);
+    r.ready();
+    r.pick_input_and_wait("first.mp4");
+    r.wait("the first picture", |w| w.get_has_thumbnail());
+    r.pick_input_and_wait("second.mp4");
+    pump(Duration::from_millis(150));
+    assert!(
+        !r.window.get_has_thumbnail(),
+        "the previous file's picture stayed under the new name"
+    );
+}
+
+/// Leaving while a picture is being decoded waits for it to unwind (its ffmpeg and its
+/// directory), instead of ending the process over them.
+fn closing_waits_for_a_thumbnail_in_flight() {
+    let engine = FakeEngine::new();
+    engine.thumbnail_blocks.store(true, Ordering::SeqCst);
+    let host = FakeHost::new().picking_inputs(vec![Some("/videos/clip.mp4".into())]);
+    let r = rig(engine, host);
+    r.ready();
+    r.pick_input_and_wait("clip.mp4");
+    assert_eq!(r.engine.thumbnails_ended.load(Ordering::SeqCst), 0);
+    r.app.shutdown("test");
+    assert_eq!(
+        r.engine.thumbnails_ended.load(Ordering::SeqCst),
+        1,
+        "the shutdown returned before the thumbnail thread had unwound"
+    );
+}
+
+/// The first file's picture arrives after the second was chosen: it is dropped, and the card is
+/// emptied while the second one is awaited.
+fn a_slow_thumbnail_cannot_land_on_the_next_input() {
+    let slow = Gate::default();
+    let for_slow = slow.clone();
+    let engine = FakeEngine::new().thumbnailing(move |video| {
+        if video.file.ends_with("first.mp4") {
+            for_slow.wait();
+            Ok(solid_thumbnail(10))
+        } else {
+            Ok(solid_thumbnail(240))
+        }
+    });
+    let host = FakeHost::new().picking_inputs(vec![
+        Some("/videos/first.mp4".into()),
+        Some("/videos/second.mp4".into()),
+    ]);
+    let r = rig(engine, host);
+    r.ready();
+    r.pick_input_and_wait("first.mp4"); // its picture waits at the gate
+    r.pick_input_and_wait("second.mp4");
+    r.wait("the second picture", |w| w.get_has_thumbnail());
+    let grey = |r: &Rig| {
+        let image = r.window.get_thumbnail();
+        let pixels = image.to_rgba8().expect("pixels");
+        pixels.as_slice()[0].r
+    };
+    assert_eq!(grey(&r), 240, "the second picture is not on the card");
+    slow.open(); // the first one answers now, late
+    pump(Duration::from_millis(150));
+    assert_eq!(grey(&r), 240, "a late picture replaced the newer one");
 }
 
 fn an_input_is_cancelled_or_refused() {

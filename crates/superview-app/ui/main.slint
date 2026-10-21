@@ -197,6 +197,11 @@ export component MainWindow inherits Window {
     in property <string> results: "Results: no completed run yet";
     in property <string> hardware: "Hardware: waiting for input video";
     in property <string> input-name: "No file selected";
+    // "h264 · 1440×1080 · 2m15s", empty before a file is chosen.
+    in property <string> input-specs;
+    // One frame of the input, once it is decoded.
+    in property <image> thumbnail;
+    in property <bool> has-thumbnail: false;
     in property <string> output-name: "No file selected";
     // 0 to 1.
     in property <float> progress: 0;
@@ -356,7 +361,7 @@ export component MainWindow inherits Window {
 
                 Card {
                     height: 176px;
-                    // The video's picture comes later; the frame is its place.
+                    // The frame of the video's picture, which fills it once decoded.
                     Rectangle {
                         x: 16px;
                         y: 16px;
@@ -364,6 +369,13 @@ export component MainWindow inherits Window {
                         height: 144px;
                         border-radius: 6px;
                         background: Theme.surface;
+                        clip: true;
+                        if root.has-thumbnail: Image {
+                            source: root.thumbnail;
+                            width: parent.width;
+                            height: parent.height;
+                            accessible-role: none;
+                        }
                     }
                     VerticalLayout {
                         x: 224px;
@@ -378,6 +390,7 @@ export component MainWindow inherits Window {
                             font-weight: 600;
                             overflow: elide;
                         }
+                        Text { text: root.input-specs; color: Theme.text-muted; overflow: elide; }
                     }
                     TouchArea {
                         enabled: root.free && root.open-enabled;

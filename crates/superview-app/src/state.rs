@@ -109,6 +109,8 @@ pub struct ViewModel {
     /// The progress bar, 0 to 1.
     pub progress: f64,
     pub bar: BarState,
+    /// "h264 · 1440×1080 · 2m15s" for the input, "" before one is chosen.
+    pub input_specs: String,
     /// "Fast" or "Balanced".
     pub quality: String,
     /// The "source already stretched" box.
@@ -133,6 +135,7 @@ impl Default for ViewModel {
             picking: [false; CONTROL_COUNT],
             progress: 0.0,
             bar: BarState::Idle,
+            input_specs: String::new(),
             quality: prefs::DEFAULT_QUALITY_PROFILE.into(),
             squeeze: false,
             theme: prefs::DEFAULT_THEME.into(),
@@ -411,6 +414,8 @@ pub struct AppState {
     /// Counts refreshes of the hardware line, so a slow verification cannot overwrite a newer
     /// answer.
     hardware_status_gen: u64,
+    /// Counts the inputs chosen; the thumbnail of an older one is stale.
+    thumbnail_gen: u64,
 
     encoding: bool,
     /// True from the Cancel of a running conversion until it ends: a progress
@@ -471,6 +476,7 @@ impl AppState {
             prefs_path,
             restoring_selection: false,
             hardware_status_gen: 0,
+            thumbnail_gen: 0,
             encoding: false,
             cancelling: false,
             diagnosing: false,
@@ -577,6 +583,18 @@ impl AppState {
         self.refresh_start();
     }
 
+    /// What the thumbnail thread needs: the generation it is for and the file's specs. `None`
+    /// before an input is chosen.
+    pub fn thumbnail_request(&self) -> Option<(u64, VideoSpecs)> {
+        self.video.clone().map(|video| (self.thumbnail_gen, video))
+    }
+
+    /// Whether a picture computed for `generation` still belongs to the input: a new input
+    /// bumps the generation, so a slow picture of the previous file is dropped.
+    pub fn thumbnail_is_current(&self, generation: u64) -> bool {
+        self.video.is_some() && generation == self.thumbnail_gen
+    }
+
     /// Records the destination and refreshes what depends on it.
     pub fn set_output(&mut self, path: &str) {
         self.output_path = path.to_string();
@@ -644,6 +662,8 @@ impl AppState {
             }
             Ok(video) => {
                 self.view.input_name = base_name(&video.file);
+                self.view.input_specs = crate::format::input_specs(&video);
+                self.thumbnail_gen += 1;
                 self.view.bar = BarState::Idle;
                 self.view.progress = 0.0;
                 self.set_input(video);

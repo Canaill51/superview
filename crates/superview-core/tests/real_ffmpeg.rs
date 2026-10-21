@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, MutexGuard};
 
 use common::{parse_p5, sha256_hex, video};
@@ -24,6 +25,7 @@ use superview_core::error::Error;
 use superview_core::pgm::generate_pgm;
 use superview_core::pipeline::{PipelineServices, PipelineUi, perform_encoding};
 use superview_core::probe::Prober;
+use superview_core::thumbnail::{THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, extract_thumbnail};
 use superview_core::tools::{ToolResolver, check_ffmpeg};
 use tempfile::TempDir;
 
@@ -466,4 +468,97 @@ fn a_device_frame_encoder_runs_the_whole_pipeline() {
         summary.starts_with(&want),
         "the conversion did not use {encoder} -- it fell back to the CPU: {summary:?}"
     );
+}
+
+/// The thumbnail directories ffmpeg's frame went through and that are still in the system's
+/// temporary directory.
+fn leftover_thumbnail_dirs() -> usize {
+    std::fs::read_dir(std::env::temp_dir())
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| {
+                    e.file_name()
+                        .to_string_lossy()
+                        .starts_with("superview-thumbnail-")
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+fn pixel(rgba: &[u8], x: usize, y: usize) -> [u8; 4] {
+    let at = (y * THUMBNAIL_WIDTH as usize + x) * 4;
+    [rgba[at], rgba[at + 1], rgba[at + 2], rgba[at + 3]]
+}
+
+#[test]
+fn a_thumbnail_is_a_real_frame_fitted_in_the_card() {
+    let Some(rig) = real_ffmpeg(&["libx264"]) else {
+        return;
+    };
+    let work = TempDir::new().unwrap();
+    let cancel = AtomicBool::new(false);
+    for (w, h, bars) in [(320, 240, false), (640, 360, true)] {
+        let clip = test_clip(&rig.resolver, work.path(), w, h, 2);
+        let before = leftover_thumbnail_dirs();
+        let shot = extract_thumbnail(&rig.resolver, &clip.to_string_lossy(), 0.5, &cancel).unwrap();
+        assert_eq!(
+            (shot.width, shot.height),
+            (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        );
+        assert_eq!(shot.rgba.len(), 192 * 144 * 4);
+        // The picture is not blank: testsrc is full of colour.
+        let distinct: std::collections::HashSet<[u8; 4]> = (0..144)
+            .step_by(8)
+            .flat_map(|y| (0..192).step_by(8).map(move |x| (x, y)))
+            .map(|(x, y)| pixel(&shot.rgba, x, y))
+            .collect();
+        assert!(distinct.len() > 4, "{w}x{h}: the frame looks blank");
+        // A wider picture is fitted with bars above and below, never stretched.
+        let top = pixel(&shot.rgba, 96, 0);
+        assert_eq!(
+            top == [0, 0, 0, 255],
+            bars,
+            "{w}x{h}: bars where {bars} was expected"
+        );
+        assert_eq!(
+            leftover_thumbnail_dirs(),
+            before,
+            "the temporary directory stayed"
+        );
+    }
+}
+
+#[test]
+fn a_cancelled_thumbnail_starts_nothing_and_leaves_nothing() {
+    let Some(rig) = real_ffmpeg(&["libx264"]) else {
+        return;
+    };
+    let work = TempDir::new().unwrap();
+    let clip = test_clip(&rig.resolver, work.path(), 320, 240, 1);
+    let before = leftover_thumbnail_dirs();
+    let cancel = AtomicBool::new(true);
+    let err = extract_thumbnail(&rig.resolver, &clip.to_string_lossy(), 0.0, &cancel).unwrap_err();
+    assert!(matches!(err, Error::Cancelled), "got {err:?}");
+    assert_eq!(leftover_thumbnail_dirs(), before);
+}
+
+#[test]
+fn a_time_past_the_end_and_a_file_that_is_not_mp4_give_no_thumbnail() {
+    let Some(rig) = real_ffmpeg(&["libx264"]) else {
+        return;
+    };
+    let work = TempDir::new().unwrap();
+    let cancel = AtomicBool::new(false);
+    let clip = test_clip(&rig.resolver, work.path(), 320, 240, 1);
+    let before = leftover_thumbnail_dirs();
+    let past = extract_thumbnail(&rig.resolver, &clip.to_string_lossy(), 600.0, &cancel);
+    assert!(past.is_err(), "a time past the end gave a picture");
+    // DEC-52: a text file named .mp4 is refused, not read as what it looks like.
+    let fake = work.path().join("fake.mp4");
+    std::fs::write(&fake, "ffconcat version 1.0\nfile '/etc/hostname'\n").unwrap();
+    let refused = extract_thumbnail(&rig.resolver, &fake.to_string_lossy(), 0.0, &cancel);
+    assert!(refused.is_err(), "a non-MP4 file gave a picture");
+    assert_eq!(leftover_thumbnail_dirs(), before);
 }

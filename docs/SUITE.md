@@ -5,7 +5,7 @@
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Plan de la 14ᵉ passe terminé** : ses sessions 1 à 8 (F-01 à F-30) et la session 9 (Q-04 et Q-05 : `-f mov` sur l'entrée, DEC-52 ;
   durée non finie refusée, DEC-53), faites en #143 à #153. Le détail, session par session, est dans `docs/CORRECTIONS.md`
-  (entrées du 2026-10-20, les plus récentes en haut). **En cours** : refonte de l'interface (`~/.claude/plans/encapsulated-cooking-badger.md`), PR 1 fusionnée (#162), PR 2 fusionnée (#163, DEC-57), PR 3 fusionnée (#164, DEC-58), PR 4 (fenêtre 1000×520, DEC-59) en revue. **Prochaine étape** : PR 5 (vignette), sinon rien d'engagé. Une v0.3.2 seulement sur
+  (entrées du 2026-10-20, les plus récentes en haut). **En cours** : refonte de l'interface (`~/.claude/plans/encapsulated-cooking-badger.md`), PR 1 fusionnée (#162), PR 2 fusionnée (#163, DEC-57), PR 3 fusionnée (#164, DEC-58), PR 4 fusionnée (#165, DEC-59), PR 5 (vignette, DEC-60) en revue. **Prochaine étape** : PR 6 (aperçu de la distorsion), sinon rien d'engagé. Une v0.3.2 seulement sur
   demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
   encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV

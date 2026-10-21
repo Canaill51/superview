@@ -1446,3 +1446,38 @@ fn a_new_input_resets_the_bar() {
         "the bar kept its fill"
     );
 }
+
+// ---- the thumbnail of the input (DEC-60) ----
+
+#[test]
+fn a_new_input_gets_its_specs_line_and_a_new_thumbnail_generation() {
+    let mut state = fixture();
+    assert_eq!(state.view.input_specs, "");
+    assert!(state.thumbnail_request().is_none(), "no input, no request");
+    state.apply_chosen_input(Path::new("clip.mp4"), |_| Ok(test_video()));
+    assert!(!state.view.input_specs.is_empty());
+    let (first, video) = state.thumbnail_request().expect("a request");
+    assert_eq!(video, state.video.clone().unwrap());
+    assert!(state.thumbnail_is_current(first));
+
+    // Another file makes the first picture stale: it must not land on the new card.
+    state.apply_chosen_input(Path::new("other.mp4"), |_| Ok(test_video()));
+    assert!(
+        !state.thumbnail_is_current(first),
+        "a stale picture is current"
+    );
+    let (second, _) = state.thumbnail_request().expect("a request");
+    assert_ne!(first, second);
+    assert!(state.thumbnail_is_current(second));
+}
+
+#[test]
+fn a_refused_input_keeps_the_picture_of_the_previous_one() {
+    let mut state = fixture();
+    state.apply_chosen_input(Path::new("clip.mp4"), |_| Ok(test_video()));
+    let (generation, _) = state.thumbnail_request().expect("a request");
+    let specs = state.view.input_specs.clone();
+    state.apply_chosen_input(Path::new("bad.mp4"), |_| Err(Error::Plain("nope".into())));
+    assert!(state.thumbnail_is_current(generation));
+    assert_eq!(state.view.input_specs, specs);
+}
