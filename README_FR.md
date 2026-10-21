@@ -134,7 +134,7 @@ Le menu **Theme** (thème), en haut, bascule entre **Light** (clair) et **Dark**
 **MP4 en entrée, MP4 en sortie.** Les sélecteurs de fichiers ne proposent que du
 MP4, et l'extension de sortie est imposée.
 
-**Si votre caméra a déjà étiré l'image**, cochez *Source already stretched to
+**Si votre caméra a déjà étiré l'image**, activez *Source already stretched to
 16:9 (un-squeeze)* : les modes d'enregistrement SuperView de GoPro, la Caddx
 Tarsier et leurs semblables stockent une capture 4:3 étirée en 16:9. Superview
 dés-étire alors le centre au lieu d'élargir l'image. La courbe est une

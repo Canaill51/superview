@@ -118,7 +118,7 @@ default); the window remembers your choice.
 **MP4 in, MP4 out.** The file pickers offer MP4 only, and the output extension
 is enforced.
 
-**If your camera already stretched the picture**, tick *Source already stretched
+**If your camera already stretched the picture**, turn on *Source already stretched
 to 16:9 (un-squeeze)* — GoPro's SuperView recording modes, the Caddx Tarsier and
 similar store a 4:3 capture stretched to 16:9. Superview then un-stretches the
 centre instead of widening the frame. The curve is an approximation of the

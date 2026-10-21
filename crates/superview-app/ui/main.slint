@@ -1,8 +1,8 @@
 // The application window, laid out as v0.2.9's window, with its labels word for word. Nothing is computed here: the window shows
 // properties it is given and reports clicks through callbacks, and `app.rs` owns every decision (DEC-43).
-import { Palette, CheckBox, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
+import { Palette, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { AppButton, BarState, Card, ProgressBar } from "components.slint";
+import { AppButton, BarState, Card, ProgressBar, SegmentedControl, Switch } from "components.slint";
 
 // The colours, for the Rust side to read in tests.
 export { BarState, Theme }
@@ -175,11 +175,11 @@ export component MainWindow inherits Window {
     title: window-title;
     // The window icon, next to this file (`build.rs` embeds it in the binary).
     icon: @image-url("Icon.png");
-    // Fixed size (DEC-56): minimum and maximum are the same, so the window cannot be resized.
-    min-width: 860px;
-    max-width: 860px;
-    min-height: 332px;
-    max-height: 332px;
+    // Fixed size (DEC-59): minimum and maximum are the same, so the window cannot be resized.
+    min-width: 1000px;
+    max-width: 1000px;
+    min-height: 520px;
+    max-height: 520px;
 
     background: Theme.background;
     // The theme the user chose (DEC-57), not the desktop's: the global and Slint's own widgets follow it.
@@ -347,79 +347,104 @@ export component MainWindow inherits Window {
         HorizontalLayout {
             spacing: 14px;
 
-            // The settings, then the hardware line under them.
+            // The file: the input in a card (a click on it chooses the input, like the button
+            // above), then the output.
+            VerticalLayout {
+                width: 600px;
+                spacing: 10px;
+                alignment: LayoutAlignment.start;
+
+                Card {
+                    height: 176px;
+                    // The video's picture comes later; the frame is its place.
+                    Rectangle {
+                        x: 16px;
+                        y: 16px;
+                        width: 192px;
+                        height: 144px;
+                        border-radius: 6px;
+                        background: Theme.surface;
+                    }
+                    VerticalLayout {
+                        x: 224px;
+                        y: 16px;
+                        width: parent.width - 240px;
+                        spacing: 6px;
+                        alignment: LayoutAlignment.start;
+                        Text { text: "Input file"; color: Theme.text-muted; }
+                        Text {
+                            text: root.input-name;
+                            font-size: 16px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                    }
+                    TouchArea {
+                        enabled: root.free && root.open-enabled;
+                        mouse-cursor: self.enabled ? pointer : default;
+                        accessible-role: button;
+                        accessible-label: "Input video";
+                        accessible-enabled: root.free && root.open-enabled;
+                        accessible-action-default => {
+                            if (root.free && root.open-enabled) {
+                                root.choose-input();
+                            }
+                        }
+                        clicked => { root.choose-input(); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: LayoutAlignment.start;
+                    Text { text: "Output file"; color: Theme.text-muted; vertical-alignment: center; }
+                    Text { text: root.output-name; vertical-alignment: center; overflow: elide; }
+                }
+            }
+
+            // The settings, the hardware line, then the conversion.
             VerticalLayout {
                 spacing: 8px;
                 alignment: LayoutAlignment.start;
 
-                GridLayout {
-                    spacing: 8px;
-                    Row {
-                        Text { text: "Input file"; vertical-alignment: center; }
-                        Text {
-                            text: root.input-name;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
-                    }
-                    Row {
-                        Text { text: "Output file"; vertical-alignment: center; }
-                        Text { text: root.output-name; vertical-alignment: center; overflow: elide; }
-                    }
-                    Row {
-                        Text { text: "Quality profile"; vertical-alignment: center; }
-                        // The menus have a fixed width (170 and 300 px), not the width of the column.
-                        HorizontalLayout {
-                            alignment: LayoutAlignment.start;
-                            ComboBox {
-                                width: 170px;
-                                model: root.quality-profiles;
-                                current-value <=> root.quality;
-                                enabled: root.free && root.quality-enabled;
-                                selected(value) => { root.quality-changed(value); }
-                            }
-                        }
-                    }
-                    Row {
-                        Text { text: "Video codec"; vertical-alignment: center; }
-                        HorizontalLayout {
-                            alignment: LayoutAlignment.start;
-                            ComboBox {
-                                width: 300px;
-                                model: root.encoder-options;
-                                current-value <=> root.encoder-selected;
-                                enabled: root.free && root.encoder-enabled;
-                                selected(value) => { root.encoder-changed(value); }
-                            }
-                        }
-                    }
-                    Row {
-                        Text { text: "Input format"; vertical-alignment: center; }
-                        CheckBox {
-                            text: "Source already stretched to 16:9 (un-squeeze)";
-                            checked <=> root.squeeze;
-                            enabled: root.free && root.squeeze-enabled;
-                            toggled => { root.squeeze-toggled(self.checked); }
-                        }
+                Text { text: "Quality profile"; color: Theme.text-muted; }
+                SegmentedControl {
+                    model: root.quality-profiles;
+                    current <=> root.quality;
+                    enabled: root.free && root.quality-enabled;
+                    selected(value) => { root.quality-changed(value); }
+                }
+                Text { text: "Video codec"; color: Theme.text-muted; }
+                HorizontalLayout {
+                    alignment: LayoutAlignment.start;
+                    ComboBox {
+                        width: 300px;
+                        model: root.encoder-options;
+                        current-value <=> root.encoder-selected;
+                        enabled: root.free && root.encoder-enabled;
+                        selected(value) => { root.encoder-changed(value); }
                     }
                 }
-
+                Text { text: "Input format"; color: Theme.text-muted; }
+                Switch {
+                    text: "Source already stretched to 16:9 (un-squeeze)";
+                    checked <=> root.squeeze;
+                    enabled: root.free && root.squeeze-enabled;
+                    toggled(on) => { root.squeeze-toggled(on); }
+                }
                 Text { text: root.hardware; wrap: word-wrap; }
-            }
 
-            // The conversion: the bar, then what is going on and what it gave.
-            Card {
-                width: 290px;
+                // The conversion: the bar, then what is going on and what it gave.
+                Card {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+                        alignment: LayoutAlignment.start;
 
-                VerticalLayout {
-                    padding: 10px;
-                    spacing: 6px;
-                    alignment: LayoutAlignment.start;
-
-                    Text { text: "Progress"; }
-                    bar := ProgressBar { progress: root.progress; state: root.bar-state; }
-                    Text { text: root.status; font-weight: 700; wrap: word-wrap; }
-                    Text { text: root.results; wrap: word-wrap; }
+                        Text { text: "Progress"; }
+                        bar := ProgressBar { progress: root.progress; state: root.bar-state; }
+                        Text { text: root.status; font-weight: 700; wrap: word-wrap; }
+                        Text { text: root.results; wrap: word-wrap; }
+                    }
                 }
             }
         }
@@ -437,7 +462,18 @@ export component MainWindow inherits Window {
         title: "Error";
         confirmed => { root.error-ok(); }
         dismissed => { root.error-ok(); }
-        Text { text: root.error-message; wrap: char-wrap; }
+        ScrollView {
+            max-height: 300px;
+            preferred-height: message.preferred-height;
+            viewport-height: message.preferred-height;
+            vertical-scrollbar-policy: as-needed;
+            horizontal-scrollbar-policy: always-off;
+            message := Text {
+                width: parent.visible-width;
+                text: root.error-message;
+                wrap: char-wrap;
+            }
+        }
         ModalButtons { AppButton { text: "OK"; primary: true; clicked => { root.error-ok(); } } }
     }
 

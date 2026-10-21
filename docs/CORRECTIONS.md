@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-21] Fenêtre 1000×520 : carte du fichier, qualité en segments, interrupteur (DEC-59, refonte de l'interface, PR 4)
+
+| | |
+| --- | --- |
+| **Constat** | une fenêtre de 860×332 aux contrôles Slint par défaut ; un popup Error à message long dont le bouton OK sortait de la fenêtre |
+| **Cause** | pas de composant maison pour la qualité et l'option un-squeeze ; le texte du popup n'avait ni défilement ni plafond |
+| **Fichiers** | `ui/components.slint` (`SegmentedControl`, `Switch`), `ui/main.slint` (deux colonnes, carte du fichier, popup Error défilant), `src/window_tests.rs` (disposition, segments, carte, long message), `docs/DECISIONS.md` (DEC-59) |
+| **Règle** | un composant remplaçant un widget garde ses libellés accessibles uniques : la carte du fichier a le sien (« Input video ») pour ne pas doubler « Choose input file » ; un test de débordement se prouve avec l'ancien code (OK à y=2773 sans défilement, mesuré) |
+| **Relecture** | l'action d'accessibilité des segments, de l'interrupteur et de la carte respecte `enabled` ; anneau de focus (Tab les atteint) ; « cochez » devient « activez » dans les deux README |
+| **Vérification** | `a_long_error_scrolls_and_keeps_its_button_in_the_window` rouge sans le `ScrollView` ; `the_file_card_chooses_the_input` rouge si la carte ignore `enabled` ; `a_locked_control_ignores_the_accessible_action` rouge sans la garde `enabled` ni celle du segment déjà choisi ; `the_right_column_fits_with_the_longest_texts` rouge avec une fenêtre plus basse ; captures Xvfb en Dark et Light, et du popup Error avec 30 lignes ; `scripts/check.sh` |
+
 ### [2026-10-21] Barre de progression rouge, verte et lissée (DEC-58, refonte de l'interface, PR 3)
 
 | | |

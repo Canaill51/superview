@@ -17,9 +17,9 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::{DiagnosticRow, MainWindow, Popup, ReportRowKind, Theme};
 
-/// The window's size (fixed, DEC-56).
-const WINDOW_WIDTH: f32 = 860.0;
-const WINDOW_HEIGHT: f32 = 332.0;
+/// The window's size (fixed, DEC-59).
+const WINDOW_WIDTH: f32 = 1000.0;
+const WINDOW_HEIGHT: f32 = 520.0;
 /// The padding around the window's content (`padding` in `main.slint`).
 const PADDING: f32 = 12.0;
 
@@ -70,7 +70,8 @@ pub(crate) fn is_shown(window: &MainWindow, label: &str) -> bool {
     !find(window, label).is_empty()
 }
 
-/// The two selectors of the settings, quality then codec (the Theme menu is not one of them).
+/// The codec menu, the one `ComboBox` of the settings (the Theme menu is not one of them, and the
+/// quality profile is a row of segments, not a menu).
 fn selectors(window: &MainWindow) -> Vec<ElementHandle> {
     ElementHandle::find_by_element_type_name(window, "ComboBox")
         .filter(|combo| combo.accessible_label().as_deref() != Some("Theme"))
@@ -123,7 +124,7 @@ pub fn run() {
     the_window_has_the_designed_size();
     the_toolbar_stays_in_the_frame();
     the_toolbar_is_centred();
-    the_conversion_panel_sits_beside_the_settings();
+    the_settings_and_the_conversion_sit_to_the_right_of_the_file();
     the_window_starts_in_its_initial_state();
     every_button_reports_its_click();
     the_form_follows_the_host_after_the_user_chose();
@@ -133,6 +134,10 @@ pub fn run() {
     the_theme_menu_switches_the_colours();
     an_active_button_answers_the_first_mouse_click();
     the_bar_changes_colour_with_its_state();
+    the_file_card_chooses_the_input();
+    a_long_error_scrolls_and_keeps_its_button_in_the_window();
+    a_locked_control_ignores_the_accessible_action();
+    the_right_column_fits_with_the_longest_texts();
 }
 
 fn every_label_is_present() {
@@ -214,39 +219,64 @@ fn the_toolbar_is_centred() {
     );
 }
 
-/// The conversion panel sits to the right of the settings, with the bar first and then Status
-/// and Results under it; Hardware is under Input format, in the settings column.
-fn the_conversion_panel_sits_beside_the_settings() {
+/// The file is on the left; on the right the settings come in order (quality, codec, input
+/// format, hardware), then the conversion with the bar first and Status and Results under it.
+fn the_settings_and_the_conversion_sit_to_the_right_of_the_file() {
     let window = shown();
     let x = |e: &ElementHandle| e.absolute_position().x;
     let y = |e: &ElementHandle| e.absolute_position().y;
+    let file = only(&window, "Input video");
+    let quality = only(&window, "Quality profile");
+    let codec = only(&window, "Video codec");
+    let input_format = only(&window, "Input format");
+    let hardware = only(&window, "Hardware: waiting for input video");
     let progress = only(&window, "Progress");
     let status = only(&window, "Status: Ready");
     let results = only(&window, "Results: no completed run yet");
-    let hardware = only(&window, "Hardware: waiting for input video");
-    let input_format = only(&window, "Input format");
 
-    let combos = selectors(&window);
-    assert_eq!(combos.len(), 2, "expected the quality and codec menus");
-    for combo in combos {
-        let right = x(&combo) + combo.size().width;
+    let column = x(&quality);
+    assert!(
+        x(&file) + file.size().width <= column,
+        "the file card must be in the left column, the settings in the right one"
+    );
+    for (name, element) in [
+        ("Video codec", &codec),
+        ("Input format", &input_format),
+        ("Hardware", &hardware),
+        ("Progress", &progress),
+        ("Status", &status),
+        ("Results", &results),
+    ] {
         assert!(
-            right <= x(&progress),
-            "a menu ends at x={right}, past the panel that starts at x={}",
-            x(&progress)
+            (x(element) - column).abs() <= 11.0,
+            "{name} is not in the settings column (x={}, column x={column})",
+            x(element)
         );
     }
+    let order = [
+        &quality,
+        &codec,
+        &input_format,
+        &hardware,
+        &progress,
+        &status,
+        &results,
+    ];
+    for pair in order.windows(2) {
+        assert!(y(pair[0]) < y(pair[1]), "the right column is out of order");
+    }
+    for combo in selectors(&window) {
+        let right = x(&combo) + combo.size().width;
+        assert!(
+            right <= WINDOW_WIDTH,
+            "the codec menu ends at x={right}, outside the window"
+        );
+    }
+    let fast = only(&window, "Fast");
+    let balanced = only(&window, "Balanced");
     assert!(
-        y(&status) > y(&progress) && y(&results) > y(&status),
-        "Status and Results must come under the progress bar, in that order"
-    );
-    assert!(
-        x(&status) >= x(&progress) - 0.5 && x(&results) >= x(&progress) - 0.5,
-        "Status and Results must sit in the panel, not under the settings"
-    );
-    assert!(
-        y(&hardware) > y(&input_format) && x(&hardware) < x(&progress),
-        "Hardware must be under Input format, in the settings column"
+        x(&fast) < x(&balanced),
+        "the quality segments are out of order"
     );
 }
 
@@ -279,9 +309,9 @@ fn the_window_starts_in_its_initial_state() {
             "{label:?} has the wrong initial state"
         );
     }
-    // The two selectors (quality, then codec) are usable.
+    // The codec menu is usable, and the quality row shows the saved profile.
     let selectors = selectors(&window);
-    assert_eq!(selectors.len(), 2);
+    assert_eq!(selectors.len(), 1);
     for selector in &selectors {
         assert_eq!(
             selector.accessible_enabled(),
@@ -289,7 +319,8 @@ fn the_window_starts_in_its_initial_state() {
             "a selector starts disabled"
         );
     }
-    assert_eq!(selectors[0].accessible_value().as_deref(), Some("Balanced"));
+    assert_eq!(only(&window, "Balanced").accessible_checked(), Some(true));
+    assert_eq!(only(&window, "Fast").accessible_checked(), Some(false));
     // No popup is open: none of their texts is on screen, and "Error" appears nowhere.
     for text in POPUP_TEXTS
         .iter()
@@ -369,7 +400,7 @@ fn the_form_follows_the_host_after_the_user_chose() {
     window.set_encoder_selected("h264_nvenc".into());
     let selectors = selectors(&window);
     assert_eq!(
-        selectors[1].accessible_value().as_deref(),
+        selectors[0].accessible_value().as_deref(),
         Some("h264_nvenc")
     );
     // The user opens the list and picks "Auto": the window reports it and keeps it.
@@ -378,7 +409,7 @@ fn the_form_follows_the_host_after_the_user_chose() {
         let chosen = Rc::clone(&chosen);
         window.on_encoder_changed(move |value| *chosen.borrow_mut() = value.to_string());
     }
-    let combo = selectors[1].clone();
+    let combo = selectors[0].clone();
     drive(async move { combo.single_click(PointerEventButton::Left).await });
     let item = only(&window, "Auto");
     drive(async move { item.single_click(PointerEventButton::Left).await });
@@ -389,9 +420,25 @@ fn the_form_follows_the_host_after_the_user_chose() {
     );
     assert_eq!(window.get_encoder_selected(), "Auto");
     window.set_encoder_selected("libx264".into());
-    assert_eq!(selectors[1].accessible_value().as_deref(), Some("libx264"));
+    assert_eq!(selectors[0].accessible_value().as_deref(), Some("libx264"));
     window.set_quality("Fast".into());
-    assert_eq!(selectors[0].accessible_value().as_deref(), Some("Fast"));
+    assert_eq!(only(&window, "Fast").accessible_checked(), Some(true));
+    // The user picks a segment: the window reports it and keeps it, and the host can write again.
+    let picked = Rc::new(std::cell::RefCell::new(String::new()));
+    {
+        let picked = Rc::clone(&picked);
+        window.on_quality_changed(move |value| *picked.borrow_mut() = value.to_string());
+    }
+    let balanced = only(&window, "Balanced");
+    drive(async move { balanced.single_click(PointerEventButton::Left).await });
+    assert_eq!(
+        *picked.borrow(),
+        "Balanced",
+        "picking a segment did not report it"
+    );
+    assert_eq!(window.get_quality(), "Balanced");
+    window.set_quality("Fast".into());
+    assert_eq!(only(&window, "Fast").accessible_checked(), Some(true));
 }
 
 /// The bar is red while a conversion goes and green once it is done, and the two differ from
@@ -429,6 +476,98 @@ fn the_bar_changes_colour_with_its_state() {
     assert_eq!(window.get_bar_fill(), theme.get_running());
     window.set_bar_state(BarState::Done);
     assert_eq!(window.get_bar_fill(), theme.get_done());
+}
+
+/// A segment, the switch and the file card answer an assistive technology only while they are
+/// usable: during a conversion the profile and the input format must not change.
+fn a_locked_control_ignores_the_accessible_action() {
+    let window = shown();
+    let (changes, bump) = counter();
+    window.on_quality_changed({
+        let bump = bump();
+        move |_| bump()
+    });
+    window.on_squeeze_toggled({
+        let bump = bump();
+        move |_| bump()
+    });
+    window.set_quality_enabled(false);
+    window.set_squeeze_enabled(false);
+    only(&window, "Fast").invoke_accessible_default_action();
+    only(&window, SQUEEZE).invoke_accessible_default_action();
+    assert_eq!(changes.get(), 0, "a locked control reported a change");
+    window.set_quality_enabled(true);
+    window.set_squeeze_enabled(true);
+    // The chosen segment is not a change.
+    only(&window, "Balanced").invoke_accessible_default_action();
+    assert_eq!(
+        changes.get(),
+        0,
+        "choosing the chosen profile reported a change"
+    );
+    only(&window, "Fast").invoke_accessible_default_action();
+    only(&window, SQUEEZE).invoke_accessible_default_action();
+    assert_eq!(changes.get(), 2, "a usable control did not report");
+}
+
+/// The longest texts the right column can hold at once (a three-line Hardware line, the
+/// results line of a finished run, the longest Status) stay inside the window. The backend does
+/// not measure the real font, so this catches a column that grew, not a font that is wider.
+fn the_right_column_fits_with_the_longest_texts() {
+    let window = shown();
+    let long = "x".repeat(200);
+    window.set_hardware(format!("Hardware: {long}").into());
+    window.set_status("Status: Starting the encoder... (no progress until the first frame)".into());
+    window
+        .set_results(format!("Results: in=100.0 MB | out=150.0 MB | total=01:00 | {long}").into());
+    let results = find(&window, &window.get_results())
+        .pop()
+        .expect("the results line");
+    let bottom = results.absolute_position().y + results.size().height;
+    assert!(
+        bottom <= WINDOW_HEIGHT - PADDING,
+        "the right column ends at y={bottom}, past the {WINDOW_HEIGHT}px window"
+    );
+}
+
+/// An error that quotes ffmpeg's stderr can be dozens of lines: the text scrolls in the card and
+/// the OK button stays inside the window.
+fn a_long_error_scrolls_and_keeps_its_button_in_the_window() {
+    let window = shown();
+    let message: String = (0..300).map(|i| format!("line {i}\n")).collect();
+    window.set_error_message(message.into());
+    window.set_popup(Popup::Error);
+    let ok = only(&window, "OK");
+    let bottom = ok.absolute_position().y + ok.size().height;
+    assert!(
+        bottom <= WINDOW_HEIGHT,
+        "OK ends at y={bottom}, below the {WINDOW_HEIGHT}px window"
+    );
+    window.set_popup(Popup::None);
+}
+
+/// The file card is a second way to choose the input, under a label of its own so that the
+/// button's label stays unique; it is locked like the button.
+fn the_file_card_chooses_the_input() {
+    let window = shown();
+    let (chosen, bump) = counter();
+    window.on_choose_input(bump());
+    let card = only(&window, "Input video");
+    let clicked = card.clone();
+    drive(async move { clicked.single_click(PointerEventButton::Left).await });
+    assert_eq!(
+        chosen.get(),
+        1,
+        "a click on the file card did not choose the input"
+    );
+    window.set_open_enabled(false);
+    let clicked = card.clone();
+    drive(async move { clicked.single_click(PointerEventButton::Left).await });
+    assert_eq!(
+        chosen.get(),
+        1,
+        "the file card chose the input while it was locked"
+    );
 }
 
 /// A press on an enabled button is a click the first time: a focus scope over the button took
@@ -868,6 +1007,9 @@ fn a_popup_blocks_the_window_behind_it() {
         "Diagnostic",
         "Quit",
         SQUEEZE,
+        "Fast",
+        "Balanced",
+        "Input video",
     ];
     window.set_cancel_enabled(true);
     window.set_popup(Popup::Done);
