@@ -420,7 +420,7 @@ impl Rig {
     }
 
     /// Clicks the enabled one of several elements with the same label: "Cancel" is both the
-    /// toolbar's (greyed out behind a popup) and the text field's.
+    /// button's (greyed out behind a popup) and the text field's.
     fn click_enabled(&self, label: &str) {
         let mut found: Vec<_> = ElementHandle::find_by_accessible_label(&self.window, label)
             .filter(|e| e.accessible_enabled() == Some(true))

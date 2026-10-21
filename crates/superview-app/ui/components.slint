@@ -14,9 +14,9 @@ export component AppButton inherits Rectangle {
     border-radius: 6px;
     border-width: 1px;
     border-color: root.primary && root.enabled ? Theme.accent : Theme.border;
-    background: !root.enabled ? Theme.surface
+    background: !root.enabled ? transparent
         : root.primary ? (touch.pressed ? Theme.accent.darker(0.2) : touch.has-hover ? (Theme.dark ? Theme.accent.brighter(0.15) : Theme.accent.darker(0.1)) : Theme.accent)
-        : (touch.pressed ? Theme.border : touch.has-hover ? Theme.surface : Theme.panel);
+        : (touch.pressed ? Theme.border : touch.has-hover ? Theme.border : Theme.surface);
     accessible-role: button;
     accessible-label: root.text;
     accessible-enabled: root.enabled;
@@ -98,6 +98,7 @@ export component ProgressBar inherits Rectangle {
     border-radius: 5px;
     background: Theme.surface;
     accessible-role: progress-indicator;
+    accessible-label: "Progress";
     accessible-value: root.progress;
     accessible-value-minimum: 0;
     accessible-value-maximum: 1;
@@ -259,6 +260,36 @@ export component Switch inherits Rectangle {
             text: root.text;
             vertical-alignment: center;
             wrap: word-wrap;
+        }
+    }
+}
+
+// The state of the conversion in a word, on a tinted capsule of the bar's colour.
+export component Pill inherits Rectangle {
+    in property <string> text;
+    in property <color> tone;
+
+    height: 24px;
+    width: row.preferred-width;
+    border-radius: 12px;
+    background: root.tone.with-alpha(0.18);
+    row := HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 12px;
+        spacing: 6px;
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 4px;
+            background: root.tone;
+        }
+        Text {
+            text: root.text;
+            color: root.tone;
+            font-size: 12px;
+            font-weight: 700;
+            vertical-alignment: center;
         }
     }
 }
