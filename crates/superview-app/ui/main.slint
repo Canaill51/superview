@@ -465,7 +465,7 @@ export component MainWindow inherits Window {
         ScrollView {
             max-height: 300px;
             preferred-height: message.preferred-height;
-            viewport-height: message.preferred-height;
+            content-height: message.preferred-height;
             vertical-scrollbar-policy: as-needed;
             horizontal-scrollbar-policy: always-off;
             message := Text {
