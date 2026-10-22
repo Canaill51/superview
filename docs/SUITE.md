@@ -1,11 +1,11 @@
 # Où on en est
-- État (2026-10-21) : **v0.3.1 publiée** (version stable : installateur Windows, AppImage, `checksums.txt` ; elle apporte la
-  14ᵉ passe, #141 à #160). La v0.3.0 était le premier binaire Rust + Slint. Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
+- État (2026-10-22) : **v0.4.0 publiée** (installateur Windows, AppImage, `checksums.txt` ; elle apporte la refonte de l'interface,
+  #162 à #171, et l'identifiant de fenêtre `superview`). La v0.3.1 (14ᵉ passe, #141 à #160) la précédait. La v0.3.0 était le premier binaire Rust + Slint. Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Plan de la 14ᵉ passe terminé** : ses sessions 1 à 8 (F-01 à F-30) et la session 9 (Q-04 et Q-05 : `-f mov` sur l'entrée, DEC-52 ;
   durée non finie refusée, DEC-53), faites en #143 à #153. Le détail, session par session, est dans `docs/CORRECTIONS.md`
-  (entrées du 2026-10-20, les plus récentes en haut). **Refonte de l'interface terminée et validée à la main sous Windows et Linux (2026-10-22)** (`~/.claude/plans/encapsulated-cooking-badger.md`) : #162 à #170 (DEC-56 à DEC-63), et l'identifiant de la fenêtre devenu `superview` (#169, DEC-64), qui règle l'icône et l'épinglage sous KDE avec Gear Lever. Elle n'est pas encore dans une version publiée : la **v0.4.0** est demandée par l'utilisateur (2026-10-22), par `/publier` une fois ces PR fusionnées. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
+  (entrées du 2026-10-20, les plus récentes en haut). **Refonte de l'interface terminée et validée à la main sous Windows et Linux (2026-10-22)** (`~/.claude/plans/encapsulated-cooking-badger.md`) : #162 à #170 (DEC-56 à DEC-63), et l'identifiant de la fenêtre devenu `superview` (#169, DEC-64), qui règle l'icône et l'épinglage sous KDE avec Gear Lever. Elle est dans la v0.4.0 ; l'artefact de l'essai à blanc a été testé par l'utilisateur avant la publication. Une version suivante seulement sur demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
   encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
   (matériel), portail lent, champ texte de repli, lien d'installation.
