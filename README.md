@@ -303,7 +303,7 @@ superview/
 ├── docs/                       # Technical contracts, audit journal, hardware support
 ├── superview.yaml              # Default configuration
 ├── Makefile                    # Shortcuts for the checks and the release build
-├── THIRD_PARTY_NOTICES.md      # The FFmpeg shipped with the releases, and its licence
+├── THIRD_PARTY_NOTICES.md      # The FFmpeg and the fonts shipped with the releases, and their licences
 ├── .github/scripts/            # Release-time checks (the NVENC driver floor guard)
 └── RELEASING.md                # How a release is made
 ```
