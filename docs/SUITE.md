@@ -5,8 +5,7 @@
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Plan de la 14ᵉ passe terminé** : ses sessions 1 à 8 (F-01 à F-30) et la session 9 (Q-04 et Q-05 : `-f mov` sur l'entrée, DEC-52 ;
   durée non finie refusée, DEC-53), faites en #143 à #153. Le détail, session par session, est dans `docs/CORRECTIONS.md`
-  (entrées du 2026-10-20, les plus récentes en haut). **En cours** : refonte de l'interface (`~/.claude/plans/encapsulated-cooking-badger.md`), PR 1 à 6 fusionnées (#162 à #168, DEC-56 à DEC-62), PR 7 (polices embarquées, DEC-63, et nouvelle capture du README) sur la branche `feat/ui-fonts`, à essayer par l'utilisateur avant de la pousser ; elle clôt la refonte. Une v0.3.2 seulement sur
-  demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
+  (entrées du 2026-10-20, les plus récentes en haut). **Refonte de l'interface terminée et validée à la main sous Windows et Linux (2026-10-22)** (`~/.claude/plans/encapsulated-cooking-badger.md`) : #162 à #170 (DEC-56 à DEC-63), et l'identifiant de la fenêtre devenu `superview` (#169, DEC-64), qui règle l'icône et l'épinglage sous KDE avec Gear Lever. Elle n'est pas encore dans une version publiée : la **v0.4.0** est demandée par l'utilisateur (2026-10-22), par `/publier` une fois ces PR fusionnées. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
   encodeurs AMD et QSV.
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
   (matériel), portail lent, champ texte de repli, lien d'installation.
