@@ -19,6 +19,16 @@
 | **Règle** | une police embarquée est une dépendance redistribuée : sa licence voyage avec chaque copie, et un test le vérifie |
 | **Vérification** | contre-preuve : la licence retirée des notices fait rougir `every_embedded_font_has_its_licence_in_the_shipped_notices` ; capture Xvfb (`ffmpeg -f x11grab -draw_mouse 0`) montrant les deux polices ; `scripts/check.sh` ; essai à la main par l'utilisateur avant la PR |
 
+### [2026-10-22] L'identifiant de la fenêtre n'est plus un pseudo : `superview` (DEC-64)
+
+| | |
+| --- | --- |
+| **Constat** | sous Kubuntu (KDE, Wayland) avec Gear Lever : l'icône de la fenêtre n'est pas celle de l'application, et un lanceur épinglé à la barre des tâches ne démarre plus l'application ; sous Windows l'icône est bonne. L'utilisateur ne veut pas son identifiant dans l'application |
+| **Cause** | l'identifiant de la fenêtre, `com.canaill51.superview`, ne correspond à aucun `.desktop` : Gear Lever écrit `superview.desktop`. KWin n'associe la fenêtre qu'à un fichier du même nom que l'identifiant |
+| **Essai écarté** | `StartupWMClass` dans le `.desktop` : déjà mesuré sans effet sous Wayland (archives Go, 2026-10-14) ; retiré avant le commit |
+| **Fichiers** | `src/main.rs` et `packaging/linux/build_appimage.sh` (`APP_ID`), `docs/DECISIONS.md` (DEC-64), `docs/TESTS-MANUELS.md` |
+| **Vérification** | `scripts/check.sh` ; à la main : l'application lancée par `cargo run` annonce `superview` et doit montrer la bonne icône grâce au `superview.desktop` de Gear Lever déjà présent, puis une AppImage reconstruite, intégrée par Gear Lever et épinglée |
+
 ### [2026-10-22] Aperçu vivant de la distorsion (DEC-62, refonte de l'interface, PR 6)
 
 | | |

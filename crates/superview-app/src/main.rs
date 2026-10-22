@@ -32,7 +32,7 @@ slint::include_modules!();
 /// The application ID the compositor matches to a desktop file of the same name (Wayland
 /// `app_id`). `packaging/linux/build_appimage.sh` names its `.desktop` file after the same ID;
 /// a test pins the two together.
-const APP_ID: &str = "com.canaill51.superview";
+const APP_ID: &str = "superview";
 
 /// What the build recorded, in plain bytes of the binary: the release checks a built file for
 /// `modified=true` with `grep -a SUPERVIEW-BUILD`, without running it. `#[used]` only keeps the
