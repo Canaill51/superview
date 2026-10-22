@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-22] Polices de la maquette embarquées et capture du README remplacée (DEC-63, refonte de l'interface, PR 7)
+
+| | |
+| --- | --- |
+| **Constat** | la fenêtre était composée dans la police du système, la maquette en IBM Plex Sans et Sora ; `.github/sample-gui.png` montrait encore la fenêtre d'avant la refonte |
+| **Cause** | dernière étape du plan de la refonte, non encore faite |
+| **Fichiers** | `ui/fonts/` (5 polices, 2 licences), `ui/main.slint`, `THIRD_PARTY_NOTICES.md`, `src/repo_guards.rs`, `.github/sample-gui.png`, README.md et README_FR.md (arborescence), `docs/DECISIONS.md` (DEC-63) |
+| **Règle** | une police embarquée est une dépendance redistribuée : sa licence voyage avec chaque copie, et un test le vérifie |
+| **Vérification** | contre-preuve : la licence retirée des notices fait rougir `every_embedded_font_has_its_licence_in_the_shipped_notices` ; capture Xvfb (`ffmpeg -f x11grab -draw_mouse 0`) montrant les deux polices ; `scripts/check.sh` ; essai à la main par l'utilisateur avant la PR |
+
 ### [2026-10-22] Aperçu vivant de la distorsion (DEC-62, refonte de l'interface, PR 6)
 
 | | |

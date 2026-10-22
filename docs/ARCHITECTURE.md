@@ -44,6 +44,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 ### `superview-app`
 | Fichier | Rôle |
 |---------|------|
+| `ui/fonts/` | IBM Plex Sans et Sora, embarquées dans le binaire (OFL, DEC-63) ; leurs licences et `THIRD_PARTY_NOTICES.md` |
 | `ui/theme.slint`, `ui/components.slint` | le global `Theme` (jeux Light et Dark, accent cyan, DEC-57) ; `AppButton`, `Card`, `ProgressBar` (barre rouge/verte, DEC-58), `SegmentedControl`, `Switch` et `Pill` |
 | `ui/main.slint` | la fenêtre (1000×570, taille fixe, DEC-61 : la disposition de la maquette cyan, boutons en contexte), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
 | `preview.rs` | les deux grilles de l'aperçu de la distorsion (masques alpha, DEC-62), tirées de `pgm::source_x_for_output_x` ; fonctions pures |

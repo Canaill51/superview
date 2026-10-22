@@ -336,7 +336,7 @@ superview/
 ├── docs/                       # Contrats techniques, journal d'audit, prise en charge matérielle
 ├── superview.yaml              # Configuration par défaut
 ├── Makefile                    # Raccourcis des vérifications et de la compilation de publication
-├── THIRD_PARTY_NOTICES.md      # Le FFmpeg livré avec les versions, et sa licence
+├── THIRD_PARTY_NOTICES.md      # Le FFmpeg et les polices livrés avec les versions, et leurs licences
 ├── .github/scripts/            # Contrôles au moment de la publication (le plancher de pilote NVENC)
 └── RELEASING.md                # Comment une version est publiée
 ```

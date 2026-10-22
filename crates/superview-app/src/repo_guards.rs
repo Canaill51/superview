@@ -202,3 +202,83 @@ fn the_window_has_one_size_so_it_cannot_be_resized() {
         assert_eq!(min, max, "the window's min-{axis} and max-{axis} differ");
     }
 }
+
+/// The fonts the window embeds are under the OFL, which wants the licence to travel with every copy:
+/// each font file sits next to a licence text, and the notices that ship with the releases name
+/// the fonts and carry the licence (DEC-63).
+#[test]
+fn every_embedded_font_has_its_licence_in_the_shipped_notices() {
+    let dir = repo_file("crates/superview-app/ui/fonts");
+    let files: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{dir:?}: {e}"))
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert!(
+        files.iter().any(|f| f.ends_with(".ttf")),
+        "no font in ui/fonts"
+    );
+    for licence in ["OFL-Sora.txt", "OFL-IBM-Plex.txt"] {
+        assert!(files.contains(&licence.to_string()), "{licence} is missing");
+    }
+    let notices = read(&repo_file("THIRD_PARTY_NOTICES.md"));
+    assert!(
+        notices.contains("SIL OPEN FONT LICENSE Version 1.1"),
+        "the notices do not carry the OFL"
+    );
+    for family in ["IBM Plex Sans", "Sora"] {
+        assert!(notices.contains(family), "the notices do not name {family}");
+    }
+    // Each family has its licence file and its copyright line in the notices; a font of a
+    // family not listed here fails until its licence is added.
+    let families = [
+        (
+            "IBMPlexSans-",
+            "OFL-IBM-Plex.txt",
+            "Copyright © 2017 IBM Corp.",
+        ),
+        (
+            "Sora-",
+            "OFL-Sora.txt",
+            "Copyright 2019 The Sora Project Authors",
+        ),
+    ];
+    let fonts: Vec<&String> = files.iter().filter(|f| f.ends_with(".ttf")).collect();
+    for font in &fonts {
+        let (_, licence, copyright) = families
+            .iter()
+            .find(|(prefix, _, _)| font.starts_with(prefix))
+            .unwrap_or_else(|| panic!("{font}: no licence is known for this family"));
+        assert!(files.contains(&licence.to_string()), "{licence} is missing");
+        assert!(
+            notices.contains(copyright),
+            "the notices lack {copyright:?}"
+        );
+    }
+    // The fonts the window imports are exactly the ones shipped: none missing, none unused.
+    let slint = read(&repo_file("crates/superview-app/ui/main.slint"));
+    let mut imported: Vec<String> = slint
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("import \"") && l.contains(".ttf\""))
+        .filter_map(|l| l.split('"').nth(1))
+        .map(|path| {
+            path.trim_start_matches("./")
+                .trim_start_matches("fonts/")
+                .to_string()
+        })
+        .collect();
+    imported.sort();
+    let mut shipped: Vec<String> = fonts.iter().map(|f| f.to_string()).collect();
+    shipped.sort();
+    assert!(!imported.is_empty(), "main.slint imports no font");
+    assert_eq!(
+        imported, shipped,
+        "ui/fonts and the imports of main.slint differ"
+    );
+}
