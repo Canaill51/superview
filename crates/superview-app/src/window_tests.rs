@@ -134,6 +134,7 @@ pub fn run() {
     a_long_error_scrolls_and_keeps_its_button_in_the_window();
     a_locked_control_ignores_the_accessible_action();
     the_right_column_fits_with_the_longest_texts();
+    the_distortion_preview_sits_under_the_output_file_inside_the_left_column();
 }
 
 fn every_label_is_present() {
@@ -531,6 +532,41 @@ fn the_right_column_fits_with_the_longest_texts() {
     assert!(
         bottom <= WINDOW_HEIGHT - 8.0,
         "the right column ends at y={bottom}, past the {WINDOW_HEIGHT}px window"
+    );
+}
+
+/// The preview's captions: in the left column, under the output row, inside the window, side
+/// by side and in the order source then output (DEC-62).
+fn the_distortion_preview_sits_under_the_output_file_inside_the_left_column() {
+    let window = shown();
+    let position = |label: &str| {
+        let element = only(&window, label);
+        (element.absolute_position(), element.size())
+    };
+    let (heading, _) = position("Distortion preview");
+    let (source, _) = position("Source 4:3");
+    let (output, output_size) = position("Output 16:9, edges stretched");
+    let (choose, choose_size) = position("Choose output file");
+    assert!(
+        heading.y >= choose.y + choose_size.height,
+        "the preview is not under the output row"
+    );
+    assert!(
+        source.y > heading.y,
+        "the captions are not under the heading"
+    );
+    assert!(
+        (source.y - output.y).abs() < 1.0,
+        "the two captions are not level"
+    );
+    assert!(source.x < output.x, "the source is not on the left");
+    assert!(
+        output.x + output_size.width <= 600.0,
+        "the preview leaves the left column"
+    );
+    assert!(
+        output.y + output_size.height <= WINDOW_HEIGHT - 8.0,
+        "the preview ends past the window"
     );
 }
 

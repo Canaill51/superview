@@ -72,6 +72,38 @@ fn put_map_sample(dst: &mut [u8], value: i64) {
     dst[..2].copy_from_slice(&value.to_be_bytes());
 }
 
+/// The source column the output column `x` takes its pixel from: the X map's sample, before it
+/// is clamped to the sample range. `out_x` is the output width, `width` the source's.
+///
+/// Public because the window's distortion preview draws from the same formula as the maps,
+/// so what it shows is what the conversion does.
+pub fn source_x_for_output_x(x: i64, out_x: i64, width: i64, squeeze: bool) -> i64 {
+    let sx = x as f64 - (out_x - width) as f64 / 2.0; // x - width diff/2
+    let tx = (x as f64 / out_x as f64 - 0.5) * 2.0; // (x/width - 0.5) * 2
+
+    if squeeze {
+        let inv = 1.0 - tx.abs();
+
+        // The expression is kept recognisable against the reference
+        // implementation (DEC-13). The divisions are in
+        // floating point on purpose: integer ones left a seam in the middle
+        // of the frame. `powi(2)`, never `powf(2.0)`: math.Pow(x, 2) is
+        // x*x, and powf depends on the platform's libm.
+        let mut offset = inv * (out_x as f64 / 16.0 * 7.0 / 2.0)
+            - ((inv / 16.0) * 7.0).powi(2) * (out_x as f64 / 7.0 * 16.0 / 2.0);
+        if tx < 0.0 {
+            offset *= -1.0;
+        }
+        (sx + offset) as i64
+    } else {
+        let mut offset = tx.powi(2) * ((out_x - width) as f64 / 2.0); // tx^2 * width diff/2
+        if tx < 0.0 {
+            offset *= -1.0;
+        }
+        (sx - offset) as i64
+    }
+}
+
 /// Writes both maps to the given writers, header included.
 ///
 /// Validation, geometry check, then the X map
@@ -101,34 +133,13 @@ pub fn write_maps<WX: Write, WY: Write>(
         .filter(|&n| isize::try_from(n).is_ok())
         .ok_or_else(|| Error::Plain(format!("remap map of width {out_x} is too large")))?;
 
-    // The X map is row-invariant: sx, tx and offset depend on x alone.
+    // The X map is row-invariant: the source column depends on the output column alone.
     let mut buf_x = vec![0u8; row_bytes];
     for x in 0..out_x {
-        let sx = x as f64 - (out_x - width) as f64 / 2.0; // x - width diff/2
-        let tx = (x as f64 / out_x as f64 - 0.5) * 2.0; // (x/width - 0.5) * 2
-        let slot = &mut buf_x[x as usize * 2..];
-
-        if squeeze {
-            let inv = 1.0 - tx.abs();
-
-            // The expression is kept recognisable against the reference
-            // implementation (DEC-13). The divisions are in
-            // floating point on purpose: integer ones left a seam in the middle
-            // of the frame. `powi(2)`, never `powf(2.0)`: math.Pow(x, 2) is
-            // x*x, and powf depends on the platform's libm.
-            let mut offset = inv * (out_x as f64 / 16.0 * 7.0 / 2.0)
-                - ((inv / 16.0) * 7.0).powi(2) * (out_x as f64 / 7.0 * 16.0 / 2.0);
-            if tx < 0.0 {
-                offset *= -1.0;
-            }
-            put_map_sample(slot, (sx + offset) as i64);
-        } else {
-            let mut offset = tx.powi(2) * ((out_x - width) as f64 / 2.0); // tx^2 * width diff/2
-            if tx < 0.0 {
-                offset *= -1.0;
-            }
-            put_map_sample(slot, (sx - offset) as i64);
-        }
+        put_map_sample(
+            &mut buf_x[x as usize * 2..],
+            source_x_for_output_x(x, out_x, width, squeeze),
+        );
     }
 
     let mut buf_y = vec![0u8; row_bytes];
@@ -264,6 +275,47 @@ mod tests {
                 "{name}: reason {reason:?} should name the size, the 9:8 limit and the fold"
             );
         }
+    }
+
+    /// The function the preview draws from is the one the maps are made with: every sample of
+    /// the X map's first row is its value, clamped to the sample range.
+    #[test]
+    fn the_x_map_is_the_source_column_of_each_output_column() {
+        for (w, h, squeeze) in [(1440, 1080, false), (640, 480, false), (1920, 1080, true)] {
+            let specs = video(w, h);
+            let (out_x, _) = remap_output_size(&specs, squeeze);
+            let (x_map, _) = generate_pgm_bytes(&specs, squeeze).unwrap();
+            let body = &x_map[header(out_x, h).len()..];
+            for x in 0..out_x {
+                let sample = u16::from_be_bytes([body[x as usize * 2], body[x as usize * 2 + 1]]);
+                let expected = source_x_for_output_x(x, out_x, w, squeeze).clamp(0, 65535);
+                assert_eq!(
+                    i64::from(sample),
+                    expected,
+                    "{w}x{h} squeeze={squeeze}: column {x}"
+                );
+            }
+        }
+    }
+
+    /// Widening keeps the first and last columns of the source on the first and last of the
+    /// output and spreads the edges: the source columns advance slower than the output ones
+    /// there, at the speed of the picture in the middle.
+    #[test]
+    fn widening_stretches_the_edges_and_keeps_the_ends() {
+        let (width, out_x) = (1440, 1920);
+        let at = |x| source_x_for_output_x(x, out_x, width, false);
+        assert_eq!(at(0), 0);
+        assert!(
+            at(out_x - 1) >= width - 2,
+            "the last column reaches the source's"
+        );
+        // Integer columns truncate, so the pace is measured over a hundred of them.
+        let advance = |from: i64| at(from + 100) - at(from);
+        assert!(
+            advance(0) < advance(out_x / 2 - 50),
+            "the edge advances through the source slower than the centre does"
+        );
     }
 
     // validate() runs before check_geometry(): 0x1440 is a dimension error.

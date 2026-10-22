@@ -27,7 +27,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 | `error` | erreurs typées (`InvalidVideoError`, `EncoderError`, `SessionError`) et variantes `Cancelled`, `StoppedBySignal`, `FailedAfterOutput` que lit la cascade |
 | `config`, `security` | YAML par `serde-saphyr` ; validation des chemins et des noms d'encodeur |
 | `video` | lecture et validation d'ffprobe (`check_video`, `parse_video_specs`) |
-| `pgm` | géométrie de sortie, formule de distorsion, écriture des cartes PGM (`powi(2)`, jamais `powf`) |
+| `pgm` | géométrie de sortie, formule de distorsion (`source_x_for_output_x`, partagée avec l'aperçu), écriture des cartes PGM (`powi(2)`, jamais `powf`) |
 | `tools`, `process` | recherche d'ffmpeg/ffprobe par un `ToolResolver` à environnement injecté ; commandes sans fenêtre, `killed_by_signal`, `run_with_deadline` (un processus borné par un délai ou une annulation) |
 | `hardware` | choix de l'encodeur et du chemin matériel : fonctions pures, cœurs et profil injectés |
 | `probe` | sonde d'un encodeur sur une vraie trame (délai, annulation), cache d'un `Prober` durable |
@@ -46,6 +46,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 |---------|------|
 | `ui/theme.slint`, `ui/components.slint` | le global `Theme` (jeux Light et Dark, accent cyan, DEC-57) ; `AppButton`, `Card`, `ProgressBar` (barre rouge/verte, DEC-58), `SegmentedControl`, `Switch` et `Pill` |
 | `ui/main.slint` | la fenêtre (1000×570, taille fixe, DEC-61 : la disposition de la maquette cyan, boutons en contexte), les popups (`Popup`, composant `Modal`) ; `ui/Icon.png` = l'icône |
+| `preview.rs` | les deux grilles de l'aperçu de la distorsion (masques alpha, DEC-62), tirées de `pgm::source_x_for_output_x` ; fonctions pures |
 | `state.rs`, `format.rs`, `report.rs`, `prefs.rs` | `AppState` + `ViewModel` ; textes et règles pures ; le rapport du Diagnostic lu ligne à ligne (aucun texte perdu) ; préférences JSON (DEC-46) |
 | `app.rs` | la colle : callbacks, fils de travail, popups en file ; tout widget touché par `upgrade_in_event_loop` |
 | `engine.rs`, `host.rs` | ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; le bureau derrière `Host` (navigateur sans shell, fin de la boucle) |

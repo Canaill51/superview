@@ -44,6 +44,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 #[cfg(test)]
 use std::time::Duration;
 
+use crate::preview::{Grid, preview};
 use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use superview_core::config::Config;
 use superview_core::error::Error;
@@ -355,6 +356,12 @@ fn apply_view(window: &MainWindow, view: &ViewModel) {
         BarState::Stopped => crate::BarState::Stopped,
     });
     window.set_quality(view.quality.as_str().into());
+    // The preview is redrawn when the mode changes (and once, at the start), not on every
+    // progress event: it depends on the switch alone. The switch is two-way bound to the
+    // window, so it has already moved: the window remembers the mode it drew for.
+    if window.get_source_grid().size().width == 0 || window.get_preview_squeeze() != view.squeeze {
+        apply_preview(window, view.squeeze);
+    }
     window.set_squeeze(view.squeeze);
     window.set_theme(view.theme.as_str().into());
     // The list is replaced only when it changed: a new model would close an open dropdown.
@@ -380,6 +387,22 @@ fn apply_view(window: &MainWindow, view: &ViewModel) {
     window.set_squeeze_enabled(view.is_enabled(Control::Squeeze));
     window.set_encoder_enabled(view.is_enabled(Control::Encoder));
     window.set_diagnostic_enabled(view.is_enabled(Control::Diagnostic));
+}
+
+/// Draws the distortion preview for a mode into the window.
+fn apply_preview(window: &MainWindow, squeeze: bool) {
+    let image = |grid: &Grid| {
+        let pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+            &grid.to_rgba(),
+            grid.width as u32,
+            grid.height as u32,
+        );
+        slint::Image::from_rgba8(pixels)
+    };
+    let grids = preview(squeeze);
+    window.set_preview_squeeze(squeeze);
+    window.set_source_grid(image(&grids.source));
+    window.set_output_grid(image(&grids.output));
 }
 
 /// Shows `current` in the window, or closes the popup when there is none.

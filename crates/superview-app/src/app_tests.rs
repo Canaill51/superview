@@ -502,7 +502,7 @@ impl Rig {
 }
 
 pub fn run() {
-    let scenarios: [(&str, fn()); 45] = [
+    let scenarios: [(&str, fn()); 46] = [
         (
             "verify thread fails",
             a_verification_thread_that_cannot_start_does_not_freeze,
@@ -590,6 +590,10 @@ pub fn run() {
             the_overwrite_question_is_about_the_files_it_was_asked_on,
         ),
         ("thumbnail", the_input_gets_its_picture_and_its_specs),
+        (
+            "distortion preview",
+            the_distortion_preview_follows_the_squeeze_switch,
+        ),
         (
             "thumbnail failure",
             a_thumbnail_that_fails_leaves_the_card_empty_and_quiet,
@@ -696,6 +700,37 @@ fn the_input_gets_its_picture_and_its_specs() {
     assert_eq!(r.window.get_input_specs(), "h264 · 1440×1080 · 10s");
     let size = r.window.get_thumbnail().size();
     assert_eq!((size.width, size.height), (192, 144));
+}
+
+/// The distortion preview is there from the start, and the switch redraws it: widening shows a
+/// 4:3 grid beside a 16:9 one, un-squeezing two 16:9 ones (DEC-62).
+fn the_distortion_preview_follows_the_squeeze_switch() {
+    fn sizes(w: &MainWindow) -> ((u32, u32), (u32, u32)) {
+        let (source, output) = (w.get_source_grid().size(), w.get_output_grid().size());
+        ((source.width, source.height), (output.width, output.height))
+    }
+    let r = rig(FakeEngine::new(), FakeHost::new());
+    r.ready();
+    let widening = sizes(&r.window);
+    assert!(widening.0.0 > 0, "no preview at the start");
+    assert!(
+        widening.0.0 < widening.1.0,
+        "widening starts from a narrower picture than it ends with"
+    );
+    r.click(SQUEEZE);
+    r.wait("the preview to be redrawn", move |w| sizes(w) != widening);
+    assert!(
+        r.window.get_preview_squeeze(),
+        "the captions stay on the old mode"
+    );
+    let squeezing = sizes(&r.window);
+    assert_eq!(
+        squeezing.0.0, squeezing.1.0,
+        "un-squeezing keeps 16:9 on both sides"
+    );
+    r.click(SQUEEZE);
+    r.wait("the preview to come back", move |w| sizes(w) == widening);
+    assert!(!r.window.get_preview_squeeze());
 }
 
 /// No picture is not an error: no popup, the status says the input is loaded, the card is empty.
