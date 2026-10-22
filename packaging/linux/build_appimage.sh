@@ -85,10 +85,12 @@ chmod 0755 "$APPDIR/AppRun"
 
 # The file is named after the application ID the window sets (slint::set_xdg_app_id), and Icon= after
 # it too. On Wayland the window carries that ID as its app_id and the compositor finds the
-# icon by looking for a desktop file of exactly that name: with `superview.desktop` KDE shows
-# its generic icon instead of ours (measured, 2026-10-14). appimagetool wants the icon beside
-# the desktop file under the name Icon= gives.
-APP_ID="com.canaill51.superview"
+# icon by looking for a desktop file of exactly that name (StartupWMClass does not help there:
+# measured, 2026-10-14). The ID is the plain `superview` because the tools that integrate an
+# AppImage (Gear Lever) write their own desktop file named after the application, `superview.desktop`:
+# an ID of the form com.example.superview would never match it (DEC-64). appimagetool wants the
+# icon beside the desktop file under the name Icon= gives.
+APP_ID="superview"
 cat > "$APPDIR/$APP_ID.desktop" <<EOF
 [Desktop Entry]
 Type=Application

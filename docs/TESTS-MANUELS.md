@@ -26,7 +26,7 @@ désinstallation : tout conforme, d'après l'utilisateur. Seul le sélecteur nat
 **Icône de la fenêtre** reste ouverte parce que la partie Linux (KDE) n'a pas été dite vue.
 
 **Suite du 2026-10-20** (KDE sur Wayland) : **Icône de la fenêtre** cochée. Sous Wayland, KDE ne lit pas l'icône
-dans la fenêtre : il la cherche dans un `.desktop` nommé d'après l'identifiant `com.canaill51.superview`. Une
+dans la fenêtre : il la cherche dans un `.desktop` nommé d'après l'identifiant de la fenêtre (`com.canaill51.superview` alors, `superview` depuis DEC-64). Une
 AppImage lancée sans intégration au bureau montre donc une icône générique ; avec un `.desktop` pointant sur
 elle (ce que fait AppImageLauncher), barre de titre et barre des tâches montrent la bonne icône. Rien à changer
 dans le code. **Diagnostic : lire tout le rapport** cochée (la partie Diagnostic, d'après l'utilisateur).
