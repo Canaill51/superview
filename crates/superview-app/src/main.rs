@@ -14,6 +14,7 @@ mod format;
 mod host;
 mod journal;
 mod prefs;
+mod preview;
 mod report;
 mod signals;
 mod state;

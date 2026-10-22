@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-22] Aperçu vivant de la distorsion (DEC-62, refonte de l'interface, PR 6)
+
+| | |
+| --- | --- |
+| **Constat** | la colonne gauche était vide sous « Output file » ; la maquette y montre la grille de la source et celle de la sortie |
+| **Cause** | fonction prévue au plan de la refonte, non encore faite |
+| **Fichiers** | `superview-core/src/pgm.rs` (`source_x_for_output_x` extraite de `write_maps`), `superview-app/src/preview.rs` (nouveau), `src/app.rs` (`apply_preview`), `ui/main.slint`, `src/app_tests.rs`, `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-62), README.md et README_FR.md |
+| **Règle** | quand une valeur dérive d'une formule du cœur, l'afficher par la fonction du cœur et non par une copie : l'extraction est prouvée par les empreintes dorées (inchangées) et par un test qui compare la fonction à chaque échantillon de la carte écrite |
+| **Essai** | un test d'application a trouvé un défaut : la case un-squeeze est liée en double sens, donc `get_squeeze() != view.squeeze` était déjà faux quand `apply_view` comparait et l'aperçu ne changeait jamais ; la fenêtre retient désormais le mode dessiné. Une capture Xvfb en mode un-squeeze a montré la grille source de 312 px comprimée dans une boîte de 236 px : la boîte suit maintenant la taille de l'image, et deux grilles 16:9 de 312 px ne tenant pas (562 px dans 560), ce mode en dessine deux de 270×152 |
+| **Vérification** | contre-preuves : signe de la formule inversé → `widening_stretches_the_edges_and_keeps_the_ends` rougit ; condition d'`apply_view` d'origine → `the_distortion_preview_follows_the_squeeze_switch` rougit ; écart de 400 px entre les grilles → le test de disposition rougit ; captures Xvfb en Dark et en Light, modes élargir et un-squeeze ; `scripts/check.sh` |
+
 ### [2026-10-21] La fenêtre suit la maquette cyan validée (DEC-61, refonte de l'interface, PR d'alignement)
 
 | | |

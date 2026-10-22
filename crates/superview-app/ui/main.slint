@@ -202,6 +202,12 @@ export component MainWindow inherits Window {
     // One frame of the input, once it is decoded.
     in property <image> thumbnail;
     in property <bool> has-thumbnail: false;
+    // The distortion preview: two white masks, tinted here with the accent (`preview.rs`).
+    in property <image> source-grid;
+    in property <image> output-grid;
+    // The mode the grids were drawn for, which their captions follow: the switch itself changes
+    // before the grids do.
+    in property <bool> preview-squeeze: false;
     in property <string> output-name: "No file selected";
     // 0 to 1.
     in property <float> progress: 0;
@@ -390,6 +396,46 @@ export component MainWindow inherits Window {
                         text: "Choose output file";
                         enabled: root.free && root.output-enabled;
                         clicked => { root.choose-output(); }
+                    }
+                }
+
+                Text { text: "Distortion preview"; color: Theme.text-muted; font-weight: 600; font-size: 12px; }
+                // The grid before the conversion and after it, each shown 1:1 (`preview.rs`).
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: LayoutAlignment.start;
+                    for grid[index] in [root.source-grid, root.output-grid]: VerticalLayout {
+                        spacing: 5px;
+                        Rectangle {
+                            width: grid.width * 1px;
+                            height: grid.height * 1px;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            background: Theme.background;
+                            clip: true;
+                            Image {
+                                source: grid;
+                                width: parent.width;
+                                height: parent.height;
+                                colorize: Theme.accent;
+                                image-rendering: pixelated;
+                                accessible-role: none;
+                            }
+                            Rectangle {
+                                width: Math.min(grid.width, grid.height) * 0.34px;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: Theme.running;
+                            }
+                        }
+                        Text {
+                            text: index == 0
+                                ? (root.preview-squeeze ? "Source 16:9" : "Source 4:3")
+                                : (root.preview-squeeze ? "Output 16:9, centre narrowed" : "Output 16:9, edges stretched");
+                            color: Theme.text-muted;
+                            font-size: 11px;
+                        }
                     }
                 }
             }

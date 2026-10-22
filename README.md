@@ -115,6 +115,10 @@ They must show the same 64 characters, ignoring case.
 Once a file is chosen, its card shows a picture from the video and its codec,
 size and length.
 
+Under the file fields, *Distortion preview* draws a grid before and after the
+conversion, so you can see the edges stretch while the centre keeps its ratio.
+With *un-squeeze* on, it shows the centre being narrowed instead.
+
 The **Theme** menu at the top switches between **Light** and **Dark** (dark by
 default); the window remembers your choice.
 
