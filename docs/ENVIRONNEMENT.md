@@ -73,6 +73,15 @@ sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 su
   un champ texte dans la fenêtre (DEC-43, phase 6.4).
 - Les tests de la fenêtre utilisent `i-slint-backend-testing` : aucun écran requis.
 
+## Plugin OpenFX (`superview-ofx`)
+
+`ofx_sys` génère ses liaisons avec **bindgen**, donc libclang (`libclang1-*`, ici llvm-21) et les en-têtes C
+standard. Sur Debian/Ubuntu sans `libclang-dev`, libclang ne trouve pas `stdbool.h` (`fatal error:
+'stdbool.h' file not found`) : `scripts/checks/rust.sh` et `packaging/ofx/build_bundle.sh` règlent
+`BINDGEN_EXTRA_CLANG_ARGS=-I$(gcc -print-file-name=include)` s'il est absent. Un `cargo build` lancé à la main
+doit l'avoir dans l'environnement (ou `sudo apt install libclang-dev`). Le fork d'`ofx-rs` se récupère par git
+(réseau au premier `cargo build`).
+
 ## Outils d'analyse
 
 Le contrôle de couverture et l'audit de la CI (job *Rust coverage and audit*) se rejouent en local avec

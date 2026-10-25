@@ -106,6 +106,29 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
       ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
+## Plugin OpenFX pour DaVinci Resolve (DEC-65, prototype)
+
+À faire par l'utilisateur : le plugin n'a jamais tourné dans Resolve (aucun hôte OpenFX sur la machine de
+développement). `sh packaging/ofx/build_bundle.sh` (Linux) ou l'artefact `Superview.ofx.bundle-Windows` de la CI.
+
+- [ ] **Chargement** : copier `Superview.ofx.bundle` dans `/usr/OFX/Plugins` (Linux, sudo) ou
+      `C:\Program Files\Common Files\OFX\Plugins` (Windows), redémarrer Resolve : *Effets → OpenFX → Superview*
+      apparaît (Free, puis Studio).
+- [ ] **Élargir** : projet 1920×1080, *Mismatched resolution* = **Scale entire image to fit**, un clip 4:3 sur
+      la timeline, l'effet sur le clip (page Montage) : le 4:3 remplit le 16:9, le centre garde son rapport,
+      pas de bande.
+- [ ] **Parité** : exporter une image de la timeline et la comparer à la même image de la vidéo convertie par
+      Superview (mêmes pixels avec une source 1440×1080 dans une timeline 1920×1080 ; avec une autre taille,
+      Resolve redimensionne d'abord avec son propre filtre : visuellement identique seulement).
+- [ ] **Centrage** : une timeline de largeur impaire (1921) ne montre pas de colonne de bord parasite.
+- [ ] **Un-squeeze** : une vidéo GoPro SuperView, mode *Un-squeeze* : le centre se rétrécit.
+- [ ] **Rendu final** (page Livraison) : l'effet est bien appliqué à l'export, pas seulement à l'aperçu.
+- [ ] **Autres réglages** : *Stretch frame to all corners* ou *crop* donnent une image fausse (l'effet reçoit
+      une trame déjà étirée ou rognée) : à confirmer, puis à documenter dans le README si le plugin est livré.
+- [ ] **Défilement** : faire défiler vite la timeline sur le clip : pas de trame rouge ni d'erreur (l'abandon
+      demandé par Resolve rend `OK`).
+- [ ] **Vitesse** : lecture d'un clip 1080p en temps réel sur la timeline (le rendu est CPU seul).
+
 ## Divers
 
 - [x] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre le rapport en liste : une

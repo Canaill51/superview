@@ -18,6 +18,13 @@ fi
 
 cd "$(dirname "$0")/../.."
 
+# superview-ofx : bindgen (crate ofx_sys) a besoin de stdbool.h, que libclang ne trouve pas
+# toujours seul (Debian/Ubuntu sans libclang-dev). On lui donne le dossier d'en-têtes de gcc.
+if [ "$(uname -s)" = Linux ] && [ -z "${BINDGEN_EXTRA_CLANG_ARGS:-}" ] && command -v gcc >/dev/null 2>&1; then
+  GCC_INCLUDE="$(gcc -print-file-name=include)"
+  [ -f "$GCC_INCLUDE/stdbool.h" ] && export BINDGEN_EXTRA_CLANG_ARGS="-I$GCC_INCLUDE"
+fi
+
 echo "==> Format (cargo fmt --check)"
 cargo fmt --all --check
 

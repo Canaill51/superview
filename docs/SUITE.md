@@ -1,4 +1,8 @@
 # Où on en est
+- **En cours (2026-10-25) — plugin OpenFX pour DaVinci Resolve** (DEC-65, branche `feat/ofx-plugin`) : la crate
+  `crates/superview-ofx` (calcul testé contre les cartes de l'application, colle OpenFX, bundle, artefact CI) est
+  écrite ; reste à l'essayer dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que
+  ce n'est pas validé. Plan : `~/.claude/plans/nifty-wondering-snail.md`.
 - État (2026-10-22) : **v0.4.0 publiée** (installateur Windows, AppImage, `checksums.txt` ; elle apporte la refonte de l'interface,
   #162 à #171, et l'identifiant de fenêtre `superview`). La v0.3.1 (14ᵉ passe, #141 à #160) la précédait. La v0.3.0 était le premier binaire Rust + Slint. Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
