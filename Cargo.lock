@@ -4060,6 +4060,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "superview-ofx"
+version = "0.0.0"
+dependencies = [
+ "superview-core",
+]
+
+[[package]]
 name = "svgtypes"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

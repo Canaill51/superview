@@ -1,0 +1,13 @@
+[package]
+name = "superview-ofx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+superview-core = { path = "../superview-core" }
