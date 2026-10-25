@@ -124,6 +124,7 @@
 | 2026-10-14 | L-115 | Couper la sortie d'un outil dans un tube (`\| head`, `\| Select-Object -First 1`) le fait échouer |
 | 2026-10-17 | L-116 | Deux encodages multi-fil du même clip ne donnent pas les mêmes images |
 | 2026-10-21 | L-117 | Un test ne modifie pas l'environnement du processus : on le passe en paramètre |
+| 2026-10-25 | L-118 | Dans un hôte, ce que le plugin déclare peut coûter plus que ce qu'il calcule : mesurer aux deux bords |
 
 ## Historique (Go)
 

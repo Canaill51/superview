@@ -21,8 +21,9 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
   (sortie JSON) et SIGINT/SIGTERM, pour les tests qui lancent une vraie conversion dans un processus
   séparé.
 
-- **`superview-ofx`** — le plugin OpenFX pour DaVinci Resolve (DEC-65) : `warp` (le calcul, pur, qui réutilise
-  `pgm::source_x_for_output_x`) et `plugin` (la colle avec l'hôte). Un bundle `Superview.ofx.bundle` par
+- **`superview-ofx`** — le plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66) : `warp` (le calcul, pur, qui
+  réutilise `pgm::source_x_for_output_x`), `cuda` (le même calcul sur la carte : pilote CUDA chargé à l'exécution,
+  noyau PTX, repli CPU) et `plugin` (la colle avec l'hôte, `FullySafe`). Un bundle `Superview.ofx.bundle` par
   `packaging/ofx/build_bundle.sh` ; prototype, pas dans les versions.
 
 ### `superview-core`

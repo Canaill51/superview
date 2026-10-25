@@ -12,7 +12,9 @@ workspace = true
 [dependencies]
 superview-core = { path = "../superview-core" }
 ofx = "0.3"
+ofx_sys = "0.2"
 log = "0.4.34"
+libloading = "0.8.9"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

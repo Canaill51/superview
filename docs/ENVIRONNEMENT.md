@@ -82,6 +82,19 @@ standard. Sur Debian/Ubuntu sans `libclang-dev`, libclang ne trouve pas `stdbool
 doit l'avoir dans l'environnement (ou `sudo apt install libclang-dev`). Le fork d'`ofx-rs` se récupère par git
 (réseau au premier `cargo build`).
 
+**Sous Windows** (poste de l'utilisateur, 2026-10-25) : rustup (cible `x86_64-pc-windows-msvc`) et les *Build Tools*
+de Visual Studio 2022 avec la charge « Développement Desktop en C++ » **et** le composant *Outils Clang C++*
+(`Microsoft.VisualStudio.Component.VC.Llvm.Clang`), qui fournit `libclang.dll` : bindgen le trouve seul, sans
+`LIBCLANG_PATH`. En une commande :
+`winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --add Microsoft.VisualStudio.Component.VC.Llvm.Clang"`.
+Le bundle se construit sous Git Bash (`sh packaging/ofx/build_bundle.sh`) ; l'installer dans `Program Files` demande
+les droits administrateur, Resolve fermé (il garde le fichier ouvert).
+
+**Le test du noyau CUDA** (`crates/superview-ofx/tests/cuda.rs`) ne tourne que sur une machine avec une carte
+NVIDIA et son pilote, jamais en CI ; ailleurs il se saute. Sur une telle machine, le lancer avec
+`SUPERVIEW_REQUIRE_CUDA=1` : l'absence du pilote ou de la carte le fait alors échouer au lieu de passer à vide.
+Aucun kit CUDA n'est nécessaire : le noyau est du PTX compilé par le pilote.
+
 ## Outils d'analyse
 
 Le contrôle de couverture et l'audit de la CI (job *Rust coverage and audit*) se rejouent en local avec

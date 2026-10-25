@@ -3,11 +3,18 @@
 //! In Resolve the effect receives the whole timeline frame with the clip already scaled to fit
 //! (set *Mismatched resolution* to *Scale entire image to fit*), so source and output have the
 //! same bounds and the effect writes every column.
+//!
+//! Two paths render the same pixels: CUDA when the host hands over device memory
+//! ([`crate::cuda`], DEC-66), the CPU otherwise. A CUDA frame that fails returns `FAILED`, and the
+//! host then asks for the same frame on the CPU.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use ofx::*;
+use ofx_sys::OfxPropertySuiteV1;
 
+use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, Warp};
 use crate::warp::{Mode, column_map, warp_row};
 
 plugin_module!(
@@ -19,6 +26,15 @@ plugin_module!(
 
 const PARAM_MODE: &str = "mode";
 
+/// Properties the fork does not name (OpenFX 1.4, `ofxGPURender.h`).
+const CUDA_STREAM_SUPPORTED: &str = "OfxImageEffectPropCudaStreamSupported";
+const CUDA_STREAM: &str = "OfxImageEffectPropCudaStream";
+
+/// Threads of the CPU path. Measured in Resolve on a 4K float frame (i7-11800H): 18 ms on one
+/// thread, 14 ms on two, no better beyond -- the warp is bound by memory -- and more threads
+/// starve the host's own decoding.
+const CPU_THREADS: usize = 2;
+
 #[derive(Default)]
 struct SuperviewPlugin;
 
@@ -26,7 +42,59 @@ struct InstanceData {
     source_clip: ClipInstance,
     output_clip: ClipInstance,
     mode: ParamHandle<Int>,
+    /// `FullySafe` lets the host render several frames of one instance at once: what they share
+    /// and change sits behind a lock, held to swap the map or to enqueue the kernel, no longer.
+    state: Mutex<RenderState>,
 }
+
+#[derive(Default)]
+struct RenderState {
+    /// The map of the last frame: the size and mode rarely change during playback.
+    map: Option<CachedMap>,
+    /// The kernel and the map on the GPU, once a CUDA frame has come.
+    gpu: Option<GpuWarp>,
+}
+
+struct CachedMap {
+    key: MapKey,
+    columns: Arc<[usize]>,
+}
+
+/// What a column map depends on.
+type MapKey = (usize, usize, Mode);
+
+struct GpuWarp {
+    warp: Warp,
+    /// The map on the GPU, `None` until uploaded.
+    key: Option<MapKey>,
+}
+
+/// Raw access to a property set, for the properties the fork does not name.
+#[derive(Clone)]
+struct RawProps {
+    handle: OfxPropertySetHandle,
+    suite: *const OfxPropertySuiteV1,
+}
+
+impl RawProps {
+    fn of(set: &impl AsProperties) -> RawProps {
+        RawProps {
+            handle: set.handle(),
+            suite: set.suite(),
+        }
+    }
+}
+
+impl AsProperties for RawProps {
+    fn handle(&self) -> OfxPropertySetHandle {
+        self.handle
+    }
+    fn suite(&self) -> *const OfxPropertySuiteV1 {
+        self.suite
+    }
+}
+impl RawReadable for RawProps {}
+impl RawWritable for RawProps {}
 
 impl Execute for SuperviewPlugin {
     /// A panic must not cross into the host: it would take Resolve down with it.
@@ -41,7 +109,7 @@ impl Execute for SuperviewPlugin {
     }
 }
 
-fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
+fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
     use Action::*;
     match *action {
         Describe(ref mut effect) => {
@@ -59,8 +127,20 @@ fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
             props.set_supports_tiles(false)?;
             // The host then hands over source and output of the same size, which `Render` relies on.
             props.set_supports_multi_resolution(false)?;
-            // The fork reaches its registry through a global: one render at a time per instance.
-            props.set_render_thread_safety(ImageEffectRender::InstanceSafe)?;
+            // As Gyroflow's plugin on the same fork. Measured in Resolve 21 (4K, CUDA): 8 fps with
+            // `InstanceSafe`, 29.97 with this, although Resolve never ran two renders at once --
+            // the declaration alone takes it off a slow path. `RenderState`'s lock covers the case.
+            props.set_render_thread_safety(ImageEffectRender::FullySafe)?;
+            // CUDA only where the driver loads: a host would otherwise ask for every frame in
+            // CUDA first, then again on the CPU.
+            let host_has_cuda = plugin_context
+                .get_host()
+                .get_cuda_render_supported()
+                .is_ok_and(|supported| supported == "true");
+            if host_has_cuda && Driver::get().is_some() {
+                props.set_cuda_render_supported("true")?;
+                RawProps::of(&props).set_raw(CUDA_STREAM_SUPPORTED, "true")?;
+            }
             OK
         }
 
@@ -93,6 +173,7 @@ fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 source_clip: effect.get_simple_input_clip()?,
                 output_clip: effect.get_output_clip()?,
                 mode: params.parameter(PARAM_MODE)?,
+                state: Mutex::default(),
             };
             effect.set_instance_data(data)?;
             OK
@@ -103,6 +184,7 @@ fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
         Render(ref mut effect, ref in_args) => {
             let time = in_args.get_time()?;
             let window = in_args.get_render_window()?;
+            let on_gpu = in_args.get_cuda_enabled().unwrap_or(false);
             let data: &mut InstanceData = effect.get_instance_data()?;
             let mode = match data.mode.get_value_at_time(time)? {
                 0 => Mode::Widen,
@@ -125,25 +207,88 @@ fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
             if width == 0 || height == 0 {
                 return OK;
             }
-            let map = column_map(width, height, mode);
+            let key = (width, height, mode);
+            let map: Arc<[usize]> = {
+                let mut state = data.state.lock().unwrap_or_else(PoisonError::into_inner);
+                match state.map.as_ref() {
+                    Some(cached) if cached.key == key => cached.columns.clone(),
+                    _ => {
+                        let columns: Arc<[usize]> = column_map(width, height, mode).into();
+                        state.map = Some(CachedMap {
+                            key,
+                            columns: columns.clone(),
+                        });
+                        columns
+                    }
+                }
+            };
+            let map: &[usize] = &map;
             let rows = window.y1.max(bounds.y1)..window.y2.min(bounds.y2);
+            // The user scrolled on: the host no longer wants this frame, which is no error. Asked
+            // once: the host's handle cannot leave this thread, and a frame takes milliseconds.
+            if effect.abort()? {
+                return OK;
+            }
 
+            if on_gpu {
+                let stream: CuStream = RawProps::of(in_args)
+                    .get_raw::<VoidPtrMut, _>(CUDA_STREAM)
+                    .unwrap_or(std::ptr::null_mut());
+                let first_row = (rows.start - bounds.y1).max(0) as usize;
+                let row_count = (rows.end - rows.start).max(0) as usize;
+                let frame = DeviceFrame {
+                    src: source.get_data()? as usize as CuDevicePtr,
+                    dst: output.get_data()? as usize as CuDevicePtr,
+                    src_pitch: source.get_row_bytes()?,
+                    dst_pitch: output.get_row_bytes()?,
+                    float_rgba: (output.get_pixel_depth()?, output.get_components()?)
+                        == (BitDepth::Float, ImageComponent::RGBA),
+                };
+                let mut state = data.state.lock().unwrap_or_else(PoisonError::into_inner);
+                return match render_on_gpu(
+                    &mut state.gpu,
+                    key,
+                    map,
+                    frame,
+                    first_row,
+                    row_count,
+                    stream,
+                ) {
+                    Ok(()) => OK,
+                    Err(err) => {
+                        log::error!("Superview: CUDA render failed, the host falls back: {err}");
+                        FAILED
+                    }
+                };
+            }
+
+            let threads = CPU_THREADS.min(height);
+            // Each band of rows goes to its own thread; a tile owns its rows, so no two threads
+            // write the same pixel. A band that panics fails the frame, as a wrong row does.
             macro_rules! warp {
                 ($pixel:ty) => {{
                     let src = source.get_descriptor::<$pixel>()?;
-                    let mut tiles = output.get_tiles_mut::<$pixel>(1)?;
-                    let Some(tile) = tiles.first_mut() else {
+                    let tiles = output.get_tiles_mut::<$pixel>(threads)?;
+                    let src = &src;
+                    let rows = &rows;
+                    let all_rows_fit = std::thread::scope(|scope| {
+                        let bands: Vec<_> = tiles
+                            .into_iter()
+                            .map(|mut tile| {
+                                // A tile counts its rows from the top of the frame, not from y1.
+                                let band = (bounds.y1 + tile.y1).max(rows.start)
+                                    ..(bounds.y1 + tile.y2).min(rows.end);
+                                scope.spawn(move || {
+                                    band.into_iter()
+                                        .all(|y| warp_row(src.row(y), tile.row(y), map))
+                                })
+                            })
+                            .collect();
+                        bands.into_iter().all(|band| band.join().unwrap_or(false))
+                    });
+                    if !all_rows_fit {
+                        log::error!("Superview: a row does not have the width of the frame");
                         return FAILED;
-                    };
-                    for y in rows.clone() {
-                        // The user scrolled on: the host no longer wants this frame, which is no error.
-                        if effect.abort()? {
-                            return OK;
-                        }
-                        if !warp_row(src.row(y), tile.row(y), &map) {
-                            log::error!("Superview: a row does not have the width of the frame");
-                            return FAILED;
-                        }
                     }
                 }};
             }
@@ -158,4 +303,76 @@ fn run(_plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
 
         _ => REPLY_DEFAULT,
     }
+}
+
+/// The images of a CUDA frame, as the host hands them over.
+struct DeviceFrame {
+    src: CuDevicePtr,
+    dst: CuDevicePtr,
+    src_pitch: Int,
+    dst_pitch: Int,
+    float_rgba: bool,
+}
+
+/// Enqueues the warp of rows `first_row..first_row + row_count` (counted from the bottom of the
+/// frame) on the host's stream, or runs it to completion when the host gave no stream.
+fn render_on_gpu(
+    gpu: &mut Option<GpuWarp>,
+    key: MapKey,
+    map: &[usize],
+    frame: DeviceFrame,
+    first_row: usize,
+    row_count: usize,
+    stream: CuStream,
+) -> std::result::Result<(), String> {
+    let driver = Driver::get().ok_or("no CUDA driver")?;
+    if !frame.float_rgba {
+        return Err("CUDA frames other than RGBA float are not handled".to_string());
+    }
+    let pitch = |bytes: Int| {
+        usize::try_from(bytes)
+            .ok()
+            .filter(|&bytes| bytes >= map.len() * cuda::PIXEL_BYTES && bytes.is_multiple_of(16))
+            .ok_or_else(|| format!("unusable row length of {bytes} bytes"))
+    };
+    let (src_pitch, dst_pitch) = (pitch(frame.src_pitch)?, pitch(frame.dst_pitch)?);
+    if frame.src == 0 || frame.dst == 0 || !(frame.src | frame.dst).is_multiple_of(16) {
+        return Err("an image pointer is null or misaligned".to_string());
+    }
+
+    let context: CuContext = driver
+        .current_context()?
+        .ok_or("the host made no CUDA context current")?;
+    if gpu.as_ref().is_none_or(|gpu| gpu.warp.context() != context) {
+        // A new context (another GPU, a restarted engine): the old kernel and map go with it.
+        *gpu = None;
+        *gpu = Some(GpuWarp {
+            warp: Warp::new(driver, context)?,
+            key: None,
+        });
+    }
+    let Some(gpu) = gpu.as_mut() else {
+        return Err("no kernel".to_string());
+    };
+    if gpu.key != Some(key) {
+        gpu.key = None;
+        gpu.warp.set_map(map)?;
+        gpu.key = Some(key);
+    }
+
+    let src = frame.src + (first_row * src_pitch) as CuDevicePtr;
+    let dst = frame.dst + (first_row * dst_pitch) as CuDevicePtr;
+    // SAFETY: the host made `context` current and handed over these device images, each
+    // `pitch` bytes a row (checked above against the map's width) and holding the frame's rows;
+    // the map was set for this width just above.
+    unsafe {
+        gpu.warp
+            .launch(src, dst, row_count, src_pitch, dst_pitch, stream)
+    }?;
+    if stream.is_null() {
+        // Without a stream the host expects the work done on return (`ofxGPURender.h`).
+        // SAFETY: the null stream, in the context the host made current.
+        unsafe { driver.synchronize(stream) }?;
+    }
+    Ok(())
 }

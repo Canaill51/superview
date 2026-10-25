@@ -4109,8 +4109,10 @@ dependencies = [
 name = "superview-ofx"
 version = "0.0.0"
 dependencies = [
+ "libloading",
  "log",
  "ofx",
+ "ofx_sys",
  "superview-core",
 ]
 

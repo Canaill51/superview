@@ -1,8 +1,15 @@
 # Où on en est
-- **En cours (2026-10-25) — plugin OpenFX pour DaVinci Resolve** (DEC-65, branche `feat/ofx-plugin`) : la crate
-  `crates/superview-ofx` (calcul testé contre les cartes de l'application, colle OpenFX, bundle, artefact CI) est
-  écrite ; reste à l'essayer dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que
-  ce n'est pas validé. Plan : `~/.claude/plans/nifty-wondering-snail.md`.
+- **En cours (2026-10-25) — plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, branche `feat/ofx-plugin`,
+  **pas de PR tant que l'utilisateur ne la demande pas**) : essayé dans Resolve 21.1.1 gratuit sous Windows
+  (RTX 3050 Ti) : rendu CUDA, `FullySafe`, **lecture 4K en temps réel** (29,97 i/s, contre 6 à 10 avant), export
+  4K comparé à l'application (38 à 41 dB). Restent : Studio, Linux, la parité au pixel 1440×1080 → 1920×1080, la
+  comparaison CUDA/CPU dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que ce
+  n'est pas validé.
+- **À traiter à part (trouvé le 2026-10-25 sur le poste Windows de l'utilisateur)** : `h264_d3d12va` passe la sonde
+  mais échoue en vraie conversion (repli CPU, et Vulkan n'est jamais essayé) ; `a_device_frame_encoder_runs_the_whole_pipeline`
+  est donc rouge sur ce poste. Le garde-fou anti-boucle de `.claude/hooks/avant-fin.sh` dépend de `python3`, qui
+  sous Windows est le raccourci du Microsoft Store : il ne se déclenche jamais. `scripts/checks/rust.sh` cherche
+  ffmpeg dans le `PATH` seulement, pas dans `SUPERVIEW_FFMPEG_DIR`.
 - État (2026-10-22) : **v0.4.0 publiée** (installateur Windows, AppImage, `checksums.txt` ; elle apporte la refonte de l'interface,
   #162 à #171, et l'identifiant de fenêtre `superview`). La v0.3.1 (14ᵉ passe, #141 à #160) la précédait. La v0.3.0 était le premier binaire Rust + Slint. Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint
