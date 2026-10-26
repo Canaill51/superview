@@ -84,12 +84,17 @@ Le fork nomme déjà `OpenCLRenderSupported`, `OpenCLEnabled` et `OpenCLCommandQ
 (`ofx/src/property.rs`). Le modèle est `cuda.rs` : bibliothèque chargée à l'exécution, noyau compilé par
 le pilote, file de l'hôte, repli CPU par `FAILED`.
 
-- [ ] **4a — Sonde (jetable, branche à part)** : Resolve gratuit propose-t-il OpenCL aux plugins tiers ?
-      Que donne-t-il : `cl_mem` tampon ou image, format, pas des lignes, file de commandes ? Un `FAILED`
-      le fait-il repasser en CPU ? Mesuré dans Resolve réglé sur OpenCL, sur la RTX (OpenCL NVIDIA).
-      **Arrêt** : si l'hôte ne propose pas OpenCL, le lot s'arrête et DEC-66 le consigne.
+- [x] **4a — Sonde (jetable, branche à part)** — **faite le 2026-10-26**, le lot continue
+      (`docs/TESTS-MANUELS.md`, *Sonde OpenCL*). Resolve gratuit propose OpenCL aux plugins tiers, en
+      **tampons** `cl_mem` seulement (pas d'images OpenCL), RGBA flottant, pas des lignes donné par `row_bytes`,
+      file de commandes de l'hôte dans le même contexte que les tampons ; tampons d'une réserve, plus grands
+      que la trame. Un `FAILED` fait refaire la même trame en CPU, mais la suivante est redemandée en OpenCL.
 - [ ] **4b — `opencl.rs` et ses tests** : `OpenCL.dll` / `libOpenCL.so.1` par `libloading`, noyau OpenCL C
-      compilé à l'exécution, même `column_map`. `tests/opencl.rs` compare à `warp_row` comme `tests/cuda.rs`,
+      compilé à l'exécution, même `column_map`. Ce que 4a impose : lire le noyau sur des **tampons**
+      (`__global float4*`, décalage en octets par `row_bytes`), pas des images ; tout mettre dans la **file de
+      l'hôte** et prendre le contexte par `CL_QUEUE_CONTEXT` ; compiler le programme et charger la carte une fois
+      par contexte, **et mémoriser un échec** par contexte (comme `cuda::PerContext`), puisque l'hôte redemande
+      OpenCL à chaque trame ; ne vérifier la taille d'un tampon que par `≥ lignes × pas`. `tests/opencl.rs` compare à `warp_row` comme `tests/cuda.rs`,
       saute sans OpenCL sauf avec `SUPERVIEW_REQUIRE_OPENCL=1`. À passer sur **deux** appareils : la RTX
       et l'iGPU Intel UHD de l'i7-11800H (un vrai GPU non NVIDIA, sur ce poste). Contre-preuve : un noyau
       qui lit `x` au lieu de `map[x]` doit rougir.

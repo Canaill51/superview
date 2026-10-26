@@ -163,6 +163,22 @@ un chronométrage temporaire, retiré depuis).
       (3840x2160)`. Après plusieurs minutes de lecture le fichier tient en dix lignes : le bavardage du fork est
       bien filtré. Deux `plugin loaded` à 54 s d'écart lors du premier lancement après l'installation, un seul
       au redémarrage en OpenCL : pas systématique, sans conséquence (une ligne par chargement).
+- [x] **Sonde OpenCL** (2026-10-26, Lot 4a de `docs/PLAN-OFX.md`, branche jetable `sonde/opencl-resolve`, non
+      fusionnée) : Resolve 21.1.1 gratuit réglé sur OpenCL, RTX 3050 Ti, effet sur un clip en timeline 4K, lecture
+      puis défilement, deux lancements de Resolve. La sonde déclare OpenCL (tampons), journalise les 5 premières
+      trames OpenCL de chaque instance, interroge `OpenCL.dll` sur ce qu'elle reçoit, puis rend `FAILED`. Mesuré :
+      - l'hôte annonce `OpenCLRenderSupported = "true"` et `CudaRenderSupported = "false"` ; la propriété des
+        **images** OpenCL (`OfxImageEffectPropOpenCLSupported`, OFX 1.5) n'existe pas chez lui : **tampons seuls** ;
+      - `Render` arrive avec `OpenCLEnabled` vrai et une file de commandes non nulle, sur l'appareil
+        `NVIDIA GeForce RTX 3050 Ti Laptop GPU` (`OpenCL 3.0 CUDA`) ;
+      - `get_data` des deux images est un `cl_mem` **tampon** (`CL_MEM_TYPE` = `0x10f0`), `CL_MEM_READ_WRITE`, dans
+        **le même contexte** que la file ; `OfxImageEffectPropOpenCLImage` absente ;
+      - RGBA flottant, 61 440 octets par ligne (3840 × 16, sans marge), fenêtre = cadre entier ;
+      - les tampons font **128 Mio** (`0x8000000`), un peu plus que la trame (126,6 Mio) : ce sont des tampons
+        d'une réserve, réutilisés de trame en trame (mêmes adresses) ; ne pas exiger une taille égale à la trame ;
+      - après chaque `FAILED`, Resolve **refait la même trame en CPU** (même `time`), sans trame rouge ni erreur ;
+        mais il redemande la trame suivante en OpenCL : un échec permanent doit être mémorisé (comme `cuda::PerContext`).
+      Lecture 4K dans ce mode (OpenCL refusé, donc CPU) : 9 à 10 i/s ; le défilement reste assez fluide.
 
 ## Divers
 
