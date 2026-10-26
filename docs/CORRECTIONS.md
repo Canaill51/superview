@@ -17,7 +17,7 @@
 | **Cause** | prototype (DEC-65) ; et, trouvé en ouvrant le fork, `ofx::registry` journalise **chaque message de l'hôte au niveau info** : un logger naïf aurait écrit plusieurs lignes par trame |
 | **Fichiers** | `crates/superview-ofx/src/journal.rs` (neuf), `plugin.rs`, `cuda.rs` (`Driver::load_error`), `superview-core/src/logfile.rs` (`FileLogger`, `format_line`, `format_utc` venus de `superview-app/src/journal.rs`), `tests/journal.rs` et `tests/journal_unwritable.rs` (neufs) |
 | **PR** | feat/ofx-journal |
-| **Vérification** | `/verify` · contre-preuves : `PathLog` qui signale toujours, l'échec CUDA toujours signalé, le fork admis à info, `install` sans `OnceLock`, sans plafond, et une ouverture qui panique font chacune rougir leur test · à voir dans Resolve (`docs/TESTS-MANUELS.md`, *Journal*) |
+| **Vérification** | `/verify` · contre-preuves : `PathLog` qui signale toujours, l'échec CUDA toujours signalé, le fork admis à info, `install` sans `OnceLock`, sans plafond, et une ouverture qui panique font chacune rougir leur test · vu dans Resolve en CUDA et en OpenCL (`docs/TESTS-MANUELS.md`, *Journal*) |
 
 ### [2026-10-26] Les vérifications trouvent ffmpeg dans `SUPERVIEW_FFMPEG_DIR`, comme les tests
 

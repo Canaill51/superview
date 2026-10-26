@@ -54,7 +54,7 @@ Pour le Lot 4d : comparer CUDA et OpenCL **à un témoin sans l'effet**, en DNxH
 Avant ce lot, aucun logger n'était installé : les `log::error!` n'allaient nulle part (DEC-65), et un utilisateur
 sur AMD ou Intel ne pouvait pas savoir que le plugin tournait en CPU. Fait : `journal.rs`, `FileLogger` déplacé dans
 `superview-core::logfile`, amendement de DEC-65 ; le fork, qui journalise chaque trame au niveau info, est filtré.
-Reste à voir le fichier dans Resolve (`docs/TESTS-MANUELS.md`, *Journal*).
+Vu dans Resolve le 2026-10-26, en CUDA et en OpenCL (`docs/TESTS-MANUELS.md`, *Journal*).
 
 - [x] Explorer : `superview-core` (`logfile`, plafond injecté) et l'emplacement du journal de l'application,
       pour réutiliser plutôt que réécrire.

@@ -153,12 +153,16 @@ un chronométrage temporaire, retiré depuis).
       timeline : une source de même hauteur donne exactement l'image de *Scale entire image to fit* (mesuré).
 - [x] **Défilement** (2026-10-26) : défilement rapide sur le clip, ni trame rouge ni noire ni message d'erreur.
 - [ ] **Studio** et **Linux** : chargement, CUDA et vitesse, non essayés.
-- [ ] **Journal** (Lot 2 de `docs/PLAN-OFX.md`) : après un démarrage de Resolve et une lecture avec l'effet,
-      `%LocalAppData%\superview-ofx\superview-ofx.log` (Linux : `~/.cache/superview-ofx/superview-ofx.log`)
-      existe et dit `plugin loaded`, `CUDA rendering offered to the host`, puis une seule fois
+- [x] **Journal** (2026-10-26, Lot 2 de `docs/PLAN-OFX.md`) : après un démarrage de Resolve et une lecture avec
+      l'effet, `%LocalAppData%\superview-ofx\superview-ofx.log` (Linux : `~/.cache/superview-ofx/superview-ofx.log`)
+      dit `plugin loaded`, `CUDA rendering offered to the host`, puis une seule fois
       `rendering on the GPU with CUDA (WxH)` par instance de l'effet, et rien par trame. Resolve réglé sur
-      OpenCL : `CUDA rendering not offered, the host does not propose it` et `rendering on the CPU`. Le fichier
-      reste petit après plusieurs minutes de lecture (le fork journalise chaque message de l'hôte, filtré).
+      OpenCL : `CUDA rendering not offered, the host does not propose it` et `rendering on the CPU`. Passé avec le
+      bundle de #179 : en CUDA, une ligne en 1920×1080 puis deux en 3840×2160 (trois instances, une ligne
+      chacune) ; en OpenCL, un chargement, le refus de CUDA et une ligne `rendering on the CPU, 2 threads
+      (3840x2160)`. Après plusieurs minutes de lecture le fichier tient en dix lignes : le bavardage du fork est
+      bien filtré. Deux `plugin loaded` à 54 s d'écart lors du premier lancement après l'installation, un seul
+      au redémarrage en OpenCL : pas systématique, sans conséquence (une ligne par chargement).
 
 ## Divers
 
