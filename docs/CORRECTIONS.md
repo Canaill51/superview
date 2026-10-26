@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] Un test de la cascade VAAPI échouait quand le dossier de session tirait « qp » (L-123)
+
+| | |
+| --- | --- |
+| **Constat** | `a_driver_that_refuses_both_modes_leaves_the_cpu_encoder_a_bitrate` a échoué sur la CI Linux de #181, une PR de documentation : la commande d'encodage contenait `/superview-qpPNs1/x.pgm` |
+| **Cause** | l'absence de `-qp` était vérifiée par sous-chaîne sur toute la ligne, chemins compris ; le nom aléatoire du dossier de session la contient environ une fois sur 3 800 |
+| **Fichiers** | `crates/superview-core/tests/pipeline_constant_quality.rs` (`has_flag`, test `a_flag_inside_a_path_is_not_a_flag`), `docs/LECONS.md` (L-123), `docs/PIEGES.md` |
+| **PR** | fix/flaky-qp-substring |
+| **Vérification** | le fichier est Unix seulement : passé par la CI Linux, pas sur le poste Windows · contre-preuve compilée à part avec `rustc` : sur la ligne de l'échec, `contains` rougit les assertions du nouveau test, `has_flag` les passe |
+
 ### [2026-10-26] Un noyau CUDA qui ne se charge pas n'est plus recompilé à chaque trame (DEC-66 amendée)
 
 | | |
