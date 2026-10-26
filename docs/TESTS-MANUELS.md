@@ -123,19 +123,35 @@ un chronométrage temporaire, retiré depuis).
       du plugin contre la sortie de l'application (3584×2016, agrandie en 3840×2160 pour comparer) : 38 à 41 dB
       de PSNR aux images 10, 60, 120 et 170 s, contre 19 à 25 dB pour un simple étirement de la source ; bords
       de même luminosité. Une source 59,94 i/s dans une timeline 29,97 : comparer à l'image voisine de 1/60 s.
-      Pas encore fait : la source 1440×1080 dans une timeline 1920×1080, où les pixels devraient être égaux.
-- [ ] **CUDA contre CPU dans Resolve** : *Préférences → Mémoire et GPU → OpenCL* (Resolve redémarre) fait
-      passer le plugin en CPU ; la même trame exportée dans les deux modes doit être identique.
+- [x] **Parité au pixel** (2026-10-26, Lot 1 de `docs/PLAN-OFX.md`) : `DJI_0221.MP4` réduite en 1440×1080
+      29,97 i/s (10 s, x264 CRF 8), convertie par l'application (`superview-harness convert`, libx264) et par
+      le plugin dans une timeline 1920×1080. Export H.264 : 47,4 dB, **uniformes** (bords 47,9 et 48,9 dB,
+      centre 46,8 dB) ; colonnes de bord égales à l'application (107 et 126). Un écart de géométrie dégraderait
+      d'abord les bords, où le warp agit : l'écart restant est la compression de l'export, pas le calcul.
+- [x] **CUDA contre CPU dans Resolve** (2026-10-26) : *Préférences → Mémoire et GPU → OpenCL* (Resolve redémarre)
+      fait passer le plugin en CPU. Les exports ne sont **pas** identiques, et ce n'est pas le plugin : un **témoin
+      sans l'effet**, même timeline 1920×1080, DNxHR HQX, diffère déjà entre les deux modes (279 trames sur 300,
+      102 dB, aucun pixel de luma différent aux trames 0, 150 et 299). Avec l'effet : 97 dB, même ordre (le warp
+      répète les colonnes de bord, donc leurs écarts). Le plugin copie des pixels entiers et `tests/cuda.rs`
+      exige l'égalité GPU/CPU : l'écart est le traitement de Resolve, qui change d'API avec le mode. Dans un
+      mode donné, deux exports de Resolve sont identiques trame pour trame. Exporter en DNxHR, pas en H.264 :
+      en H.264, le même écart donne 52 dB et masque tout.
 - [x] **Vitesse** (CUDA) : lecture en temps réel, 29,97 i/s en timeline 4K. Avant DEC-66 : 6 à 10 i/s.
-- [ ] **Centrage** : une timeline de largeur impaire (1921) ne montre pas de colonne de bord parasite.
-- [ ] **Un-squeeze** : une vidéo GoPro SuperView, mode *Un-squeeze* : le centre se rétrécit.
+- [x] **Centrage** (2026-10-26) : timeline 1921×1080, source 1440×1080. Resolve **exporte en 1922** et ajoute à
+      gauche une colonne sombre ; le témoin sans l'effet a la même (44 contre 107). Les colonnes du plugin sont
+      propres des deux côtés (DNxHR : 110 à gauche, 127 à droite). Pas de défaut du plugin.
+- [x] **Un-squeeze** (2026-10-26) : sans vidéo GoPro, la source étirée en 1920×1080 tient lieu de vidéo
+      SuperView ; contre l'application (`convert --squeeze`) : 47,4 dB, uniformes, comme *Widen*. Une vraie
+      vidéo GoPro reste à essayer quand il y en aura une.
 - [x] **Rendu final** (page Livraison) : l'effet est bien appliqué à l'export, pas seulement à l'aperçu (voir
       *Parité*). Resolve calcule à la résolution de la **timeline** puis agrandit à l'export (mesuré sans l'effet :
       un export 4K d'une timeline 1080p est un 1080p agrandi) : exporter depuis une timeline à la taille voulue.
-- [ ] **Autres réglages** : *Stretch frame to all corners* ou *crop* donnent une image fausse (l'effet reçoit
-      une trame déjà étirée ou rognée) : à confirmer, puis à documenter dans le README si le plugin est livré.
-- [ ] **Défilement** : faire défiler vite la timeline sur le clip : pas de trame rouge ni d'erreur (l'abandon
-      demandé par Resolve rend `OK`).
+- [x] **Autres réglages** (2026-10-26) : image fausse, confirmé ; à documenter dans le README si le plugin est
+      livré (Lot 6). *Stretch frame to all corners* : 19,9 dB contre l'application, moins qu'un simple étirement.
+      *Center crop with no resizing* : `DJI_0221.MP4` (2688×2016) en timeline 1920×1080, le plugin reçoit un
+      cadre déjà rogné, sans bandes, et l'élargit quand même. À essayer avec une source **plus grande** que la
+      timeline : une source de même hauteur donne exactement l'image de *Scale entire image to fit* (mesuré).
+- [x] **Défilement** (2026-10-26) : défilement rapide sur le clip, ni trame rouge ni noire ni message d'erreur.
 - [ ] **Studio** et **Linux** : chargement, CUDA et vitesse, non essayés.
 
 ## Divers

@@ -1,0 +1,115 @@
+# Plan — plugin OpenFX : ce qui reste avant de le livrer
+
+> Établi le 2026-10-26 après l'analyse de parité avec l'application. Le plugin ne décode ni n'encode
+> (Resolve le fait) : le FFmpeg livré et les encodeurs matériels ne le concernent pas. Ce qui reste :
+> les tests manuels ouverts, un chemin GPU hors NVIDIA, un journal, les configurations non essayées,
+> la livraison. Cocher ici au fil des lots ; `docs/SUITE.md` renvoie à ce fichier.
+
+## Comment s'en servir
+
+- **Une session = un lot.** Ouvrir une session neuve (`/clear`) et demander : « Lot N de `docs/PLAN-OFX.md` ».
+  Un lot de code = une branche = une PR avec le label `merge`.
+- **Phases de chaque lot de code** : explorer (lire les fichiers cités, sous-agent `Explore` si la recherche
+  est large) → planifier (mode plan, valider le plan avant d'écrire) → implémenter → vérifier (`/verify`,
+  plus la contre-preuve de chaque nouveau test) → livrer (PR) → consigner (cocher ici, `SUITE.md`,
+  `DECISIONS.md` / `CORRECTIONS.md` / `LECONS.md` selon le cas).
+- **Lots manuels (M)** : l'utilisateur agit dans Resolve ; Claude prépare les fichiers de test, compare
+  les exports par ffmpeg et consigne dans `docs/TESTS-MANUELS.md`.
+- **Critère d'arrêt** : si l'hypothèse d'un lot tombe (un fait mesuré la contredit), on s'arrête, on
+  consigne, on revoit le plan. On ne force pas.
+- **Modèle** : indiqué par lot. Sonnet pour le mécanique et la documentation, Opus pour la conception et
+  le débogage GPU (abonnement Max : garder Opus pour là où il compte).
+
+## Ordre et dépendances
+
+```
+Lot 1 (M) ──────────────► doit précéder Lot 4c : une fois OpenCL en place, le réglage OpenCL de Resolve
+                          ne fait plus passer le plugin en CPU, et le test CUDA/CPU n'est plus faisable.
+Lot 2 (journal) ────────► sert à prouver dans Lot 4 quel chemin a tourné.
+Lot 3 (CUDA)       indépendant, petit, peut suivre Lot 2 dans la même PR si l'utilisateur le veut.
+Lot 4a → 4b → 4c → 4d     OpenCL, dans cet ordre ; 4a peut tuer le lot.
+Lot 5 (M)          après Lot 4 si possible (un passage couvre CUDA et OpenCL).
+Lot 6 (livraison)  en dernier, après une décision de l'utilisateur.
+```
+
+## Lot 1 (M) — Les tests manuels qui ne demandent aucun code · Sonnet · ~1 h — **fait le 2026-10-26**
+
+Sur le poste actuel (Resolve 21 gratuit, RTX 3050 Ti). Mesures dans `docs/TESTS-MANUELS.md` ; aucune anomalie
+du plugin, donc aucun lot de correction à insérer.
+
+- [x] **CUDA contre CPU** : pas identiques, mais un témoin sans l'effet diffère autant (102 dB contre 97) : c'est
+      Resolve, qui change d'API avec le mode, pas le plugin (L-122). Exports en DNxHR.
+- [x] **Parité au pixel** : 47,4 dB, écart uniforme entre bords et centre, donc la compression de l'export ;
+      bords égaux à l'application.
+- [x] **Centrage** : Resolve exporte 1921 en 1922 avec une colonne sombre à gauche, témoin compris ; le plugin
+      est propre.
+- [x] **Un-squeeze** : sur une source étirée tenant lieu de vidéo GoPro, même parité que *Widen*.
+- [x] **Autres réglages** : *Stretch* et *crop* donnent bien une image fausse ; noté pour le README (Lot 6).
+- [x] **Défilement** rapide sur le clip : ni trame rouge ni erreur.
+
+Pour le Lot 4d : comparer CUDA et OpenCL **à un témoin sans l'effet**, en DNxHR, timeline de largeur paire.
+
+## Lot 2 — Un journal pour le plugin · Sonnet · une PR
+
+Aujourd'hui aucun logger n'est installé : les `log::error!` ne vont nulle part (DEC-65), et un utilisateur
+sur AMD ou Intel ne peut pas savoir que le plugin tourne en CPU.
+
+- [ ] Explorer : `superview-core` (`logfile`, plafond injecté) et l'emplacement du journal de l'application,
+      pour réutiliser plutôt que réécrire.
+- [ ] Un journal fichier plafonné, initialisé une fois (au `Load` ou au premier `Describe`), jamais bloquant :
+      un dossier non inscriptible = pas de journal, pas d'échec.
+- [ ] Journaliser **une fois par instance** : le chemin choisi (CUDA / CPU, bientôt OpenCL) et la raison d'un
+      repli. Rien par trame au-dessus du niveau debug (même règle que la progression de l'application).
+- [ ] Tests : initialisation idempotente, dossier non inscriptible, plafond ; contre-preuve de chacun.
+- [ ] Amender DEC-65 (« aucun logger ») ; ARCHITECTURE.md si un module apparaît.
+
+## Lot 3 — CUDA : ne pas retenter un noyau qui ne se charge pas · Sonnet · petite PR
+
+Sur une carte antérieure à Maxwell (`sm_50`), `Warp::new` échoue à **chaque** trame et Resolve la refait en CPU.
+
+- [ ] Mémoriser l'échec par contexte CUDA et rendre `FAILED` aussitôt, ou ne pas annoncer CUDA si le
+      module ne se charge pas au `Describe` : choisir en mode plan.
+- [ ] Test sans GPU si la construction du noyau peut être injectée ; sinon le dire dans DEC-66.
+
+## Lot 4 — Un chemin OpenCL à côté du CUDA (AMD, Intel) · Opus · quatre sessions
+
+**OpenCL s'ajoute, CUDA reste.** C'est Resolve qui choisit le mode (*Préférences → Mémoire et GPU*, pour toute
+l'application) ; le plugin déclare les deux et suit la mémoire que Resolve lui donne. Sur NVIDIA, Resolve reste
+en CUDA par défaut, donc le plugin aussi. La RTX réglée sur OpenCL ne sert qu'à tester ce chemin sur ce poste.
+
+Le fork nomme déjà `OpenCLRenderSupported`, `OpenCLEnabled` et `OpenCLCommandQueue`
+(`ofx/src/property.rs`). Le modèle est `cuda.rs` : bibliothèque chargée à l'exécution, noyau compilé par
+le pilote, file de l'hôte, repli CPU par `FAILED`.
+
+- [ ] **4a — Sonde (jetable, branche à part)** : Resolve gratuit propose-t-il OpenCL aux plugins tiers ?
+      Que donne-t-il : `cl_mem` tampon ou image, format, pas des lignes, file de commandes ? Un `FAILED`
+      le fait-il repasser en CPU ? Mesuré dans Resolve réglé sur OpenCL, sur la RTX (OpenCL NVIDIA).
+      **Arrêt** : si l'hôte ne propose pas OpenCL, le lot s'arrête et DEC-66 le consigne.
+- [ ] **4b — `opencl.rs` et ses tests** : `OpenCL.dll` / `libOpenCL.so.1` par `libloading`, noyau OpenCL C
+      compilé à l'exécution, même `column_map`. `tests/opencl.rs` compare à `warp_row` comme `tests/cuda.rs`,
+      saute sans OpenCL sauf avec `SUPERVIEW_REQUIRE_OPENCL=1`. À passer sur **deux** appareils : la RTX
+      et l'iGPU Intel UHD de l'i7-11800H (un vrai GPU non NVIDIA, sur ce poste). Contre-preuve : un noyau
+      qui lit `x` au lieu de `map[x]` doit rougir.
+- [ ] **4c — Colle et documents** : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
+      se charge ; branche `Render` ; DEC-68 ; ligne dans la table d'AGENTS.md (test GPU local seulement) ;
+      ARCHITECTURE.md. **Le Lot 1 doit être fait avant.**
+- [ ] **4d (M) — Dans Resolve** : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
+      « OpenCL », export OpenCL identique à l'export CUDA.
+
+## Lot 5 (M) — Les configurations non essayées · selon le matériel disponible
+
+- [ ] **Studio** (Windows) : chargement, CUDA, vitesse. Demande une licence ou un poste qui l'a.
+- [ ] **Linux** (poste KDE, NVIDIA et Intel) : chargement depuis `/usr/OFX/Plugins`, CUDA, OpenCL.
+      À vérifier et documenter : Resolve **gratuit** sous Linux ne décoderait pas le H.264/H.265 ni l'AAC,
+      donc les MP4 usuels n'y entreraient pas (limite de Resolve, pas du plugin).
+- [ ] **Export long** en `FullySafe` : surveiller un plantage (le risque `Rc` du fork, DEC-66).
+- [ ] **AMD** : pas de matériel. Rester « non vérifié », comme AMF pour l'application.
+
+## Lot 6 — Livraison · décision de l'utilisateur, puis Sonnet
+
+- [ ] **Décision à prendre** : un téléchargement séparé, ou un composant facultatif de l'installateur
+      Windows (`{commoncf}\OFX\Plugins`) ? Sous Linux : une archive et `sudo cp` (une AppImage ne peut pas
+      installer dans `/usr/OFX`).
+- [ ] `release.yml` et l'essai à blanc **avant** fusion (L-114) ; vérifier le paquet comme les autres (DEC-41).
+- [ ] README.md et README_FR.md ensemble (réglage *Scale entire image to fit*, limites, installation).
+- [ ] DEC-65 : retirer « prototype » ; `SUITE.md`. La publication reste sur demande, par `/publier`.

@@ -128,6 +128,7 @@
 | 2026-10-26 | L-119 | Un hook qui avale l'échec de son lecteur ne garde plus rien : il échoue fort, et se teste sans l'outil |
 | 2026-10-26 | L-120 | Une sonde d'une trame ne voit pas ce qui casse à la troisième : sonder ce que la conversion fait, pas son début |
 | 2026-10-26 | L-121 | Un pré-contrôle cherche un outil là où le code le cherchera, pas là où on l'installe d'habitude |
+| 2026-10-26 | L-122 | Un écart mesuré dans l'export d'un hôte n'accuse le plugin qu'après un témoin sans l'effet |
 
 ## Historique (Go)
 
