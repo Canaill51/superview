@@ -1602,3 +1602,24 @@ fn an_ffmpeg_that_cannot_be_started_is_not_cached() {
         "a launch failure was cached as the driver's answer"
     );
 }
+
+// DEC-67: an encoder can take two frames and fail on the third, once it references earlier
+// ones (h264_d3d12va with B-frames). A probe that sends fewer than three frames cannot see it.
+#[test]
+fn the_probe_sends_enough_frames_to_reach_a_reference_frame() {
+    let args = probe_args(&sweep_spec("libx264"));
+    let source = args
+        .iter()
+        .find_map(|arg| arg.strip_prefix("nullsrc="))
+        .expect("a nullsrc source");
+    let option = |key: &str| -> f64 {
+        source
+            .split(':')
+            .find_map(|kv| kv.strip_prefix(key))
+            .unwrap_or_else(|| panic!("no {key} in {source}"))
+            .parse()
+            .unwrap()
+    };
+    let frames = (option("r=") * option("d=")).round();
+    assert!(frames >= 3.0, "{frames} frame(s): {source}");
+}

@@ -1295,6 +1295,19 @@ que le plugin *déclare* (sûreté des fils, GPU, tuiles, multi-résolution), en
 rapide dans le même hôte (ici Gyroflow, même fork). Et vérifier l'hypothèse avant d'y croire : un compteur de rendus
 simultanés a montré que « plusieurs trames à la fois », l'explication attendue, était fausse (DEC-66).
 
+### L-120 — Une sonde d'une trame ne voit pas ce qui casse à la troisième : sonder ce que la conversion fait, pas son début — 2026-10-26
+`h264_d3d12va` passait la sonde et échouait à chaque conversion. La sonde partageait l'argv de la conversion
+(DEC-05), mais pas sa durée : une trame, quand D3D12 avec images B en encode deux et échoue à la troisième, dès
+qu'une trame en référence d'autres. « La même question » portait sur les options, pas sur ce que l'encodeur fait
+d'un flux. Le test de bout en bout, lui, encode deux secondes : c'est lui qui a vu l'écart, sur le seul poste qui
+avait l'encodeur.
+→ **Une sonde reproduit ce qui distingue la conversion de son début** : plusieurs trames (huit,
+`PROBE_DURATION`), pas seulement les mêmes options. Et pour trouver la cause, bisecter le nombre de trames
+avant les options : `-frames:v 2` passe, `3` échoue, c'est une référence ; puis une option à la fois (`-bf 0`
+passe, `-async_depth 1` non). Un écart avec une fixture gelée s'écrit en littéral dans le test : recopié de la
+constante du code, il approuve n'importe quelle valeur (contre-preuve muette, corrigée ici). Lancer
+`cargo test -p superview-core the_probe_sends_enough_frames`.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**

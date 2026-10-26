@@ -325,6 +325,13 @@ pub fn encoder_facing_args(
     video_preset: &str,
 ) -> Vec<String> {
     let mut args = vec!["-c:v".to_string(), encoder.to_string()];
+    if encoder.contains("_d3d12va") {
+        // ffmpeg asks D3D12 for B-frames by default, and with them the first two frames
+        // encode and the third fails: "Encode failed: Unknown error occurred". Measured on an
+        // RTX 3050 Ti (driver 617.42, FFmpeg 8.1.1), h264 and hevc alike; without B-frames
+        // the whole clip encodes (DEC-67).
+        args.extend(["-bf", "0"].map(String::from));
+    }
     args.extend(encoder_rate_args(
         encoder,
         rate_control,

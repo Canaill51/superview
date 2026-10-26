@@ -450,6 +450,29 @@ fn device_frame_encoders_take_no_preset() {
     assert_eq!(map_video_preset_for_encoder("h264_qsv", " SLOW "), "slow");
 }
 
+// DEC-67: with B-frames, D3D12 encodes two frames and fails on the third.
+#[test]
+fn d3d12_encoders_are_asked_for_no_b_frames() {
+    for rate_control in [RateControl::Bitrate, RateControl::ConstantQuality] {
+        for encoder in ["h264_d3d12va", "hevc_d3d12va"] {
+            let args = encoder_facing_args(encoder, rate_control, 1_000_000, "slow");
+            assert_eq!(args[..4], ["-c:v", encoder, "-bf", "0"], "{encoder}");
+        }
+        // Nobody else: B-frames were measured broken on D3D12 only.
+        for encoder in [
+            "libx264",
+            "h264_nvenc",
+            "hevc_amf",
+            "h264_qsv",
+            "h264_vaapi",
+            "hevc_vulkan",
+        ] {
+            let args = encoder_facing_args(encoder, rate_control, 1_000_000, "slow");
+            assert!(!args.iter().any(|arg| arg == "-bf"), "{encoder}: {args:?}");
+        }
+    }
+}
+
 #[test]
 fn hevc_is_tagged_for_apple_players() {
     for encoder in ["libx265", "hevc_nvenc", "hevc_vaapi"] {

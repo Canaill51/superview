@@ -3,9 +3,9 @@
 //! `ffmpeg -encoders` says what the binary was built with, not whether the driver on this
 //! machine will accept the work (an NVENC build can demand a driver the machine cannot
 //! have, `docs/hardware-support.md`). The only honest question is the one asked here:
-//! encode one frame and see. The argv comes from the functions the conversion uses
-//! (`hw_device_args`, `pixel_format_chain`, `encoder_facing_args`), so the two cannot
-//! drift (E-01); `tests/recorded_probe_args.rs` pins it against the recorded fixtures.
+//! encode a few frames ([`PROBE_DURATION`]) and see. The argv comes from the functions the
+//! conversion uses (`hw_device_args`, `pixel_format_chain`, `encoder_facing_args`), so the
+//! two cannot drift (E-01); `tests/recorded_probe_args.rs` pins it against the recorded fixtures.
 //!
 //! Design notes (exhaustive):
 //! - A VAAPI driver that answers "supported modes: CQP" is asked again in constant quality
@@ -59,6 +59,13 @@ pub const PROBE_TIMEOUT: Duration = Duration::from_secs(15);
 /// [`Prober::verify_encoder_for_output`] asks that once the geometry is known.
 pub const PROBE_FRAME_SIZE: &str = "256x256";
 
+/// How long the probe's source lasts, in seconds: eight frames at 25 fps. One frame, as in
+/// v0.2.9, was a question the conversion never asks: an encoder can take two frames and fail
+/// on the third, once it starts referencing earlier ones. `h264_d3d12va` with B-frames did
+/// exactly that, passed the probe and failed every real conversion (DEC-67). Eight frames
+/// cost nothing measurable (NVENC: 187 ms against 186).
+pub const PROBE_DURATION: &str = "0.32";
+
 /// How many of ffmpeg's lines are kept. The first ones, not the last: ffmpeg reports the
 /// specific cause first and its consequences after.
 pub const PROBE_REASON_LINES: usize = 3;
@@ -67,7 +74,7 @@ pub const PROBE_REASON_LINES: usize = 3;
 /// status into a paragraph.
 pub const PROBE_REASON_BUDGET: usize = 300;
 
-/// The rate-control target a probe asks for. The value does not matter -- one frame at any
+/// The rate-control target a probe asks for. The value does not matter -- a few frames at any
 /// rate -- but asking for one does: a driver that cannot honour a bitrate at all must say
 /// so here, not at conversion time.
 pub const PROBE_BITRATE: i64 = 2_000_000;
@@ -176,7 +183,7 @@ pub fn probe_args(spec: &ProbeSpec) -> Vec<String> {
         ["-f", "lavfi", "-i"]
             .map(String::from)
             .into_iter()
-            .chain([format!("nullsrc=s={}:r=25:d=0.04", spec.size)]),
+            .chain([format!("nullsrc=s={}:r=25:d={PROBE_DURATION}", spec.size)]),
     );
     args.push("-vf".to_string());
     args.push(pixel_format_chain(&spec.pix_fmt, &spec.encoder));
@@ -415,7 +422,7 @@ impl<'a> Prober<'a> {
         &self.cache
     }
 
-    /// Encodes one frame with the given encoder and reports what happened. A refusal is
+    /// Encodes a few frames with the given encoder and reports what happened. A refusal is
     /// the answer, not a failure: there is no error to return.
     pub fn probe_encoder(&self, encoder: &str, cancel: Option<&AtomicBool>) -> EncoderProbe {
         self.probe_encoder_at_size(&sweep_spec(encoder), cancel)

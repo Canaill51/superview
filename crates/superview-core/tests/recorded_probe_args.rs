@@ -21,6 +21,26 @@ fn load() -> serde_json::Map<String, Value> {
     }
 }
 
+/// DEC-67: the two places where the argv is not the frozen oracle's. The probe's source lasts
+/// eight frames (`d=0.32`) instead of one (`d=0.04`), and a D3D12 encoder is asked for no
+/// B-frames, `-bf 0` right after `-c:v <encoder>`. A one-frame probe passed `h264_d3d12va`,
+/// whose third frame then failed every conversion. Everything else stays the oracle's.
+/// The duration is written out, not read from `PROBE_DURATION`: a gap copied from the code
+/// would agree with any value.
+fn with_dec_67(oracle: Vec<&str>) -> Vec<String> {
+    let mut argv: Vec<String> = oracle
+        .into_iter()
+        .map(|arg| match arg.strip_suffix(":d=0.04") {
+            Some(source) => format!("{source}:d=0.32"),
+            None => arg.to_string(),
+        })
+        .collect();
+    if let Some(codec) = argv.iter().position(|arg| arg.ends_with("_d3d12va")) {
+        argv.splice(codec + 1..codec + 1, ["-bf".to_string(), "0".to_string()]);
+    }
+    argv
+}
+
 // Go: TestParity_ProbeArgs
 #[test]
 fn probe_args_match_the_recording() {
@@ -114,7 +134,6 @@ fn probe_args_match_the_recording() {
                     .unwrap_or_else(|| panic!("{name}: not a string"))
             })
             .collect();
-        let got: Vec<&str> = got[name].iter().map(String::as_str).collect();
-        assert_eq!(got, want, "{name}");
+        assert_eq!(got[name], with_dec_67(want), "{name}");
     }
 }
