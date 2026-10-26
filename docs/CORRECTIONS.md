@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] Les vérifications trouvent ffmpeg dans `SUPERVIEW_FFMPEG_DIR`, comme les tests
+
+| | |
+| --- | --- |
+| **Constat** | sur le poste Windows de l'utilisateur, `scripts/check.sh` complet échouait avant les tests : « ffmpeg et ffprobe sont requis » ; il fallait mettre le dossier de ffmpeg dans le `PATH` à la main pour chaque commit |
+| **Cause** | le pré-contrôle de `scripts/checks/rust.sh` ne cherchait que dans le `PATH` (`command -v`), alors que les tests passent par `ToolResolver`, qui lit d'abord `SUPERVIEW_FFMPEG_DIR` ; mesuré : sans ffmpeg dans le `PATH`, la suite passe (0 échec) |
+| **Fichiers** | `scripts/lib/outils.sh` (nouveau), `scripts/checks/rust.sh`, `scripts/checks/outils.sh` (nouveau), `.github/workflows/lint.yml` (job `ffmpeg-lookup`), `docs/ARCHITECTURE.md` |
+| **PR** | fix/check-ffmpeg-dir |
+| **Règle** | L-121 : le pré-contrôle reprend l'ordre de recherche du code ; son test vide le `PATH` |
+| **Vérification** | `bash scripts/checks/outils.sh` ✅ (5 cas) · contre-preuves : l'ancienne recherche (`PATH` seul), la recherche sans test d'absolu, et sans repli sur le `PATH` font chacune rougir leur cas ✅ ; un premier cas muet (sous-shell qui perdait l'échec) corrigé avant · `scripts/check.sh` complet sur ce poste, ffmpeg absent du `PATH` ✅ |
+
 ### [2026-10-26] Les hooks Claude Code lisent leur entrée sans `python3`
 
 | | |

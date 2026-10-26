@@ -94,3 +94,19 @@ jobs:
 
     - name: The hooks pass their check
       run: bash scripts/checks/hooks.sh
+
+  # scripts/checks/rust.sh refuses to run the tests when it cannot find ffmpeg.
+  # Until 2026-10-26 it searched PATH only, and refused a Windows machine whose
+  # ffmpeg lives in SUPERVIEW_FFMPEG_DIR, where the suite passes. The check
+  # empties PATH so the runner's own ffmpeg cannot answer for the directory.
+  ffmpeg-lookup:
+    name: The checks find ffmpeg where the tests do
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: The ffmpeg lookup passes its check
+      run: bash scripts/checks/outils.sh
