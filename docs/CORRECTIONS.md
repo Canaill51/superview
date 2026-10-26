@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] Un noyau OpenCL pour le plugin Resolve, pas encore relié à l'hôte (Lot 4b de PLAN-OFX)
+
+| | |
+| --- | --- |
+| **Constat** | sans chemin OpenCL, le plugin rend en CPU sur AMD et Intel, et sur NVIDIA quand Resolve est réglé sur OpenCL (9 à 10 i/s en 4K, sonde du Lot 4a) |
+| **Cause** | seul CUDA était écrit (DEC-66) |
+| **Fichiers** | `crates/superview-ofx/src/opencl.rs` (chargeur, noyau OpenCL C sur tampons, `check_buffer`, `Warp`, aides de test), `src/gpu.rs` (`PerContext` sorti de `cuda.rs`, message sans « CUDA »), `src/cuda.rs`, `src/plugin.rs`, `src/lib.rs`, `tests/opencl.rs`, `AGENTS.md`, `docs/ENVIRONNEMENT.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` (DEC-66, nom de `PerContext`), `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **PR** | ofx-opencl-module |
+| **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : `tests/opencl.rs` vert sur la RTX 3050 Ti **et** l'Intel UHD · contre-preuves : un noyau qui lit `x` au lieu de `map[x]` rougit le test pixel sur les deux appareils (seul le cas identité passe, comme il se doit) ; `check_buffer` sans `first_row` rougit `a_band_needs_the_rows_below_it_too` ; `PerContext` qui ne mémorise plus l'échec rougit `a_kernel_that_failed_is_not_loaded_again_in_the_same_context` · non testé : l'échec de compilation (pas d'injection possible, chemin du journal de compilation), AMD (aucun matériel), Linux (Lot 5) |
+
 ### [2026-10-26] Un test de la cascade VAAPI échouait quand le dossier de session tirait « qp » (L-123)
 
 | | |
