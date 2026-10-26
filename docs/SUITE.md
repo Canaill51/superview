@@ -5,7 +5,7 @@
   parité avec l'application en *Widen* et *Un-squeeze* (écart uniforme, celui de la compression), centrage en
   largeur impaire, défilement, *Stretch* et *crop* faux comme prévu ; l'écart CUDA/OpenCL est celui de Resolve
   (témoin sans l'effet, L-122). Aucune anomalie du plugin. **Lot 2 fait le 2026-10-26** : un journal
-  `superview-ofx/superview-ofx.log` (DEC-65 amendée), vérifié dans Resolve en CUDA et en OpenCL. **Lot 3 fait le 2026-10-26** : un noyau CUDA qui ne se charge pas n'est plus recompilé à chaque trame (DEC-66 amendée). **Suite : Lot 4a de `docs/PLAN-OFX.md`** (sonde OpenCL, Opus).
+  `superview-ofx/superview-ofx.log` (DEC-65 amendée), vérifié dans Resolve en CUDA et en OpenCL. **Lot 3 fait le 2026-10-26** : un noyau CUDA qui ne se charge pas n'est plus recompilé à chaque trame (DEC-66 amendée). **Lot 4a fait le 2026-10-26** : la sonde montre que Resolve gratuit propose OpenCL aux plugins, en tampons `cl_mem` dans la file de l'hôte, et refait en CPU une trame en `FAILED` ; le lot continue. **Suite : Lot 4b de `docs/PLAN-OFX.md`** (`opencl.rs` et ses tests, Opus).
   Restent aussi Studio et Linux (Lot 5). Pas de livraison dans les versions tant que ce n'est pas validé.
 - **Trouvés le 2026-10-25 sur le poste Windows de l'utilisateur, corrigés le 2026-10-26** : `h264_d3d12va`, qui
   passait la sonde et échouait en vraie conversion (images B, DEC-67, #175) ; les hooks qui dépendaient de
