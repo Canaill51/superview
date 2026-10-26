@@ -200,7 +200,7 @@ l'encodage matériel à toutes les machines sous le nouveau plancher — voir [R
 binaire : ce avec quoi il a été compilé. Aucun des deux ne voit le pilote. Ne jamais rétablir une
 décision de capacité fondée sur eux seuls.
 
-La seule source de vérité est la sonde de `superview-core/src/probe.rs` : un encodage d'une trame par
+La seule source de vérité est la sonde de `superview-core/src/probe.rs` : un encodage de quelques trames (`PROBE_DURATION`, huit depuis DEC-67) par
 encodeur, dont le code de retour fait foi. `apply_encoder_probe` retire ensuite du profil ffmpeg
 les encodeurs qui ont refusé — **et uniquement ceux-là** : un encodeur non sondé n'est pas un
 encodeur refusé.

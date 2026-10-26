@@ -5,9 +5,8 @@
   4K comparé à l'application (38 à 41 dB). Restent : Studio, Linux, la parité au pixel 1440×1080 → 1920×1080, la
   comparaison CUDA/CPU dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que ce
   n'est pas validé.
-- **À traiter à part (trouvé le 2026-10-25 sur le poste Windows de l'utilisateur)** : `h264_d3d12va` passe la sonde
-  mais échoue en vraie conversion (repli CPU, et Vulkan n'est jamais essayé) ; `a_device_frame_encoder_runs_the_whole_pipeline`
-  est donc rouge sur ce poste. Le garde-fou anti-boucle de `.claude/hooks/avant-fin.sh` dépend de `python3`, qui
+- **À traiter à part (trouvé le 2026-10-25 sur le poste Windows de l'utilisateur)** : (`h264_d3d12va`, qui passait la
+  sonde et échouait en vraie conversion, est corrigé le 2026-10-26 : images B, DEC-67.) Le garde-fou anti-boucle de `.claude/hooks/avant-fin.sh` dépend de `python3`, qui
   sous Windows est le raccourci du Microsoft Store : il ne se déclenche jamais. `scripts/checks/rust.sh` cherche
   ffmpeg dans le `PATH` seulement, pas dans `SUPERVIEW_FFMPEG_DIR`.
 - État (2026-10-22) : **v0.4.0 publiée** (installateur Windows, AppImage, `checksums.txt` ; elle apporte la refonte de l'interface,

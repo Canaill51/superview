@@ -207,7 +207,7 @@ adapted for Rust and FFmpeg.
 
 ## Hardware acceleration
 
-At startup Superview asks each encoder to encode one frame, and keeps only the
+At startup Superview asks each encoder to encode a few frames, and keeps only the
 ones that answer. It falls back to `libx264`/`libx265` on the CPU whenever no
 hardware path is usable. Asking rather than reading `ffmpeg -encoders` is the
 point: that list says what the binary was compiled with and cannot see your
@@ -311,7 +311,7 @@ superview/
 ### Encoding Pipeline
 
 ```
-Startup → find ffmpeg/ffprobe → probe each encoder on a real frame
+Startup → find ffmpeg/ffprobe → probe each encoder on a few real frames
 Input → check_video (ffprobe) → session (temporary directory) → PGM maps → encode_video → clean-up → Output
                                ↓
                 bitrate validation + encoder choice

@@ -53,6 +53,15 @@ fn with_forced_demuxer(mut oracle: Vec<&str>) -> Vec<&str> {
     oracle
 }
 
+/// DEC-67: a D3D12 encoder is asked for no B-frames, `-bf 0` right after `-c:v <encoder>`. With
+/// them the third frame fails, and the oracle predates the measurement.
+fn without_d3d12_b_frames(mut oracle: Vec<&str>) -> Vec<&str> {
+    if let Some(codec) = oracle.iter().position(|arg| arg.ends_with("_d3d12va")) {
+        oracle.splice(codec + 1..codec + 1, ["-bf", "0"]);
+    }
+    oracle
+}
+
 // Go: TestParity_EncodeArgs
 #[test]
 fn encode_args_match_the_recording() {
@@ -250,6 +259,10 @@ fn encode_args_match_the_recording() {
             })
             .collect();
         let got: Vec<&str> = got[name].iter().map(String::as_str).collect();
-        assert_eq!(got, with_forced_demuxer(want), "{name}");
+        assert_eq!(
+            got,
+            with_forced_demuxer(without_d3d12_b_frames(want)),
+            "{name}"
+        );
     }
 }

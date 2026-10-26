@@ -234,7 +234,7 @@ adaptée à Rust et à FFmpeg.
 
 ## Accélération matérielle
 
-Au démarrage, Superview demande à chaque encodeur d'encoder une image, et ne
+Au démarrage, Superview demande à chaque encodeur d'encoder quelques images, et ne
 retient que ceux qui répondent. Il retombe sur `libx264`/`libx265`, côté
 processeur, dès qu'aucun chemin matériel n'est utilisable. Demander plutôt que
 lire `ffmpeg -encoders` est tout l'intérêt : cette liste dit avec quoi le
@@ -344,7 +344,7 @@ superview/
 ### Pipeline d'encodage
 
 ```
-Démarrage → recherche d'ffmpeg/ffprobe → sonde de chaque encodeur sur une vraie image
+Démarrage → recherche d'ffmpeg/ffprobe → sonde de chaque encodeur sur quelques vraies images
 Entrée → check_video (ffprobe) → session (dossier temporaire) → cartes PGM → encode_video → nettoyage → Sortie
                                ↓
                 validation du débit + choix de l'encodeur

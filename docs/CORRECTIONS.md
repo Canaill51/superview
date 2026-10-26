@@ -9,6 +9,18 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] `h264_d3d12va` et `hevc_d3d12va` encodent sans images B ; la sonde envoie huit trames (DEC-67)
+
+| | |
+| --- | --- |
+| **Constat** | sur le poste Windows de l'utilisateur (RTX 3050 Ti, pilote 617.42), `h264_d3d12va` passait la sonde puis chaque vraie conversion se repliait sur `libx264` ; `a_device_frame_encoder_runs_the_whole_pipeline` rouge |
+| **Cause** | double : D3D12 avec les images B que ffmpeg demande par défaut encode deux trames et échoue à la troisième (H.264 et HEVC) ; la sonde n'en envoyait qu'une (`d=0.04`), donc ne pouvait pas le voir |
+| **Essais écartés** | `-async_depth 1`, `-rc_mode CBR/VBR/CQP`, `-profile main`, `-coder cavlc`, `-me_precision` : tous échouent à la 3ᵉ trame ; `-g 1` passe mais n'encode que des images I |
+| **Fichiers** | `crates/superview-core/src/encode/args.rs` (`-bf 0`), `src/encode/args/tests.rs`, `src/probe.rs` (`PROBE_DURATION`), `src/probe/tests.rs`, `tests/recorded_probe_args.rs`, `tests/recorded_encode_args.rs`, README.md et README_FR.md (« quelques images »), `docs/CONTRATS.md`, `docs/DECISIONS.md` (DEC-67, DEC-05 amendée) |
+| **PR** | fix/d3d12va-b-frames |
+| **Règle** | L-120 : la sonde reproduit ce qui distingue la conversion de son début |
+| **Vérification** | sur ce poste, `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --test real_ffmpeg a_device_frame` ✅ (`using h264_d3d12va`) · contre-preuve `-bf 0` retiré : `d3d12_encoders_are_asked_for_no_b_frames` et les deux fixtures rougissent ✅, la sonde refuse `h264_d3d12va` au démarrage avec `Encode failed` et le test de bout en bout se saute (muet, attendu, DEC-67) · contre-preuve sonde à une trame : d'abord **muette** (l'écart de fixture recopiait `PROBE_DURATION`), corrigée en littéral et par `the_probe_sends_enough_frames_to_reach_a_reference_frame` ; les deux rougissent ✅ |
+
 ### [2026-10-25] Le plugin Resolve lit en temps réel : rendu CUDA et `FullySafe` (DEC-66)
 
 | | |
