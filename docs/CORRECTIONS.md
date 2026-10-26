@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] Un noyau CUDA qui ne se charge pas n'est plus recompilé à chaque trame (DEC-66 amendée)
+
+| | |
+| --- | --- |
+| **Constat** | sur une carte antérieure à `sm_50` ou un pilote trop ancien pour le PTX 6.0, `Warp::new` échouait à chaque trame CUDA : le plugin recompilait le PTX pour rien avant que Resolve refasse la trame en CPU |
+| **Cause** | un échec laissait l'état GPU de l'instance vide, donc « à charger » à la trame suivante |
+| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (`PerContext`, `Warp::context` retiré), `plugin.rs`, `docs/DECISIONS.md` (DEC-66), `docs/PLAN-OFX.md` (Lot 3), `docs/SUITE.md` |
+| **PR** | fix/ofx-cuda-kernel-once |
+| **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_CUDA=1` sur la RTX 3050 Ti · contre-preuves : l'échec non mémorisé, le contexte ignoré, l'ancien noyau gardé pendant le chargement du nouveau ; chacune rougit son test. Non vérifié sur une vraie carte pré-Maxwell (aucune à disposition) |
+
 ### [2026-10-26] Le plugin Resolve a un journal (DEC-65 amendée)
 
 | | |

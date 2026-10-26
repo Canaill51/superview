@@ -65,13 +65,14 @@ Vu dans Resolve le 2026-10-26, en CUDA et en OpenCL (`docs/TESTS-MANUELS.md`, *J
 - [x] Tests : initialisation idempotente, dossier non inscriptible, plafond ; contre-preuve de chacun.
 - [x] Amender DEC-65 (« aucun logger ») ; ARCHITECTURE.md si un module apparaît.
 
-## Lot 3 — CUDA : ne pas retenter un noyau qui ne se charge pas · Sonnet · petite PR
+## Lot 3 — CUDA : ne pas retenter un noyau qui ne se charge pas · Sonnet · petite PR — **fait le 2026-10-26**
 
 Sur une carte antérieure à Maxwell (`sm_50`), `Warp::new` échoue à **chaque** trame et Resolve la refait en CPU.
 
-- [ ] Mémoriser l'échec par contexte CUDA et rendre `FAILED` aussitôt, ou ne pas annoncer CUDA si le
-      module ne se charge pas au `Describe` : choisir en mode plan.
-- [ ] Test sans GPU si la construction du noyau peut être injectée ; sinon le dire dans DEC-66.
+- [x] Mémoriser l'échec par contexte CUDA et rendre `FAILED` aussitôt, ou ne pas annoncer CUDA si le
+      module ne se charge pas au `Describe` : choisir en mode plan. **Choisi : mémoriser** (`cuda::PerContext`,
+      DEC-66 amendée) ; le `Describe` n'a pas de contexte CUDA. Testé sans GPU (chargeur injecté).
+- [x] Test sans GPU si la construction du noyau peut être injectée ; sinon le dire dans DEC-66.
 
 ## Lot 4 — Un chemin OpenCL à côté du CUDA (AMD, Intel) · Opus · quatre sessions
 

@@ -16,7 +16,7 @@ use ofx_sys::OfxPropertySuiteV1;
 
 use superview_core::logfile::user_cache_dir;
 
-use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, Warp};
+use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, PerContext, Warp};
 use crate::journal::{self, PathLog, RenderPath};
 use crate::warp::{Mode, column_map, warp_row};
 
@@ -54,8 +54,8 @@ struct InstanceData {
 struct RenderState {
     /// The map of the last frame: the size and mode rarely change during playback.
     map: Option<CachedMap>,
-    /// The kernel and the map on the GPU, once a CUDA frame has come.
-    gpu: Option<GpuWarp>,
+    /// The kernel and the map on the GPU, once a CUDA frame has come, or why the kernel did not load.
+    gpu: PerContext<CuContext, GpuWarp>,
     /// What this instance has already said in the log.
     paths: PathLog,
 }
@@ -368,7 +368,7 @@ struct DeviceFrame {
 /// Enqueues the warp of rows `first_row..first_row + row_count` (counted from the bottom of the
 /// frame) on the host's stream, or runs it to completion when the host gave no stream.
 fn render_on_gpu(
-    gpu: &mut Option<GpuWarp>,
+    gpu: &mut PerContext<CuContext, GpuWarp>,
     key: MapKey,
     map: &[usize],
     frame: DeviceFrame,
@@ -394,17 +394,14 @@ fn render_on_gpu(
     let context: CuContext = driver
         .current_context()?
         .ok_or("the host made no CUDA context current")?;
-    if gpu.as_ref().is_none_or(|gpu| gpu.warp.context() != context) {
-        // A new context (another GPU, a restarted engine): the old kernel and map go with it.
-        *gpu = None;
-        *gpu = Some(GpuWarp {
+    // A new context (another GPU, a restarted engine): the old kernel and map go with it. A kernel
+    // that did not load in this context is not compiled again on every frame.
+    let gpu = gpu.get_or_load(context, || {
+        Ok(GpuWarp {
             warp: Warp::new(driver, context)?,
             key: None,
-        });
-    }
-    let Some(gpu) = gpu.as_mut() else {
-        return Err("no kernel".to_string());
-    };
+        })
+    })?;
     if gpu.key != Some(key) {
         gpu.key = None;
         gpu.warp.set_map(map)?;
