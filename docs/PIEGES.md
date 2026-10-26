@@ -127,6 +127,7 @@
 | 2026-10-25 | L-118 | Dans un hôte, ce que le plugin déclare peut coûter plus que ce qu'il calcule : mesurer aux deux bords |
 | 2026-10-26 | L-119 | Un hook qui avale l'échec de son lecteur ne garde plus rien : il échoue fort, et se teste sans l'outil |
 | 2026-10-26 | L-120 | Une sonde d'une trame ne voit pas ce qui casse à la troisième : sonder ce que la conversion fait, pas son début |
+| 2026-10-26 | L-121 | Un pré-contrôle cherche un outil là où le code le cherchera, pas là où on l'installe d'habitude |
 
 ## Historique (Go)
 

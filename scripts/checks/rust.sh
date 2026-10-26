@@ -37,8 +37,9 @@ if [ "$FAST" = 1 ]; then
 fi
 
 # Sans SUPERVIEW_REQUIRE_FFMPEG=1, un test qui a besoin d'ffmpeg se saute sans bruit.
-if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
-  echo "Erreur : ffmpeg et ffprobe sont requis pour les tests. Installation : sudo apt install ffmpeg (voir docs/ENVIRONNEMENT.md)." >&2
+. scripts/lib/outils.sh
+if ! outil_trouve ffmpeg || ! outil_trouve ffprobe; then
+  echo "Erreur : ffmpeg et ffprobe sont requis pour les tests, dans SUPERVIEW_FFMPEG_DIR (chemin absolu) ou dans le PATH. Installation : sudo apt install ffmpeg (voir docs/ENVIRONNEMENT.md)." >&2
   exit 1
 fi
 

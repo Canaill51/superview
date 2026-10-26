@@ -5,10 +5,10 @@
   4K comparé à l'application (38 à 41 dB). Restent : Studio, Linux, la parité au pixel 1440×1080 → 1920×1080, la
   comparaison CUDA/CPU dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que ce
   n'est pas validé.
-- **À traiter à part (trouvé le 2026-10-25 sur le poste Windows de l'utilisateur)** : `scripts/checks/rust.sh`
-  cherche ffmpeg dans le `PATH` seulement, pas dans `SUPERVIEW_FFMPEG_DIR`. (Corrigés le 2026-10-26 :
-  `h264_d3d12va`, qui passait la sonde et échouait en vraie conversion, images B, DEC-67, #175 ; les hooks
-  qui dépendaient de `python3`, L-119.)
+- **Trouvés le 2026-10-25 sur le poste Windows de l'utilisateur, corrigés le 2026-10-26** : `h264_d3d12va`, qui
+  passait la sonde et échouait en vraie conversion (images B, DEC-67, #175) ; les hooks qui dépendaient de
+  `python3` (L-119, #176) ; `scripts/checks/rust.sh`, qui ne cherchait ffmpeg que dans le `PATH` (L-121).
+  Sur ce poste, `scripts/check.sh` complet passe désormais tel quel.
 - État (2026-10-22) : **v0.4.0 publiée** (installateur Windows, AppImage, `checksums.txt` ; elle apporte la refonte de l'interface,
   #162 à #171, et l'identifiant de fenêtre `superview`). La v0.3.1 (14ᵉ passe, #141 à #160) la précédait. La v0.3.0 était le premier binaire Rust + Slint. Go est retiré (DEC-49) ; la dernière version Go est la **v0.2.9**. La pré-version
   `RC-0.3.0` l'a précédée. Aucune PR ouverte, aucune décision en suspens. Capture du README remplacée par la fenêtre Slint

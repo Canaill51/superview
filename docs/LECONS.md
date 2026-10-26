@@ -1321,6 +1321,17 @@ passe, `-async_depth 1` non). Un écart avec une fixture gelée s'écrit en litt
 constante du code, il approuve n'importe quelle valeur (contre-preuve muette, corrigée ici). Lancer
 `cargo test -p superview-core the_probe_sends_enough_frames`.
 
+### L-121 — Un pré-contrôle cherche un outil là où le code le cherchera, pas là où on l'installe d'habitude — 2026-10-26
+`scripts/checks/rust.sh` vérifiait `command -v ffmpeg` avant de lancer les tests, et refusait de les lancer sur le
+poste Windows de l'utilisateur, dont ffmpeg n'est que dans `SUPERVIEW_FFMPEG_DIR`. La suite, elle, passait :
+mesuré, sans ffmpeg dans le `PATH`, 0 échec, parce que les tests trouvent l'outil par `ToolResolver`. Le
+pré-contrôle avait été écrit pour Linux, où ffmpeg est dans le `PATH` ; c'était une seconde recherche, plus
+étroite que la vraie, et rien ne les comparait.
+→ **Un contrôle préalable reprend l'ordre de recherche du code** (ici `scripts/lib/outils.sh` : le dossier s'il
+est absolu, `.exe` sous Windows, puis le `PATH`) et **son test retire la réponse facile** : `scripts/checks/outils.sh`
+vide le `PATH`, pour que le ffmpeg de la machine ne réponde pas à la place du dossier. Avant d'écrire la
+recherche, mesurer ce que la suite trouve seule (la lancer sans le pré-contrôle). Lancer `bash scripts/checks/outils.sh`.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**
