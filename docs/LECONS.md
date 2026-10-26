@@ -1346,6 +1346,16 @@ quelques LSB dans 52 dB. Regarder **où** est l'écart : uniforme, c'est la comp
 bords, là où le warp agit, c'est la géométrie. Et avant l'essai, vérifier que le réglage essayé change le cadre
 reçu par le plugin : une source plus grande que la timeline pour *crop*.
 
+### L-123 — Une ligne de commande qui contient un chemin aléatoire ne se teste pas par sous-chaîne — 2026-10-26
+Le test `a_driver_that_refuses_both_modes_leaves_the_cpu_encoder_a_bitrate` vérifiait que l'encodage CPU ne passe
+pas `-qp` par `!ligne.contains("-qp")`. La ligne contient le dossier de session, au nom aléatoire : un jour il
+s'est appelé `superview-qpPNs1`, et la CI Linux a échoué sur une PR de documentation. Environ une fois sur 3 800,
+sur Unix seulement : un tel test passe des mois avant de rougir sans rapport avec la PR.
+→ **Tester un drapeau comme argument entier** (`split(' ').any(|a| a == flag)`), jamais comme sous-chaîne d'une
+ligne qui porte un chemin, un nom de fichier temporaire ou toute autre partie aléatoire. Pour trouver les autres :
+`grep -rnE '!\s*[a-z_\[\]0-9.()&]*\.contains\("-' crates --include=*.rs` — passé le 2026-10-26 : seuls restent les
+tests d'`encode/args/tests.rs`, dont les chemins sont fixes.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**

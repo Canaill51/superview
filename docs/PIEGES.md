@@ -129,6 +129,7 @@
 | 2026-10-26 | L-120 | Une sonde d'une trame ne voit pas ce qui casse à la troisième : sonder ce que la conversion fait, pas son début |
 | 2026-10-26 | L-121 | Un pré-contrôle cherche un outil là où le code le cherchera, pas là où on l'installe d'habitude |
 | 2026-10-26 | L-122 | Un écart mesuré dans l'export d'un hôte n'accuse le plugin qu'après un témoin sans l'effet |
+| 2026-10-26 | L-123 | Une ligne de commande qui contient un chemin aléatoire ne se teste pas par sous-chaîne |
 
 ## Historique (Go)
 

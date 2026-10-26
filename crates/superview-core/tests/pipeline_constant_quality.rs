@@ -104,6 +104,22 @@ fn convert(driver: &str) -> Vec<String> {
         .collect()
 }
 
+/// Whether `call` passes `flag` as an argument of its own. A substring test is not enough: the
+/// session directory has a random name, and `superview-qpPNs1` once held `-qp`.
+fn has_flag(call: &str, flag: &str) -> bool {
+    call.split(' ').any(|arg| arg == flag)
+}
+
+#[test]
+fn a_flag_inside_a_path_is_not_a_flag() {
+    // The CPU encode of a CI run that failed on master's code (2026-10-26).
+    let call = "call -y -f mov -i /tmp/.tmpNSijha/input.mp4 \
+                -i /tmp/.tmpNSijha/tmp/superview-qpPNs1/x.pgm -c:v libx264 -b:v 2000000";
+    assert!(!has_flag(call, "-qp"));
+    assert!(has_flag(call, "-b:v"));
+    assert!(has_flag(&format!("{call} -rc_mode CQP -qp 23"), "-qp"));
+}
+
 /// The calls that wrote the video, not the probes (those end in `-f null -`).
 fn encodes(calls: &[String]) -> Vec<&String> {
     calls.iter().filter(|c| !c.ends_with("-f null -")).collect()
@@ -122,7 +138,7 @@ fn a_cqp_only_driver_converts_in_constant_quality() {
         encodes[0]
     );
     for flag in ["-b:v", "-maxrate", "-bufsize"] {
-        assert!(!encodes[0].contains(flag), "{flag}: {}", encodes[0]);
+        assert!(!has_flag(encodes[0], flag), "{flag}: {}", encodes[0]);
     }
 }
 
@@ -147,7 +163,7 @@ fn a_driver_that_refuses_both_modes_leaves_the_cpu_encoder_a_bitrate() {
         encodes[0]
     );
     assert!(
-        !encodes[0].contains("-rc_mode") && !encodes[0].contains("-qp"),
+        !has_flag(encodes[0], "-rc_mode") && !has_flag(encodes[0], "-qp"),
         "{}",
         encodes[0]
     );
