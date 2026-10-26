@@ -49,19 +49,21 @@ du plugin, donc aucun lot de correction à insérer.
 
 Pour le Lot 4d : comparer CUDA et OpenCL **à un témoin sans l'effet**, en DNxHR, timeline de largeur paire.
 
-## Lot 2 — Un journal pour le plugin · Sonnet · une PR
+## Lot 2 — Un journal pour le plugin · Sonnet · une PR — **fait le 2026-10-26**
 
-Aujourd'hui aucun logger n'est installé : les `log::error!` ne vont nulle part (DEC-65), et un utilisateur
-sur AMD ou Intel ne peut pas savoir que le plugin tourne en CPU.
+Avant ce lot, aucun logger n'était installé : les `log::error!` n'allaient nulle part (DEC-65), et un utilisateur
+sur AMD ou Intel ne pouvait pas savoir que le plugin tournait en CPU. Fait : `journal.rs`, `FileLogger` déplacé dans
+`superview-core::logfile`, amendement de DEC-65 ; le fork, qui journalise chaque trame au niveau info, est filtré.
+Reste à voir le fichier dans Resolve (`docs/TESTS-MANUELS.md`, *Journal*).
 
-- [ ] Explorer : `superview-core` (`logfile`, plafond injecté) et l'emplacement du journal de l'application,
+- [x] Explorer : `superview-core` (`logfile`, plafond injecté) et l'emplacement du journal de l'application,
       pour réutiliser plutôt que réécrire.
-- [ ] Un journal fichier plafonné, initialisé une fois (au `Load` ou au premier `Describe`), jamais bloquant :
+- [x] Un journal fichier plafonné, initialisé une fois (au `Load` ou au premier `Describe`), jamais bloquant :
       un dossier non inscriptible = pas de journal, pas d'échec.
-- [ ] Journaliser **une fois par instance** : le chemin choisi (CUDA / CPU, bientôt OpenCL) et la raison d'un
+- [x] Journaliser **une fois par instance** : le chemin choisi (CUDA / CPU, bientôt OpenCL) et la raison d'un
       repli. Rien par trame au-dessus du niveau debug (même règle que la progression de l'application).
-- [ ] Tests : initialisation idempotente, dossier non inscriptible, plafond ; contre-preuve de chacun.
-- [ ] Amender DEC-65 (« aucun logger ») ; ARCHITECTURE.md si un module apparaît.
+- [x] Tests : initialisation idempotente, dossier non inscriptible, plafond ; contre-preuve de chacun.
+- [x] Amender DEC-65 (« aucun logger ») ; ARCHITECTURE.md si un module apparaît.
 
 ## Lot 3 — CUDA : ne pas retenter un noyau qui ne se charge pas · Sonnet · petite PR
 

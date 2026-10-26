@@ -28,6 +28,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The per-user cache directory, as found on Windows
 /// (`%LocalAppData%`) and Unix (`$XDG_CACHE_HOME`, else `$HOME/.cache`). `env` is the
@@ -221,6 +222,75 @@ impl Write for CappedLogWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         (&*self).flush()
+    }
+}
+
+/// Routes every `log` record to a [`CappedLogWriter`], one `time=… level=… msg=…` line each,
+/// like slog's text handler; the message is the whole `key=value` text the core writes. The
+/// application and the OpenFX plugin each install one.
+pub struct FileLogger {
+    writer: CappedLogWriter,
+}
+
+impl FileLogger {
+    pub fn new(writer: CappedLogWriter) -> FileLogger {
+        FileLogger { writer }
+    }
+}
+
+/// `YYYY-MM-DDTHH:MM:SSZ` for a number of seconds since the Unix epoch (UTC, proleptic
+/// Gregorian; Howard Hinnant's `civil_from_days`).
+pub fn format_utc(seconds: u64) -> String {
+    let days = seconds / 86_400;
+    let rest = seconds % 86_400;
+    let z = i64::try_from(days).unwrap_or(i64::MAX / 2) + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_index = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_index + 2) / 5 + 1;
+    let month = if month_index < 10 {
+        month_index + 3
+    } else {
+        month_index - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rest / 3600,
+        rest % 3600 / 60,
+        rest % 60
+    )
+}
+
+/// One log line, without its trailing newline.
+pub fn format_line(seconds: u64, level: log::Level, message: &str) -> String {
+    // A message with a line break would pass for several records: escaped, it stays one.
+    let message = message.replace('\n', "\\n").replace('\r', "\\r");
+    format!("time={} level={level} msg={message}", format_utc(seconds))
+}
+
+impl log::Log for FileLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::max_level()
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        let seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs());
+        let line = format_line(seconds, record.level(), &record.args().to_string());
+        // A failing log write has nowhere to be reported.
+        let _ = self.writer.write_line(&line);
+    }
+
+    fn flush(&self) {
+        let _ = (&self.writer).flush();
     }
 }
 

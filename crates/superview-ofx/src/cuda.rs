@@ -149,8 +149,17 @@ pub struct Driver {
 impl Driver {
     /// The driver of this process, loaded once; `None` where there is none (no NVIDIA driver).
     pub fn get() -> Option<&'static Driver> {
-        static DRIVER: OnceLock<Option<Driver>> = OnceLock::new();
-        DRIVER.get_or_init(|| Driver::load().ok()).as_ref()
+        Driver::loaded().as_ref().ok()
+    }
+
+    /// Why [`Driver::get`] is `None`, for the plugin's log; `None` when the driver loaded.
+    pub fn load_error() -> Option<&'static str> {
+        Driver::loaded().as_ref().err().map(String::as_str)
+    }
+
+    fn loaded() -> &'static Result<Driver, String> {
+        static DRIVER: OnceLock<Result<Driver, String>> = OnceLock::new();
+        DRIVER.get_or_init(|| Driver::load().map_err(|e| e.to_string()))
     }
 
     fn load() -> Result<Driver, libloading::Error> {

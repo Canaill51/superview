@@ -23,7 +23,8 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 
 - **`superview-ofx`** — le plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66) : `warp` (le calcul, pur, qui
   réutilise `pgm::source_x_for_output_x`), `cuda` (le même calcul sur la carte : pilote CUDA chargé à l'exécution,
-  noyau PTX, repli CPU) et `plugin` (la colle avec l'hôte, `FullySafe`). Un bundle `Superview.ofx.bundle` par
+  noyau PTX, repli CPU), `journal` (fichier plafonné, une ligne par instance et par chemin, bavardage du fork filtré)
+  et `plugin` (la colle avec l'hôte, `FullySafe`). Un bundle `Superview.ofx.bundle` par
   `packaging/ofx/build_bundle.sh` ; prototype, pas dans les versions.
 
 ### `superview-core`
@@ -44,7 +45,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 | `thumbnail` | une image brute RGBA de la vidéo (192×144) par ffmpeg, dossier temporaire privé, délai et annulation (DEC-60) |
 | `session` | `EncodingSession` : dossier temporaire isolé, supprimé au `Drop` |
 | `output`, `disk`, `memory` | sortie ≠ entrée et fichier partiel, espace libre (`fs4`), garde-fou mémoire (lecture injectée) |
-| `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal à plafond injecté (5 Mio, fixé par `superview-app`) |
+| `health`, `metrics`, `logfile` | Diagnostic (ffmpeg, ffprobe, disque, encodeurs), tailles et durées, journal à plafond injecté et son `FileLogger`, partagés par `superview-app` (5 Mio) et le plugin (1 Mio) |
 
 ### `superview-app`
 | Fichier | Rôle |
