@@ -97,6 +97,11 @@ NVIDIA et son pilote, jamais en CI ; ailleurs il se saute. Sur une telle machine
 `SUPERVIEW_REQUIRE_CUDA=1` : l'absence du pilote ou de la carte le fait alors échouer au lieu de passer à vide.
 Aucun kit CUDA n'est nécessaire : le noyau est du PTX compilé par le pilote.
 
+**Le test du noyau OpenCL** (`crates/superview-ofx/tests/opencl.rs`) passe sur **chaque** GPU que liste le chargeur
+OpenCL (`OpenCL.dll`, `libOpenCL.so.1`, installé avec le pilote d'affichage), jamais en CI ; ailleurs il se saute.
+Le lancer avec `SUPERVIEW_REQUIRE_OPENCL=1`, pour la même raison. Sur le poste Windows de développement, il
+couvre la RTX 3050 Ti et l'Intel UHD de l'i7-11800H ; la sortie (`--nocapture`) nomme chaque appareil passé.
+
 ## Outils d'analyse
 
 Le contrôle de couverture et l'audit de la CI (job *Rust coverage and audit*) se rejouent en local avec

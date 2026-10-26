@@ -41,6 +41,8 @@ Two things about that:
 - **The CUDA kernel of `superview-ofx` is tested only on an NVIDIA machine.** CI
   has no GPU, so `tests/cuda.rs` skips there. On a machine with one, add
   `SUPERVIEW_REQUIRE_CUDA=1`, or a green run can mean the kernel never ran (DEC-66).
+- **The OpenCL kernel is tested only where a GPU has an OpenCL driver**, on every such GPU
+  (`tests/opencl.rs`); CI skips it too. Locally, add `SUPERVIEW_REQUIRE_OPENCL=1`.
 
 **Every test is proved by counter-proof**: reintroduce the defect it guards and
 confirm the test reddens. Tests here have passed vacuously before. And check the

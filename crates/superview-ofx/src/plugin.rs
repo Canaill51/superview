@@ -16,7 +16,8 @@ use ofx_sys::OfxPropertySuiteV1;
 
 use superview_core::logfile::user_cache_dir;
 
-use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, PerContext, Warp};
+use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, Warp};
+use crate::gpu::PerContext;
 use crate::journal::{self, PathLog, RenderPath};
 use crate::warp::{Mode, column_map, warp_row};
 

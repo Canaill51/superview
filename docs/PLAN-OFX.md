@@ -89,7 +89,8 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
       **tampons** `cl_mem` seulement (pas d'images OpenCL), RGBA flottant, pas des lignes donné par `row_bytes`,
       file de commandes de l'hôte dans le même contexte que les tampons ; tampons d'une réserve, plus grands
       que la trame. Un `FAILED` fait refaire la même trame en CPU, mais la suivante est redemandée en OpenCL.
-- [ ] **4b — `opencl.rs` et ses tests** : `OpenCL.dll` / `libOpenCL.so.1` par `libloading`, noyau OpenCL C
+- [x] **4b — `opencl.rs` et ses tests** — **fait le 2026-10-26** : vert sur la RTX et l'Intel UHD, contre-preuve
+      rougie sur les deux ; `PerContext` déplacé dans `gpu.rs`. Non relié à l'hôte (4c). Ce qui était demandé : `OpenCL.dll` / `libOpenCL.so.1` par `libloading`, noyau OpenCL C
       compilé à l'exécution, même `column_map`. Ce que 4a impose : lire le noyau sur des **tampons**
       (`__global float4*`, décalage en octets par `row_bytes`), pas des images ; tout mettre dans la **file de
       l'hôte** et prendre le contexte par `CL_QUEUE_CONTEXT` ; compiler le programme et charger la carte une fois
