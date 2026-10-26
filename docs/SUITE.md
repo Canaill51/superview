@@ -1,10 +1,11 @@
 # Où on en est
-- **En cours (2026-10-25) — plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, branche `feat/ofx-plugin`,
-  **pas de PR tant que l'utilisateur ne la demande pas**) : essayé dans Resolve 21.1.1 gratuit sous Windows
-  (RTX 3050 Ti) : rendu CUDA, `FullySafe`, **lecture 4K en temps réel** (29,97 i/s, contre 6 à 10 avant), export
-  4K comparé à l'application (38 à 41 dB). Restent : Studio, Linux, la parité au pixel 1440×1080 → 1920×1080, la
-  comparaison CUDA/CPU dans Resolve (`docs/TESTS-MANUELS.md`). Pas de livraison dans les versions tant que ce
-  n'est pas validé.
+- **En cours — plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, fusionné en #174, prototype hors des
+  versions) : essayé dans Resolve 21.1.1 gratuit sous Windows (RTX 3050 Ti) : rendu CUDA, `FullySafe`, **lecture
+  4K en temps réel** (29,97 i/s, contre 6 à 10 avant). **Lot 1 fait le 2026-10-26** (`docs/TESTS-MANUELS.md`) :
+  parité avec l'application en *Widen* et *Un-squeeze* (écart uniforme, celui de la compression), centrage en
+  largeur impaire, défilement, *Stretch* et *crop* faux comme prévu ; l'écart CUDA/OpenCL est celui de Resolve
+  (témoin sans l'effet, L-122). Aucune anomalie du plugin. **Suite : Lot 2 de `docs/PLAN-OFX.md`** (le journal).
+  Restent aussi Studio et Linux (Lot 5). Pas de livraison dans les versions tant que ce n'est pas validé.
 - **Trouvés le 2026-10-25 sur le poste Windows de l'utilisateur, corrigés le 2026-10-26** : `h264_d3d12va`, qui
   passait la sonde et échouait en vraie conversion (images B, DEC-67, #175) ; les hooks qui dépendaient de
   `python3` (L-119, #176) ; `scripts/checks/rust.sh`, qui ne cherchait ffmpeg que dans le `PATH` (L-121).

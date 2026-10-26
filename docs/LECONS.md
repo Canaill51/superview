@@ -1332,6 +1332,20 @@ est absolu, `.exe` sous Windows, puis le `PATH`) et **son test retire la répons
 vide le `PATH`, pour que le ffmpeg de la machine ne réponde pas à la place du dossier. Avant d'écrire la
 recherche, mesurer ce que la suite trouve seule (la lancer sans le pré-contrôle). Lancer `bash scripts/checks/outils.sh`.
 
+### L-122 — Un écart mesuré dans l'export d'un hôte n'accuse le plugin qu'après un témoin sans l'effet — 2026-10-26
+Les essais manuels du plugin OpenFX (Lot 1 de `docs/PLAN-OFX.md`) ont donné deux fausses alarmes et un test qui
+ne tranchait rien. Une colonne noire au bord gauche d'une timeline de 1921 : Resolve exporte en 1922 et l'ajoute
+lui-même, témoin compris. Des exports CUDA et OpenCL qui ne sont pas identiques : Resolve diffère déjà d'un mode
+à l'autre sans l'effet. Et un export *crop* identique à l'octet près à l'export *fit* : avec une source de même
+hauteur que la timeline, les deux réglages donnent le même cadre, et le test ne pouvait rien montrer. Chaque fois,
+c'est l'export du témoin, pas un raisonnement, qui a tranché ; le premier témoin, fait dans une autre timeline
+que l'export avec l'effet, ne tranchait pas non plus.
+→ **Pour accuser le plugin, exporter la même chose sans l'effet, dans les mêmes conditions** (timeline, réglages,
+codec), et comparer l'écart avec l'effet à l'écart du témoin. Exporter en DNxHR, pas en H.264, qui noie un écart de
+quelques LSB dans 52 dB. Regarder **où** est l'écart : uniforme, c'est la compression ou l'hôte ; concentré aux
+bords, là où le warp agit, c'est la géométrie. Et avant l'essai, vérifier que le réglage essayé change le cadre
+reçu par le plugin : une source plus grande que la timeline pour *crop*.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**
