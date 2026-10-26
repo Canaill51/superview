@@ -244,3 +244,66 @@ fn an_existing_loose_log_is_made_private() {
     assert_eq!(mode(&dir), 0o700, "log directory mode");
     drop(writer);
 }
+
+#[test]
+fn format_utc_matches_known_instants() {
+    assert_eq!(format_utc(0), "1970-01-01T00:00:00Z");
+    assert_eq!(format_utc(951_782_400), "2000-02-29T00:00:00Z");
+    assert_eq!(format_utc(1_000_000_000), "2001-09-09T01:46:40Z");
+    assert_eq!(format_utc(1_760_745_599), "2025-10-17T23:59:59Z");
+}
+
+#[test]
+fn a_line_break_in_a_message_cannot_forge_a_record() {
+    let line = format_line(0, log::Level::Info, "a\nlevel=ERROR msg=fake\r\nb");
+    assert!(!line.contains('\n') && !line.contains('\r'), "{line:?}");
+    assert!(
+        line.ends_with("msg=a\\nlevel=ERROR msg=fake\\r\\nb"),
+        "{line}"
+    );
+}
+
+#[test]
+fn a_line_carries_time_level_and_message() {
+    assert_eq!(
+        format_line(0, log::Level::Warn, "x=1 y=2"),
+        "time=1970-01-01T00:00:00Z level=WARN msg=x=1 y=2"
+    );
+}
+
+// F-06: `writeln!` writes the text and the newline apart, so two threads logging at
+// once could glue their lines together.
+#[test]
+fn lines_logged_from_many_threads_stay_whole() {
+    use log::Log;
+    let dir = cache();
+    let (writer, path) = open_log_file("superview", 5 << 20, dir.path()).unwrap();
+    let logger = FileLogger::new(writer);
+    log::set_max_level(log::LevelFilter::Info);
+    std::thread::scope(|scope| {
+        for t in 0..8 {
+            let logger = &logger;
+            scope.spawn(move || {
+                for i in 0..200 {
+                    logger.log(
+                        &log::Record::builder()
+                            .level(log::Level::Info)
+                            .args(format_args!("thread={t} line={i} {}", "x".repeat(300)))
+                            .build(),
+                    );
+                }
+            });
+        }
+    });
+    drop(logger);
+    let text = fs::read_to_string(path).unwrap();
+    assert!(text.ends_with('\n'));
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 8 * 200);
+    for line in lines {
+        assert!(
+            line.starts_with("time=") && line.ends_with(&"x".repeat(300)),
+            "torn line: {line:?}"
+        );
+    }
+}

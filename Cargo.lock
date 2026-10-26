@@ -4114,6 +4114,7 @@ dependencies = [
  "ofx",
  "ofx_sys",
  "superview-core",
+ "tempfile",
 ]
 
 [[package]]

@@ -14,7 +14,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 use ofx::*;
 use ofx_sys::OfxPropertySuiteV1;
 
+use superview_core::logfile::user_cache_dir;
+
 use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, Warp};
+use crate::journal::{self, PathLog, RenderPath};
 use crate::warp::{Mode, column_map, warp_row};
 
 plugin_module!(
@@ -53,6 +56,8 @@ struct RenderState {
     map: Option<CachedMap>,
     /// The kernel and the map on the GPU, once a CUDA frame has come.
     gpu: Option<GpuWarp>,
+    /// What this instance has already said in the log.
+    paths: PathLog,
 }
 
 struct CachedMap {
@@ -112,6 +117,14 @@ impl Execute for SuperviewPlugin {
 fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
     use Action::*;
     match *action {
+        Load => {
+            let env = |key: &str| std::env::var(key).ok();
+            if journal::install(user_cache_dir(&env).as_deref()).is_some() {
+                log::info!("Superview: plugin loaded");
+            }
+            OK
+        }
+
         Describe(ref mut effect) => {
             let mut props: EffectDescriptor = effect.properties()?;
             props.set_grouping("Superview")?;
@@ -140,6 +153,18 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
             if host_has_cuda && Driver::get().is_some() {
                 props.set_cuda_render_supported("true")?;
                 RawProps::of(&props).set_raw(CUDA_STREAM_SUPPORTED, "true")?;
+                log::info!("Superview: CUDA rendering offered to the host");
+            } else if !host_has_cuda {
+                log::info!(
+                    "Superview: CUDA rendering not offered, the host does not propose it; \
+                     frames render on the CPU"
+                );
+            } else {
+                log::info!(
+                    "Superview: CUDA rendering not offered, no CUDA driver ({}); frames render \
+                     on the CPU",
+                    Driver::load_error().unwrap_or("unknown reason")
+                );
             }
             OK
         }
@@ -254,9 +279,23 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                     row_count,
                     stream,
                 ) {
-                    Ok(()) => OK,
+                    Ok(()) => {
+                        if state.paths.first_on(RenderPath::Cuda) {
+                            log::info!(
+                                "Superview: rendering on the GPU with CUDA ({width}x{height})"
+                            );
+                        }
+                        OK
+                    }
                     Err(err) => {
-                        log::error!("Superview: CUDA render failed, the host falls back: {err}");
+                        // Once at warn: a card whose kernel never loads fails every frame.
+                        if state.paths.first_cuda_failure() {
+                            log::warn!(
+                                "Superview: CUDA render failed, the host falls back to the CPU: {err}"
+                            );
+                        } else {
+                            log::debug!("Superview: CUDA render failed again: {err}");
+                        }
                         FAILED
                     }
                 };
@@ -297,6 +336,18 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 (BitDepth::Short, ImageComponent::RGBA) => warp!(RGBAColourS),
                 (BitDepth::Byte, ImageComponent::RGBA) => warp!(RGBAColourB),
                 _ => return FAILED,
+            }
+            let first = data
+                .state
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .paths
+                .first_on(RenderPath::Cpu);
+            if first {
+                log::info!(
+                    "Superview: rendering on the CPU, {threads} threads ({width}x{height}), \
+                     as the host asked"
+                );
             }
             OK
         }

@@ -4,7 +4,8 @@
   4K en temps réel** (29,97 i/s, contre 6 à 10 avant). **Lot 1 fait le 2026-10-26** (`docs/TESTS-MANUELS.md`) :
   parité avec l'application en *Widen* et *Un-squeeze* (écart uniforme, celui de la compression), centrage en
   largeur impaire, défilement, *Stretch* et *crop* faux comme prévu ; l'écart CUDA/OpenCL est celui de Resolve
-  (témoin sans l'effet, L-122). Aucune anomalie du plugin. **Suite : Lot 2 de `docs/PLAN-OFX.md`** (le journal).
+  (témoin sans l'effet, L-122). Aucune anomalie du plugin. **Lot 2 fait le 2026-10-26** : un journal
+  `superview-ofx/superview-ofx.log` (DEC-65 amendée), vérifié dans Resolve en CUDA et en OpenCL. **Suite : Lot 3 de `docs/PLAN-OFX.md`**.
   Restent aussi Studio et Linux (Lot 5). Pas de livraison dans les versions tant que ce n'est pas validé.
 - **Trouvés le 2026-10-25 sur le poste Windows de l'utilisateur, corrigés le 2026-10-26** : `h264_d3d12va`, qui
   passait la sonde et échouait en vraie conversion (images B, DEC-67, #175) ; les hooks qui dépendaient de
