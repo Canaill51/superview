@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Hook PreToolUse (Bash) : bloque les commandes dangereuses ou anti-régression.
 set -uo pipefail
-cmd="$(python3 -c 'import sys,json; print(json.load(sys.stdin).get("tool_input",{}).get("command",""))' 2>/dev/null)"
+. "$(dirname "$0")/json.sh"
 
 refuser() { echo "⛔ Bloqué par garde-fou : $1" >&2; exit 2; }
+
+# Une commande illisible est refusée : un garde qui laisse passer ce qu'il ne lit pas ne garde rien.
+if ! cmd="$(champ_json tool_input.command)"; then
+  refuser "commande illisible (perl et JSON::PP sont requis, voir .claude/hooks/json.sh)."
+fi
 
 case "$cmd" in
   *"--no-verify"*) refuser "contourner le hook pre-commit (--no-verify) est interdit. Corriger les erreurs." ;;

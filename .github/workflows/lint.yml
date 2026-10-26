@@ -78,3 +78,19 @@ jobs:
           exit 1
         fi
         echo "✅ Both READMEs were updated together"
+
+  # The Claude Code hooks in .claude/hooks read their JSON input with perl. They
+  # read it with python3 until 2026-10-26, which on Windows is the Microsoft Store
+  # stub: all three hooks saw an empty field and said nothing. The check shadows
+  # python3 with a failing stub, so Linux reproduces that machine.
+  claude-hooks:
+    name: Claude Code hooks read their input
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: The hooks pass their check
+      run: bash scripts/checks/hooks.sh

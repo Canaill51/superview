@@ -43,7 +43,9 @@ sudo apt install -y ffmpeg libfontconfig1-dev
 ```
 
 Les hooks (pre-commit, Claude) tournent dans un shell non interactif : `scripts/checks/rust.sh`
-ajoute `~/.cargo/bin` au `PATH` lui-même.
+ajoute `~/.cargo/bin` au `PATH` lui-même. Les hooks Claude lisent leur entrée avec Perl et `JSON::PP`
+(`.claude/hooks/json.sh`), présents dans Git Bash sous Windows comme sous Linux ; pas `python3`, qui sous
+Windows est le raccourci du Microsoft Store (L-119).
 
 Sans `sudo` : `libfontconfig1-dev` est souvent déjà là (c'est le cas de ce poste, qui a aussi
 `libxkbcommon-dev`, `libwayland-dev`, `libx11-dev` sans que le build les exige). FFmpeg se pose alors
