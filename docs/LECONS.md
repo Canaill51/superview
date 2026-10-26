@@ -1295,6 +1295,19 @@ que le plugin *déclare* (sûreté des fils, GPU, tuiles, multi-résolution), en
 rapide dans le même hôte (ici Gyroflow, même fork). Et vérifier l'hypothèse avant d'y croire : un compteur de rendus
 simultanés a montré que « plusieurs trames à la fois », l'explication attendue, était fausse (DEC-66).
 
+### L-119 — Un hook qui avale l'échec de son lecteur ne garde plus rien : il échoue fort, et se teste sans l'outil — 2026-10-26
+Les trois hooks de `.claude/hooks` lisaient leur entrée JSON par `python3 … 2>/dev/null`. Sous Windows, `python3`
+est le raccourci du Microsoft Store : il échoue (code 49), le champ lu est vide, et chaque hook prend ce vide pour
+une réponse. `garde-fou.sh` laissait passer `git reset --hard`, `apres-modif.sh` ne lançait jamais la vérification
+rapide, et le garde-fou anti-boucle d'`avant-fin.sh` ne se déclenchait jamais. Rien ne l'a signalé : sous Linux,
+où les hooks ont été écrits, `python3` existe.
+→ **Un hook distingue « champ vide » de « je n'ai pas pu lire »**, et dans le second cas il échoue du côté sûr :
+un garde refuse, une vérification se lance quand même, et un garde qui ne peut pas trancher prévient sans
+bloquer. Le lecteur est Perl et `JSON::PP` (`.claude/hooks/json.sh`), présents dans Git Bash comme sous Linux.
+**Et le test retire l'outil qui manque ailleurs** : `scripts/checks/hooks.sh` met un faux `python3` qui échoue
+en tête du `PATH`, ce qui fait reproduire le poste Windows par Linux, en CI aussi (`lint.yml`). Lancer
+`bash scripts/checks/hooks.sh`.
+
 ### L-120 — Une sonde d'une trame ne voit pas ce qui casse à la troisième : sonder ce que la conversion fait, pas son début — 2026-10-26
 `h264_d3d12va` passait la sonde et échouait à chaque conversion. La sonde partageait l'argv de la conversion
 (DEC-05), mais pas sa durée : une trame, quand D3D12 avec images B en encode deux et échoue à la troisième, dès

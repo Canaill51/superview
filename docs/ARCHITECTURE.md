@@ -67,7 +67,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 |---------|------|
 | `Cargo.toml`, `crates/` | le workspace Cargo ci-dessus (à la racine) ; `rust-toolchain.toml` épingle la version |
 | `crates/superview-core/tests/fixtures/` | fixtures enregistrées (`recorded/*.json`, `ffprobe/`) : enregistrées par l'oracle Go (`internal/common/parity_test.go`, #101, sur un code identique à la v0.2.9 ; `git show 915dc2c^:<chemin>`), **gelées**, ce sont la spécification que le Rust doit reproduire |
-| `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/rust.sh` |
+| `scripts/` | `check.sh` (point d'entrée unique de vérification), `checks/rust.sh` et `checks/hooks.sh` (les hooks de `.claude/hooks` sans `python3`, L-119) |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65) |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |

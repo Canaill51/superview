@@ -9,6 +9,17 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-26] Les hooks Claude Code lisent leur entrée sans `python3`
+
+| | |
+| --- | --- |
+| **Constat** | sur le poste Windows de l'utilisateur, aucun des trois hooks de `.claude/hooks` n'agissait : le garde-fou laissait passer `git reset --hard`, la vérification rapide après un Edit ne se lançait jamais, le garde-fou anti-boucle du hook de fin ne se déclenchait jamais |
+| **Cause** | ils lisaient le JSON par `python3 … 2>/dev/null` ; sous Windows, `python3` est le raccourci du Microsoft Store, qui échoue (code 49), et un champ vide passait pour une réponse |
+| **Fichiers** | `.claude/hooks/json.sh` (nouveau, Perl et `JSON::PP`), `garde-fou.sh`, `apres-modif.sh` (aussi : un chemin Windows sous `\.claude\` est sauté comme `/.claude/`), `avant-fin.sh`, `scripts/checks/hooks.sh` (nouveau), `.github/workflows/lint.yml` (job `claude-hooks`), `docs/ENVIRONNEMENT.md` |
+| **PR** | fix/hooks-sans-python |
+| **Règle** | L-119 : une entrée illisible fait échouer le hook du côté sûr ; le test retire l'outil absent ailleurs |
+| **Vérification** | `bash scripts/checks/hooks.sh` ✅ (11 cas, `python3` remplacé par un faux qui rend 49) · contre-preuve : les hooks de `master` remis, 7 cas rougissent ✅ ; deux cas étaient muets et ont été corrigés (l'anti-boucle passait parce que le faux `check.sh` rendait 0, il rend 1 ; le motif `\.claude\` retiré rougit son cas ✅) · en vrai : sur ce poste, l'Edit qui retirait ce motif a déclenché `apres-modif.sh`, qui a lancé `check.sh --fast` — la première fois depuis que le hook existe |
+
 ### [2026-10-26] `h264_d3d12va` et `hevc_d3d12va` encodent sans images B ; la sonde envoie huit trames (DEC-67)
 
 | | |
@@ -17,7 +28,7 @@
 | **Cause** | double : D3D12 avec les images B que ffmpeg demande par défaut encode deux trames et échoue à la troisième (H.264 et HEVC) ; la sonde n'en envoyait qu'une (`d=0.04`), donc ne pouvait pas le voir |
 | **Essais écartés** | `-async_depth 1`, `-rc_mode CBR/VBR/CQP`, `-profile main`, `-coder cavlc`, `-me_precision` : tous échouent à la 3ᵉ trame ; `-g 1` passe mais n'encode que des images I |
 | **Fichiers** | `crates/superview-core/src/encode/args.rs` (`-bf 0`), `src/encode/args/tests.rs`, `src/probe.rs` (`PROBE_DURATION`), `src/probe/tests.rs`, `tests/recorded_probe_args.rs`, `tests/recorded_encode_args.rs`, README.md et README_FR.md (« quelques images »), `docs/CONTRATS.md`, `docs/DECISIONS.md` (DEC-67, DEC-05 amendée) |
-| **PR** | fix/d3d12va-b-frames |
+| **PR** | #175 |
 | **Règle** | L-120 : la sonde reproduit ce qui distingue la conversion de son début |
 | **Vérification** | sur ce poste, `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --test real_ffmpeg a_device_frame` ✅ (`using h264_d3d12va`) · contre-preuve `-bf 0` retiré : `d3d12_encoders_are_asked_for_no_b_frames` et les deux fixtures rougissent ✅, la sonde refuse `h264_d3d12va` au démarrage avec `Encode failed` et le test de bout en bout se saute (muet, attendu, DEC-67) · contre-preuve sonde à une trame : d'abord **muette** (l'écart de fixture recopiait `PROBE_DURATION`), corrigée en littéral et par `the_probe_sends_enough_frames_to_reach_a_reference_frame` ; les deux rougissent ✅ |
 
