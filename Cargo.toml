@@ -19,3 +19,9 @@ strip = "symbols"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# DEC-65: the `ofx` crate on crates.io (0.3, 2019) predates stable Rust and Resolve; Gyroflow's
+# plugin builds on this maintained fork, pinned to the same revision.
+[patch.crates-io]
+ofx = { git = "https://github.com/AdrianEddy/ofx-rs.git", rev = "0b152196fb47b0dd09c110881786d6a9e5e0d953" }
+ofx_sys = { git = "https://github.com/AdrianEddy/ofx-rs.git", rev = "0b152196fb47b0dd09c110881786d6a9e5e0d953" }

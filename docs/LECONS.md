@@ -1283,6 +1283,18 @@ le code de production lui passe le vrai (`ToolResolver`, `user_config_dir` dans 
 passe un dictionnaire. Aucun test ne touche `std::env::set_var`. La règle est dans `AGENTS.md`
 (« The Rust workspace »).
 
+### L-118 — Dans un hôte, ce que le plugin déclare peut coûter plus que ce qu'il calcule : mesurer aux deux bords — 2026-10-25
+Le plugin OpenFX lisait à 6 à 10 i/s dans Resolve. Trois optimisations ont été tentées dans l'ordre où le profil du
+plugin les désignait : seize fils CPU (la lecture a *baissé*, le décodage de l'hôte en manquait), le rendu CUDA (le
+plugin est passé de 15 ms à 0,06 ms par trame, la lecture de 6 à 8 i/s seulement), puis la déclaration `FullySafe`
+au lieu de `InstanceSafe` : 29,97 i/s, alors que Resolve n'a **jamais** lancé deux rendus à la fois. Le temps
+perdu était dans l'hôte, et c'est une promesse faite à l'hôte qui l'a libéré.
+→ **Chronométrer le plugin *et* le rythme auquel l'hôte l'appelle** (l'intervalle entre deux appels) : quand le
+plugin ne pèse qu'une petite part de l'intervalle, l'optimiser ne sert plus ; chercher alors ce que l'hôte fait de ce
+que le plugin *déclare* (sûreté des fils, GPU, tuiles, multi-résolution), en comparant avec un plugin de référence
+rapide dans le même hôte (ici Gyroflow, même fork). Et vérifier l'hypothèse avant d'y croire : un compteur de rendus
+simultanés a montré que « plusieurs trames à la fois », l'explication attendue, était fausse (DEC-66).
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**

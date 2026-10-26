@@ -8,15 +8,17 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 [advisories]
 # A vulnerability fails the job. The way out is a reasoned, dated `ignore` below, never removing
-# the step. These four are crates flagged "unmaintained", not vulnerable, and none is ours to
+# the step. These are crates flagged "unmaintained", not vulnerable, and none is ours to
 # replace: they come in through Slint's winit backend (zbus; sctk-adwaita -> ab_glyph ->
 # ttf-parser), whose latest releases (slint 1.18.1) still use them. Reopen on each Slint update:
-# zbus 6 absorbs zvariant, and skrifa replaces ttf-parser. (bincode, RUSTSEC-2025-0141, is in
+# zbus 6 absorbs zvariant, and skrifa replaces ttf-parser. (paste is the exception: it comes in
+# through the ofx fork of superview-ofx, DEC-65. bincode, RUSTSEC-2025-0141, is in
 # Cargo.lock only through an inactive optional dependency; cargo-deny does not see it.)
 ignore = [
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.25.1 unmaintained (2026-06-28); via winit -> sctk-adwaita -> ab_glyph, awaiting an upstream move to skrifa" },
     { id = "RUSTSEC-2026-0370", reason = "zvariant unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
+    { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 unmaintained (2024-10-07); a proc-macro of the ofx fork (superview-ofx, DEC-65), run at build time only, no vulnerability; awaiting the fork's move to pastey" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
 ]
 

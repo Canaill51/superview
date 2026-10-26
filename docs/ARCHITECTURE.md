@@ -11,7 +11,7 @@ sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + F
 Go a été retiré en DEC-49 (`git show v0.2.9:<chemin>` pour relire l'ancien code).
 
 ## Vue d'ensemble
-Un workspace Cargo à la racine (`crates/`), trois crates :
+Un workspace Cargo à la racine (`crates/`), quatre crates :
 
 - **`superview-core`** — toute la logique, sans interface. Un module par responsabilité (voir le tableau).
 - **`superview-app`** — la fenêtre Slint. Seul le fil de l'interface touche un widget ; les autres
@@ -20,6 +20,11 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 - **`superview-harness`** — banc d'essai jamais livré, pas une CLI (DEC-44) : `convert` et `probe`
   (sortie JSON) et SIGINT/SIGTERM, pour les tests qui lancent une vraie conversion dans un processus
   séparé.
+
+- **`superview-ofx`** — le plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66) : `warp` (le calcul, pur, qui
+  réutilise `pgm::source_x_for_output_x`), `cuda` (le même calcul sur la carte : pilote CUDA chargé à l'exécution,
+  noyau PTX, repli CPU) et `plugin` (la colle avec l'hôte, `FullySafe`). Un bundle `Superview.ofx.bundle` par
+  `packaging/ofx/build_bundle.sh` ; prototype, pas dans les versions.
 
 ### `superview-core`
 | Module | Rôle |
@@ -64,7 +69,7 @@ Un workspace Cargo à la racine (`crates/`), trois crates :
 | `crates/superview-core/tests/fixtures/` | fixtures enregistrées (`recorded/*.json`, `ffprobe/`) : enregistrées par l'oracle Go (`internal/common/parity_test.go`, #101, sur un code identique à la v0.2.9 ; `git show 915dc2c^:<chemin>`), **gelées**, ce sont la spécification que le Rust doit reproduire |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification) et `checks/rust.sh` |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
-| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 |
+| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65) |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
 | `superview.yaml` | configuration livrée |
 

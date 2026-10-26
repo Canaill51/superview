@@ -9,6 +9,18 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-25] Le plugin Resolve lit en temps réel : rendu CUDA et `FullySafe` (DEC-66)
+
+| | |
+| --- | --- |
+| **Constat** | dans Resolve 21.1.1 gratuit (RTX 3050 Ti Laptop 4 Go), un clip 2,7K H.264 en timeline 4K lisait à environ 30 i/s sans l'effet, 6 à 10 avec |
+| **Cause** | double : un effet CPU seul fait descendre et remonter chaque trame (133 Mo) entre la carte et la mémoire, environ 150 ms par trame hors du plugin ; et avec `InstanceSafe` Resolve reste sur un chemin lent même une fois ces copies supprimées |
+| **Essais écartés** | seize fils CPU : le calcul passe de 18 à 14 ms (borné par la mémoire) et la lecture **baisse** (le décodage de l'hôte manque de cœurs) ; deux fils gardés pour le repli. Le CUDA seul : plugin à 0,06 ms par trame, lecture à 8 i/s |
+| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (nouveau), `src/plugin.rs`, `src/lib.rs`, `tests/cuda.rs` (nouveau), `Cargo.toml` (`libloading`, `ofx_sys`), `docs/DECISIONS.md` (DEC-66, DEC-65 amendée), `docs/TESTS-MANUELS.md`, `docs/ENVIRONNEMENT.md`, `AGENTS.md` |
+| **PR** | pas encore ouverte (branche `feat/ofx-plugin`) |
+| **Règle** | L-118 : mesurer le plugin *et* le rythme de l'hôte ; quand le plugin ne pèse plus, chercher dans ce qu'il déclare |
+| **Vérification** | `SUPERVIEW_REQUIRE_CUDA=1 cargo test -p superview-ofx` ✅ (13 tests) · contre-preuve : un noyau qui lit `x` au lieu de `map[x]` fait rougir `the_gpu_warp_gives_the_pixels_of_the_cpu_warp` ✅ · à la main dans Resolve : 29,97 i/s en 4K, export 4K de `DJI_0221.MP4` comparé à l'application, 38 à 41 dB contre 19 à 25 pour un étirement simple, aucune bande ✅ · `scripts/check.sh` complet ❌ sur ce poste, pour deux raisons sans lien : ffmpeg hors du `PATH`, et `a_device_frame_encoder_runs_the_whole_pipeline` (`h264_d3d12va` passe la sonde mais échoue en vraie conversion, à traiter à part) |
+
 ### [2026-10-22] Polices de la maquette embarquées et capture du README remplacée (DEC-63, refonte de l'interface, PR 7)
 
 | | |

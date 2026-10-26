@@ -106,6 +106,38 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
       ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
+## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, prototype)
+
+`sh packaging/ofx/build_bundle.sh` (Linux, ou Git Bash sous Windows avec les Build Tools, `docs/ENVIRONNEMENT.md`)
+ou l'artefact `Superview.ofx.bundle-Windows` de la CI. Passés le 2026-10-25 sous Windows 11, Resolve 21.1.1
+**gratuit**, i7-11800H et RTX 3050 Ti Laptop (4 Go, pilote 616.92, CUDA) ; le chemin CUDA a tourné (compté dans
+un chronométrage temporaire, retiré depuis).
+
+- [x] **Chargement** : copier `Superview.ofx.bundle` dans `/usr/OFX/Plugins` (Linux, sudo) ou
+      `C:\Program Files\Common Files\OFX\Plugins` (Windows), redémarrer Resolve : *Effets → OpenFX → Superview*
+      apparaît. Passé avec Free ; Studio non essayé.
+- [x] **Élargir** : *Mismatched resolution* = **Scale entire image to fit**, un clip 4:3 sur la timeline, l'effet
+      sur le clip (page Montage) : le 4:3 remplit le 16:9, le centre garde son rapport, pas de bande. Passé en
+      timeline 3840×2160 avec `DJI_0221.MP4` (2688×2016, H.264, 59,94 i/s).
+- [x] **Parité** : exporter la timeline et comparer à la même vidéo convertie par Superview. Passé : export 4K
+      du plugin contre la sortie de l'application (3584×2016, agrandie en 3840×2160 pour comparer) : 38 à 41 dB
+      de PSNR aux images 10, 60, 120 et 170 s, contre 19 à 25 dB pour un simple étirement de la source ; bords
+      de même luminosité. Une source 59,94 i/s dans une timeline 29,97 : comparer à l'image voisine de 1/60 s.
+      Pas encore fait : la source 1440×1080 dans une timeline 1920×1080, où les pixels devraient être égaux.
+- [ ] **CUDA contre CPU dans Resolve** : *Préférences → Mémoire et GPU → OpenCL* (Resolve redémarre) fait
+      passer le plugin en CPU ; la même trame exportée dans les deux modes doit être identique.
+- [x] **Vitesse** (CUDA) : lecture en temps réel, 29,97 i/s en timeline 4K. Avant DEC-66 : 6 à 10 i/s.
+- [ ] **Centrage** : une timeline de largeur impaire (1921) ne montre pas de colonne de bord parasite.
+- [ ] **Un-squeeze** : une vidéo GoPro SuperView, mode *Un-squeeze* : le centre se rétrécit.
+- [x] **Rendu final** (page Livraison) : l'effet est bien appliqué à l'export, pas seulement à l'aperçu (voir
+      *Parité*). Resolve calcule à la résolution de la **timeline** puis agrandit à l'export (mesuré sans l'effet :
+      un export 4K d'une timeline 1080p est un 1080p agrandi) : exporter depuis une timeline à la taille voulue.
+- [ ] **Autres réglages** : *Stretch frame to all corners* ou *crop* donnent une image fausse (l'effet reçoit
+      une trame déjà étirée ou rognée) : à confirmer, puis à documenter dans le README si le plugin est livré.
+- [ ] **Défilement** : faire défiler vite la timeline sur le clip : pas de trame rouge ni d'erreur (l'abandon
+      demandé par Resolve rend `OK`).
+- [ ] **Studio** et **Linux** : chargement, CUDA et vitesse, non essayés.
+
 ## Divers
 
 - [x] **Diagnostic : lire tout le rapport** : le bouton Diagnostic ouvre le rapport en liste : une

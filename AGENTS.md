@@ -5,6 +5,10 @@ stretched, the centre keeps its ratio. It generates two PGM remap maps and hands
 them to FFmpeg's `remap` filter. Rust, Slint, **GUI-only**, Windows and Linux. (It was
 Go and Fyne until v0.2.9; Go was removed in DEC-49. `git show v0.2.9:<path>` reads the old code.)
 
+A second deliverable, still a prototype, is `crates/superview-ofx`: an OpenFX plugin for
+DaVinci Resolve that applies the same warp inside the editor (DEC-65). It is not a command line
+and opens no window.
+
 **MP4 in, MP4 out.** The file pickers offer nothing else and the output
 extension is enforced. This is a product constraint, not an oversight.
 
@@ -34,6 +38,9 @@ Two things about that:
   conversion. A green suite can mean nothing was encoded. CI sets it.
 - **The workspace is the suite.** `cargo test -p superview-core` alone skips the
   window tests of `superview-app`.
+- **The CUDA kernel of `superview-ofx` is tested only on an NVIDIA machine.** CI
+  has no GPU, so `tests/cuda.rs` skips there. On a machine with one, add
+  `SUPERVIEW_REQUIRE_CUDA=1`, or a green run can mean the kernel never ran (DEC-66).
 
 **Every test is proved by counter-proof**: reintroduce the defect it guards and
 confirm the test reddens. Tests here have passed vacuously before. And check the
@@ -84,6 +91,7 @@ than it looks.
 | A duration of `inf` or `nan` is refused although the `<= 0` check inherited from v0.2.9 let it through | `inf` demanded 8 TB of free space and `NaN` zeroed the disk check (DEC-53). |
 | Preferences live in a new `preferences.json`; nothing is read from the old Fyne preferences | Their format was never a contract, and Fyne is gone (DEC-46). |
 | The YAML is read with `serde-saphyr`, not `serde_yaml_ng`; removed keys are not migrated and `SUPERVIEW_*` variables other than `SUPERVIEW_FFMPEG_DIR` are not read | `serde_yaml_ng` rests on `unsafe-libyaml` (RUSTSEC-2024-0449). The migration and the variables belonged to the Go program, v0.2.9 and earlier (DEC-43). |
+| The Resolve plugin declares `FullySafe` although the `ofx-rs` fork hands images out through `Rc` | Measured in Resolve 21: with `InstanceSafe` playback stays at about 8 fps in 4K even on the CUDA path; with `FullySafe`, 29.97, and Resolve never ran two renders at once. Gyroflow's plugin, on the same fork, declares the same. Going back to `InstanceSafe` brings the slow playback back (DEC-66). |
 | The coverage floor is 50 % of lines although the measured figure is about 95 % | It is a floor against collapse, raised when someone decides to, not when a number allows it (DEC-47). |
 
 ## Contracts you must not break

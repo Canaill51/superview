@@ -289,3 +289,39 @@ jobs:
         if ($proc.HasExited) { throw "the window exited by itself with code $($proc.ExitCode)" }
         Write-Host "still running after 10 s (pid $($proc.Id))"
         Stop-Process -Id $proc.Id -Force
+
+  # DEC-65: the OpenFX plugin for DaVinci Resolve, built as a folder to copy into the OFX plugin
+  # directory and kept as a build artifact. Not a release asset: it has not been tried in Resolve
+  # yet. Not a required check either; the Rust jobs above already build and test the crate.
+  ofx-bundle:
+    name: OpenFX bundle on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: .
+
+    - name: Build the bundle
+      shell: bash
+      run: sh packaging/ofx/build_bundle.sh
+
+    - name: The bundle must hold the plugin library
+      shell: bash
+      run: find target/ofx/Superview.ofx.bundle -type f -name 'Superview.ofx' | grep .
+
+    - name: Keep the bundle
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: Superview.ofx.bundle-${{ runner.os }}
+        path: target/ofx/Superview.ofx.bundle
+        if-no-files-found: error
