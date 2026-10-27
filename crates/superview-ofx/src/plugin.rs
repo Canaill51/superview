@@ -161,14 +161,12 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 RawProps::of(&props).set_raw(CUDA_STREAM_SUPPORTED, "true")?;
                 log::info!("Superview: CUDA rendering offered to the host");
             } else if !host_has_cuda {
-                log::info!(
-                    "Superview: CUDA rendering not offered, the host does not propose it; \
-                     frames render on the CPU"
-                );
+                // Not "frames render on the CPU": OpenCL may still be offered. The first frame of
+                // each instance says which path it took.
+                log::info!("Superview: CUDA rendering not offered, the host does not propose it");
             } else {
                 log::info!(
-                    "Superview: CUDA rendering not offered, no CUDA driver ({}); frames render \
-                     on the CPU",
+                    "Superview: CUDA rendering not offered, no CUDA driver ({})",
                     Driver::load_error().unwrap_or("unknown reason")
                 );
             }
@@ -185,8 +183,7 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 log::info!("Superview: OpenCL rendering not offered, the host does not propose it");
             } else {
                 log::info!(
-                    "Superview: OpenCL rendering not offered, no OpenCL loader ({}); frames render \
-                     on the CPU",
+                    "Superview: OpenCL rendering not offered, no OpenCL loader ({})",
                     Library::load_error().unwrap_or("unknown reason")
                 );
             }

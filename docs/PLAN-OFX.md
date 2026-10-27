@@ -102,7 +102,7 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 - [x] **4c — Colle et documents** — **fait le 2026-10-27** (DEC-68) : les deux chemins GPU annoncés, l'hôte choisit ; la colle sans test automatique, vérifiée au 4d. Ce qui était demandé : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
       se charge ; branche `Render` ; DEC-68 ; ligne dans la table d'AGENTS.md (test GPU local seulement) ;
       ARCHITECTURE.md. **Le Lot 1 doit être fait avant.**
-- [ ] **4d (M) — Dans Resolve** : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
+- [x] **4d (M) — Dans Resolve** — **fait le 2026-10-27** (`docs/TESTS-MANUELS.md`, *OpenCL dans Resolve*) : journal « OpenCL », aucun échec ; export identique à CUDA à l'écart de Resolve près (82 dB contre 84 pour le témoin) ; 13,3 i/s en 4K, autant que le témoin sans l'effet (13). Ce qui était demandé : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
       « OpenCL », export OpenCL identique à l'export CUDA.
 
 ## Lot 5 (M) — Les configurations non essayées · selon le matériel disponible

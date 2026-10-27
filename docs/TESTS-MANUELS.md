@@ -179,6 +179,16 @@ un chronométrage temporaire, retiré depuis).
       - après chaque `FAILED`, Resolve **refait la même trame en CPU** (même `time`), sans trame rouge ni erreur ;
         mais il redemande la trame suivante en OpenCL : un échec permanent doit être mémorisé (comme `cuda::PerContext`).
       Lecture 4K dans ce mode (OpenCL refusé, donc CPU) : 9 à 10 i/s ; le défilement reste assez fluide.
+- [x] **OpenCL dans Resolve** (2026-10-27, Lot 4d de `docs/PLAN-OFX.md`, bundle de la PR #184) : Resolve 21.1.1
+      gratuit, RTX 3050 Ti, réglé tour à tour sur OpenCL et sur CUDA. Le journal dit, à chaque lancement, le seul
+      chemin que l'hôte propose (« OpenCL rendering offered » et CUDA non proposé, ou l'inverse), puis « rendering
+      on the GPU with OpenCL » en 4K et en 1080p ; **aucun échec**, aucune trame rouge. Exports DNxHR HQX,
+      timeline 1920×1080, 1218 trames, l'effet et un témoin sans l'effet dans chaque mode : CUDA contre OpenCL,
+      **82 dB avec l'effet, 84 dB pour le témoin** ; sur la luma, avec l'effet, 80 dB aux bords comme au centre (79),
+      et le témoin diffère déjà de 80 dB dans l'image (ses bandes noires sont identiques). Écart uniforme, celui de
+      Resolve qui change d'API avec le mode (L-122) : le plugin rend la même image dans les deux. L'effet est bien
+      présent (12 dB contre le témoin). Lecture 4K en OpenCL : **13,3 i/s avec l'effet, 13 sans** (le témoin) : le plugin ne coûte rien, c'est Resolve
+      en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. Le journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
 
 ## Divers
 
