@@ -188,7 +188,9 @@ un chronométrage temporaire, retiré depuis).
       et le témoin diffère déjà de 80 dB dans l'image (ses bandes noires sont identiques). Écart uniforme, celui de
       Resolve qui change d'API avec le mode (L-122) : le plugin rend la même image dans les deux. L'effet est bien
       présent (12 dB contre le témoin). Lecture 4K en OpenCL : **13,3 i/s avec l'effet, 13 sans** (le témoin) : le plugin ne coûte rien, c'est Resolve
-      en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. Le journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
+      en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. L'Intel UHD ne peut pas être essayée
+      dans Resolve sur ce poste : *Mémoire et GPU* grise sa case (« Discrete GPU utilisé »), Resolve refusant le GPU
+      intégré quand une carte dédiée est présente ; son noyau n'est vérifié que par `tests/opencl.rs`. Le journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
 
 ## Divers
 
