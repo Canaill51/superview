@@ -1,6 +1,6 @@
 //! The plugin's log: a capped file under the user cache directory, so that a user can tell which
-//! path renders (CUDA or the CPU) and why CUDA was not used. Before it, no logger was installed and
-//! every record went nowhere (DEC-65).
+//! path renders (CUDA, OpenCL or the CPU) and why a GPU path was not used. Before it, no logger was
+//! installed and every record went nowhere (DEC-65).
 //!
 //! - Installed once per process, at `Load`, by [`install`]; a later call returns the first result
 //!   and opens nothing. A directory that cannot be written means no log, never a failed action.
@@ -65,21 +65,24 @@ pub fn install(cache_dir: Option<&Path>) -> Option<PathBuf> {
         .clone()
 }
 
-/// The two ways a frame is rendered.
+/// The three ways a frame is rendered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RenderPath {
     Cuda,
+    OpenCl,
     Cpu,
 }
 
 /// What an instance has already said in the log, so that it says each thing once: the first frame
-/// on each path, and the first CUDA failure. The host renders many frames a second, and a card
-/// whose kernel never loads fails every one of them.
+/// on each path, and the first failure of each GPU path. The host renders many frames a second,
+/// and a card whose kernel never loads fails every one of them.
 #[derive(Debug, Default)]
 pub struct PathLog {
     cuda: bool,
+    opencl: bool,
     cpu: bool,
     cuda_failed: bool,
+    opencl_failed: bool,
 }
 
 impl PathLog {
@@ -87,14 +90,21 @@ impl PathLog {
     pub fn first_on(&mut self, path: RenderPath) -> bool {
         let seen = match path {
             RenderPath::Cuda => &mut self.cuda,
+            RenderPath::OpenCl => &mut self.opencl,
             RenderPath::Cpu => &mut self.cpu,
         };
         !std::mem::replace(seen, true)
     }
 
-    /// True the first time a CUDA frame of this instance fails.
-    pub fn first_cuda_failure(&mut self) -> bool {
-        !std::mem::replace(&mut self.cuda_failed, true)
+    /// True the first time a frame of this instance fails on the GPU path `path`. The CPU path
+    /// does not fail this way: the host has nowhere to fall back to.
+    pub fn first_failure(&mut self, path: RenderPath) -> bool {
+        let failed = match path {
+            RenderPath::Cuda => &mut self.cuda_failed,
+            RenderPath::OpenCl => &mut self.opencl_failed,
+            RenderPath::Cpu => return false,
+        };
+        !std::mem::replace(failed, true)
     }
 }
 
@@ -108,18 +118,24 @@ mod tests {
         assert!(log.first_on(RenderPath::Cuda));
         assert!(!log.first_on(RenderPath::Cuda));
         assert!(log.first_on(RenderPath::Cpu));
-        // Back and forth, as when CUDA fails on some frames only: nothing more.
+        assert!(log.first_on(RenderPath::OpenCl));
+        // Back and forth, as when a GPU path fails on some frames only: nothing more.
         assert!(!log.first_on(RenderPath::Cuda));
         assert!(!log.first_on(RenderPath::Cpu));
+        assert!(!log.first_on(RenderPath::OpenCl));
         // Another instance starts over.
         assert!(PathLog::default().first_on(RenderPath::Cpu));
     }
 
     #[test]
-    fn only_the_first_cuda_failure_is_reported() {
+    fn only_the_first_failure_of_each_gpu_path_is_reported() {
         let mut log = PathLog::default();
-        assert!(log.first_cuda_failure());
-        assert!(!log.first_cuda_failure());
+        assert!(log.first_failure(RenderPath::Cuda));
+        assert!(!log.first_failure(RenderPath::Cuda));
+        // CUDA having failed says nothing of OpenCL, as when Resolve changes mode.
+        assert!(log.first_failure(RenderPath::OpenCl));
+        assert!(!log.first_failure(RenderPath::OpenCl));
+        assert!(!log.first_failure(RenderPath::Cpu));
     }
 
     #[test]

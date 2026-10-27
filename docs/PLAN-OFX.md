@@ -99,7 +99,7 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
       saute sans OpenCL sauf avec `SUPERVIEW_REQUIRE_OPENCL=1`. À passer sur **deux** appareils : la RTX
       et l'iGPU Intel UHD de l'i7-11800H (un vrai GPU non NVIDIA, sur ce poste). Contre-preuve : un noyau
       qui lit `x` au lieu de `map[x]` doit rougir.
-- [ ] **4c — Colle et documents** : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
+- [x] **4c — Colle et documents** — **fait le 2026-10-27** (DEC-68) : les deux chemins GPU annoncés, l'hôte choisit ; la colle sans test automatique, vérifiée au 4d. Ce qui était demandé : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
       se charge ; branche `Render` ; DEC-68 ; ligne dans la table d'AGENTS.md (test GPU local seulement) ;
       ARCHITECTURE.md. **Le Lot 1 doit être fait avant.**
 - [ ] **4d (M) — Dans Resolve** : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
