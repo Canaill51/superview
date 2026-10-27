@@ -199,6 +199,26 @@ un chronométrage temporaire, retiré depuis).
       un pilote OpenCL non NVIDIA derrière la colle `Render`, le plus proche d'un poste AMD ou Intel qu'offre ce
       poste. Lecture d'une timeline 4K : **10 à 20 i/s avec l'effet, 18 à 30 sans** (le témoin) ; sur l'UHD l'effet
       coûte à la lecture, contrairement à la RTX en OpenCL. Ni export comparé ni mesure en 1080p.
+- [x] **Export long en `FullySafe`** (2026-10-27, Lot 5 de `docs/PLAN-OFX.md`, branche jetable
+      `sonde/rendus-simultanes`, non fusionnée) : Resolve 21.1.1 gratuit, RTX 3050 Ti (pilote 617.42). Le risque
+      est celui du fork d'`ofx-rs` (images en `Rc`, DEC-66) si Resolve rend deux trames à la fois ; un export sans
+      plantage ne prouve rien, donc la sonde compte les `Render` en cours (compteur atomique autour de l'action,
+      une ligne de journal à chaque nouveau maximum, rien par trame ; contre-preuve : deux fils qui entrent ensemble
+      donnent 2, un compteur cassé fait rougir le test). Témoin en lecture : `SONDE: 1`.
+      - **CUDA** : timeline 4K de huit fois `DJI_0221.MP4` (2688×2016, 59,94 i/s), *Widen* sur chaque plan, export
+        DNxHR LB de **21 min 26** (77 098 trames, 58 Go). L'H.265 avec l'encodeur *Auto* refuse le 4K à 59,94 i/s
+        (*Cannot find appropriate codec*) avant toute trame : limite de l'encodeur de Resolve gratuit.
+      - **OpenCL** : le même clip, 3 min 02 (10 905 trames).
+      - **Résultat** : maximum **1 rendu à la fois** dans les deux modes, lecture, vignettes de Deliver et export
+        compris ; aucun échec ni repli CPU au journal. Fichiers décodés en entier par ffmpeg sans erreur,
+        durée = trames / 59,94, ni trame noire (`blackdetect`) ni figée (`freezedetect`, 0,5 s).
+      - **Deux plantages de Resolve en OpenCL**, au passage de Edit à Deliver (11:50:39, et 12:01:40 sur une
+        nouvelle timeline sans l'effet, dans le même processus que l'export OpenCL) : module en faute
+        `nvoglv64.dll` 32.0.16.1742 (le pilote **OpenGL** de NVIDIA, pas OpenCL ni `Superview.ofx`), code
+        `c0000409`. La sonde n'a vu aucun chevauchement avant, et le plugin ne libère aucun objet OpenCL de
+        l'hôte. Non reproduits : la même séquence (export OpenCL 4K de 3 min puis Edit → Deliver trois fois)
+        refaite **sans le plugin** (bundle retiré du dossier OFX) puis **avec le plugin et l'effet** ne plante pas.
+        Cause non établie, non imputée au plugin ; à surveiller.
 
 ## Divers
 

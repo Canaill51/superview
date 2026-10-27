@@ -111,7 +111,10 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 - [ ] **Linux** (poste KDE, NVIDIA et Intel) : chargement depuis `/usr/OFX/Plugins`, CUDA, OpenCL.
       À vérifier et documenter : Resolve **gratuit** sous Linux ne décoderait pas le H.264/H.265 ni l'AAC,
       donc les MP4 usuels n'y entreraient pas (limite de Resolve, pas du plugin).
-- [ ] **Export long** en `FullySafe` : surveiller un plantage (le risque `Rc` du fork, DEC-66).
+- [x] **Export long** en `FullySafe` — **fait le 2026-10-27** (`docs/TESTS-MANUELS.md`, *Export long en
+      `FullySafe`*) : une sonde jetable a compté les rendus simultanés ; jamais plus d'un, en CUDA (export de
+      21 min) comme en OpenCL, et aucune trame perdue. Deux plantages de Resolve en OpenCL au passage à Deliver,
+      dans le pilote OpenGL de NVIDIA, non reproduits ni avec ni sans le plugin.
 - [x] **Intel UHD dans Resolve** (poste Windows actuel) — **fait le 2026-10-27** (`docs/TESTS-MANUELS.md`, *OpenCL
       sur l'Intel UHD*) : RTX désactivée, Resolve accepte l'UHD et le plugin y rend en OpenCL sans échec ; 4K à
       10-20 i/s avec l'effet, 18-30 sans. Le plan prévoyait : Resolve grise le GPU intégré tant que la RTX est
