@@ -112,6 +112,11 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
       À vérifier et documenter : Resolve **gratuit** sous Linux ne décoderait pas le H.264/H.265 ni l'AAC,
       donc les MP4 usuels n'y entreraient pas (limite de Resolve, pas du plugin).
 - [ ] **Export long** en `FullySafe` : surveiller un plantage (le risque `Rc` du fork, DEC-66).
+- [ ] **Intel UHD dans Resolve** (poste Windows actuel) : Resolve grise le GPU intégré tant que la RTX est
+      visible (« Discrete GPU utilisé »). Fermer Resolve, désactiver la RTX dans le Gestionnaire de périphériques,
+      relancer en OpenCL, cocher l'UHD si Resolve l'accepte ; lecture avec l'effet (i/s, témoin sans l'effet), journal
+      « OpenCL » ; puis réactiver la RTX. Le plus proche d'un poste AMD ou Intel : un pilote OpenCL non NVIDIA
+      derrière la colle. Si Resolve refuse l'UHD même seule, le noter et s'arrêter.
 - [ ] **AMD** : pas de matériel. Rester « non vérifié », comme AMF pour l'application.
 
 ## Lot 6 — Livraison · décision de l'utilisateur, puis Sonnet
