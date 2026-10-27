@@ -188,9 +188,17 @@ un chronométrage temporaire, retiré depuis).
       et le témoin diffère déjà de 80 dB dans l'image (ses bandes noires sont identiques). Écart uniforme, celui de
       Resolve qui change d'API avec le mode (L-122) : le plugin rend la même image dans les deux. L'effet est bien
       présent (12 dB contre le témoin). Lecture 4K en OpenCL : **13,3 i/s avec l'effet, 13 sans** (le témoin) : le plugin ne coûte rien, c'est Resolve
-      en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. L'Intel UHD ne peut pas être essayée
-      dans Resolve sur ce poste : *Mémoire et GPU* grise sa case (« Discrete GPU utilisé »), Resolve refusant le GPU
-      intégré quand une carte dédiée est présente ; son noyau n'est vérifié que par `tests/opencl.rs`. Le journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
+      en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. Tant que la RTX est active, *Mémoire
+      et GPU* grise la case de l'Intel UHD (« Discrete GPU utilisé ») : voir l'entrée suivante, RTX désactivée. Le
+      journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
+- [x] **OpenCL sur l'Intel UHD dans Resolve** (2026-10-27, Lot 5 de `docs/PLAN-OFX.md`, bundle de master après
+      #184) : RTX 3050 Ti désactivée dans le Gestionnaire de périphériques, Resolve 21.1.1 gratuit relancé. *Mémoire
+      et GPU* accepte alors l'UHD : méthode de calcul *Auto* sur OpenCL, l'UHD seule dans la liste et cochée
+      (« Affichage principal GPU », 6,3 Go). Le journal dit « OpenCL rendering offered », CUDA non proposé, puis
+      « rendering on the GPU with OpenCL (3840x2160) » à deux lancements ; **aucun échec**, aucune trame rouge. C'est
+      un pilote OpenCL non NVIDIA derrière la colle `Render`, le plus proche d'un poste AMD ou Intel qu'offre ce
+      poste. Lecture d'une timeline 4K : **10 à 20 i/s avec l'effet, 18 à 30 sans** (le témoin) ; sur l'UHD l'effet
+      coûte à la lecture, contrairement à la RTX en OpenCL. Ni export comparé ni mesure en 1080p.
 
 ## Divers
 
