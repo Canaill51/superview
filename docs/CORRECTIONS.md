@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-27] Le plugin Resolve rend en OpenCL quand Resolve est réglé sur OpenCL (Lot 4c de PLAN-OFX)
+
+| | |
+| --- | --- |
+| **Constat** | le noyau OpenCL du Lot 4b n'était appelé par rien : en mode OpenCL, Resolve faisait tout en CPU (9 à 10 i/s en 4K) |
+| **Cause** | `Describe` n'annonçait que CUDA et `Render` ne lisait que `CudaEnabled` |
+| **Fichiers** | `crates/superview-ofx/src/plugin.rs` (`Describe` annonce OpenCL, `render_on_opencl`, `GpuWarp<W>`, `DeviceFrame` commun aux deux chemins GPU), `src/journal.rs` (`RenderPath::OpenCl`, `first_failure(path)` remplace `first_cuda_failure`), `AGENTS.md`, `docs/DECISIONS.md` (DEC-68, DEC-66 amendée), `docs/ARCHITECTURE.md`, `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **PR** | ofx/opencl-glue |
+| **Vérification** | `/verify` plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : tout vert, `tests/opencl.rs` et `tests/cuda.rs` compris · contre-preuves : un drapeau d'échec partagé par CUDA et OpenCL rougit `only_the_first_failure_of_each_gpu_path_is_reported` ; un drapeau de premier rendu partagé rougit `each_path_is_reported_once_per_instance` · bundle construit (`build_bundle.sh`) · **dans Resolve** (Lot 4d, `TESTS-MANUELS.md`) : journal « OpenCL », export égal à CUDA à l'écart de Resolve près, 13 i/s comme le témoin ; le journal ne dit plus « frames render on the CPU » quand seul CUDA manque · **non testé** : AMD, Linux, l'Intel UHD dans Resolve (grisée par Resolve en présence de la RTX ; noyau vérifié par `tests/opencl.rs`) |
+
 ### [2026-10-26] Un noyau OpenCL pour le plugin Resolve, pas encore relié à l'hôte (Lot 4b de PLAN-OFX)
 
 | | |

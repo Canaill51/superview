@@ -4,9 +4,10 @@
 //! (set *Mismatched resolution* to *Scale entire image to fit*), so source and output have the
 //! same bounds and the effect writes every column.
 //!
-//! Two paths render the same pixels: CUDA when the host hands over device memory
-//! ([`crate::cuda`], DEC-66), the CPU otherwise. A CUDA frame that fails returns `FAILED`, and the
-//! host then asks for the same frame on the CPU.
+//! Three paths render the same pixels: CUDA when the host hands over device memory
+//! ([`crate::cuda`], DEC-66), OpenCL when it hands over OpenCL buffers ([`crate::opencl`], DEC-68),
+//! the CPU otherwise. The host picks, from the mode the user set in Resolve. A GPU frame that
+//! fails returns `FAILED`, and the host then asks for the same frame on the CPU.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -16,9 +17,10 @@ use ofx_sys::OfxPropertySuiteV1;
 
 use superview_core::logfile::user_cache_dir;
 
-use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver, Warp};
+use crate::cuda::{self, CuContext, CuDevicePtr, CuStream, Driver};
 use crate::gpu::PerContext;
 use crate::journal::{self, PathLog, RenderPath};
+use crate::opencl::{self, ClContext, ClMem, ClQueue, Library};
 use crate::warp::{Mode, column_map, warp_row};
 
 plugin_module!(
@@ -56,7 +58,10 @@ struct RenderState {
     /// The map of the last frame: the size and mode rarely change during playback.
     map: Option<CachedMap>,
     /// The kernel and the map on the GPU, once a CUDA frame has come, or why the kernel did not load.
-    gpu: PerContext<CuContext, GpuWarp>,
+    cuda: PerContext<CuContext, GpuWarp<cuda::Warp>>,
+    /// The same for OpenCL frames. The lock also covers the kernel's arguments, which OpenCL does
+    /// not let two threads set at once on one kernel.
+    opencl: PerContext<ClContext, GpuWarp<opencl::Warp>>,
     /// What this instance has already said in the log.
     paths: PathLog,
 }
@@ -69,8 +74,8 @@ struct CachedMap {
 /// What a column map depends on.
 type MapKey = (usize, usize, Mode);
 
-struct GpuWarp {
-    warp: Warp,
+struct GpuWarp<W> {
+    warp: W,
     /// The map on the GPU, `None` until uploaded.
     key: Option<MapKey>,
 }
@@ -156,15 +161,30 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 RawProps::of(&props).set_raw(CUDA_STREAM_SUPPORTED, "true")?;
                 log::info!("Superview: CUDA rendering offered to the host");
             } else if !host_has_cuda {
-                log::info!(
-                    "Superview: CUDA rendering not offered, the host does not propose it; \
-                     frames render on the CPU"
-                );
+                // Not "frames render on the CPU": OpenCL may still be offered. The first frame of
+                // each instance says which path it took.
+                log::info!("Superview: CUDA rendering not offered, the host does not propose it");
             } else {
                 log::info!(
-                    "Superview: CUDA rendering not offered, no CUDA driver ({}); frames render \
-                     on the CPU",
+                    "Superview: CUDA rendering not offered, no CUDA driver ({})",
                     Driver::load_error().unwrap_or("unknown reason")
+                );
+            }
+            // OpenCL beside CUDA, on the same terms: the host uses one or the other, from the mode
+            // set in its preferences (DEC-68).
+            let host_has_opencl = plugin_context
+                .get_host()
+                .get_opencl_render_supported()
+                .is_ok_and(|supported| supported == "true");
+            if host_has_opencl && Library::get().is_some() {
+                props.set_opencl_render_supported("true")?;
+                log::info!("Superview: OpenCL rendering offered to the host");
+            } else if !host_has_opencl {
+                log::info!("Superview: OpenCL rendering not offered, the host does not propose it");
+            } else {
+                log::info!(
+                    "Superview: OpenCL rendering not offered, no OpenCL loader ({})",
+                    Library::load_error().unwrap_or("unknown reason")
                 );
             }
             OK
@@ -210,7 +230,13 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
         Render(ref mut effect, ref in_args) => {
             let time = in_args.get_time()?;
             let window = in_args.get_render_window()?;
-            let on_gpu = in_args.get_cuda_enabled().unwrap_or(false);
+            let gpu_path = if in_args.get_cuda_enabled().unwrap_or(false) {
+                Some(RenderPath::Cuda)
+            } else if in_args.get_opencl_enabled().unwrap_or(false) {
+                Some(RenderPath::OpenCl)
+            } else {
+                None
+            };
             let data: &mut InstanceData = effect.get_instance_data()?;
             let mode = match data.mode.get_value_at_time(time)? {
                 0 => Mode::Widen,
@@ -256,46 +282,50 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
                 return OK;
             }
 
-            if on_gpu {
-                let stream: CuStream = RawProps::of(in_args)
-                    .get_raw::<VoidPtrMut, _>(CUDA_STREAM)
-                    .unwrap_or(std::ptr::null_mut());
-                let first_row = (rows.start - bounds.y1).max(0) as usize;
-                let row_count = (rows.end - rows.start).max(0) as usize;
+            if let Some(path) = gpu_path {
                 let frame = DeviceFrame {
-                    src: source.get_data()? as usize as CuDevicePtr,
-                    dst: output.get_data()? as usize as CuDevicePtr,
+                    src: source.get_data()? as usize,
+                    dst: output.get_data()? as usize,
                     src_pitch: source.get_row_bytes()?,
                     dst_pitch: output.get_row_bytes()?,
+                    first_row: (rows.start - bounds.y1).max(0) as usize,
+                    row_count: (rows.end - rows.start).max(0) as usize,
                     float_rgba: (output.get_pixel_depth()?, output.get_components()?)
                         == (BitDepth::Float, ImageComponent::RGBA),
                 };
                 let mut state = data.state.lock().unwrap_or_else(PoisonError::into_inner);
-                return match render_on_gpu(
-                    &mut state.gpu,
-                    key,
-                    map,
-                    frame,
-                    first_row,
-                    row_count,
-                    stream,
-                ) {
+                let state = &mut *state;
+                let (api, rendered) = if path == RenderPath::Cuda {
+                    let stream: CuStream = RawProps::of(in_args)
+                        .get_raw::<VoidPtrMut, _>(CUDA_STREAM)
+                        .unwrap_or(std::ptr::null_mut());
+                    let rendered = render_on_cuda(&mut state.cuda, key, map, &frame, stream);
+                    ("CUDA", rendered)
+                } else {
+                    let queue: ClQueue = in_args
+                        .get_opencl_command_queue()
+                        .unwrap_or(std::ptr::null_mut());
+                    let rendered = render_on_opencl(&mut state.opencl, key, map, &frame, queue);
+                    ("OpenCL", rendered)
+                };
+                return match rendered {
                     Ok(()) => {
-                        if state.paths.first_on(RenderPath::Cuda) {
+                        if state.paths.first_on(path) {
                             log::info!(
-                                "Superview: rendering on the GPU with CUDA ({width}x{height})"
+                                "Superview: rendering on the GPU with {api} ({width}x{height})"
                             );
                         }
                         OK
                     }
                     Err(err) => {
                         // Once at warn: a card whose kernel never loads fails every frame.
-                        if state.paths.first_cuda_failure() {
+                        if state.paths.first_failure(path) {
                             log::warn!(
-                                "Superview: CUDA render failed, the host falls back to the CPU: {err}"
+                                "Superview: {api} render failed, the host falls back to the CPU: \
+                                 {err}"
                             );
                         } else {
-                            log::debug!("Superview: CUDA render failed again: {err}");
+                            log::debug!("Superview: {api} render failed again: {err}");
                         }
                         FAILED
                     }
@@ -357,26 +387,29 @@ fn run(plugin_context: &PluginContext, action: &mut Action) -> Result<Int> {
     }
 }
 
-/// The images of a CUDA frame, as the host hands them over.
+/// The images of a GPU frame, as the host hands them over: device pointers in CUDA, `cl_mem`
+/// handles in OpenCL. Rows `first_row..first_row + row_count` are rendered, counted from the
+/// bottom of the frame.
 struct DeviceFrame {
-    src: CuDevicePtr,
-    dst: CuDevicePtr,
+    src: usize,
+    dst: usize,
     src_pitch: Int,
     dst_pitch: Int,
+    first_row: usize,
+    row_count: usize,
     float_rgba: bool,
 }
 
-/// Enqueues the warp of rows `first_row..first_row + row_count` (counted from the bottom of the
-/// frame) on the host's stream, or runs it to completion when the host gave no stream.
-fn render_on_gpu(
-    gpu: &mut PerContext<CuContext, GpuWarp>,
+/// Enqueues the warp of the frame's rows on the host's stream, or runs it to completion when the
+/// host gave no stream.
+fn render_on_cuda(
+    gpu: &mut PerContext<CuContext, GpuWarp<cuda::Warp>>,
     key: MapKey,
     map: &[usize],
-    frame: DeviceFrame,
-    first_row: usize,
-    row_count: usize,
+    frame: &DeviceFrame,
     stream: CuStream,
 ) -> std::result::Result<(), String> {
+    let (first_row, row_count) = (frame.first_row, frame.row_count);
     let driver = Driver::get().ok_or("no CUDA driver")?;
     if !frame.float_rgba {
         return Err("CUDA frames other than RGBA float are not handled".to_string());
@@ -391,6 +424,7 @@ fn render_on_gpu(
     if frame.src == 0 || frame.dst == 0 || !(frame.src | frame.dst).is_multiple_of(16) {
         return Err("an image pointer is null or misaligned".to_string());
     }
+    let (src, dst) = (frame.src as CuDevicePtr, frame.dst as CuDevicePtr);
 
     let context: CuContext = driver
         .current_context()?
@@ -399,7 +433,7 @@ fn render_on_gpu(
     // that did not load in this context is not compiled again on every frame.
     let gpu = gpu.get_or_load(context, || {
         Ok(GpuWarp {
-            warp: Warp::new(driver, context)?,
+            warp: cuda::Warp::new(driver, context)?,
             key: None,
         })
     })?;
@@ -409,8 +443,8 @@ fn render_on_gpu(
         gpu.key = Some(key);
     }
 
-    let src = frame.src + (first_row * src_pitch) as CuDevicePtr;
-    let dst = frame.dst + (first_row * dst_pitch) as CuDevicePtr;
+    let src = src + (first_row * src_pitch) as CuDevicePtr;
+    let dst = dst + (first_row * dst_pitch) as CuDevicePtr;
     // SAFETY: the host made `context` current and handed over these device images, each
     // `pitch` bytes a row (checked above against the map's width) and holding the frame's rows;
     // the map was set for this width just above.
@@ -424,4 +458,62 @@ fn render_on_gpu(
         unsafe { driver.synchronize(stream) }?;
     }
     Ok(())
+}
+
+/// Enqueues the warp of the frame's rows on the host's OpenCL queue, without waiting: the host
+/// waits for its queue. The buffers are checked against the rows in [`opencl::Warp::launch`].
+fn render_on_opencl(
+    gpu: &mut PerContext<ClContext, GpuWarp<opencl::Warp>>,
+    key: MapKey,
+    map: &[usize],
+    frame: &DeviceFrame,
+    queue: ClQueue,
+) -> std::result::Result<(), String> {
+    let library = Library::get().ok_or("no OpenCL loader")?;
+    if !frame.float_rgba {
+        return Err("OpenCL frames other than RGBA float are not handled".to_string());
+    }
+    // Unlike CUDA's null stream, OpenCL has no queue to fall back on.
+    if queue.is_null() {
+        return Err("the host gave no OpenCL command queue".to_string());
+    }
+    let pitch = |bytes: Int| {
+        usize::try_from(bytes).map_err(|_| format!("unusable row length of {bytes} bytes"))
+    };
+    let (src_pitch, dst_pitch) = (pitch(frame.src_pitch)?, pitch(frame.dst_pitch)?);
+    if frame.src == 0 || frame.dst == 0 {
+        return Err("an image buffer is null".to_string());
+    }
+    let (src, dst) = (frame.src as ClMem, frame.dst as ClMem);
+
+    // SAFETY: the host handed over this queue for this render.
+    let context = unsafe { library.queue_context(queue) }?;
+    // A new context: the old kernel and map go with it. A kernel that did not build in this
+    // context is not compiled again on every frame, which the host would ask for (Lot 4a).
+    let gpu = gpu.get_or_load(context, || {
+        Ok(GpuWarp {
+            // SAFETY: as above.
+            warp: unsafe { opencl::Warp::new(library, queue) }?,
+            key: None,
+        })
+    })?;
+    if gpu.key != Some(key) {
+        gpu.key = None;
+        gpu.warp.set_map(map)?;
+        gpu.key = Some(key);
+    }
+    // SAFETY: the host handed over the queue and these buffers of its context for this render,
+    // and writes `dst` only after its queue has run; the warp was built in the queue's context and
+    // its map set for this width just above.
+    unsafe {
+        gpu.warp.launch(
+            src,
+            dst,
+            frame.first_row,
+            frame.row_count,
+            src_pitch,
+            dst_pitch,
+            queue,
+        )
+    }
 }

@@ -99,10 +99,10 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
       saute sans OpenCL sauf avec `SUPERVIEW_REQUIRE_OPENCL=1`. À passer sur **deux** appareils : la RTX
       et l'iGPU Intel UHD de l'i7-11800H (un vrai GPU non NVIDIA, sur ce poste). Contre-preuve : un noyau
       qui lit `x` au lieu de `map[x]` doit rougir.
-- [ ] **4c — Colle et documents** : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
+- [x] **4c — Colle et documents** — **fait le 2026-10-27** (DEC-68) : les deux chemins GPU annoncés, l'hôte choisit ; la colle sans test automatique, vérifiée au 4d. Ce qui était demandé : `Describe` annonce OpenCL si l'hôte le propose et que la bibliothèque
       se charge ; branche `Render` ; DEC-68 ; ligne dans la table d'AGENTS.md (test GPU local seulement) ;
       ARCHITECTURE.md. **Le Lot 1 doit être fait avant.**
-- [ ] **4d (M) — Dans Resolve** : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
+- [x] **4d (M) — Dans Resolve** — **fait le 2026-10-27** (`docs/TESTS-MANUELS.md`, *OpenCL dans Resolve*) : journal « OpenCL », aucun échec ; export identique à CUDA à l'écart de Resolve près (82 dB contre 84 pour le témoin) ; 13,3 i/s en 4K, autant que le témoin sans l'effet (13). Ce qui était demandé : réglé sur OpenCL, la lecture 4K (i/s), le journal du Lot 2 dit
       « OpenCL », export OpenCL identique à l'export CUDA.
 
 ## Lot 5 (M) — Les configurations non essayées · selon le matériel disponible
@@ -112,6 +112,11 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
       À vérifier et documenter : Resolve **gratuit** sous Linux ne décoderait pas le H.264/H.265 ni l'AAC,
       donc les MP4 usuels n'y entreraient pas (limite de Resolve, pas du plugin).
 - [ ] **Export long** en `FullySafe` : surveiller un plantage (le risque `Rc` du fork, DEC-66).
+- [ ] **Intel UHD dans Resolve** (poste Windows actuel) : Resolve grise le GPU intégré tant que la RTX est
+      visible (« Discrete GPU utilisé »). Fermer Resolve, désactiver la RTX dans le Gestionnaire de périphériques,
+      relancer en OpenCL, cocher l'UHD si Resolve l'accepte ; lecture avec l'effet (i/s, témoin sans l'effet), journal
+      « OpenCL » ; puis réactiver la RTX. Le plus proche d'un poste AMD ou Intel : un pilote OpenCL non NVIDIA
+      derrière la colle. Si Resolve refuse l'UHD même seule, le noter et s'arrêter.
 - [ ] **AMD** : pas de matériel. Rester « non vérifié », comme AMF pour l'application.
 
 ## Lot 6 — Livraison · décision de l'utilisateur, puis Sonnet
