@@ -126,6 +126,9 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 
 ## Lot 6 — Livraison · décision de l'utilisateur, puis Sonnet
 
+> **Décidé le 2026-10-28 et replanifié dans [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)** : archive séparée à
+> chaque version, Windows seulement tant que Linux n'est pas essayé. Les cases ci-dessous n'y sont plus suivies.
+
 - [ ] **Décision à prendre** : un téléchargement séparé, ou un composant facultatif de l'installateur
       Windows (`{commoncf}\OFX\Plugins`) ? Sous Linux : une archive et `sudo cp` (une AppImage ne peut pas
       installer dans `/usr/OFX`).

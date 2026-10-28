@@ -9,7 +9,7 @@ green CI or a finished feature is not a request. If the user has not asked, say
 what is ready and stop.
 
 The release is the **Release** workflow dispatched with a version
-([`RELEASING.md`](../../../RELEASING.md)). It tests, builds Windows and Linux, and
+([`RELEASING.md`](../../../RELEASING.md)). It tests, builds Windows, Linux and the Resolve plugin, and
 only then tags and publishes. Never tag by hand, never `gh release create`
 (both are denied in `.claude/settings.json` on purpose).
 
@@ -69,14 +69,15 @@ gh workflow run release.yml --repo Canaill51/superview --ref master -f version=<
    then `gh run watch <id> --repo Canaill51/superview --exit-status` (about 15 minutes; run it
    in the background rather than polling).
 2. If a job fails, report **which job and step** from `gh run view <id> --log-failed | tail -40`
-   and stop. The tag is only created after both platforms build, so a failed run
+   and stop. The tag is only created after both platforms and the plugin build, so a failed run
    has not spent the version number. Do not rerun blindly.
 3. On success, `gh release view v<version> --repo Canaill51/superview --json assets,isDraft,url`
    (`RC-<version>` for a release candidate) must list **exactly**
    `superview-<tag>-windows-x86_64-setup.exe`,
-   `superview-<tag>-linux-x86_64.AppImage` and `checksums.txt`, and
+   `superview-<tag>-linux-x86_64.AppImage`, `superview-ofx-<tag>-windows-x86_64.zip` and
+   `checksums.txt`, and
    `isDraft` must match what was asked.
-4. Report the release URL and the three files. Say plainly what was **not** checked:
+4. Report the release URL and the four files. Say plainly what was **not** checked:
    the published binary on a real Windows machine, and any GPU encoder
    (`RELEASING.md`, *What the run guarantees, and what it does not*).
 

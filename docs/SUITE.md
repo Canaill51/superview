@@ -1,4 +1,10 @@
 # Où on en est
+- **Prochain travail (2026-10-28) : [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)** — publier le plugin Resolve
+  (archive Windows) avec chaque version, mettre les README et le suivi à jour, puis publier sur demande.
+  **Lot 1 fait le 2026-10-28** : `release.yml` construit, vérifie (`check_bundle_zip.sh`) et publiera
+  `superview-ofx-<tag>-windows-x86_64.zip` (DEC-69) ; essai à blanc vert, zip et `setup.exe` essayés à la main
+  dans Resolve et sur ce Windows (`docs/TESTS-MANUELS.md`). En route, `pulldown-cmark` 0.13.5 (#187,
+  RUSTSEC-2026-0414 bloquait toute version). **Suite : Lot 2** (README et fichiers de suivi).
 - **En cours — plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, fusionné en #174, prototype hors des
   versions) : essayé dans Resolve 21.1.1 gratuit sous Windows (RTX 3050 Ti) : rendu CUDA, `FullySafe`, **lecture
   4K en temps réel** (29,97 i/s, contre 6 à 10 avant). **Lot 1 fait le 2026-10-26** (`docs/TESTS-MANUELS.md`) :

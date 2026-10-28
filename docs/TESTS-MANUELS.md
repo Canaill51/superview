@@ -219,6 +219,14 @@ un chronométrage temporaire, retiré depuis).
         l'hôte. Non reproduits : la même séquence (export OpenCL 4K de 3 min puis Edit → Deliver trois fois)
         refaite **sans le plugin** (bundle retiré du dossier OFX) puis **avec le plugin et l'effet** ne plante pas.
         Cause non établie, non imputée au plugin ; à surveiller.
+- [x] **L'archive de la version** (DEC-69, Lot 1 de `PLAN-LIVRAISON.md`), le 2026-10-28, même poste : le zip de
+      l'essai à blanc de `release.yml` (run 40705797285, `superview-ofx-feat-release-ofx-zip-windows-x86_64.zip`,
+      `check_bundle_zip.sh` vert sur le runner et refait sur le zip téléchargé) décompressé dans
+      `C:\Program Files\Common Files\OFX\Plugins` à la place du plugin de développement, Resolve relancé, effet
+      appliqué : conforme d'après l'utilisateur. Journal : `plugin loaded`, `CUDA rendering offered to the host`,
+      OpenCL non proposé (Resolve en CUDA), puis `rendering on the GPU with CUDA (3840x2160)`. Le journal ne dit
+      pas de version : `PluginVersion(1, 0)` fixe (DEC-69). Le `setup.exe` du même run : installé, une
+      conversion, désinstallé, conforme d'après l'utilisateur.
 
 ## Divers
 
