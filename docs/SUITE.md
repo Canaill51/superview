@@ -1,10 +1,11 @@
 # Où on en est
-- **Prochain travail : Lot 3 de [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)**, la publication de la version suivante
-  (v0.4.1 probablement), **seulement sur demande**, par `/publier`. Lots 1 et 2 faits le 2026-10-28 : `release.yml`
-  publie `superview-ofx-<tag>-windows-x86_64.zip` (#188, DEC-69 ; essai à blanc installé à la main dans Resolve,
-  `setup.exe` du même run installé sur ce Windows) ; les README décrivent l'installation et les réglages du plugin,
-  `hardware-support.md` ce qui est vérifié. Attendent une version publiée : le plugin, D3D12 sans images B (#175),
-  tokio 1.54.1 (#173), `pulldown-cmark` 0.13.5 (#187).
+- **v0.5.0 publiée le 2026-10-28** (commit `ab665ca`, PR #172 à #189 ; une mineure plutôt que la v0.4.1
+  prévue, parce qu'elle ajoute un livrable) : installateur Windows, AppImage, et pour la première fois
+  `superview-ofx-v0.5.0-windows-x86_64.zip` (le plugin Resolve, DEC-69), plus `checksums.txt` ; `sha256sum -c`
+  passe sur les fichiers téléchargés. Elle apporte le plugin, D3D12 sans images B (#175), tokio 1.54.1 (#173),
+  `pulldown-cmark` 0.13.5 (#187). [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md) terminé, sauf un geste de
+  l'utilisateur : **installer le zip publié dans Resolve** (l'essai à blanc du Lot 1 l'a été, pas le fichier
+  publié). Aucune PR ouverte ; une version suivante seulement sur demande, par `/publier`.
 - **Plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, DEC-68, DEC-69 ; `docs/PLAN-OFX.md`, Lots 1 à 4 et une
   partie du 5 faits du 2026-10-25 au 2026-10-27) : livré dans chaque version, archive Windows séparée. Essayé dans
   Resolve 21.1.1 gratuit sous Windows 11 : CUDA (RTX 3050 Ti, lecture 4K en temps réel, même image que
