@@ -116,9 +116,10 @@ Vérification : `scripts/check.sh` (le garde-fou `repo_guards.rs` lit le README)
 
 - [x] L'utilisateur demande « publie la version x.y.z » ; l'agent passe par `/publier` (DEC-42).
       → **v0.5.0** le 2026-10-28 (et non la v0.4.1 : une mineure, le plugin étant un livrable nouveau).
-- [ ] Après la publication : le zip est sur la page de la version, `sha256sum -c checksums.txt` passe, et
+- [x] Après la publication : le zip est sur la page de la version, `sha256sum -c checksums.txt` passe, et
       l'utilisateur installe le zip **publié** dans Resolve (et le `setup.exe` publié si le Lot 1 ne l'a pas fait).
-      → Les quatre fichiers sont publiés et `sha256sum -c` passe ; reste l'installation du zip publié dans Resolve.
+      → Les quatre fichiers sont publiés et `sha256sum -c` passe ; le zip et le `setup.exe` publiés installés à
+      la main par l'utilisateur le 2026-10-28, conformes.
 - [x] `docs/SUITE.md` : la version publiée et ce qu'elle apporte (D3D12 #175, tokio #173, le plugin).
 
 ## En attente de matériel (non planifié)
