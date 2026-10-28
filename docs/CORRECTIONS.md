@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-10-28] `pulldown-cmark` 0.13.5 : RUSTSEC-2026-0414 bloquait toute version
+
+| | |
+| --- | --- |
+| **Constat** | l'essai à blanc du Lot 1 de `PLAN-LIVRAISON.md` a échoué au job `test` de `release.yml`, à l'étape *Audit the dependencies* : `cargo audit` relève une vulnérabilité, aucune version ne pouvait partir, même depuis `master` |
+| **Cause** | RUSTSEC-2026-0414 (2026-10-18, gravité 7,5) : croissance exponentielle des événements avec `ENABLE_WIKILINKS` dans `pulldown-cmark` 0.13.4, tiré par `i-slint-common` 1.18.1 ; la base d'avis n'est pas épinglée, à dessein (`release.yml`, commentaire de l'étape) |
+| **Fichiers** | `Cargo.lock` (`cargo update -p pulldown-cmark --precise 0.13.5`, rien d'autre ne bouge) |
+| **PR** | fix/pulldown-cmark-rustsec |
+| **Vérification** | `scripts/check.sh` vert ; `cargo audit` n'est pas installé sur ce poste : c'est le job *Rust coverage and audit* de la PR, puis l'essai à blanc du Lot 1, qui disent l'avis levé |
+
 ### [2026-10-27] Le plugin Resolve rend en OpenCL quand Resolve est réglé sur OpenCL (Lot 4c de PLAN-OFX)
 
 | | |
