@@ -1,9 +1,12 @@
 # Third-party notices
 
-Superview's releases (the Windows installer and the Linux AppImage) ship a copy of **FFmpeg** (`ffmpeg` and `ffprobe`)
-alongside the application. This file records what that copy is and what your
-rights to it are, and the licence of the two fonts the application embeds
-(see [Fonts](#fonts)).
+Superview's releases ship a copy of **FFmpeg** (`ffmpeg` and `ffprobe`) in the
+Windows installer and the Linux AppImage, alongside the application. This file
+records what that copy is and what your rights to it are, and the licence of the
+two fonts the application embeds (see [Fonts](#fonts)). The DaVinci Resolve
+plugin archive ships neither FFmpeg nor the fonts; this file travels in it for
+the plugin's own Rust dependencies (see [The DaVinci Resolve
+plugin](#the-davinci-resolve-plugin)).
 
 ## Why a copy is shipped
 
@@ -155,7 +158,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ## Superview's own dependencies (Rust)
 
-The application shipped in the releases is the Rust program under
+The application shipped in the installer and the AppImage is the Rust program under
 [`crates/`](crates/). It links 463 crates (the three of the workspace included, build tools excluded), whose exact
 versions and checksums are in [`Cargo.lock`](Cargo.lock). List them
 with their licences with:
@@ -183,6 +186,128 @@ option) for the large majority, plus Unicode-3.0, Zlib, BSD-2/3-Clause, ISC,
 BSL-1.0, 0BSD, CC0-1.0 and the Slint licence above. Where a crate offers a
 choice, Superview uses the permissive one (or GPL-3.0 for Slint). Each crate's
 licence text travels with its source on crates.io.
+
+### The DaVinci Resolve plugin
+
+The plugin archive (`superview-ofx-<tag>-windows-x86_64.zip`, the `Superview.ofx`
+library for DaVinci Resolve) is a separate build of the crate
+[`crates/superview-ofx`](crates/superview-ofx/). It contains no FFmpeg and no
+fonts. It links 49 crates (its two workspace crates included, build tools
+excluded), counted the same way as the 463 above: the unique lines of
+
+```bash
+cargo tree -p superview-ofx -e normal --target all --prefix none --format "{p}"
+```
+
+(with ` (*)` stripped). List them with their licences by using the format
+`"{p} {l}"`. The main ones:
+
+| Crate | Role | Licence |
+| --- | --- | --- |
+| `ofx` 0.3 and `ofx_sys` 0.2 | OpenFX bindings, from the maintained fork [AdrianEddy/ofx-rs](https://github.com/AdrianEddy/ofx-rs) at revision `0b152196fb47b0dd09c110881786d6a9e5e0d953`, pinned in the root `Cargo.toml` (`[patch.crates-io]`) | Apache-2.0 (the OpenFX headers inside `ofx_sys`: see below) |
+| `libloading` 0.8 | loads the CUDA and OpenCL drivers at run time | ISC |
+| `log` | logging | MIT OR Apache-2.0 |
+| `serde`, `serde_json`, `serde-saphyr`, `fs4`, `tempfile`, `thiserror` | through `superview-core` | MIT OR Apache-2.0 |
+
+Across the 49 crates the licences are: MIT or Apache-2.0 (or both, as an
+option) for the large majority, plus ISC, CC0-1.0, MIT-0, Unlicense,
+BSD-3-Clause and Unicode-3.0 (both inside an `AND` expression, for
+`encoding_rs` and `unicode-ident`), LGPL-2.1-or-later (one alternative of an
+`OR` for `r-efi`, which also offers MIT and Apache-2.0) and the LLVM exception
+to Apache-2.0. Where a crate offers a choice, Superview uses the permissive
+one. The plugin itself is GPL-3.0-or-later, like the application.
+
+The GPU drivers are not shipped. `nvcuda.dll` (CUDA) and `OpenCL.dll` (OpenCL)
+belong to the user's graphics driver and are loaded at run time; without them
+the plugin renders on the CPU.
+
+#### OpenFX headers
+
+`ofx_sys` generates its bindings from the OpenFX C headers it carries
+(`ofx-sys/native/openfx/include/` in the fork). They are © The Open Effects
+Association Ltd. and under the BSD-3-Clause licence, whose second clause
+requires the copyright notice, the conditions and the disclaimer to be
+reproduced in documentation provided with a binary distribution. This is that
+reproduction. The headers are dated between 2003 and 2015 (for example
+2003-2015 for `ofxCore.h`):
+
+```text
+Copyright (c) 2003-2015, The Open Effects Association Ltd. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name The Open Effects Association Ltd, nor the names of its
+      contributors may be used to endorse or promote products derived from this
+      software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+One header, `ofxKeySyms.h`, also carries the key-symbol values of the X
+Window System, under two further notices that it reproduces itself:
+
+```text
+Copyright (c) 1987, 1994  X Consortium
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+Except as contained in this notice, the name of the X Consortium shall
+not be used in advertising or otherwise to promote the sale, use or
+other dealings in this Software without prior written authorization
+from the X Consortium.
+
+Copyright 1987 by Digital Equipment Corporation, Maynard, Massachusetts
+
+                        All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose and without fee is hereby granted,
+provided that the above copyright notice appear in all copies and that
+both that copyright notice and this permission notice appear in
+supporting documentation, and that the name of Digital not be
+used in advertising or publicity pertaining to distribution of the
+software without specific, written prior permission.
+
+DIGITAL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING
+ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL
+DIGITAL BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR
+ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+SOFTWARE.
+```
 
 ## Libraries embedded in the Linux AppImage
 

@@ -40,4 +40,6 @@ mkdir -p "$BUNDLE/Contents/$ARCH_DIR"
 cp packaging/ofx/Info.plist "$BUNDLE/Contents/Info.plist"
 cp "$TARGET/release/$LIB" "$BUNDLE/Contents/$ARCH_DIR/Superview.ofx"
 cp LICENSE "$BUNDLE/Contents/LICENSE"
+# The plugin's own dependencies and their licences travel with every copy (DEC-69).
+cp THIRD_PARTY_NOTICES.md "$BUNDLE/Contents/THIRD_PARTY_NOTICES.md"
 echo "Bundle ready: $BUNDLE"

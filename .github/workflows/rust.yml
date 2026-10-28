@@ -291,8 +291,9 @@ jobs:
         Stop-Process -Id $proc.Id -Force
 
   # DEC-65: the OpenFX plugin for DaVinci Resolve, built as a folder to copy into the OFX plugin
-  # directory and kept as a build artifact. Not a release asset: it has not been tried in Resolve
-  # yet. Not a required check either; the Rust jobs above already build and test the crate.
+  # directory and kept as a build artifact. The Windows bundle is also a release asset, built
+  # again and checked by release.yml (DEC-69); the Linux one is not, Resolve has not been tried on
+  # Linux. Not a required check either; the Rust jobs above already build and test the crate.
   ofx-bundle:
     name: OpenFX bundle on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

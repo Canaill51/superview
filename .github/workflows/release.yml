@@ -10,11 +10,11 @@ on:
   # the previous tag.
   #
   #   Dispatch with a version -- the button, and the whole of it. Nothing to
-  #   prepare, nothing to write: the run builds both platforms, and only once
-  #   they have passed does it tag and publish.
+  #   prepare, nothing to write: the run builds both platforms and the Resolve
+  #   plugin, and only once they have passed does it tag and publish.
   #
-  #   Dispatch with no version -- a dry run. Builds both platforms, tags
-  #   nothing, publishes nothing. This is how a change to this file gets tried
+  #   Dispatch with no version -- a dry run. Builds both platforms and the
+  #   plugin, tags nothing, publishes nothing. This is how a change to this file gets tried
   #   without spending a version number, and it is the reason v0.1.5 and
   #   v0.1.6 could break unnoticed for two months when it did not exist.
   #
@@ -106,7 +106,7 @@ jobs:
             echo "draft=false"
             echo "prerelease=false"
           } >> "$GITHUB_OUTPUT"
-          echo "No version given: dry run. Both platforms build; nothing is tagged or published."
+          echo "No version given: dry run. Both platforms and the plugin build; nothing is tagged or published."
           exit 0
         else
           if ! printf '%s' "$INPUT_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -380,6 +380,50 @@ jobs:
         # publish an empty draft.
         if-no-files-found: error
 
+  # The OpenFX plugin for DaVinci Resolve, as a zip of the Superview.ofx.bundle folder that the
+  # user copies into C:\Program Files\Common Files\OFX\Plugins (DEC-69). Windows only: the Linux
+  # bundle stays a CI artifact of rust.yml until Resolve has been tried on Linux. A job of its
+  # own, so it builds while the installer does.
+  build-ofx-windows:
+    name: Build the Resolve plugin (Windows)
+    needs: [prepare, test]
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    # No cargo cache, as in the GUI jobs (DEC-47): what is zipped is this build. bindgen
+    # (ofx_sys) finds libclang in the runner's LLVM, as in rust.yml's ofx-bundle job.
+    - name: Build the bundle
+      run: sh packaging/ofx/build_bundle.sh
+
+    # Built from outside the folder it archives, so the zip cannot end up inside itself.
+    - name: Zip the bundle
+      env:
+        LABEL: ${{ needs.prepare.outputs.label }}
+      run: |
+        set -euo pipefail
+        ( cd target/ofx && 7z a -tzip "../../superview-ofx-${LABEL}-windows-x86_64.zip" Superview.ofx.bundle > /dev/null )
+        ls -l superview-ofx-*-windows-x86_64.zip
+
+    # What is checked is the zip a user downloads, not the folder it was made from: one folder,
+    # the library and its licences, and the two entry points Resolve calls at load. Resolve itself
+    # is not on a runner, so loading the plugin is a manual test (RELEASING.md).
+    - name: The archive must hold a plugin Resolve can load
+      run: sh packaging/ofx/check_bundle_zip.sh superview-ofx-*-windows-x86_64.zip
+
+    - name: Upload the plugin archive
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ofx-windows-artifacts
+        path: superview-ofx-${{ needs.prepare.outputs.label }}-windows-x86_64.zip
+        if-no-files-found: error
+
   build-gui-linux:
     name: Build GUI (Linux)
     needs: [prepare, test]
@@ -602,7 +646,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [prepare, build-gui-windows, build-gui-linux]
+    needs: [prepare, build-gui-windows, build-ofx-windows, build-gui-linux]
     runs-on: ubuntu-latest
     if: needs.prepare.outputs.release == 'true'
     # The only job that writes: it pushes the tag and publishes the release.
@@ -638,7 +682,7 @@ jobs:
     - name: Calculate checksums
       run: |
         set -euo pipefail
-        find artifacts -type f \( -name "*-setup.exe" -o -name "*.AppImage" \) -print0 |
+        find artifacts -type f \( -name "*-setup.exe" -o -name "*.AppImage" -o -name "superview-ofx-*-windows-x86_64.zip" \) -print0 |
           while IFS= read -r -d '' file; do
             ( cd "$(dirname "$file")" && sha256sum "$(basename "$file")" )
           done > artifacts/checksums.txt
@@ -646,7 +690,7 @@ jobs:
 
     # The tag is created here and nowhere earlier: a version number spent on a
     # run whose Windows build then failed is a number that can never be reused.
-    # By this point both platforms have built and their archives are in hand.
+    # By this point both platforms and the plugin have built and their files are in hand.
     #
     # A tag pushed with GITHUB_TOKEN does not start another workflow run --
     # GitHub's own loop protection -- so this does not re-enter the push
@@ -703,6 +747,7 @@ jobs:
           printf '### Downloads\n\n'
           printf -- '- Windows: `superview-%s-windows-x86_64-setup.exe`\n' "$TAG"
           printf -- '- Linux (Ubuntu 24.04+): `superview-%s-linux-x86_64.AppImage`\n' "$TAG"
+          printf -- '- DaVinci Resolve plugin (Windows): `superview-ofx-%s-windows-x86_64.zip`\n' "$TAG"
           printf '\n### Verify integrity\n\n'
           printf '```bash\nsha256sum -c checksums.txt\n```\n'
         } > /tmp/release.md
@@ -722,11 +767,12 @@ jobs:
         files: |
           artifacts/**/*-setup.exe
           artifacts/**/*.AppImage
+          artifacts/**/superview-ofx-*-windows-x86_64.zip
           artifacts/checksums.txt
 
   notify:
     name: Notify Release Status
-    needs: [prepare, test, build-gui-windows, build-gui-linux, create-release]
+    needs: [prepare, test, build-gui-windows, build-ofx-windows, build-gui-linux, create-release]
     runs-on: ubuntu-latest
     if: always()
 
@@ -745,6 +791,7 @@ jobs:
         PLAN: ${{ needs.prepare.result }}
         TESTS: ${{ needs.test.result }}
         WINDOWS: ${{ needs.build-gui-windows.result }}
+        PLUGIN: ${{ needs.build-ofx-windows.result }}
         LINUX: ${{ needs.build-gui-linux.result }}
         RELEASE: ${{ needs.create-release.result }}
         DRAFT: ${{ needs.prepare.outputs.draft }}
@@ -754,12 +801,13 @@ jobs:
         echo "Plan:           ${PLAN}"
         echo "Tests:          ${TESTS}"
         echo "Windows build:  ${WINDOWS}"
+        echo "Plugin build:   ${PLUGIN}"
         echo "Linux build:    ${LINUX}"
         echo "Release:        ${RELEASE}"
         echo ""
 
         failed=0
-        for result in "$PLAN" "$TESTS" "$WINDOWS" "$LINUX"; do
+        for result in "$PLAN" "$TESTS" "$WINDOWS" "$PLUGIN" "$LINUX"; do
           [ "$result" = "success" ] || failed=1
         done
 
@@ -772,7 +820,7 @@ jobs:
             fi
             ;;
           skipped)
-            # Expected on a dry run: both platforms are built and uploaded, but
+            # Expected on a dry run: both platforms and the plugin are built and uploaded, but
             # nothing is tagged and nothing is published.
             echo "Dry run: no version was given, so nothing was tagged or published."
             ;;

@@ -27,7 +27,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
   l'exécution, noyau OpenCL C compilé par le pilote, repli CPU), `gpu` (`PerContext` : un
   noyau construit, ou son échec, mémorisé par contexte GPU), `journal` (fichier plafonné, une ligne par instance et par chemin, bavardage du fork filtré)
   et `plugin` (la colle avec l'hôte, `FullySafe` ; annonce CUDA et OpenCL, l'hôte choisit). Un bundle `Superview.ofx.bundle` par
-  `packaging/ofx/build_bundle.sh` ; prototype, pas dans les versions.
+  `packaging/ofx/build_bundle.sh` ; publié dans chaque version (archive Windows, DEC-69).
 
 ### `superview-core`
 | Module | Rôle |
@@ -72,7 +72,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 | `crates/superview-core/tests/fixtures/` | fixtures enregistrées (`recorded/*.json`, `ffprobe/`) : enregistrées par l'oracle Go (`internal/common/parity_test.go`, #101, sur un code identique à la v0.2.9 ; `git show 915dc2c^:<chemin>`), **gelées**, ce sont la spécification que le Rust doit reproduire |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification), `checks/rust.sh`, `checks/hooks.sh` (les hooks de `.claude/hooks` sans `python3`, L-119) et `checks/outils.sh` (`lib/outils.sh` : ffmpeg cherché comme par `ToolResolver`, L-121) |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
-| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65) |
+| `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65 ; publié en archive Windows, DEC-69) |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
 | `superview.yaml` | configuration livrée |
 
@@ -95,7 +95,7 @@ dossier temporaire.
 | `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
 | `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
 | Rust (rustup, `rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/ENVIRONNEMENT.md` |
-| Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) | `RELEASING.md`, DEC-41 |
+| Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) ; l'archive `.zip` du plugin Resolve, par `7z` (DEC-69) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)
 - Configuration passée explicitement (`check_ffmpeg(cfg, resolver)`, …) : pas de global ; horloge,
