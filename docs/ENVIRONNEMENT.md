@@ -77,6 +77,12 @@ sélecteur passe par le portail D-Bus, **pas de GTK**). Mesuré le 2026-10-14 su
 
 ## Plugin OpenFX (`superview-ofx`)
 
+**Pour l'essayer, rien à compiler** : chaque version publie `superview-ofx-<tag>-windows-x86_64.zip`
+(DEC-69), à décompresser dans `C:\Program Files\Common Files\OFX\Plugins` (README, *DaVinci Resolve plugin*).
+Le zip d'un essai à blanc de `release.yml` ou l'artefact `Superview.ofx.bundle-Windows` de `rust.yml` s'installent
+de même. Il n'y a pas d'archive Linux : un bundle construit ici se copie dans `/usr/OFX/Plugins` (sudo).
+Ce qui suit concerne un **build local** (`sh packaging/ofx/build_bundle.sh`), qui remplace le dossier installé.
+
 `ofx_sys` génère ses liaisons avec **bindgen**, donc libclang (`libclang1-*`, ici llvm-21) et les en-têtes C
 standard. Sur Debian/Ubuntu sans `libclang-dev`, libclang ne trouve pas `stdbool.h` (`fatal error:
 'stdbool.h' file not found`) : `scripts/checks/rust.sh` et `packaging/ofx/build_bundle.sh` règlent

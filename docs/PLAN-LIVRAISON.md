@@ -90,24 +90,24 @@ But : un utilisateur sait installer et régler le plugin ; les fichiers de suivi
 (Lot 1 de `PLAN-OFX.md` : réglages qui donnent une image fausse), `crates/superview-ofx/src/journal.rs`
 (emplacement du journal).
 
-- [ ] README.md et README_FR.md, même PR, même structure de titres : une section sur le plugin Resolve :
+- [x] README.md et README_FR.md, même PR, même structure de titres : une section sur le plugin Resolve :
       archive à télécharger, dossier où la copier, redémarrage de Resolve, où trouver l'effet, réglage
       *Scale entire image to fit* (et ceux qui donnent une image fausse, *Stretch* et le recadrage), CUDA et OpenCL
       choisis par Resolve, journal à joindre à un signalement, limites (Windows seulement, Studio pas essayé,
       AMD non vérifié). Libellés de Resolve et de Superview en anglais dans le fichier français.
-- [ ] `AGENTS.md` : « *still a prototype* » (ligne 8) devient « shipped with each release, Windows only » ; la
+- [x] `AGENTS.md` : « *still a prototype* » (ligne 8) devient « shipped with each release, Windows only » ; la
       ligne du tableau des décisions pour DEC-69 est déjà faite (Lot 1, comme la ligne « not archives »).
-- [ ] `docs/hardware-support.md` : le plugin, CUDA (NVIDIA, `sm_50` et plus) et OpenCL, choisis par Resolve ;
+- [x] `docs/hardware-support.md` : le plugin, CUDA (NVIDIA, `sm_50` et plus) et OpenCL, choisis par Resolve ;
       ce qui a été vérifié (RTX 3050 Ti, Intel UHD) et ce qui ne l'a pas été (AMD, Studio, Linux).
-- [ ] `docs/ENVIRONNEMENT.md`, section *Plugin OpenFX* : distinguer l'installation depuis la version publiée
+- [x] `docs/ENVIRONNEMENT.md`, section *Plugin OpenFX* : distinguer l'installation depuis la version publiée
       (le zip) de celle d'un build local.
-- [ ] `docs/SUITE.md` : résumer le long paragraphe du plugin ; état depuis la v0.4.0 (#175 en attente de
+- [x] `docs/SUITE.md` : résumer le long paragraphe du plugin ; état depuis la v0.4.0 (#175 en attente de
       version) ; ce qui attend le matériel ; retirer le renvoi « Prochain travail » quand le plan est fini.
-- [ ] `docs/PLAN-OFX.md` : Lot 5, ce qui reste en attente de matériel ; Lot 6 renvoie ici.
-- [ ] `docs/TESTS-MANUELS.md` : la liste de ce qui est en suspens, à jour.
-- [ ] Balayer le reste de la prose, hors `docs/archives/` et journaux datés (qui gardent leur état d'époque) :
+- [x] `docs/PLAN-OFX.md` : Lot 5, ce qui reste en attente de matériel ; Lot 6 renvoie ici.
+- [x] `docs/TESTS-MANUELS.md` : la liste de ce qui est en suspens, à jour.
+- [x] Balayer le reste de la prose, hors `docs/archives/` et journaux datés (qui gardent leur état d'époque) :
       `grep -rniE "prototype|pas (encore )?livr|not (yet )?shipped|hors des versions" --include='*.md' .`
-- [ ] `docs/ANALYSE.md` et `docs/CONTRATS.md` : rien n'est attendu, mais vérifier au balayage qu'aucun ne dit le
+- [x] `docs/ANALYSE.md` et `docs/CONTRATS.md` : rien n'est attendu, mais vérifier au balayage qu'aucun ne dit le
       plugin hors des versions.
 
 Vérification : `scripts/check.sh` (le garde-fou `repo_guards.rs` lit le README), CI `readme-parity` verte.

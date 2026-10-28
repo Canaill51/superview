@@ -5,8 +5,9 @@ stretched, the centre keeps its ratio. It generates two PGM remap maps and hands
 them to FFmpeg's `remap` filter. Rust, Slint, **GUI-only**, Windows and Linux. (It was
 Go and Fyne until v0.2.9; Go was removed in DEC-49. `git show v0.2.9:<path>` reads the old code.)
 
-A second deliverable, still a prototype, is `crates/superview-ofx`: an OpenFX plugin for
-DaVinci Resolve that applies the same warp inside the editor (DEC-65). It is not a command line
+A second deliverable, shipped with each release as a separate Windows archive (DEC-69), is
+`crates/superview-ofx`: an OpenFX plugin for DaVinci Resolve that applies the same warp inside
+the editor (DEC-65). It is not a command line
 and opens no window.
 
 **MP4 in, MP4 out.** The file pickers offer nothing else and the output

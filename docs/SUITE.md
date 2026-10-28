@@ -1,18 +1,18 @@
 # Où on en est
-- **Prochain travail (2026-10-28) : [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)** — publier le plugin Resolve
-  (archive Windows) avec chaque version, mettre les README et le suivi à jour, puis publier sur demande.
-  **Lot 1 fait le 2026-10-28** : `release.yml` construit, vérifie (`check_bundle_zip.sh`) et publiera
-  `superview-ofx-<tag>-windows-x86_64.zip` (DEC-69) ; essai à blanc vert, zip et `setup.exe` essayés à la main
-  dans Resolve et sur ce Windows (`docs/TESTS-MANUELS.md`). En route, `pulldown-cmark` 0.13.5 (#187,
-  RUSTSEC-2026-0414 bloquait toute version). **Suite : Lot 2** (README et fichiers de suivi).
-- **En cours — plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, fusionné en #174, prototype hors des
-  versions) : essayé dans Resolve 21.1.1 gratuit sous Windows (RTX 3050 Ti) : rendu CUDA, `FullySafe`, **lecture
-  4K en temps réel** (29,97 i/s, contre 6 à 10 avant). **Lot 1 fait le 2026-10-26** (`docs/TESTS-MANUELS.md`) :
-  parité avec l'application en *Widen* et *Un-squeeze* (écart uniforme, celui de la compression), centrage en
-  largeur impaire, défilement, *Stretch* et *crop* faux comme prévu ; l'écart CUDA/OpenCL est celui de Resolve
-  (témoin sans l'effet, L-122). Aucune anomalie du plugin. **Lot 2 fait le 2026-10-26** : un journal
-  `superview-ofx/superview-ofx.log` (DEC-65 amendée), vérifié dans Resolve en CUDA et en OpenCL. **Lot 3 fait le 2026-10-26** : un noyau CUDA qui ne se charge pas n'est plus recompilé à chaque trame (DEC-66 amendée). **Lot 4a fait le 2026-10-26** : la sonde montre que Resolve gratuit propose OpenCL aux plugins, en tampons `cl_mem` dans la file de l'hôte, et refait en CPU une trame en `FAILED` ; le lot continue. **Lot 4b fait le 2026-10-26** : `opencl.rs`, vérifié contre le CPU sur la RTX et l'Intel UHD, pas encore relié à l'hôte. **Lot 4c fait le 2026-10-27** : OpenCL relié à l'hôte, annoncé à côté de CUDA (DEC-68). **Lot 4d fait le 2026-10-27** : dans Resolve, OpenCL rend la même image que CUDA et ne coûte rien à la lecture (13 i/s en 4K, témoin compris : c'est Resolve en OpenCL). **Lot 5, Intel UHD, fait le 2026-10-27** : RTX désactivée, Resolve accepte l'UHD et le plugin y rend en OpenCL sans échec (4K à 10-20 i/s avec l'effet, 18-30 sans). **Lot 5, export long, fait le 2026-10-27** : une sonde a compté les rendus simultanés, jamais plus d'un en CUDA (export de 21 min) ni en OpenCL, aucune trame perdue ; deux plantages de Resolve en OpenCL au passage à Deliver, dans le pilote OpenGL de NVIDIA, non reproduits ni avec ni sans le plugin (DEC-66 amendée). **Suite : reste du Lot 5 de `docs/PLAN-OFX.md`** (Studio, Linux), selon le matériel.
-  Restent aussi Studio et Linux (Lot 5). Pas de livraison dans les versions tant que ce n'est pas validé.
+- **Prochain travail : Lot 3 de [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)**, la publication de la version suivante
+  (v0.4.1 probablement), **seulement sur demande**, par `/publier`. Lots 1 et 2 faits le 2026-10-28 : `release.yml`
+  publie `superview-ofx-<tag>-windows-x86_64.zip` (#188, DEC-69 ; essai à blanc installé à la main dans Resolve,
+  `setup.exe` du même run installé sur ce Windows) ; les README décrivent l'installation et les réglages du plugin,
+  `hardware-support.md` ce qui est vérifié. Attendent une version publiée : le plugin, D3D12 sans images B (#175),
+  tokio 1.54.1 (#173), `pulldown-cmark` 0.13.5 (#187).
+- **Plugin OpenFX pour DaVinci Resolve** (DEC-65, DEC-66, DEC-68, DEC-69 ; `docs/PLAN-OFX.md`, Lots 1 à 4 et une
+  partie du 5 faits du 2026-10-25 au 2026-10-27) : livré dans chaque version, archive Windows séparée. Essayé dans
+  Resolve 21.1.1 gratuit sous Windows 11 : CUDA (RTX 3050 Ti, lecture 4K en temps réel, même image que
+  l'application à la compression près), OpenCL (RTX et Intel UHD, même image que CUDA), `FullySafe` (un seul rendu
+  à la fois mesuré sur un export de 21 min), journal `superview-ofx/superview-ofx.log`. Détail :
+  `docs/TESTS-MANUELS.md`. **Attend le matériel** : Resolve Studio, Resolve sous Linux (puis l'archive Linux,
+  DEC-69), AMD. Deux plantages de Resolve en OpenCL au passage à Deliver (pilote OpenGL de NVIDIA, non reproduits,
+  non imputés au plugin) : à surveiller.
 - **Trouvés le 2026-10-25 sur le poste Windows de l'utilisateur, corrigés le 2026-10-26** : `h264_d3d12va`, qui
   passait la sonde et échouait en vraie conversion (images B, DEC-67, #175) ; les hooks qui dépendaient de
   `python3` (L-119, #176) ; `scripts/checks/rust.sh`, qui ne cherchait ffmpeg que dans le `PATH` (L-121).
@@ -23,8 +23,8 @@
   (#140) ; VAAPI, GPU Intel seul et « device frame » passés à la main (#139). **14ᵉ passe d'analyse consignée**
   (`docs/ANALYSE.md` § 3terdecies, F-01 à F-30, Q-04, Q-05). **Plan de la 14ᵉ passe terminé** : ses sessions 1 à 8 (F-01 à F-30) et la session 9 (Q-04 et Q-05 : `-f mov` sur l'entrée, DEC-52 ;
   durée non finie refusée, DEC-53), faites en #143 à #153. Le détail, session par session, est dans `docs/CORRECTIONS.md`
-  (entrées du 2026-10-20, les plus récentes en haut). **Refonte de l'interface terminée et validée à la main sous Windows et Linux (2026-10-22)** (`~/.claude/plans/encapsulated-cooking-badger.md`) : #162 à #170 (DEC-56 à DEC-63), et l'identifiant de la fenêtre devenu `superview` (#169, DEC-64), qui règle l'icône et l'épinglage sous KDE avec Gear Lever. Elle est dans la v0.4.0 ; l'artefact de l'essai à blanc a été testé par l'utilisateur avant la publication. Une version suivante seulement sur demande, via `/publier`. Non vérifié sur la release publiée : l'installateur sur un vrai Windows et les
-  encodeurs AMD et QSV.
+  (entrées du 2026-10-20, les plus récentes en haut). **Refonte de l'interface terminée et validée à la main sous Windows et Linux (2026-10-22)** (`~/.claude/plans/encapsulated-cooking-badger.md`) : #162 à #170 (DEC-56 à DEC-63), et l'identifiant de la fenêtre devenu `superview` (#169, DEC-64), qui règle l'icône et l'épinglage sous KDE avec Gear Lever. Elle est dans la v0.4.0 ; l'artefact de l'essai à blanc a été testé par l'utilisateur avant la publication. Une version suivante seulement sur demande, via `/publier`. Non vérifiés : les
+  encodeurs AMD et QSV (l'installateur a été essayé sur un vrai Windows le 2026-10-28, celui d'un essai à blanc).
 - Tests manuels passés sur Linux (KDE, Wayland), Windows et Intel/NVIDIA (`docs/TESTS-MANUELS.md`) ; en suspend : AMD et QSV
   (matériel), portail lent, champ texte de repli, lien d'installation.
 - Avant de commencer : `git config core.hooksPath .githooks` (une fois par clone), Rust par rustup (`docs/ENVIRONNEMENT.md`),

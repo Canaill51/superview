@@ -185,6 +185,31 @@ so they have no driver floor to miss. On a machine whose FFmpeg demands an NVIDI
 cannot install, they are the hardware path that remains — and the probe is what finds that
 out, without anyone having to know in advance which one works.
 
+## The DaVinci Resolve plugin
+
+The Resolve plugin (Windows, a separate download — see the README) encodes nothing and
+probes nothing: Resolve decodes and encodes, and the plugin only computes the warp. Which GPU
+API it uses is **Resolve's choice**, set under *Preferences → Memory and GPU → GPU processing
+mode*. The plugin offers both and renders on the one the host proposes:
+
+- **CUDA** on an NVIDIA card of compute capability 5.0 (`sm_50`, Maxwell) or newer. The kernel is
+  PTX compiled by the driver, so no CUDA toolkit is needed.
+- **OpenCL** on any GPU whose driver provides OpenCL, on the buffers Resolve hands over.
+- **The CPU** when neither is offered or the GPU path fails; the plugin remembers a failure
+  instead of retrying it every frame.
+
+Its log, `%LOCALAPPDATA%\superview-ofx\superview-ofx.log`, says which path each instance of the
+effect renders on.
+
+| Configuration | State |
+| --- | --- |
+| Resolve 21 (free), Windows 11, RTX 3050 Ti, CUDA | Verified: same image as the application, 4K playback in real time |
+| Resolve 21 (free), Windows 11, RTX 3050 Ti, OpenCL | Verified: same image as CUDA; playback limited by Resolve in OpenCL, not by the plugin |
+| Resolve 21 (free), Windows 11, Intel UHD (11th gen.), OpenCL | Verified: renders without failure |
+| AMD GPU (OpenCL) | Not verified, no hardware |
+| DaVinci Resolve Studio | Not tried |
+| Resolve on Linux | Not tried; no Linux archive is published |
+
 ## If your GPU does not appear
 
 **Press Diagnostic first.** Its *Encoders* section lists every encoder that was
