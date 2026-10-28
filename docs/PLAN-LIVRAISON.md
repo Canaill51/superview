@@ -65,7 +65,7 @@ build), DEC-65, L-114.
 - [x] `RELEASING.md` (le fichier publié, ce qui le vérifie) et `ARCHITECTURE.md` (« prototype, pas dans les
       versions »).
 - [x] `.claude/skills/publier/SKILL.md` : la vérification des fichiers publiés attend le zip du plugin.
-- [ ] Consigner : `docs/CORRECTIONS.md` si quelque chose a été corrigé en route ; une leçon dans `LECONS.md`
+- [x] Consigner : `docs/CORRECTIONS.md` si quelque chose a été corrigé en route ; une leçon dans `LECONS.md`
       (et `PIEGES.md`) si l'essai à blanc en apprend une.
 
 Vérification :
