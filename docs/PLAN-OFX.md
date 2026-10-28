@@ -107,6 +107,9 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 
 ## Lot 5 (M) — Les configurations non essayées · selon le matériel disponible
 
+> **En attente de matériel** (2026-10-28) : Studio, Linux et AMD restent ouverts ; ils ne bloquent pas la livraison
+> (DEC-69, le plugin est publié à chaque version). Le README les dit non essayés.
+
 - [ ] **Studio** (Windows) : chargement, CUDA, vitesse. Demande une licence ou un poste qui l'a.
 - [ ] **Linux** (poste KDE, NVIDIA et Intel) : chargement depuis `/usr/OFX/Plugins`, CUDA, OpenCL.
       À vérifier et documenter : Resolve **gratuit** sous Linux ne décoderait pas le H.264/H.265 ni l'AAC,
@@ -129,9 +132,9 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 > **Décidé le 2026-10-28 et replanifié dans [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)** : archive séparée à
 > chaque version, Windows seulement tant que Linux n'est pas essayé. Les cases ci-dessous n'y sont plus suivies.
 
-- [ ] **Décision à prendre** : un téléchargement séparé, ou un composant facultatif de l'installateur
+- [x] **Décision à prendre** (tranchée le 2026-10-28 : téléchargement séparé, DEC-69) : un téléchargement séparé, ou un composant facultatif de l'installateur
       Windows (`{commoncf}\OFX\Plugins`) ? Sous Linux : une archive et `sudo cp` (une AppImage ne peut pas
       installer dans `/usr/OFX`).
-- [ ] `release.yml` et l'essai à blanc **avant** fusion (L-114) ; vérifier le paquet comme les autres (DEC-41).
-- [ ] README.md et README_FR.md ensemble (réglage *Scale entire image to fit*, limites, installation).
-- [ ] DEC-65 : retirer « prototype » ; `SUITE.md`. La publication reste sur demande, par `/publier`.
+- [x] `release.yml` et l'essai à blanc **avant** fusion (#188) (L-114) ; vérifier le paquet comme les autres (DEC-41).
+- [x] README.md et README_FR.md ensemble (Lot 2 de `PLAN-LIVRAISON.md`) (réglage *Scale entire image to fit*, limites, installation).
+- [x] DEC-65 : retirer « prototype » (amendée par DEC-69) ; `SUITE.md`. La publication reste sur demande, par `/publier`.

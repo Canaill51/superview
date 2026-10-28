@@ -6,6 +6,19 @@
 > v0.3.0, publiée le 2026-10-20). Cocher et
 > dater ; noter la machine. Une case non cochée n'est pas un échec : c'est une inconnue.
 
+## En suspens (2026-10-28)
+
+Le détail est dans chaque section ; ici, la liste de ce qui reste inconnu.
+
+- **Prochaine version** (Lot 3 de `PLAN-LIVRAISON.md`) : le zip du plugin et le `setup.exe` **publiés**, installés
+  à la main (ceux de l'essai à blanc l'ont été le 2026-10-28).
+- **Plugin Resolve, matériel absent** : Resolve Studio, Resolve sous Linux, un GPU AMD (OpenCL).
+- **Plugin Resolve, matière absente** : *Un-squeeze* sur une vraie vidéo SuperView de GoPro ; *Center crop with no
+  resizing* avec une source plus grande que la timeline.
+- **Application, matériel absent** : encodeurs AMD (AMF) et QSV.
+- **Sélecteurs de fichiers sous Linux** : portail lent ou sans backend, Linux sans portail ni zenity ni kdialog.
+- **Lien d'installation dans le navigateur** : en suspend tant que ce code ne change pas.
+
 ## Passe du 2026-10-19 (AppImage de l'essai à blanc, master à 9a39121)
 
 Portable de l'utilisateur : KDE, Intel Tiger Lake UHD (VAAPI en CQP seul, HuC absent) + RTX 3050 Ti.
@@ -106,7 +119,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
       ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
-## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, prototype)
+## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, DEC-69 : livré, archive Windows)
 
 `sh packaging/ofx/build_bundle.sh` (Linux, ou Git Bash sous Windows avec les Build Tools, `docs/ENVIRONNEMENT.md`)
 ou l'artefact `Superview.ofx.bundle-Windows` de la CI. Passés le 2026-10-25 sous Windows 11, Resolve 21.1.1
@@ -152,7 +165,7 @@ un chronométrage temporaire, retiré depuis).
       cadre déjà rogné, sans bandes, et l'élargit quand même. À essayer avec une source **plus grande** que la
       timeline : une source de même hauteur donne exactement l'image de *Scale entire image to fit* (mesuré).
 - [x] **Défilement** (2026-10-26) : défilement rapide sur le clip, ni trame rouge ni noire ni message d'erreur.
-- [ ] **Studio** et **Linux** : chargement, CUDA et vitesse, non essayés.
+- [ ] **Studio**, **Linux** et **AMD** : chargement, CUDA ou OpenCL et vitesse, non essayés (pas de matériel).
 - [x] **Journal** (2026-10-26, Lot 2 de `docs/PLAN-OFX.md`) : après un démarrage de Resolve et une lecture avec
       l'effet, `%LocalAppData%\superview-ofx\superview-ofx.log` (Linux : `~/.cache/superview-ofx/superview-ofx.log`)
       dit `plugin loaded`, `CUDA rendering offered to the host`, puis une seule fois
