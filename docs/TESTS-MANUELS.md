@@ -10,9 +10,6 @@
 
 Le détail est dans chaque section ; ici, la liste de ce qui reste inconnu.
 
-- **La v0.5.0** (Lot 3 de `PLAN-LIVRAISON.md`, publiée le 2026-10-28) : `superview-ofx-v0.5.0-windows-x86_64.zip`
-  et `superview-v0.5.0-windows-x86_64-setup.exe`, ceux de la page de la version, installés à la main (ceux de
-  l'essai à blanc l'ont été le 2026-10-28 ; `sha256sum -c checksums.txt` passe sur les fichiers publiés).
 - **Plugin Resolve, matériel absent** : Resolve Studio, Resolve sous Linux, un GPU AMD (OpenCL).
 - **Plugin Resolve, matière absente** : *Un-squeeze* sur une vraie vidéo SuperView de GoPro ; *Center crop with no
   resizing* avec une source plus grande que la timeline.
@@ -241,6 +238,10 @@ un chronométrage temporaire, retiré depuis).
       OpenCL non proposé (Resolve en CUDA), puis `rendering on the GPU with CUDA (3840x2160)`. Le journal ne dit
       pas de version : `PluginVersion(1, 0)` fixe (DEC-69). Le `setup.exe` du même run : installé, une
       conversion, désinstallé, conforme d'après l'utilisateur.
+- [x] **Les fichiers de la v0.5.0 publiée** (Lot 3 de `PLAN-LIVRAISON.md`), le 2026-10-28, même poste :
+      `superview-ofx-v0.5.0-windows-x86_64.zip` et `superview-v0.5.0-windows-x86_64-setup.exe`, téléchargés depuis
+      la page de la version (`sha256sum -c checksums.txt` passe), installés à la main tous les deux : conformes
+      d'après l'utilisateur.
 
 ## Divers
 
