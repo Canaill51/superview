@@ -191,6 +191,20 @@ The Windows installer is not signed (SmartScreen will warn). The installer's
 `AppId` in `superview.iss` must never change: it is how a new version installs
 over an old one.
 
+Each installer, AppImage and plugin archive also gets a provenance attestation
+(`actions/attest`, in `create-release`, before the tag): signed by Sigstore for
+this workflow, commit and run, and kept by GitHub apart from the release, so
+`gh attestation verify <file> --repo Canaill51/superview` tells a file built
+here from one swapped in afterwards, which `checksums.txt` cannot (DEC-70).
+
+**Releases are immutable** (a repository setting, DEC-70): once published, a
+release's files and its tag can no longer change, and the tag ruleset refuses
+deleting or moving a `v*` or `RC-*` tag. A wrong file is fixed by a new version,
+never by replacing it. A draft can still be edited, so a hand-pushed tag, which
+stops at a draft, is unaffected. A prerelease goes up as a draft and is published
+by the next step once its files are on: the release action uploads after
+publishing a prerelease, which immutability refuses.
+
 ## Bumping the bundled FFmpeg
 
 Each build job pins `FFMPEG_URL`, `FFMPEG_SHA256` and `FFMPEG_DRIVER_FLOOR` in

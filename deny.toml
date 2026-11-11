@@ -1,6 +1,7 @@
 # cargo-deny, run by the job "Rust coverage and audit" (.github/workflows/rust.yml) and by
-# `make coverage-audit`. Two checks: known advisories, and licences compatible with
-# GPL-3.0-or-later. Bans and sources are not checked (nothing here asks for them).
+# `make coverage-audit`. Three checks: known advisories, licences compatible with
+# GPL-3.0-or-later, and sources -- crates.io and the one pinned git fork, nothing else. Bans are
+# not checked (nothing here asks for them).
 
 [graph]
 # The shipped binaries are Linux and Windows only; build tools are not audited as dependencies.
@@ -20,6 +21,7 @@ ignore = [
     { id = "RUSTSEC-2026-0371", reason = "zbus_names unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
     { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 unmaintained (2024-10-07); a proc-macro of the ofx fork (superview-ofx, DEC-65), run at build time only, no vulnerability; awaiting the fork's move to pastey" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive unmaintained (2026-10-16); via slint's winit backend -> zbus 5, awaiting zbus 6" },
+    { id = "RUSTSEC-2026-0441", reason = "pin-utils 0.1.1 unmaintained, no successor release; via spin_on, used by slint-build and slint-macros at build time only, no vulnerability; awaiting Slint dropping spin_on" },
 ]
 
 [licenses]
@@ -42,3 +44,12 @@ allow = [
     "GPL-3.0-only",
     "GPL-3.0-or-later",
 ]
+
+[sources]
+# A dependency from anywhere else -- another registry, another git repository, a fork swapped in
+# by a [patch] -- fails the job instead of entering the build unseen. The one git source is the
+# ofx fork of superview-ofx (DEC-65), pinned to a revision in Cargo.toml.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/AdrianEddy/ofx-rs.git"]

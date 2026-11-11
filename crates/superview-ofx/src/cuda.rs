@@ -167,7 +167,7 @@ impl Driver {
         // each symbol is cast to the signature of the CUDA driver API (cuda.h), whose `_v2`
         // names are the ones the 64-bit headers map the plain names to.
         unsafe {
-            let library = libloading::Library::new(DRIVER_LIBRARY)?;
+            let library = crate::gpu::load_driver_library(DRIVER_LIBRARY)?;
             macro_rules! symbol {
                 ($name:literal) => {
                     *library.get($name)?

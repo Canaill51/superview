@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-11] Audit de sécurité : pilotes GPU depuis System32, versions immuables et attestées, permissions de Claude Code (DEC-70)
+
+| | |
+| --- | --- |
+| **Constat** | audit demandé par l'utilisateur (GitHub, Claude Code, code). Voir DEC-70 pour le détail : étiquettes non protégées (règle à `include` vide), versions modifiables après publication, DLL GPU chargées par leur seul nom, `gh api` en écriture autorisé sans question à Claude. En chemin : `cargo deny` échouait aussi sur `master`, à cause d'avis parus après la dernière CI (RUSTSEC-2026-0433, `pulldown-cmark` 0.13.5 ; RUSTSEC-2026-0441, `pin-utils` non maintenu ; `async-executor` et `clipboard-win` retirés de crates.io) |
+| **Cause** | une règle GitHub sans cible ne protège rien et ne le dit pas ; `Library::new` suit l'ordre de recherche par défaut de Windows ; les motifs de permission de Claude Code sont des préfixes, si bien qu'un refus sur `gh api -X DELETE` ne couvre pas `gh api <chemin> -X DELETE` |
+| **Fichiers** | `crates/superview-ofx/src/gpu.rs` (`load_driver_library`, test Windows), `cuda.rs`, `opencl.rs` ; `.github/workflows/release.yml` (attestation, préversion en brouillon), `rust.yml` et `Makefile` (`cargo deny … sources`) ; `deny.toml` (`[sources]`, exception motivée pour RUSTSEC-2026-0441) ; `Cargo.lock` (`pulldown-cmark` 0.13.6, `async-executor` 1.14.1, `clipboard-win` 5.4.3) ; `.claude/settings.json` ; `README.md`, `README_FR.md`, `RELEASING.md`. Hors dépôt, par l'API : règle d'étiquettes, versions immuables, permissions d'Actions |
+| **PR** | security-hardening |
+| **Vérification** | `scripts/check.sh` vert. Clippy croisé `--target x86_64-pc-windows-msvc` sur `superview-ofx` (`--all-targets`), avec contre-épreuves : un symbole faux dans la branche Windows, puis dans le test, fait échouer la compilation. `cargo deny check advisories licenses sources` vert ; contre-épreuve : avec `allow-git = []`, l'échec `source-not-allowed` apparaît. Non vérifiable ici : le test Windows (CI), l'attestation et la publication des préversions (prochaine version), Resolve (à la main) |
+
 ### [2026-10-28] `pulldown-cmark` 0.13.5 : RUSTSEC-2026-0414 bloquait toute version
 
 | | |
