@@ -193,7 +193,7 @@ jobs:
     # Advisories again, through the dependency graph of the shipped targets, and the licences:
     # every crate must offer one compatible with GPL-3.0-or-later (deny.toml).
     - name: Check advisories and licences
-      run: cargo deny --locked check advisories licenses
+      run: cargo deny --locked check advisories licenses sources
 
   rust-windows:
     name: Rust on windows-latest

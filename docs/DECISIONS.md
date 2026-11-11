@@ -709,3 +709,45 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `release.yml` a un job `build-ofx-windows` : `sh packaging/ofx/build_bundle.sh` (`cargo build --release --locked -p superview-ofx`), sans cache cargo (DEC-47), puis `7z` en `superview-ofx-<tag>-windows-x86_64.zip`, dont la racine ne contient que `Superview.ofx.bundle` (`Contents/Win64/Superview.ofx`, `Contents/Info.plist`, `Contents/LICENSE`, `Contents/THIRD_PARTY_NOTICES.md`). `packaging/ofx/check_bundle_zip.sh` vérifie la racine, les quatre fichiers, et que la DLL exporte `OfxGetPlugin` et `OfxGetNumberOfPlugins` (`llvm-readobj --coff-exports`) : ce que Resolve appelle au chargement. L'archive entre dans `checksums.txt` et dans la section *Downloads* de la version. L'utilisateur la décompresse dans `C:\Program Files\Common Files\OFX\Plugins` et relance Resolve. Écartés par l'utilisateur : un composant facultatif de l'installateur Inno Setup (`{commoncf}\OFX\Plugins`), l'autre choix du Lot 6 ; une archive Linux, tant que Resolve n'y a pas été essayé.
 **Conséquences** — L'archive n'est ni installée ni chargée en CI : un exécuteur n'a pas Resolve. « Le zip est bien formé et exporte les bonnes fonctions » est vérifié, « Resolve le charge » ne l'est pas (à essayer à la main sur une version qui compte, `RELEASING.md`). Le bundle Linux reste un artefact de `rust.yml`. Resolve Studio et Linux, non essayés, ne bloquent pas la livraison. Le plugin porte un `PluginVersion(1, 0)` fixe et son journal dit « plugin loaded » sans version : un plugin publié ne dit pas de quelle version il vient. Noté, volontairement pas changé ici ; un changement ultérieur lirait `SUPERVIEW_VERSION` comme le `build.rs` de `superview-app` (DEC-22). Ne pas remettre de cache cargo dans ce job.
 **À rouvrir si** — Resolve est essayé sous Linux (alors publier l'archive Linux) ; un composant d'installateur est demandé ; ou un utilisateur ne sait pas dire quelle version du plugin il exécute (alors la version vient de `SUPERVIEW_VERSION`).
+
+### DEC-70
+**Durcissement de la sécurité : versions immuables et attestées, étiquettes protégées, pilotes GPU chargés depuis System32, sources des dépendances vérifiées, permissions de Claude Code resserrées.**
+2026-11-11 · Acceptée · audit de sécurité demandé par l'utilisateur, qui a confié les correctifs à Claude
+
+**Contexte** — L'audit du 2026-11-11 (dépôt GitHub, Claude Code, code) a trouvé :
+- **Étiquettes non protégées.** La règle « Baseline » sur les étiquettes, active, avait une liste `include` vide : elle ne s'appliquait à aucune étiquette, et `v0.5.0` pouvait être supprimée ou déplacée.
+- **Versions modifiables.** Les versions immuables étaient désactivées : les fichiers d'une version publiée restaient remplaçables, et `checksums.txt`, publié au même endroit, ne protège que d'un téléchargement abîmé.
+- **Plugin Resolve.** Il chargeait `nvcuda.dll` et `OpenCL.dll` par leur seul nom. L'ordre de recherche de Windows passe d'abord par le dossier de Resolve, puis, si la DLL manque de System32 (`nvcuda.dll` sur tout poste sans NVIDIA), par le dossier courant et le `PATH`. Une copie déposée là s'exécuterait dans Resolve.
+- **cargo-deny.** Il ne vérifiait pas d'où viennent les dépendances.
+- **Claude Code.** `.claude/settings.json` autorisait sans question `gh api repos/Canaill51/superview/*`, écritures comprises, car le refus `gh api -X DELETE *` ne joue que si `-X` vient en premier. Il autorisait aussi `gh workflow run release.yml *`. Un agent détourné pouvait donc supprimer une règle, poser l'étiquette `merge` puis publier une version, sans qu'on lui demande rien.
+
+**Décision** —
+- **Réglages GitHub (par l'API) :**
+  - la règle d'étiquettes couvre `refs/tags/v*` et `refs/tags/RC-*` ;
+  - versions immuables activées ;
+  - jeton par défaut des workflows en lecture seule ;
+  - Actions ne peut plus approuver de PR ;
+  - épinglage des actions par SHA exigé.
+- **`release.yml` :**
+  - attestation de provenance (`actions/attest`) des trois livrables, avant l'étiquette ;
+  - une préversion part en brouillon puis est publiée une fois ses fichiers joints (l'action publie une préversion avant d'y joindre les fichiers, ce que l'immuabilité refuse).
+- **Plugin :** `gpu::load_driver_library` charge avec `LOAD_LIBRARY_SEARCH_SYSTEM32` sous Windows.
+- **`deny.toml` :** section `sources` (crates.io et le seul fork `ofx-rs`), vérifiée par la CI et `make coverage-audit`.
+- **`.claude/settings.json` :**
+  - liste `ask` pour `gh api` avec `-X`, `--method`, `-f`, `-F`, `--field`, `--raw-field` ou `--input`, et pour la publication ;
+  - `DELETE` refusé quelle que soit la place de `-X` ;
+  - `ffmpeg -hide_banner *` retiré des autorisations (`-y` écrase n'importe quel fichier).
+
+**Conséquences** —
+- **Une version publiée ne se corrige plus :** un mauvais fichier appelle une nouvelle version (`RELEASING.md`). Les brouillons restent modifiables.
+- **Vérifier un téléchargement :** `gh attestation verify <fichier> --repo Canaill51/superview` (README).
+- **Ce qui n'a pas été essayé en CI :**
+  - l'attestation et la publication en deux temps des préversions ne tournent qu'à une vraie publication, donc à vérifier à la prochaine ;
+  - le test `a_driver_library_is_not_taken_from_the_executable_folder` ne tourne que sous Windows (job `windows-latest`) ;
+  - le chargement dans Resolve reste à vérifier à la main, sur un poste NVIDIA et en OpenCL.
+- **Claude Code :** la publication et les écritures par `gh api` demandent désormais une confirmation, `/publier` compris.
+
+**À rouvrir si** —
+- un pilote GPU est livré hors de System32 (alors un chemin absolu documenté par le fabricant) ;
+- l'action de publication joint les fichiers d'une préversion avant de la publier (alors retirer l'étape de publication du brouillon) ;
+- GitHub cesse d'accepter la permission `artifact-metadata`.

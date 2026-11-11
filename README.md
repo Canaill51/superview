@@ -103,6 +103,16 @@ Select-String -Path .\checksums.txt -Pattern windows
 
 They must show the same 64 characters, ignoring case.
 
+A checksum only proves the file arrived intact: whoever could replace a file on
+the release page could replace `checksums.txt` too. Releases after v0.5.0 also
+carry a provenance attestation, signed for the workflow run that built them and
+kept by GitHub apart from the release. With the [GitHub CLI](https://cli.github.com/)
+installed, this checks that a file was built by this repository's release workflow:
+
+```bash
+gh attestation verify <downloaded file> --repo Canaill51/superview
+```
+
 ## Using Superview
 
 1. Click **Choose input file** and pick a 4:3 MP4.

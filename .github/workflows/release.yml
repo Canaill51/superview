@@ -649,9 +649,13 @@ jobs:
     needs: [prepare, build-gui-windows, build-ofx-windows, build-gui-linux]
     runs-on: ubuntu-latest
     if: needs.prepare.outputs.release == 'true'
-    # The only job that writes: it pushes the tag and publishes the release.
+    # The only job that writes: it pushes the tag and publishes the release. The
+    # other three are for the provenance attestation below, and only for it.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
 
     steps:
     # This job never checked anything out -- it only downloaded artifacts. The
@@ -687,6 +691,21 @@ jobs:
             ( cd "$(dirname "$file")" && sha256sum "$(basename "$file")" )
           done > artifacts/checksums.txt
         echo "=== Checksums ===" && cat artifacts/checksums.txt
+
+    # checksums.txt sits next to the files it describes, so it catches a broken
+    # download and nothing else: whoever could replace a file could replace its
+    # line. A provenance attestation is signed by Sigstore for this workflow, this
+    # commit and this run, and stored by GitHub apart from the release, so
+    # "gh attestation verify <file> --repo Canaill51/superview" tells a file built
+    # here from one that was not. Before the tag, like everything that can fail:
+    # a failed attestation must not spend a version number.
+    - name: Attest build provenance
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+      with:
+        subject-path: |
+          artifacts/**/*-setup.exe
+          artifacts/**/*.AppImage
+          artifacts/**/superview-ofx-*-windows-x86_64.zip
 
     # The tag is created here and nowhere earlier: a version number spent on a
     # run whose Windows build then failed is a number that can never be reused.
@@ -750,14 +769,21 @@ jobs:
           printf -- '- DaVinci Resolve plugin (Windows): `superview-ofx-%s-windows-x86_64.zip`\n' "$TAG"
           printf '\n### Verify integrity\n\n'
           printf '```bash\nsha256sum -c checksums.txt\n```\n'
+          printf '\nTo check that a file was built by the release workflow of this repository:\n\n'
+          printf '```bash\ngh attestation verify <file> --repo Canaill51/superview\n```\n'
         } > /tmp/release.md
         echo "=== Body, which the generated list is appended to ===" && cat /tmp/release.md
 
+    # Releases are immutable on this repository: once published, nothing can be
+    # attached to them. The action uploads before publishing for a release, but
+    # it publishes a prerelease first and uploads after, which immutability
+    # refuses. So a prerelease goes up as a draft, and the step below publishes
+    # it once its files are on.
     - name: Publish release assets
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
       with:
         tag_name: ${{ needs.prepare.outputs.tag }}
-        draft: ${{ needs.prepare.outputs.draft }}
+        draft: ${{ needs.prepare.outputs.draft == 'true' || needs.prepare.outputs.prerelease == 'true' }}
         prerelease: ${{ needs.prepare.outputs.prerelease }}
         # body_path is pre-pended to the generated notes, so the release reads
         # download section first, then "What's Changed" built from the pull
@@ -769,6 +795,14 @@ jobs:
           artifacts/**/*.AppImage
           artifacts/**/superview-ofx-*-windows-x86_64.zip
           artifacts/checksums.txt
+
+    - name: Publish the prerelease draft
+      if: needs.prepare.outputs.prerelease == 'true' && needs.prepare.outputs.draft != 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release edit "$TAG" --repo "$REPO" --draft=false --prerelease
 
   notify:
     name: Notify Release Status

@@ -114,6 +114,18 @@ Select-String -Path .\checksums.txt -Pattern windows
 
 Les deux doivent montrer les mêmes 64 caractères, la casse mise à part.
 
+Une somme de contrôle prouve seulement que le fichier est arrivé intact : qui
+pourrait remplacer un fichier de la page de version pourrait aussi remplacer
+`checksums.txt`. Les versions publiées après la v0.5.0 portent aussi une
+attestation de provenance, signée pour l'exécution du workflow qui les a
+construites et conservée par GitHub à part de la version. Avec la
+[GitHub CLI](https://cli.github.com/) installée, cette commande vérifie qu'un
+fichier a bien été construit par le workflow de publication de ce dépôt :
+
+```bash
+gh attestation verify <fichier téléchargé> --repo Canaill51/superview
+```
+
 ## Utiliser Superview
 
 L'interface de l'application est en anglais ; les libellés ci-dessous sont donc

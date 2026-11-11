@@ -271,7 +271,7 @@ impl Library {
         // each symbol is cast to its signature in the OpenCL 1.2 headers (`CL_API_CALL` is
         // `__stdcall` on Windows, hence `extern "system"`).
         unsafe {
-            let library = libloading::Library::new(LOADER_LIBRARY)?;
+            let library = crate::gpu::load_driver_library(LOADER_LIBRARY)?;
             macro_rules! symbol {
                 ($name:literal) => {
                     *library.get($name)?

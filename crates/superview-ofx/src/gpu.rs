@@ -43,6 +43,31 @@ impl<C: PartialEq + Copy, T> PerContext<C, T> {
     }
 }
 
+/// Loads a GPU driver library (`nvcuda.dll`, `OpenCL.dll`, or their Linux names).
+///
+/// On Windows, from System32 only. A bare name otherwise goes through the default search order:
+/// the host's own folder first and, when the library is missing from System32 -- `nvcuda.dll` on
+/// any machine without an NVIDIA driver -- the current directory and every `PATH` entry, where a
+/// planted copy would run inside Resolve. Both drivers install their library in System32. On
+/// Linux the dynamic loader's own search is kept: it reads no current directory.
+///
+/// # Safety
+///
+/// Loading runs the library's initialisers, as [`libloading::Library::new`] does.
+pub unsafe fn load_driver_library(name: &str) -> Result<libloading::Library, libloading::Error> {
+    #[cfg(windows)]
+    {
+        use libloading::os::windows::{LOAD_LIBRARY_SEARCH_SYSTEM32, Library};
+        // SAFETY: the caller's contract, above.
+        unsafe { Library::load_with_flags(name, LOAD_LIBRARY_SEARCH_SYSTEM32) }.map(Into::into)
+    }
+    #[cfg(not(windows))]
+    {
+        // SAFETY: the caller's contract, above.
+        unsafe { libloading::Library::new(name) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
@@ -57,6 +82,45 @@ mod tests {
         fn drop(&mut self) {
             self.0.set(self.0.get() + 1);
         }
+    }
+
+    /// A DLL next to the executable -- the first place the default search order looks -- is
+    /// what a planted `nvcuda.dll` would be. The default load finds it (the counter-proof: the
+    /// copy is loadable), the driver load must not.
+    ///
+    /// The driver load goes first. Windows hands back a module already loaded under the same
+    /// name whatever the search flags, so with the default load first the driver load found
+    /// the copy in memory, not on disk, and this test failed for that reason alone.
+    #[cfg(windows)]
+    #[test]
+    fn a_driver_library_is_not_taken_from_the_executable_folder() {
+        let system32 =
+            std::path::Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32");
+        let exe_dir = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let name = format!("superview-planted-{}.dll", std::process::id());
+        let planted = exe_dir.join(&name);
+        std::fs::copy(system32.join("version.dll"), &planted).unwrap();
+
+        // SAFETY: a copy of a Windows system DLL, whose initialisers have no precondition.
+        let found_by_driver_load = unsafe { super::load_driver_library(&name) }.is_ok();
+        // SAFETY: as above.
+        let found_by_default = unsafe { libloading::Library::new(&name) }.is_ok();
+        let _ = std::fs::remove_file(&planted);
+
+        assert!(
+            found_by_default,
+            "the planted copy should load by the default search order"
+        );
+        assert!(
+            !found_by_driver_load,
+            "a driver library was loaded from the executable folder"
+        );
+        // SAFETY: as above; a real System32 library still loads.
+        assert!(unsafe { super::load_driver_library("version.dll") }.is_ok());
     }
 
     #[test]
