@@ -87,6 +87,10 @@ mod tests {
     /// A DLL next to the executable -- the first place the default search order looks -- is
     /// what a planted `nvcuda.dll` would be. The default load finds it (the counter-proof: the
     /// copy is loadable), the driver load must not.
+    ///
+    /// The driver load goes first. Windows hands back a module already loaded under the same
+    /// name whatever the search flags, so with the default load first the driver load found
+    /// the copy in memory, not on disk, and this test failed for that reason alone.
     #[cfg(windows)]
     #[test]
     fn a_driver_library_is_not_taken_from_the_executable_folder() {
@@ -102,12 +106,9 @@ mod tests {
         std::fs::copy(system32.join("version.dll"), &planted).unwrap();
 
         // SAFETY: a copy of a Windows system DLL, whose initialisers have no precondition.
-        let default = unsafe { libloading::Library::new(&name) };
+        let found_by_driver_load = unsafe { super::load_driver_library(&name) }.is_ok();
         // SAFETY: as above.
-        let driver = unsafe { super::load_driver_library(&name) };
-        let found_by_default = default.is_ok();
-        let found_by_driver_load = driver.is_ok();
-        drop((default, driver));
+        let found_by_default = unsafe { libloading::Library::new(&name) }.is_ok();
         let _ = std::fs::remove_file(&planted);
 
         assert!(
