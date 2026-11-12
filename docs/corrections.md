@@ -1,13 +1,23 @@
 # Superview — Journal des corrections appliquées
 
 > **Journal vivant** : une entrée par correction, ajoutée après CHAQUE correction appliquée
-> au code (procédure et gabarit : [LECONS.md § 1](LECONS.md)). Il était le § 3 de
-> LECONS.md ; il en a été sorti pour que la lecture des règles (§ 2) ne traîne pas
+> au code (procédure et gabarit : [lecons.md § 1](lecons.md)). Il était le § 3 de
+> lecons.md ; il en a été sorti pour que la lecture des règles (§ 2) ne traîne pas
 > 2 000 lignes d'historique. Texte inchangé. Les renvois « LECONS § 3 » désignent ce fichier (l'archive pour les entrées d'avant le 2026-10-17).
 > **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
-> Pour savoir si une correction a déjà été tentée : `grep -n "<mot>" docs/CORRECTIONS.md docs/archives/CORRECTIONS-ere-go.md`.
+> Pour savoir si une correction a déjà été tentée : `grep -n "<mot>" docs/corrections.md docs/archives/corrections-ere-go.md`.
 
 ## 3. Corrections appliquées
+
+### [2026-11-12] Documents de `docs/` en minuscules, et un index (alignement sur OpenTuneBox, étape 1)
+
+| | |
+| --- | --- |
+| **Constat** | les noms de `docs/` étaient en MAJUSCULES et aucun index ne disait quel document sert à quoi, alors qu'OpenTuneBox nomme ses documents en minuscules derrière un `docs/README.md` |
+| **Cause** | convention héritée, jamais revue ; première des sept étapes du plan d'alignement sur OpenTuneBox approuvé le 2026-11-12 |
+| **Fichiers** | `git mv` de `architecture`, `decisions`, `lecons`, `analyse`, `corrections`, `contrats`, `environnement`, `tests-manuels` et des deux archives ; liens corrigés par un seul `sed` sur les fichiers suivis (`CLAUDE.md` et son import `@docs/architecture.md`, `AGENTS.md`, les deux README, `nvenc-driver-floor.sh`, `release.yml`, `rust.sh`, commentaires de `hardware.rs`, `tools.rs`, `opencl.rs`, `window_tests.rs`, tous les journaux) ; `docs/README.md` (neuf) ; `architecture.md` (Arborescence), `AGENTS.md` (*Recording what you learn*). `SUITE`, `PLAN-*`, `PIEGES` et `MERGING` attendent les étapes 2 et 4 |
+| **PR** | docs/lowercase-doc-names |
+| **Vérification** | `git grep -nE '(ARCHITECTURE\|DECISIONS\|LECONS\|ANALYSE\|CORRECTIONS\|CONTRATS\|ENVIRONNEMENT\|TESTS-MANUELS)\.md\|ANALYSE-passes\|CORRECTIONS-ere'` vide ; aucune citation historique (`git show …:docs/X.md`) n'existait, le `sed` global ne réécrit donc aucun chemin d'un ancien commit. `scripts/check.sh` complet (`/verify`). Aucun test nouveau, donc pas de contre-preuve ; le test de cohérence de la doc vient à l'étape 3 |
 
 ### [2026-11-11] Audit de sécurité : pilotes GPU depuis System32, versions immuables et attestées, permissions de Claude Code (DEC-70)
 
@@ -35,9 +45,9 @@
 | --- | --- |
 | **Constat** | le noyau OpenCL du Lot 4b n'était appelé par rien : en mode OpenCL, Resolve faisait tout en CPU (9 à 10 i/s en 4K) |
 | **Cause** | `Describe` n'annonçait que CUDA et `Render` ne lisait que `CudaEnabled` |
-| **Fichiers** | `crates/superview-ofx/src/plugin.rs` (`Describe` annonce OpenCL, `render_on_opencl`, `GpuWarp<W>`, `DeviceFrame` commun aux deux chemins GPU), `src/journal.rs` (`RenderPath::OpenCl`, `first_failure(path)` remplace `first_cuda_failure`), `AGENTS.md`, `docs/DECISIONS.md` (DEC-68, DEC-66 amendée), `docs/ARCHITECTURE.md`, `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/plugin.rs` (`Describe` annonce OpenCL, `render_on_opencl`, `GpuWarp<W>`, `DeviceFrame` commun aux deux chemins GPU), `src/journal.rs` (`RenderPath::OpenCl`, `first_failure(path)` remplace `first_cuda_failure`), `AGENTS.md`, `docs/decisions.md` (DEC-68, DEC-66 amendée), `docs/architecture.md`, `docs/PLAN-OFX.md`, `docs/SUITE.md` |
 | **PR** | ofx/opencl-glue |
-| **Vérification** | `/verify` plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : tout vert, `tests/opencl.rs` et `tests/cuda.rs` compris · contre-preuves : un drapeau d'échec partagé par CUDA et OpenCL rougit `only_the_first_failure_of_each_gpu_path_is_reported` ; un drapeau de premier rendu partagé rougit `each_path_is_reported_once_per_instance` · bundle construit (`build_bundle.sh`) · **dans Resolve** (Lot 4d, `TESTS-MANUELS.md`) : journal « OpenCL », export égal à CUDA à l'écart de Resolve près, 13 i/s comme le témoin ; le journal ne dit plus « frames render on the CPU » quand seul CUDA manque · **non testé** : AMD, Linux, l'Intel UHD dans Resolve (grisée par Resolve en présence de la RTX ; noyau vérifié par `tests/opencl.rs`) |
+| **Vérification** | `/verify` plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : tout vert, `tests/opencl.rs` et `tests/cuda.rs` compris · contre-preuves : un drapeau d'échec partagé par CUDA et OpenCL rougit `only_the_first_failure_of_each_gpu_path_is_reported` ; un drapeau de premier rendu partagé rougit `each_path_is_reported_once_per_instance` · bundle construit (`build_bundle.sh`) · **dans Resolve** (Lot 4d, `tests-manuels.md`) : journal « OpenCL », export égal à CUDA à l'écart de Resolve près, 13 i/s comme le témoin ; le journal ne dit plus « frames render on the CPU » quand seul CUDA manque · **non testé** : AMD, Linux, l'Intel UHD dans Resolve (grisée par Resolve en présence de la RTX ; noyau vérifié par `tests/opencl.rs`) |
 
 ### [2026-10-26] Un noyau OpenCL pour le plugin Resolve, pas encore relié à l'hôte (Lot 4b de PLAN-OFX)
 
@@ -45,7 +55,7 @@
 | --- | --- |
 | **Constat** | sans chemin OpenCL, le plugin rend en CPU sur AMD et Intel, et sur NVIDIA quand Resolve est réglé sur OpenCL (9 à 10 i/s en 4K, sonde du Lot 4a) |
 | **Cause** | seul CUDA était écrit (DEC-66) |
-| **Fichiers** | `crates/superview-ofx/src/opencl.rs` (chargeur, noyau OpenCL C sur tampons, `check_buffer`, `Warp`, aides de test), `src/gpu.rs` (`PerContext` sorti de `cuda.rs`, message sans « CUDA »), `src/cuda.rs`, `src/plugin.rs`, `src/lib.rs`, `tests/opencl.rs`, `AGENTS.md`, `docs/ENVIRONNEMENT.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` (DEC-66, nom de `PerContext`), `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/opencl.rs` (chargeur, noyau OpenCL C sur tampons, `check_buffer`, `Warp`, aides de test), `src/gpu.rs` (`PerContext` sorti de `cuda.rs`, message sans « CUDA »), `src/cuda.rs`, `src/plugin.rs`, `src/lib.rs`, `tests/opencl.rs`, `AGENTS.md`, `docs/environnement.md`, `docs/architecture.md`, `docs/decisions.md` (DEC-66, nom de `PerContext`), `docs/PLAN-OFX.md`, `docs/SUITE.md` |
 | **PR** | ofx-opencl-module |
 | **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : `tests/opencl.rs` vert sur la RTX 3050 Ti **et** l'Intel UHD · contre-preuves : un noyau qui lit `x` au lieu de `map[x]` rougit le test pixel sur les deux appareils (seul le cas identité passe, comme il se doit) ; `check_buffer` sans `first_row` rougit `a_band_needs_the_rows_below_it_too` ; `PerContext` qui ne mémorise plus l'échec rougit `a_kernel_that_failed_is_not_loaded_again_in_the_same_context` · non testé : l'échec de compilation (pas d'injection possible, chemin du journal de compilation), AMD (aucun matériel), Linux (Lot 5) |
 
@@ -55,7 +65,7 @@
 | --- | --- |
 | **Constat** | `a_driver_that_refuses_both_modes_leaves_the_cpu_encoder_a_bitrate` a échoué sur la CI Linux de #181, une PR de documentation : la commande d'encodage contenait `/superview-qpPNs1/x.pgm` |
 | **Cause** | l'absence de `-qp` était vérifiée par sous-chaîne sur toute la ligne, chemins compris ; le nom aléatoire du dossier de session la contient environ une fois sur 3 800 |
-| **Fichiers** | `crates/superview-core/tests/pipeline_constant_quality.rs` (`has_flag`, test `a_flag_inside_a_path_is_not_a_flag`), `docs/LECONS.md` (L-123), `docs/PIEGES.md` |
+| **Fichiers** | `crates/superview-core/tests/pipeline_constant_quality.rs` (`has_flag`, test `a_flag_inside_a_path_is_not_a_flag`), `docs/lecons.md` (L-123), `docs/PIEGES.md` |
 | **PR** | fix/flaky-qp-substring |
 | **Vérification** | le fichier est Unix seulement : passé par la CI Linux, pas sur le poste Windows · contre-preuve compilée à part avec `rustc` : sur la ligne de l'échec, `contains` rougit les assertions du nouveau test, `has_flag` les passe |
 
@@ -65,7 +75,7 @@
 | --- | --- |
 | **Constat** | sur une carte antérieure à `sm_50` ou un pilote trop ancien pour le PTX 6.0, `Warp::new` échouait à chaque trame CUDA : le plugin recompilait le PTX pour rien avant que Resolve refasse la trame en CPU |
 | **Cause** | un échec laissait l'état GPU de l'instance vide, donc « à charger » à la trame suivante |
-| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (`PerContext`, `Warp::context` retiré), `plugin.rs`, `docs/DECISIONS.md` (DEC-66), `docs/PLAN-OFX.md` (Lot 3), `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (`PerContext`, `Warp::context` retiré), `plugin.rs`, `docs/decisions.md` (DEC-66), `docs/PLAN-OFX.md` (Lot 3), `docs/SUITE.md` |
 | **PR** | fix/ofx-cuda-kernel-once |
 | **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_CUDA=1` sur la RTX 3050 Ti · contre-preuves : l'échec non mémorisé, le contexte ignoré, l'ancien noyau gardé pendant le chargement du nouveau ; chacune rougit son test. Non vérifié sur une vraie carte pré-Maxwell (aucune à disposition) |
 
@@ -77,7 +87,7 @@
 | **Cause** | prototype (DEC-65) ; et, trouvé en ouvrant le fork, `ofx::registry` journalise **chaque message de l'hôte au niveau info** : un logger naïf aurait écrit plusieurs lignes par trame |
 | **Fichiers** | `crates/superview-ofx/src/journal.rs` (neuf), `plugin.rs`, `cuda.rs` (`Driver::load_error`), `superview-core/src/logfile.rs` (`FileLogger`, `format_line`, `format_utc` venus de `superview-app/src/journal.rs`), `tests/journal.rs` et `tests/journal_unwritable.rs` (neufs) |
 | **PR** | feat/ofx-journal |
-| **Vérification** | `/verify` · contre-preuves : `PathLog` qui signale toujours, l'échec CUDA toujours signalé, le fork admis à info, `install` sans `OnceLock`, sans plafond, et une ouverture qui panique font chacune rougir leur test · vu dans Resolve en CUDA et en OpenCL (`docs/TESTS-MANUELS.md`, *Journal*) |
+| **Vérification** | `/verify` · contre-preuves : `PathLog` qui signale toujours, l'échec CUDA toujours signalé, le fork admis à info, `install` sans `OnceLock`, sans plafond, et une ouverture qui panique font chacune rougir leur test · vu dans Resolve en CUDA et en OpenCL (`docs/tests-manuels.md`, *Journal*) |
 
 ### [2026-10-26] Les vérifications trouvent ffmpeg dans `SUPERVIEW_FFMPEG_DIR`, comme les tests
 
@@ -85,7 +95,7 @@
 | --- | --- |
 | **Constat** | sur le poste Windows de l'utilisateur, `scripts/check.sh` complet échouait avant les tests : « ffmpeg et ffprobe sont requis » ; il fallait mettre le dossier de ffmpeg dans le `PATH` à la main pour chaque commit |
 | **Cause** | le pré-contrôle de `scripts/checks/rust.sh` ne cherchait que dans le `PATH` (`command -v`), alors que les tests passent par `ToolResolver`, qui lit d'abord `SUPERVIEW_FFMPEG_DIR` ; mesuré : sans ffmpeg dans le `PATH`, la suite passe (0 échec) |
-| **Fichiers** | `scripts/lib/outils.sh` (nouveau), `scripts/checks/rust.sh`, `scripts/checks/outils.sh` (nouveau), `.github/workflows/lint.yml` (job `ffmpeg-lookup`), `docs/ARCHITECTURE.md` |
+| **Fichiers** | `scripts/lib/outils.sh` (nouveau), `scripts/checks/rust.sh`, `scripts/checks/outils.sh` (nouveau), `.github/workflows/lint.yml` (job `ffmpeg-lookup`), `docs/architecture.md` |
 | **PR** | fix/check-ffmpeg-dir |
 | **Règle** | L-121 : le pré-contrôle reprend l'ordre de recherche du code ; son test vide le `PATH` |
 | **Vérification** | `bash scripts/checks/outils.sh` ✅ (5 cas) · contre-preuves : l'ancienne recherche (`PATH` seul), la recherche sans test d'absolu, et sans repli sur le `PATH` font chacune rougir leur cas ✅ ; un premier cas muet (sous-shell qui perdait l'échec) corrigé avant · `scripts/check.sh` complet sur ce poste, ffmpeg absent du `PATH` ✅ |
@@ -96,7 +106,7 @@
 | --- | --- |
 | **Constat** | sur le poste Windows de l'utilisateur, aucun des trois hooks de `.claude/hooks` n'agissait : le garde-fou laissait passer `git reset --hard`, la vérification rapide après un Edit ne se lançait jamais, le garde-fou anti-boucle du hook de fin ne se déclenchait jamais |
 | **Cause** | ils lisaient le JSON par `python3 … 2>/dev/null` ; sous Windows, `python3` est le raccourci du Microsoft Store, qui échoue (code 49), et un champ vide passait pour une réponse |
-| **Fichiers** | `.claude/hooks/json.sh` (nouveau, Perl et `JSON::PP`), `garde-fou.sh`, `apres-modif.sh` (aussi : un chemin Windows sous `\.claude\` est sauté comme `/.claude/`), `avant-fin.sh`, `scripts/checks/hooks.sh` (nouveau), `.github/workflows/lint.yml` (job `claude-hooks`), `docs/ENVIRONNEMENT.md` |
+| **Fichiers** | `.claude/hooks/json.sh` (nouveau, Perl et `JSON::PP`), `garde-fou.sh`, `apres-modif.sh` (aussi : un chemin Windows sous `\.claude\` est sauté comme `/.claude/`), `avant-fin.sh`, `scripts/checks/hooks.sh` (nouveau), `.github/workflows/lint.yml` (job `claude-hooks`), `docs/environnement.md` |
 | **PR** | fix/hooks-sans-python |
 | **Règle** | L-119 : une entrée illisible fait échouer le hook du côté sûr ; le test retire l'outil absent ailleurs |
 | **Vérification** | `bash scripts/checks/hooks.sh` ✅ (11 cas, `python3` remplacé par un faux qui rend 49) · contre-preuve : les hooks de `master` remis, 7 cas rougissent ✅ ; deux cas étaient muets et ont été corrigés (l'anti-boucle passait parce que le faux `check.sh` rendait 0, il rend 1 ; le motif `\.claude\` retiré rougit son cas ✅) · en vrai : sur ce poste, l'Edit qui retirait ce motif a déclenché `apres-modif.sh`, qui a lancé `check.sh --fast` — la première fois depuis que le hook existe |
@@ -108,7 +118,7 @@
 | **Constat** | sur le poste Windows de l'utilisateur (RTX 3050 Ti, pilote 617.42), `h264_d3d12va` passait la sonde puis chaque vraie conversion se repliait sur `libx264` ; `a_device_frame_encoder_runs_the_whole_pipeline` rouge |
 | **Cause** | double : D3D12 avec les images B que ffmpeg demande par défaut encode deux trames et échoue à la troisième (H.264 et HEVC) ; la sonde n'en envoyait qu'une (`d=0.04`), donc ne pouvait pas le voir |
 | **Essais écartés** | `-async_depth 1`, `-rc_mode CBR/VBR/CQP`, `-profile main`, `-coder cavlc`, `-me_precision` : tous échouent à la 3ᵉ trame ; `-g 1` passe mais n'encode que des images I |
-| **Fichiers** | `crates/superview-core/src/encode/args.rs` (`-bf 0`), `src/encode/args/tests.rs`, `src/probe.rs` (`PROBE_DURATION`), `src/probe/tests.rs`, `tests/recorded_probe_args.rs`, `tests/recorded_encode_args.rs`, README.md et README_FR.md (« quelques images »), `docs/CONTRATS.md`, `docs/DECISIONS.md` (DEC-67, DEC-05 amendée) |
+| **Fichiers** | `crates/superview-core/src/encode/args.rs` (`-bf 0`), `src/encode/args/tests.rs`, `src/probe.rs` (`PROBE_DURATION`), `src/probe/tests.rs`, `tests/recorded_probe_args.rs`, `tests/recorded_encode_args.rs`, README.md et README_FR.md (« quelques images »), `docs/contrats.md`, `docs/decisions.md` (DEC-67, DEC-05 amendée) |
 | **PR** | #175 |
 | **Règle** | L-120 : la sonde reproduit ce qui distingue la conversion de son début |
 | **Vérification** | sur ce poste, `SUPERVIEW_REQUIRE_FFMPEG=1 cargo test --test real_ffmpeg a_device_frame` ✅ (`using h264_d3d12va`) · contre-preuve `-bf 0` retiré : `d3d12_encoders_are_asked_for_no_b_frames` et les deux fixtures rougissent ✅, la sonde refuse `h264_d3d12va` au démarrage avec `Encode failed` et le test de bout en bout se saute (muet, attendu, DEC-67) · contre-preuve sonde à une trame : d'abord **muette** (l'écart de fixture recopiait `PROBE_DURATION`), corrigée en littéral et par `the_probe_sends_enough_frames_to_reach_a_reference_frame` ; les deux rougissent ✅ |
@@ -120,7 +130,7 @@
 | **Constat** | dans Resolve 21.1.1 gratuit (RTX 3050 Ti Laptop 4 Go), un clip 2,7K H.264 en timeline 4K lisait à environ 30 i/s sans l'effet, 6 à 10 avec |
 | **Cause** | double : un effet CPU seul fait descendre et remonter chaque trame (133 Mo) entre la carte et la mémoire, environ 150 ms par trame hors du plugin ; et avec `InstanceSafe` Resolve reste sur un chemin lent même une fois ces copies supprimées |
 | **Essais écartés** | seize fils CPU : le calcul passe de 18 à 14 ms (borné par la mémoire) et la lecture **baisse** (le décodage de l'hôte manque de cœurs) ; deux fils gardés pour le repli. Le CUDA seul : plugin à 0,06 ms par trame, lecture à 8 i/s |
-| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (nouveau), `src/plugin.rs`, `src/lib.rs`, `tests/cuda.rs` (nouveau), `Cargo.toml` (`libloading`, `ofx_sys`), `docs/DECISIONS.md` (DEC-66, DEC-65 amendée), `docs/TESTS-MANUELS.md`, `docs/ENVIRONNEMENT.md`, `AGENTS.md` |
+| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (nouveau), `src/plugin.rs`, `src/lib.rs`, `tests/cuda.rs` (nouveau), `Cargo.toml` (`libloading`, `ofx_sys`), `docs/decisions.md` (DEC-66, DEC-65 amendée), `docs/tests-manuels.md`, `docs/environnement.md`, `AGENTS.md` |
 | **PR** | pas encore ouverte (branche `feat/ofx-plugin`) |
 | **Règle** | L-118 : mesurer le plugin *et* le rythme de l'hôte ; quand le plugin ne pèse plus, chercher dans ce qu'il déclare |
 | **Vérification** | `SUPERVIEW_REQUIRE_CUDA=1 cargo test -p superview-ofx` ✅ (13 tests) · contre-preuve : un noyau qui lit `x` au lieu de `map[x]` fait rougir `the_gpu_warp_gives_the_pixels_of_the_cpu_warp` ✅ · à la main dans Resolve : 29,97 i/s en 4K, export 4K de `DJI_0221.MP4` comparé à l'application, 38 à 41 dB contre 19 à 25 pour un étirement simple, aucune bande ✅ · `scripts/check.sh` complet ❌ sur ce poste, pour deux raisons sans lien : ffmpeg hors du `PATH`, et `a_device_frame_encoder_runs_the_whole_pipeline` (`h264_d3d12va` passe la sonde mais échoue en vraie conversion, à traiter à part) |
@@ -131,7 +141,7 @@
 | --- | --- |
 | **Constat** | la fenêtre était composée dans la police du système, la maquette en IBM Plex Sans et Sora ; `.github/sample-gui.png` montrait encore la fenêtre d'avant la refonte |
 | **Cause** | dernière étape du plan de la refonte, non encore faite |
-| **Fichiers** | `ui/fonts/` (5 polices, 2 licences), `ui/main.slint`, `THIRD_PARTY_NOTICES.md`, `src/repo_guards.rs`, `.github/sample-gui.png`, README.md et README_FR.md (arborescence), `docs/DECISIONS.md` (DEC-63) |
+| **Fichiers** | `ui/fonts/` (5 polices, 2 licences), `ui/main.slint`, `THIRD_PARTY_NOTICES.md`, `src/repo_guards.rs`, `.github/sample-gui.png`, README.md et README_FR.md (arborescence), `docs/decisions.md` (DEC-63) |
 | **Règle** | une police embarquée est une dépendance redistribuée : sa licence voyage avec chaque copie, et un test le vérifie |
 | **Vérification** | contre-preuve : la licence retirée des notices fait rougir `every_embedded_font_has_its_licence_in_the_shipped_notices` ; capture Xvfb (`ffmpeg -f x11grab -draw_mouse 0`) montrant les deux polices ; `scripts/check.sh` ; essai à la main par l'utilisateur avant la PR |
 
@@ -142,7 +152,7 @@
 | **Constat** | sous Kubuntu (KDE, Wayland) avec Gear Lever : l'icône de la fenêtre n'est pas celle de l'application, et un lanceur épinglé à la barre des tâches ne démarre plus l'application ; sous Windows l'icône est bonne. L'utilisateur ne veut pas son identifiant dans l'application |
 | **Cause** | l'identifiant de la fenêtre, `com.canaill51.superview`, ne correspond à aucun `.desktop` : Gear Lever écrit `superview.desktop`. KWin n'associe la fenêtre qu'à un fichier du même nom que l'identifiant |
 | **Essai écarté** | `StartupWMClass` dans le `.desktop` : déjà mesuré sans effet sous Wayland (archives Go, 2026-10-14) ; retiré avant le commit |
-| **Fichiers** | `src/main.rs` et `packaging/linux/build_appimage.sh` (`APP_ID`), `docs/DECISIONS.md` (DEC-64), `docs/TESTS-MANUELS.md` |
+| **Fichiers** | `src/main.rs` et `packaging/linux/build_appimage.sh` (`APP_ID`), `docs/decisions.md` (DEC-64), `docs/tests-manuels.md` |
 | **Vérification** | `scripts/check.sh` ; à la main : l'application lancée par `cargo run` annonce `superview` et doit montrer la bonne icône grâce au `superview.desktop` de Gear Lever déjà présent, puis une AppImage reconstruite, intégrée par Gear Lever et épinglée |
 
 ### [2026-10-22] Aperçu vivant de la distorsion (DEC-62, refonte de l'interface, PR 6)
@@ -151,7 +161,7 @@
 | --- | --- |
 | **Constat** | la colonne gauche était vide sous « Output file » ; la maquette y montre la grille de la source et celle de la sortie |
 | **Cause** | fonction prévue au plan de la refonte, non encore faite |
-| **Fichiers** | `superview-core/src/pgm.rs` (`source_x_for_output_x` extraite de `write_maps`), `superview-app/src/preview.rs` (nouveau), `src/app.rs` (`apply_preview`), `ui/main.slint`, `src/app_tests.rs`, `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-62), README.md et README_FR.md |
+| **Fichiers** | `superview-core/src/pgm.rs` (`source_x_for_output_x` extraite de `write_maps`), `superview-app/src/preview.rs` (nouveau), `src/app.rs` (`apply_preview`), `ui/main.slint`, `src/app_tests.rs`, `src/window_tests.rs`, `docs/decisions.md` (DEC-62), README.md et README_FR.md |
 | **Règle** | quand une valeur dérive d'une formule du cœur, l'afficher par la fonction du cœur et non par une copie : l'extraction est prouvée par les empreintes dorées (inchangées) et par un test qui compare la fonction à chaque échantillon de la carte écrite |
 | **Essai** | un test d'application a trouvé un défaut : la case un-squeeze est liée en double sens, donc `get_squeeze() != view.squeeze` était déjà faux quand `apply_view` comparait et l'aperçu ne changeait jamais ; la fenêtre retient désormais le mode dessiné. Une capture Xvfb en mode un-squeeze a montré la grille source de 312 px comprimée dans une boîte de 236 px : la boîte suit maintenant la taille de l'image, et deux grilles 16:9 de 312 px ne tenant pas (562 px dans 560), ce mode en dessine deux de 270×152 |
 | **Vérification** | contre-preuves : signe de la formule inversé → `widening_stretches_the_edges_and_keeps_the_ends` rougit ; condition d'`apply_view` d'origine → `the_distortion_preview_follows_the_squeeze_switch` rougit ; écart de 400 px entre les grilles → le test de disposition rougit ; captures Xvfb en Dark et en Light, modes élargir et un-squeeze ; `scripts/check.sh` |
@@ -162,7 +172,7 @@
 | --- | --- |
 | **Constat** | à l'essai, l'utilisateur voit une fenêtre différente de la maquette : barre de six boutons en haut, titre en double, carte de conversion sans pastille ni pourcentage, colonne droite de même fond que la gauche |
 | **Cause** | le plan de la refonte avait gardé la barre de boutons « en haut, centrée » sans la comparer à la maquette |
-| **Fichiers** | `ui/main.slint` (disposition), `ui/components.slint` (`Pill`, fond des boutons, étiquette de la barre), `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-61) |
+| **Fichiers** | `ui/main.slint` (disposition), `ui/components.slint` (`Pill`, fond des boutons, étiquette de la barre), `src/window_tests.rs`, `docs/decisions.md` (DEC-61) |
 | **Règle** | avant d'écrire la disposition d'une maquette validée, relire la maquette elle-même et pas le plan qui la résume ; une remarque de l'utilisateur sur l'écart se traite par le texte de la maquette |
 | **Relecture** | la ligne Hardware est plafonnée à trois lignes (`height: min(preferred, 48px)` : un `max-height` seul perdait contre la hauteur minimale du texte replié) et le test prend le pire cas réel (préfixe + deux raisons de `PROBE_REASON_BUDGET`) ; bouton désactivé sans fond ; texte de la pastille testé ; vocabulaire « toolbar » retiré des tests |
 | **Essai à la main** | un vide visible sous la ligne Hardware : les espacements dépassaient ceux de la maquette (étiquette à 12 px de son champ au lieu de 6, ligne du pourcentage plus haute) ; refaits à l'identique, fenêtre 570 px au lieu de 620, textes variables plafonnés, étiquette « Input format » retirée |
@@ -174,7 +184,7 @@
 | --- | --- |
 | **Constat** | la carte du fichier avait un cadre vide et ne disait rien du fichier |
 | **Cause** | aucun module du cœur ne décodait une image ; `process.rs` ne capture que du texte |
-| **Fichiers** | `superview-core/src/thumbnail.rs` (+ `thumbnail/tests.rs`, `tests/real_ffmpeg.rs`), `superview-app/src/{engine,app,state,format}.rs`, `ui/main.slint`, tests d'application et de format, `docs/DECISIONS.md` (DEC-60), README.md et README_FR.md |
+| **Fichiers** | `superview-core/src/thumbnail.rs` (+ `thumbnail/tests.rs`, `tests/real_ffmpeg.rs`), `superview-app/src/{engine,app,state,format}.rs`, `ui/main.slint`, tests d'application et de format, `docs/decisions.md` (DEC-60), README.md et README_FR.md |
 | **Règle** | un travail d'arrière-plan qui répond à un choix de l'utilisateur porte la génération du choix et se jette s'il arrive après le suivant ; une image facultative n'ouvre jamais de popup |
 | **Relecture** | le fil de vignette possède un dossier et un processus : il est attendu à la fermeture (l'en-tête d'`app.rs` le dit) ; `thumbnail_time` testé, et sa version d'origine laissait passer NaN (`clamp` le conserve) ; chemin de sortie préfixé `file:` |
 | **Essai à la main** | durée « 1m55.991s » arrondie à la seconde ; boutons grisés (le principal, le segment choisi) lisibles : fond de surface et texte atténué au lieu d'une opacité de 50 % |
@@ -186,7 +196,7 @@
 | --- | --- |
 | **Constat** | une fenêtre de 860×332 aux contrôles Slint par défaut ; un popup Error à message long dont le bouton OK sortait de la fenêtre |
 | **Cause** | pas de composant maison pour la qualité et l'option un-squeeze ; le texte du popup n'avait ni défilement ni plafond |
-| **Fichiers** | `ui/components.slint` (`SegmentedControl`, `Switch`), `ui/main.slint` (deux colonnes, carte du fichier, popup Error défilant), `src/window_tests.rs` (disposition, segments, carte, long message), `docs/DECISIONS.md` (DEC-59) |
+| **Fichiers** | `ui/components.slint` (`SegmentedControl`, `Switch`), `ui/main.slint` (deux colonnes, carte du fichier, popup Error défilant), `src/window_tests.rs` (disposition, segments, carte, long message), `docs/decisions.md` (DEC-59) |
 | **Règle** | un composant remplaçant un widget garde ses libellés accessibles uniques : la carte du fichier a le sien (« Input video ») pour ne pas doubler « Choose input file » ; un test de débordement se prouve avec l'ancien code (OK à y=2773 sans défilement, mesuré) |
 | **Relecture** | l'action d'accessibilité des segments, de l'interrupteur et de la carte respecte `enabled` ; anneau de focus (Tab les atteint) ; « cochez » devient « activez » dans les deux README |
 | **Vérification** | `a_long_error_scrolls_and_keeps_its_button_in_the_window` rouge sans le `ScrollView` ; `the_file_card_chooses_the_input` rouge si la carte ignore `enabled` ; `a_locked_control_ignores_the_accessible_action` rouge sans la garde `enabled` ni celle du segment déjà choisi ; `the_right_column_fits_with_the_longest_texts` rouge avec une fenêtre plus basse ; captures Xvfb en Dark et Light, et du popup Error avec 30 lignes ; `scripts/check.sh` |
@@ -197,7 +207,7 @@
 | --- | --- |
 | **Constat** | une barre Slint d'un seul aspect, qui avançait par à-coups |
 | **Cause** | `ProgressIndicator` n'a ni couleur d'état ni animation réglables |
-| **Fichiers** | `ui/components.slint` (`BarState`, `ProgressBar`), `ui/main.slint`, `src/state.rs` (`BarState`, transitions), `src/app.rs` (`apply_view`), `src/state/tests.rs`, `src/window_tests.rs`, `src/app_tests.rs`, `docs/DECISIONS.md` (DEC-58) |
+| **Fichiers** | `ui/components.slint` (`BarState`, `ProgressBar`), `ui/main.slint`, `src/state.rs` (`BarState`, transitions), `src/app.rs` (`apply_view`), `src/state/tests.rs`, `src/window_tests.rs`, `src/app_tests.rs`, `docs/decisions.md` (DEC-58) |
 | **Règle** | un état d'affichage se fixe là où l'état métier change déjà, pas dans la colle ; un test de couleur compare tous les états entre eux, pas un seul |
 | **Vérification** | rouges chacun avec le défaut réintroduit (mesuré) : Done remplacé par Idle (`the_bar_turns_done_on_success`, `a_new_input_resets_the_bar`) ; Stopped retiré de l'échec (test d'état et scénario d'échec) ; arms Idle et Stopped intervertis dans `apply_view` (scénarios d'`app_tests.rs`) ; rôle `progress-indicator` retiré (`the_bar_changes_colour_with_its_state`) ; `scripts/check.sh` |
 | **Relecture** | la barre garde son rôle accessible et sa valeur (le `ProgressIndicator` les avait) ; DEC-58 précise que seul un nouveau fichier d'entrée remet la barre à zéro |
@@ -208,7 +218,7 @@
 | --- | --- |
 | **Constat** | thème sombre forcé, couleurs en dur (`#5aa9ff`, `#a8a8a8`, `#ff7070`, voile) dans `main.slint`, aucune couleur d'accent |
 | **Cause** | `Palette` de Slint est en lecture seule : l'accent et le thème clair n'étaient pas réglables sans global propre |
-| **Fichiers** | `ui/theme.slint` et `ui/components.slint` (nouveaux), `ui/main.slint` (menu Theme, `AppButton`, `Card`, couleurs par `Theme`), `src/prefs.rs` (`theme`, `THEMES`), `src/state.rs` (`theme_changed`), `src/app.rs`, `src/window_tests.rs`, `docs/DECISIONS.md` (DEC-57), README.md et README_FR.md |
+| **Fichiers** | `ui/theme.slint` et `ui/components.slint` (nouveaux), `ui/main.slint` (menu Theme, `AppButton`, `Card`, couleurs par `Theme`), `src/prefs.rs` (`theme`, `THEMES`), `src/state.rs` (`theme_changed`), `src/app.rs`, `src/window_tests.rs`, `docs/decisions.md` (DEC-57), README.md et README_FR.md |
 | **Règle** | un composant maison garde le rôle et le libellé accessibles du widget qu'il remplace, sinon les tests de fenêtre ne le trouvent plus (le texte interne en `accessible-role: none`, sinon le libellé existe deux fois) ; un nouveau modèle de menu sélectionne son premier élément : fixer le choix après |
 | **Relecture** | le premier clic souris était perdu : un `FocusScope` pleine taille au-dessus du `TouchArea` prenait l'appui pour le focus (corrigé : largeur 0, comme le `Button` de Slint ; `an_active_button_answers_the_first_mouse_click`, rouge avant) ; accent clair foncé à `#0a7385` (contraste ≥ 4,5:1 avec le blanc) ; `Palette.color-scheme` vérifié (`scheme-dark`) ; Entrée ignorée sur un bouton désactivé |
 | **Vérification** | `the_theme_menu_switches_the_colours` rouge sans `Theme.name = root.theme`, `the_theme_defaults_to_dark_and_an_unknown_one_becomes_dark` rouge sans le filtre de `sanitized` (mesuré) ; captures Xvfb en Light et en Dark ; `scripts/check.sh` |
@@ -219,7 +229,7 @@
 | --- | --- |
 | **Constat** | fenêtre de 980×470 aux menus étirés, valeurs loin de leurs libellés, Status, Results et Hardware au-dessus de la barre |
 | **Cause** | une seule colonne pour tout, sans largeur propre aux menus |
-| **Fichiers** | `superview-app/ui/main.slint` (en-tête sur une ligne, `GridLayout` à gauche avec Hardware dessous, panneau à droite, 860×332), `src/window_tests.rs` (tailles, `the_conversion_panel_sits_beside_the_settings`), `docs/DECISIONS.md` (DEC-56, DEC-54 remplacée), `docs/ARCHITECTURE.md` |
+| **Fichiers** | `superview-app/ui/main.slint` (en-tête sur une ligne, `GridLayout` à gauche avec Hardware dessous, panneau à droite, 860×332), `src/window_tests.rs` (tailles, `the_conversion_panel_sits_beside_the_settings`), `docs/decisions.md` (DEC-56, DEC-54 remplacée), `docs/architecture.md` |
 | **Règle** | une disposition se prouve par les positions des éléments, pas par les textes ; l'ajustement des textes à la vraie police se juge sur une capture |
 | **Vérification** | le nouveau test rouge sur l'ancienne mise en page (« a menu ends at x=968, past the panel that starts at x=12 »), vert ensuite ; capture sous Xvfb à 860×332 ; `scripts/check.sh` |
 
@@ -229,7 +239,7 @@
 | --- | --- |
 | **Constat** | les journaux mêlaient plus de 2 000 lignes d'histoire Go au vivant ; leurs bandeaux disaient que `internal/common/` existait ; 22 liens pointaient vers des fichiers supprimés ; 7 lignes de `PIEGES.md` parlaient d'outils disparus |
 | **Cause** | DEC-49 avait laissé les journaux « pas réécrits » sans les situer |
-| **Fichiers** | bandeau « Go et Fyne » dans `LECONS`, `ANALYSE`, `CORRECTIONS`, `DECISIONS`, `archives/ANALYSE-passes-3-a-13` (`CONTRATS` en avait déjà un) ; les entrées d'avant le 2026-10-17 déplacées dans `archives/CORRECTIONS-ere-go.md` (titre-renvoi laissé ici, liens relatifs ajustés) ; `PIEGES.md` : section « Historique (Go) » ; liens vers `cmd/`, `internal/` remplacés par du texte ; DEC-55 |
+| **Fichiers** | bandeau « Go et Fyne » dans `LECONS`, `ANALYSE`, `CORRECTIONS`, `DECISIONS`, `archives/analyse-passes-3-a-13` (`CONTRATS` en avait déjà un) ; les entrées d'avant le 2026-10-17 déplacées dans `archives/corrections-ere-go.md` (titre-renvoi laissé ici, liens relatifs ajustés) ; `PIEGES.md` : section « Historique (Go) » ; liens vers `cmd/`, `internal/` remplacés par du texte ; DEC-55 |
 | **Règle** | on archive, on ne réécrit pas : le contenu d'une entrée ne change jamais, seule sa place |
 | **Vérification** | script de liens relatifs sur tous les `.md` : 0 cassé (22 avant) ; les entrées archivées ne diffèrent de l'original que par 40 liens relatifs (38 lignes) (`../` ajouté) ; `scripts/check.sh` |
 
@@ -280,7 +290,7 @@
 | --- | --- |
 | **Constat** | essai de l'application par l'utilisateur : la fenêtre redimensionnable de DEC-51 « bouge », il préfère la taille fixe |
 | **Cause** | choix de la 14ᵉ passe (F-27) pour les petits écrans, désormais écarté |
-| **Fichiers** | `superview-app/ui/main.slint` (`min-` = `max-` à 980×470), `src/repo_guards.rs` (garde `the_window_has_one_size_so_it_cannot_be_resized`), `src/window_tests.rs` (`the_window_fits_its_smallest_size` retiré), `DECISIONS.md` (DEC-54, DEC-51 *Remplacée*, DEC-32), `ARCHITECTURE.md` |
+| **Fichiers** | `superview-app/ui/main.slint` (`min-` = `max-` à 980×470), `src/repo_guards.rs` (garde `the_window_has_one_size_so_it_cannot_be_resized`), `src/window_tests.rs` (`the_window_fits_its_smallest_size` retiré), `decisions.md` (DEC-54, DEC-51 *Remplacée*, DEC-32), `architecture.md` |
 | **PR** | Return the window to its fixed size |
 | **Vérification** | contre-preuve : le garde est rouge sur le `main.slint` de `master` (« sets no window max-width »), vert après. Un premier essai par `set_size` dans `window_tests.rs` ne prouvait rien : le backend de test ne clampe pas, le test restait rouge même avec le correctif ; abandonné. **Test retiré par décision** : `the_window_fits_its_smallest_size`, sans objet sans minimum. À la main : fenêtre non redimensionnable à vérifier sous KDE/Wayland (winit applique min = max). **Limite** : écran de 910×512 logiques ou moins, fenêtre coupée (DEC-51 le corrigeait) |
 
@@ -292,7 +302,7 @@
 | **Cause** | chaque PR de la 14ᵉ passe mettait à jour le code et son entrée de journal, pas les documents de synthèse qui les citent ; la prose Go du retrait (DEC-49) n'avait pas été balayée dans les pointeurs vers des tests |
 | **Fichiers** | `AGENTS.md`, `README.md`/`README_FR.md` (dont la taille de l'installateur), `RELEASING.md`, `THIRD_PARTY_NOTICES.md`, `docs/{ARCHITECTURE,CONTRATS,DECISIONS,ENVIRONNEMENT,LECONS,PIEGES,SUITE,TESTS-MANUELS}.md`, `docs/pieges/2026-10-14-tube-coupe-sortie-outil.md`, `.claude/skills/publier/SKILL.md`, `Makefile`, `scripts/checks/rust.sh`, `.github/release.yml` et un commentaire de `.github/workflows/release.yml` |
 | **PR** | Bring the documentation back in line with the code after the fourteenth pass |
-| **Vérification** | chaque écart a été constaté dans le code avant d'être corrigé (preuve citée par l'audit) ; 463 recompté par `cargo tree -p superview-app -e normal --target all` ; `scripts/check.sh` vert ; aucun code Rust touché. **Leçon L-117** écrite (environnement injecté), que `AGENTS.md` citait sous un mauvais numéro. **Volontairement laissés** : les liens vers `cmd/` et `internal/` des journaux historiques (`ANALYSE.md`, `archives/`), qui décrivent l'état d'avant DEC-49. **Essai à blanc (L-114)** : `release.yml` lancé sur la branche sans version (run 39573847465, commit `d9790e9`), vert : tests, builds Windows et Linux, `Create GitHub Release` sautée. Le même run a mesuré l'installateur Windows (artefact de 57 Mio) : « environ 95 Mo » devient « environ 60 Mo » dans les deux README |
+| **Vérification** | chaque écart a été constaté dans le code avant d'être corrigé (preuve citée par l'audit) ; 463 recompté par `cargo tree -p superview-app -e normal --target all` ; `scripts/check.sh` vert ; aucun code Rust touché. **Leçon L-117** écrite (environnement injecté), que `AGENTS.md` citait sous un mauvais numéro. **Volontairement laissés** : les liens vers `cmd/` et `internal/` des journaux historiques (`analyse.md`, `archives/`), qui décrivent l'état d'avant DEC-49. **Essai à blanc (L-114)** : `release.yml` lancé sur la branche sans version (run 39573847465, commit `d9790e9`), vert : tests, builds Windows et Linux, `Create GitHub Release` sautée. Le même run a mesuré l'installateur Windows (artefact de 57 Mio) : « environ 95 Mo » devient « environ 60 Mo » dans les deux README |
 
 ### [2026-10-20] Entrée lue comme du MP4 et durée non finie refusée (Q-04 et Q-05, session 9)
 
@@ -300,7 +310,7 @@
 | --- | --- |
 | **Constat** | ffprobe et ffmpeg devinaient le format de l'entrée d'après son contenu : un « .mp4 » contenant un script `ffconcat` était lu et menait à un autre fichier local. Une durée `inf` ou `nan` passait `validate` (le `<= 0` de Go ne les attrape pas) : `inf` demandait 8 TB d'espace libre, `NaN` annulait le contrôle d'espace |
 | **Cause** | pas de `-f` devant `-i` ; `duration_float <= 0.0` seul |
-| **Fichiers** | `superview-core/src/video.rs` (`-f mov` dans `check_video_command`, `is_finite` dans `validate`), `encode/args.rs` (`-f mov` avant l'entrée source seule), `tests/parity_encode_args.rs` (`with_forced_demuxer`), `probe/tests.rs` (`-f` propre à la conversion), `video/tests.rs` ; DEC-52, DEC-53, `CONTRATS.md`, `AGENTS.md` |
+| **Fichiers** | `superview-core/src/video.rs` (`-f mov` dans `check_video_command`, `is_finite` dans `validate`), `encode/args.rs` (`-f mov` avant l'entrée source seule), `tests/parity_encode_args.rs` (`with_forced_demuxer`), `probe/tests.rs` (`-f` propre à la conversion), `video/tests.rs` ; DEC-52, DEC-53, `contrats.md`, `AGENTS.md` |
 | **PR** | Read the input as MP4 only and refuse a duration that is not a finite number |
 | **Vérification** | contre-preuve rouge, cinq tests avant le correctif : l'argv d'ffprobe, `check_video_refuses_a_concat_script_named_mp4` (le script était accepté), la parité des 237 cas (`-f mov` absent), `validate_duration_limits` et `a_duration_of_inf_or_nan_in_ffprobes_json_is_refused` ; verts après. À la main avec `superview-harness convert` : un vrai MP4 se convertit, le script concat est refusé sans fichier de sortie. **Tests modifiés par décision** : `validate_duration_limits` (« NaN passe » devient « NaN, inf, -inf refusés »), l'argv attendu d'ffprobe, la comparaison sonde/conversion (`-f` propre à la conversion). **Fixture gelée non touchée** : l'écart est dans `with_forced_demuxer`. **Limite** : un MKV renommé en .mp4, converti avant, est maintenant refusé |
 
@@ -310,7 +320,7 @@
 | --- | --- |
 | **Constat** | aucun `timeout-minutes` (défaut GitHub : 360 min) ; les cinq crates non maintenus n'étaient acceptés nulle part ; les licences n'étaient pas vérifiées contre GPL-3.0-or-later ; `THIRD_PARTY_NOTICES.md` annonçait 471 crates ; le seuil de couverture ne laissait aucune trace |
 | **Cause** | jamais ajoutés ; `cargo audit` ne fait que des avertissements sur « non maintenu » et le commentaire de `rust.yml` renvoyait à un `audit.toml` absent |
-| **Fichiers** | `.github/workflows/rust.yml` (60 min par job, étape `cargo deny`, artefact `lcov` de 30 jours), `lint.yml` (15 min), `rust/deny.toml` (nouveau), `Makefile` (`coverage-audit`), `docs/ENVIRONNEMENT.md`, `AGENTS.md`, `THIRD_PARTY_NOTICES.md` (473 crates). `release.yml` n'est pas touché (essai à blanc obligatoire, L-114) |
+| **Fichiers** | `.github/workflows/rust.yml` (60 min par job, étape `cargo deny`, artefact `lcov` de 30 jours), `lint.yml` (15 min), `rust/deny.toml` (nouveau), `Makefile` (`coverage-audit`), `docs/environnement.md`, `AGENTS.md`, `THIRD_PARTY_NOTICES.md` (473 crates). `release.yml` n'est pas touché (essai à blanc obligatoire, L-114) |
 | **PR** | Bound the CI jobs in time, check advisories and licences with cargo-deny and keep the coverage report |
 | **Vérification** | contre-preuve rouge : sans l'`ignore` de `ttf-parser`, `advisories FAILED` (« `ttf-parser` is unmaintained ») ; sans `Zlib` dans `allow`, `licenses FAILED` ; verts après. **Quatre exceptions seulement** (`ttf-parser`, `zvariant`, `zbus_names`, `zvariant_derive`) : `bincode` n'est dans `Cargo.lock` que par une dépendance optionnelle inactive, `cargo-deny` ne la voit pas. Toutes viennent du backend `winit` de Slint (1.18.1, la dernière) ; à rouvrir à chaque mise à jour de Slint (zbus 6 absorbe zvariant, `skrifa` remplace `ttf-parser`). **Piège** : `cargo-deny` 0.18.4 ne lit pas les scores CVSS 4.0 de la base d'avis (« unsupported CVSS version: 4.0 »), d'où 0.20.2. **Limite** : l'étape `cargo llvm-cov report --lcov` et l'artefact ne tournent qu'en CI ; leur première exécution est celle de cette PR |
 
@@ -402,7 +412,7 @@
 | **Cause** | le portage (DEC-43) devait finir par le retrait de Go, après un dernier GO |
 | **Fichiers** | #136 (gardes Go portés en Rust, job *Rust coverage and audit*), #137 (code Go et jobs CI Go supprimés, icône sous `rust/crates/superview-app/ui/`), 8.3 : `AGENTS.md`, `docs/{ARCHITECTURE,CONTRATS,ENVIRONNEMENT,SUITE,PIEGES,DECISIONS}.md`, README, RELEASING, THIRD_PARTY_NOTICES |
 | **PR** | #136, #137, docs/phase8-prose |
-| **Vérification** | `scripts/check.sh` vert ; balayage `grep -rnE "go (build|test|vet)|gofmt|golangci|[Ff]yne|internal/common|cmd/superview"` : seules des mentions historiques explicites restent ; les journaux (`CORRECTIONS.md`, `LECONS.md`, `ANALYSE.md`, `archives/`) sont inchangés. Dernière version Go : v0.2.9 |
+| **Vérification** | `scripts/check.sh` vert ; balayage `grep -rnE "go (build|test|vet)|gofmt|golangci|[Ff]yne|internal/common|cmd/superview"` : seules des mentions historiques explicites restent ; les journaux (`corrections.md`, `lecons.md`, `analyse.md`, `archives/`) sont inchangés. Dernière version Go : v0.2.9 |
 
 ### [2026-10-20] Le Diagnostic ne montre plus les lignes `libva info:` à la place de l'erreur (Rust)
 
@@ -425,7 +435,7 @@
 | --- | --- |
 | **Constat** | les sélecteurs de la fenêtre Rust étaient ceux d'essai (rfd seul) : sans portail ni zenity, sous KDE avec kdialog seulement, le bouton ne faisait rien ; la fenêtre n'avait pas d'icône |
 | **Cause** | rfd renvoie `None` pour une annulation comme pour l'absence de tout sélecteur, et ne connaît pas kdialog |
-| **Fichiers** | `rust/crates/superview-app/{src/dialogs.rs (neuf),src/app.rs,src/host.rs,src/app_tests.rs,src/window_tests.rs,ui/main.slint,build.rs}`, `docs/TESTS-MANUELS.md` (neuf), DEC-43 |
+| **Fichiers** | `rust/crates/superview-app/{src/dialogs.rs (neuf),src/app.rs,src/host.rs,src/app_tests.rs,src/window_tests.rs,ui/main.slint,build.rs}`, `docs/tests-manuels.md` (neuf), DEC-43 |
 | **PR** | feat/rust-pickers |
 | **Vérification** | tests unitaires de `dialogs.rs` (seuil 299/300 ms, ordre, arguments, code 1 = annulé, recherche dans `PATH`) et 4 scénarios de fenêtre (champ texte entrée, sortie, annulation, file de popups) ; contre-épreuve de 27 défauts réintroduits, tous rougis. Icône vérifiée sous Xvfb (`_NET_WM_ICON` 1024x1024), sans test automatique. Non vérifié : portail réel, kdialog réel, Windows réel (voir la checklist) |
 
@@ -450,4 +460,4 @@
 | **Vérification** | 92 tests ; contre-épreuve faite pour chaque groupe (génération non avancée, préférence écrasée par un repli, Diagnostic hors de la liste verrouillée, `done` non libéré sur panique, etc.) · écarts voulus avec Go dans DEC-43 et DEC-46 |
 
 ### [2026-10-14 et avant] Corrections de l'ère Go — archivées
-Les entrées du 2026-09-04 au 2026-10-14 (U-01 à U-14, M-01 à M-06, E-01 à E-27, P-, N-, B-, R-05, passes 2, 3 et 13, DEC-36, DEC-41…) sont dans [archives/CORRECTIONS-ere-go.md](archives/CORRECTIONS-ere-go.md), texte inchangé (DEC-55).
+Les entrées du 2026-09-04 au 2026-10-14 (U-01 à U-14, M-01 à M-06, E-01 à E-27, P-, N-, B-, R-05, passes 2, 3 et 13, DEC-36, DEC-41…) sont dans [archives/corrections-ere-go.md](archives/corrections-ere-go.md), texte inchangé (DEC-55).

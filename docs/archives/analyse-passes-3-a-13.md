@@ -1,9 +1,9 @@
 # Superview — Analyse : passes 3 à 13 (archive)
 
 > **Archive, pas documentation de référence.** Ces onze passes (2026-09-04 → 2026-10-14)
-> sont sorties d'[ANALYSE.md](../ANALYSE.md) par la PR « docs du gabarit » : texte
+> sont sorties d'[analyse.md](../analyse.md) par la PR « docs du gabarit » : texte
 > **inchangé**, seule la place a changé. Le tableau d'état (§ 4) et les questions
-> ouvertes (§ 5) restent dans ANALYSE.md, qui est le seul endroit qui tienne l'état
+> ouvertes (§ 5) restent dans analyse.md, qui est le seul endroit qui tienne l'état
 > d'avancement. Les renvois « § 3bis … § 3duodecies » des autres documents désignent
 > les sections ci-dessous. Chercher un constat : `grep -rn "U-03" docs/`.
 >
@@ -59,7 +59,7 @@ le contourner.
 > MKV. L'utilisateur a signalé que l'application ne recevrait jamais de MKV : sévérité revue à
 > 🟠, mais en vérifiant plus largement le périmètre s'est révélé plus étendu (5 formats, pas 1).
 > Il a ensuite précisé que **seul le MP4 est supporté**, ce qui tranche la correction : restreindre,
-> et non ajouter un repli sur les métadonnées conteneur comme je le proposais. Voir [LECONS.md](../LECONS.md) L-26.
+> et non ajouter un repli sur les métadonnées conteneur comme je le proposais. Voir [lecons.md](../lecons.md) L-26.
 
 ### N-02 ✅ — ~~Chaque annulation laisse un processus zombie~~ — **CORRIGÉ**
 
@@ -1412,9 +1412,9 @@ comment vérifier votre GPU » — qu'aucun grep sur un identifiant ne relie au 
 a rien à installer », avec l'avertissement sur `winget` et le renvoi à *Diagnostic* pour
 vérifier le GPU ; contenu réel des archives et disposition d'installation ;
 `SUPERVIEW_FFMPEG_DIR` documenté là où on le cherche ; cartographie à jour. Corrigés
-aussi : `docs/ANALYSE.md` § 1 (cartographie et compteurs à `ec7d753`, couverture
-68,7 %), `docs/CONTRATS.md` § 1 (préfixes de constats, script de plancher ajouté aux
-sources), `docs/ENVIRONNEMENT.md` (un build source n'embarque pas de FFmpeg, donc les
+aussi : `docs/analyse.md` § 1 (cartographie et compteurs à `ec7d753`, couverture
+68,7 %), `docs/contrats.md` § 1 (préfixes de constats, script de plancher ajouté aux
+sources), `docs/environnement.md` (un build source n'embarque pas de FFmpeg, donc les
 sondes mesurent celui du système), et `superview.yaml` (pourquoi le choix du binaire
 n'est pas une clé de configuration).
 
@@ -1784,7 +1784,7 @@ rien de l'arbre qu'on a sous la main.
 --include='*.yml' --include='*.md' .` sur tout le dépôt : treize invocations. Les quatre
 de `test.yml` et `release.yml` portent la variable par un `env:` d'étape, que le grep ne
 montre pas mais qui est bien là. Une manquait, et à l'endroit qui compte —
-[`docs/CONTRATS.md`](../CONTRATS.md) § *Vérification fonctionnelle réelle* donnait
+[`docs/contrats.md`](../contrats.md) § *Vérification fonctionnelle réelle* donnait
 `go test ./common -run TestIntegration -v` comme moyen de vérifier une conversion réelle,
 c'est-à-dire la commande qui saute les sept tests en question et affiche `ok`. Corrigée
 et rejouée : 7 PASS.
@@ -1878,12 +1878,12 @@ en pire, parce que ce sont les lignes qui servent à **naviguer** le document.
 | Ordre de lecture s'arrêtant à § 3octies | § 3nonies et § 3decies manquaient |
 | `## 5bis` placé **avant** `## 5` | *bis* veut dire « après » ; il était avant |
 | Deux lignes « 11ᵉ passe » distinctes au § 4 | une passe, une ligne |
-| `LECONS.md` : « 80 règles », « les 67 constats sont clos » | 98 règles, 105 constats |
-| `LECONS.md` : légende des préfixes s'arrêtant à `R-xx` | `D/V`, `U` et `M` manquaient |
+| `lecons.md` : « 80 règles », « les 67 constats sont clos » | 98 règles, 105 constats |
+| `lecons.md` : légende des préfixes s'arrêtant à `R-xx` | `D/V`, `U` et `M` manquaient |
 
 Le `5bis` n'était pas seulement inesthétique : le § 4 et le § 2 y renvoient, et le journal
 des révisions doit rester la dernière section, comme dans
-[`LECONS.md`](../LECONS.md). La renumérotation « Questions ouvertes » → § 5 et « Journal des
+[`lecons.md`](../lecons.md). La renumérotation « Questions ouvertes » → § 5 et « Journal des
 révisions » → § 6 remet l'ordre et les renvois d'accord sans déplacer le journal.
 
 **Pourquoi personne ne l'avait vu** — rien ne compile un document. Les chiffres
@@ -1893,7 +1893,7 @@ aucune passe ne relit l'en-tête qu'elle périme. Le balayage prescrit par L-80 
 que la doc *promet* ; celui-ci porte sur ce qu'elle *compte*.
 
 Les deux dernières lignes viennent du balayage que prescrit L-98 — relire l'en-tête et le
-sommaire du fichier qu'on vient d'allonger. `CONTRATS.md`, `ENVIRONNEMENT.md`,
+sommaire du fichier qu'on vient d'allonger. `contrats.md`, `environnement.md`,
 `hardware-support.md` et les deux README ne portent aucun compte, donc rien à y dériver.
 
 **Correctif** — chiffres refaits, sections renumérotées, renvois suivis, lignes du § 4
@@ -1930,7 +1930,7 @@ release ne lance pas `govulncheck`.
 
 **Correctif** — `check-latest: true` sur les neuf étapes `setup-go` des trois workflows,
 plutôt qu'un `go-version` épinglé à `1.26.9` : l'épinglage referait le même défaut au
-prochain correctif de Go, en sens inverse. `ENVIRONNEMENT.md` télécharge 1.26.9.
+prochain correctif de Go, en sens inverse. `environnement.md` télécharge 1.26.9.
 
 **Trouvé en chemin, non traité ici** — sur la machine de vérification (Intel UHD Tiger Lake,
 FFmpeg 8.0.1 système), `TestIntegration_DeviceFrameEncoderRunsTheWholePipeline` rougit :
@@ -1969,7 +1969,7 @@ déjà supprimée pour un succès.
 
 Aucun signalement. Demande de l'utilisateur : une analyse complète du projet, de sa
 structure et de ses tests, confrontée aux documentations officielles, avec un plan
-d'actions — et un registre des décisions, qui manquait ([DECISIONS.md](../DECISIONS.md)).
+d'actions — et un registre des décisions, qui manquait ([decisions.md](../decisions.md)).
 
 **Méthode.** Baseline d'abord : `gofmt`, `go build ./...`, `go vet`, `golangci-lint`
 (0 alerte), `govulncheck` (0 vulnérabilité appelée), puis
@@ -2445,7 +2445,7 @@ lister les pins manuels dans `RELEASING.md`.
 
 ### E-25 — L'outillage agent : une justification fausse, et aucun `.claude/`
 
-🟡 `CLAUDE.md:4` et `CONTRATS.md` § 1 ligne 11 disent que « Claude Code ne lit pas
+🟡 `CLAUDE.md:4` et `contrats.md` § 1 ligne 11 disent que « Claude Code ne lit pas
 `AGENTS.md` ». Doc (code.claude.com/docs/en/memory) : Claude Code **peut** lire `AGENTS.md`
 comme instructions de projet ; l'import reste le bon choix parce que « in some sessions
 Claude can't read `AGENTS.md` », mais la raison écrite est fausse. L'import `@AGENTS.md` est
@@ -2499,7 +2499,7 @@ l'utilisateur avant d'être codés ; les autres sont des corrections sans altern
 
 | # | PR (titre proposé) | Constats | Décision ? |
 | --- | --- | --- | --- |
-| 0 | *Record the thirteenth review pass, the decision register and the agent tooling* | E-25, DECISIONS.md, L-101 à L-106 | — (cette PR) |
+| 0 | *Record the thirteenth review pass, the decision register and the agent tooling* | E-25, decisions.md, L-101 à L-106 | — (cette PR) |
 | 1 | *Stop the encode when the system says so, and never delete a finished file* | E-02, E-13, E-04, E-10 | non |
 | 2 | *Make Quit, the window close and SIGTERM all wait for the encode to unwind* | E-03, E-14, E-15, E-23 (closures, fyneDo) | non |
 | 3 | *Ask the probe the same question as the encode, and map presets per encoder* | E-01 (a), E-08, E-07, E-09 | **E-01 a/b · E-08 `fast→p3`** |

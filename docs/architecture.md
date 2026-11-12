@@ -1,7 +1,7 @@
 # Architecture
 
 > Claude : à lire avant toute nouvelle fonctionnalité. À mettre à jour quand la structure change.
-> C'est une carte, pas un roman : les contrats détaillés sont dans [CONTRATS.md](CONTRATS.md).
+> C'est une carte, pas un roman : les contrats détaillés sont dans [contrats.md](contrats.md).
 
 ## But du projet
 Convertir une vidéo MP4 en 4:3 vers du 16:9 par distorsion dynamique : les bords sont étirés, le
@@ -73,7 +73,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 | `scripts/` | `check.sh` (point d'entrée unique de vérification), `checks/rust.sh`, `checks/hooks.sh` (les hooks de `.claude/hooks` sans `python3`, L-119) et `checks/outils.sh` (`lib/outils.sh` : ffmpeg cherché comme par `ToolResolver`, L-121) |
 | `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65 ; publié en archive Windows, DEC-69) |
-| `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` |
+| `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` ; index : [README.md](README.md), un document par ligne, noms en minuscules |
 | `superview.yaml` | configuration livrée |
 
 ## Flux de données
@@ -90,11 +90,11 @@ dossier temporaire.
 | Service / lib | Pourquoi | Doc locale |
 |---------------|----------|------------|
 | FFmpeg / ffprobe | l'encodage ; livré dans l'installateur et l'AppImage, **épinglé** par plancher pilote NVENC | `RELEASING.md`, `docs/hardware-support.md` |
-| Slint 1.18 (rendu logiciel, backend winit) | la fenêtre ; sans OpenGL ni Qt. winit charge `libxkbcommon-x11` à l'exécution (embarquée dans l'AppImage) | `docs/ENVIRONNEMENT.md`, DEC-43, DEC-47 |
+| Slint 1.18 (rendu logiciel, backend winit) | la fenêtre ; sans OpenGL ni Qt. winit charge `libxkbcommon-x11` à l'exécution (embarquée dans l'AppImage) | `docs/environnement.md`, DEC-43, DEC-47 |
 | rfd (portail xdg, sans GTK) | sélecteurs de fichiers ; charge `libdbus` à l'exécution | DEC-43 |
 | `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
 | `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
-| Rust (rustup, `rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/ENVIRONNEMENT.md` |
+| Rust (rustup, `rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/environnement.md` |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) ; l'archive `.zip` du plugin Resolve, par `7z` (DEC-69) | `RELEASING.md`, DEC-41 |
 
 ## Invariants (ce qui ne doit JAMAIS casser)
@@ -107,6 +107,6 @@ dossier temporaire.
 - Toute PR passe par la CI ; les notes de version viennent des PR fusionnées.
 
 ## Où lire quoi
-[CONTRATS.md](CONTRATS.md) (faits mesurés, à lire avant d'éditer un fichier Rust) · [DECISIONS.md](DECISIONS.md)
+[contrats.md](contrats.md) (faits mesurés, à lire avant d'éditer un fichier Rust) · [decisions.md](decisions.md)
 (ce qui ressemble à un défaut) · [PIEGES.md](PIEGES.md) (index des leçons) ·
-[CORRECTIONS.md](CORRECTIONS.md) (historique des corrections) · [SUITE.md](SUITE.md) (où on en est).
+[corrections.md](corrections.md) (historique des corrections) · [SUITE.md](SUITE.md) (où on en est).

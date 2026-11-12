@@ -119,7 +119,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
 
 ## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, DEC-69 : livré, archive Windows)
 
-`sh packaging/ofx/build_bundle.sh` (Linux, ou Git Bash sous Windows avec les Build Tools, `docs/ENVIRONNEMENT.md`)
+`sh packaging/ofx/build_bundle.sh` (Linux, ou Git Bash sous Windows avec les Build Tools, `docs/environnement.md`)
 ou l'artefact `Superview.ofx.bundle-Windows` de la CI. Passés le 2026-10-25 sous Windows 11, Resolve 21.1.1
 **gratuit**, i7-11800H et RTX 3050 Ti Laptop (4 Go, pilote 616.92, CUDA) ; le chemin CUDA a tourné (compté dans
 un chronométrage temporaire, retiré depuis).

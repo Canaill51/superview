@@ -226,7 +226,7 @@ jobs:
       # gyan.dev's 8.1.1 and 8.1.2 that floor went from 570.0 to 610.00, and the
       # NVIDIA RTX Enterprise driver branch tops out at 597.06: on a professional
       # card, 8.1.2 can never use NVENC, however current the driver is. That is
-      # the bug report this bundling answers (ANALYSE.md U-03).
+      # the bug report this bundling answers (analyse.md U-03).
       #
       # So the property being pinned is the floor, not the version. The step below
       # reads it back out of the downloaded binary and fails if it is not 570.0 --

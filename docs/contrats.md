@@ -2,14 +2,14 @@
 
 > **À lire avant d'ouvrir un fichier Rust de ce dépôt.** Ce fichier dit ce sur
 > quoi on peut s'appuyer et ce qu'il ne faut pas casser. Il est maintenu ; les
-> deux journaux ([ANALYSE.md](ANALYSE.md), [LECONS.md](LECONS.md)) racontent
+> deux journaux ([analyse.md](analyse.md), [lecons.md](lecons.md)) racontent
 > comment on en est arrivé là.
 >
 > Le code Go a été retiré (DEC-49) ; ses journaux parlent encore de `internal/common/`, de
 > `cmd/superview/` et de Fyne : ils décrivent l'état d'avant. Les faits FFmpeg ci-dessous ont
 > été mesurés au temps de Go et valent tels quels pour le Rust, qui lance les mêmes binaires.
 > Pour installer la chaîne d'outils sur un poste sans `sudo`, voir
-> [ENVIRONNEMENT.md](ENVIRONNEMENT.md).
+> [environnement.md](environnement.md).
 
 ---
 
@@ -27,9 +27,9 @@
 | 5 | `RELEASING.md` | **La** procédure de release. Il n'y en a plus d'autre, et son § *Bumping the bundled FFmpeg* dit pourquoi le pin est ce qu'il est. | fait foi |
 | 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Le fichier livré et le défaut interne (`Config::default`) concordent (`performance_mode: safe_performance`, DEC-33) ; garder les deux alignés. |  |
-| 7 | [`ANALYSE.md`](ANALYSE.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U/M/E et leur état ; le détail des passes 3 à 13 est dans [`archives/`](archives/ANALYSE-passes-3-a-13.md). | journal, voir son en-tête |
-| 8 | [`LECONS.md`](LECONS.md), [`CORRECTIONS.md`](CORRECTIONS.md), [`PIEGES.md`](PIEGES.md) | Leçons permanentes ; historique des corrections appliquées ; index des leçons par mot-clé. | journal, voir son en-tête |
-| 8bis | [`DECISIONS.md`](DECISIONS.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les choix du dépôt (DEC-01 à DEC-49), chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
+| 7 | [`analyse.md`](analyse.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U/M/E et leur état ; le détail des passes 3 à 13 est dans [`archives/`](archives/analyse-passes-3-a-13.md). | journal, voir son en-tête |
+| 8 | [`lecons.md`](lecons.md), [`corrections.md`](corrections.md), [`PIEGES.md`](PIEGES.md) | Leçons permanentes ; historique des corrections appliquées ; index des leçons par mot-clé. | journal, voir son en-tête |
+| 8bis | [`decisions.md`](decisions.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les choix du dépôt (DEC-01 à DEC-49), chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
 | 9 | `README.md` et `README_FR.md` | Comportement documenté côté utilisateur. Un seul document en deux langues : toute modification visible par l'utilisateur se fait dans les deux, dans la même PR. Le job `readme-parity` de `lint.yml` le vérifie. |  |
 | 10 | `Makefile` | Cibles locales : `check`, `build`, `test` (pose `SUPERVIEW_REQUIRE_FFMPEG=1`), `coverage-audit`, `fmt`, `clippy`. |  |
 | 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` ne fait que l'importer : Claude Code sait lire `AGENTS.md`, mais pas dans toutes ses sessions, et l'import le charge partout. `.claude/` porte les autorisations, les crochets et la compétence `/verify`. |  |
@@ -57,7 +57,7 @@
 
 ### Avant de modifier
 
-1. Lire [`LECONS.md`](LECONS.md) — la correction a peut-être déjà été tentée et rejetée.
+1. Lire [`lecons.md`](lecons.md) — la correction a peut-être déjà été tentée et rejetée.
 2. Lire le test correspondant (module `tests` du fichier, ou `superview-core/tests/`).
 3. Vérifier que le symbole n'est pas du code mort (constats C-01, C-02, C-03, C-06) :
    ```bash
@@ -163,7 +163,7 @@ ffmpeg -v error -i apres.mp4 -f rawvideo -pix_fmt yuv420p - | sha256sum
 > ⚠️ **Ne jamais figer une de ces empreintes dans un test.** Elle dépend du build de l'encodeur
 > et rougirait sur un autre runner pour une raison étrangère au code. Le patron correct est
 > `the_binary_maps_remap_like_the_ascii_ones` (`tests/real_ffmpeg.rs`) : comparer **deux exécutions du FFmpeg présent** plutôt
-> qu'inscrire le résultat de l'un d'eux. Voir [LECONS.md](LECONS.md) L-36.
+> qu'inscrire le résultat de l'un d'eux. Voir [lecons.md](lecons.md) L-36.
 
 ### Contrat de résolution des outils (depuis U-04, 2026-09-06)
 

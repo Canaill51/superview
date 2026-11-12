@@ -5,9 +5,9 @@
 > **Journal d'audit, pas documentation de référence.** Ce fichier consigne quatorze
 > passes d'analyse et les 162 constats qu'elles ont produits, avec ce qui a été
 > décidé pour chacun. Ce sur quoi on peut s'appuyer aujourd'hui est dans
-> [CONTRATS.md](CONTRATS.md) ; ce qu'il faut avoir lu avant de corriger est dans
-> [LECONS.md](LECONS.md) ; ce qu'il ne faut pas « corriger » est dans
-> [DECISIONS.md](DECISIONS.md).
+> [contrats.md](contrats.md) ; ce qu'il faut avoir lu avant de corriger est dans
+> [lecons.md](lecons.md) ; ce qu'il ne faut pas « corriger » est dans
+> [decisions.md](decisions.md).
 >
 > Dernière passe : 14ᵉ (F-01 à F-30), ouverte le 2026-10-20 — analyse complète du produit
 > Rust après v0.3.0, plan d'exécution en sessions ; **30 constats ouverts**, deux questions
@@ -216,7 +216,7 @@ appliqué, mais comme **simplification** (accesseur documenté plutôt que manip
 chaîne), pas comme correction de bug.
 
 *Leçon* : ne pas déduire le comportement d'une bibliothèque de la forme canonique d'un
-standard — lire son code. Voir [LECONS.md](LECONS.md) L-10.
+standard — lire son code. Voir [lecons.md](lecons.md) L-10.
 
 #### 🟠 B-04 — Option `-threads` positionnée avant `-i` : elle configure le décodeur, pas l'encodeur
 `common/common.go:627-632`
@@ -574,47 +574,47 @@ GitHub Ubuntu.
 
 ## 3bis. Troisième passe d'analyse (2026-09-04) — axes non couverts
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3ter. Quatrième passe d'analyse (2026-09-04) — relecture complète à `001d250`
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3quater. Cinquième passe (2026-09-04) — vérification d'après-release
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3quinquies. Sixième passe (2026-09-06) — structure, tests de validation, release
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3sexies. Septième passe (2026-09-06) — signalement utilisateur : la barre d'outils
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3septies. Huitième passe (2026-09-06) — signalement utilisateur : l'accélération matérielle
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3octies. Neuvième passe (2026-09-07) — signalement utilisateur : l'installation
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3nonies. Dixième passe (2026-09-08) — signalement utilisateur : mémoire épuisée
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3decies. Onzième passe (2026-09-11) — entretien : ce que `make` fait, comment on fusionne, ce que les documents comptent
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3undecies. Douzième passe (2026-10-14) — entretien : la CI rouge sur trois PR qui n'y étaient pour rien
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3duodecies. Treizième passe (2026-10-14) — état des lieux complet, à `f925ee5`
 
-> Déplacée, texte inchangé, dans [archives/ANALYSE-passes-3-a-13.md](archives/ANALYSE-passes-3-a-13.md).
+> Déplacée, texte inchangé, dans [archives/analyse-passes-3-a-13.md](archives/analyse-passes-3-a-13.md).
 
 ## 3terdecies. Quatorzième passe (2026-10-20) — analyse complète après v0.3.0, à `4efae3a`
 
@@ -902,7 +902,7 @@ et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 fa
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR GUI** (4 + partiel) | E-03 — `appState.shutdown` : *Quit*, la croix et SIGTERM annulent et attendent `done`, borné à 20 s ; deux crochets, `SetOnClosed` et le retour de `ShowAndRun()`, parce que le `catchTerm` de Fyne ne ferme aucune fenêtre (vérifié dans 2.8.2). E-14 — `completeEncoding` : annulation = *Status: Cancelled*, sans dialogue ; *Diagnostic* dans la liste verrouillée, calculée par `windowControls.locked()` que le test appelle. E-15 — `GUIHandler.encoderName` capturé sur le fil UI ; `restoringSelection` autour des `SetSelected` programmés. E-20 — seul le code 1 vaut annulation (DEC-34 amendée) ; sélecteurs natifs dans une goroutine. E-23 — closures `selectedQualityProfile`/`squeezeSource` repliées dans `appState`, `[Migrations] fyneDo = true` ; **le reste d'E-23 demeure ouvert**. Six tests, huit contre-épreuves |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR ménage** (1 + ½ + DEC-33) | E-22 — `elapsedLocked()` partagé par `ElapsedTime`, `Summary` et `LogMetrics` (l'interblocage se reproduit 3 fois sur 3 sans lui) ; `findWindowsToolBinary` saute les variables vides ; `cappedLogWriter` recoupe le journal pendant l'écriture, `0o600`/`0o700` ; `availableMemoryBytes` prend le minimum avec `memory.max − memory.current`. E-23 partiel — `SessionError` rendu par `InitEncodingSession` et `getSessionPaths` (champ `Err`, `Unwrap`) ; restent le cache de sonde annulée (fait, PR sonde) et les closures/`fyneDo` (autre PR). DEC-33 — défaut `safe_performance` partout |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests** (1) | E-19 partiel — côté `common` : relance audio de `safe_performance` (relance AAC, pas de relance après sortie ni après annulation), `findWindowsToolBinary` (arbre winget `Packages`, `Links` prioritaire, tous OS), sorties précoces de `PerformEncoding` avec leur `stage`, branches d'erreur de `CheckFfmpeg`, refus de `checkTempSpaceForMaps` (désormais via `readFreeDiskGB`), squeeze traversant le pipeline, gardes ffmpeg de `lognoise_test.go`. Couverture totale 72,8 → 75,2 %, `common` 87,1 → 90,3 %. **Laissé à la PR GUI** : `appState` avec un rapport de sonde, `GUIHandler.Show*`, l'assertion squeeze périmée de `TestGUIHandler_GetSqueezeAndBitrate` — E-19 reste donc compté parmi les ouverts |
-| ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `CONTRATS.md`) |
+| ✅ **Corrigé et vérifié — 13ᵉ passe, PR tests GUI** (1 + clôtures) | E-19 fin — côté GUI : les deux tests `appState` posent un rapport de sonde (et une sélection `libx264 encoder`) et n'acceptent plus la ligne « checking » ; `TestGUIHandler_GetSqueezeAndBitrate` teste la présence de squeeze dans les deux sens au lieu de « never » ; `GUIHandler.Show*` et `showPrerequisiteDialog` testés sur une vraie fenêtre ; garde de génération déjà tenue par deux tests existants. Treize contre-épreuves ; paquet racine 36,3 → 40,3 %. Avec la ligne « PR tests », **E-19 est clos**. **E-23 est clos** : cache de sonde annulée (PR sonde), closures et `fyneDo` (PR GUI), `SessionError` (PR ménage). **E-25 est clos** par la PR #78 (`.claude/`, phrase corrigée dans `CLAUDE.md` et `contrats.md`) |
 | ✅ **Corrigé et vérifié — 13ᵉ passe, PR gate** (2) | E-26 — le gate requis était *sauté*, donc compté réussi, quand un job de test échouait : `if: always()` et vérification explicite des deux résultats, prouvée sur la PR même. E-27 — quatre défauts Windows qu'E-26 masquait : plafond du journal jamais appliqué (`O_APPEND`), isolation du cache par `XDG_CACHE_HOME` seul, poignée de journal non fermée, chemin du `.bat` factice coupé à la virgule par `cmd.exe` |
 | ✅ **Corrigé et vérifié — 14ᵉ passe, session 8** (3) | F-28 à F-30 — délais des jobs, `cargo-deny` (`rust/deny.toml`, quatre exceptions motivées), couverture publiée en artefact `lcov` |
 | ⏸️ **Ouvert — 14ᵉ passe** (0) | *aucun* — F-01 à F-30 sont clos ; restent Q-04 et Q-05 (hors périmètre, à trancher par DEC) |
@@ -1147,7 +1147,7 @@ les fixtures de specs gelées : même traitement que Q-04.
 | 2026-09-06 | **8ᵉ passe, à `7bb715e`** : § 3septies, constat `U-03`. Enquête sur un signalement d'accélération matérielle perdue : FFmpeg 8.1 n'y est pour rien (`nvenc.c` identique à 8.0), le plancher pilote est fixé par les `nv-codec-headers` de compilation et gyan.dev l'a porté de 570 à 610 entre 8.1.1 et 8.1.2, au-dessus du maximum atteignable par une carte professionnelle (597.06). Correctif : sonde à l'exécution, section *Encoders* dans le Diagnostic, ligne « Hardware » qui ne promet plus rien d'invérifié. Leçons L-71 à L-73. |
 | 2026-09-06 | **U-04**, suite de U-03 : les archives Windows et Linux embarquent un FFmpeg épinglé sur son **plancher pilote** (570.0), relu dans le binaire par la CI. Sources choisies pour la permanence de leurs URL — gyan.dev versionne ses releases, BtbN conserve ses builds de fin de mois (celui d'octobre 2024 répond encore). Découvert en route : `make install` d'un paquet fyne 1.7.2 échoue sur la ligne de l'icône, donc **aucune archive Linux publiée n'était installable**. Leçons L-74 à L-76. |
 | 2026-09-06 | **U-05**, fin du chantier U-03 : ajout des encodeurs `*_vulkan` et `*_d3d12va`, qui passent par le pilote d'affichage et n'ont donc aucun plancher NVENC à manquer. Leur ajout a montré que `h264_vaapi`, candidat de longue date, n'avait jamais pu fonctionner faute de périphérique et d'upload dans le pipeline. Conversion réelle vérifiée par `h264_vulkan`. Deux contre-épreuves fausses corrigées en chemin. Leçons L-77, L-78. |
-| 2026-09-06 | Hygiène du journal des corrections : le gabarit de [LECONS.md § 3](LECONS.md) demandait le sha de fusion, valeur qui n'existe pas encore quand l'entrée s'écrit — dix entrées sur treize affichaient encore « non commité ». Champ remplacé par le **numéro de PR**, connu dès l'ouverture, et les dix-huit entrées renseignées après identification de leur PR par l'historique du code (`git log -S`) plutôt que par déduction. Leçon L-79. |
+| 2026-09-06 | Hygiène du journal des corrections : le gabarit de [lecons.md § 3](lecons.md) demandait le sha de fusion, valeur qui n'existe pas encore quand l'entrée s'écrit — dix entrées sur treize affichaient encore « non commité ». Champ remplacé par le **numéro de PR**, connu dès l'ouverture, et les dix-huit entrées renseignées après identification de leur PR par l'historique du code (`git log -S`) plutôt que par déduction. Leçon L-79. |
 | 2026-09-06 | **U-06**, relevé par l'utilisateur : les trois PR du chantier matériel n'avaient mis à jour que la section *Hardware acceleration* du README. Le § *Requirements* prescrivait toujours `winget install Gyan.FFmpeg` — le build à plancher 610 à l'origine du signalement — et donnait `ffmpeg -encoders \| grep nvenc` comme moyen de vérifier son GPU. Cause : le balayage prescrit porte sur les symboles, or aucun symbole n'avait changé ; ce sont des affirmations qui étaient devenues fausses. Leçon L-80. |
 | 2026-09-07 | **9ᵉ passe**, relevée par l'utilisateur : un lecteur lambda n'a pas su installer l'application sous Windows. `U-07` — le README ouvrait sur treize lignes de FFmpeg/NVENC réservées aux compilations depuis les sources, donnait ses instructions en PowerShell à quelqu'un qui double-clique, et ne mentionnait nulle part l'écran SmartScreen que provoque un binaire non signé. `U-08` — la documentation n'existait qu'en anglais. Correctifs : `## Download and install` en première section, six étapes sans terminal, SmartScreen décrit avec les libellés de ses boutons ; `README_FR.md` et le job `readme-parity`. Trouvé en chemin : l'ancre `#requirements` était codée en dur dans `gui_main.go` et `common/common.go`, désormais pinnée par un test. Leçons L-81, L-82. |
 | 2026-09-11 | **11ᵉ passe, à `08dae40`** : passe de propreté, sans signalement. § 3decies, constats `M-01` et `M-02`, tous deux dans le `Makefile`. `M-01` — `make test` et `make coverage` ne posaient pas `SUPERVIEW_REQUIRE_FFMPEG=1`, donc la commande qu'un contributeur tape pouvait être verte en ayant sauté quinze tests, dont les sept `TestIntegration_*` et l'équivalence du remap ; mesuré sur un PATH sans ffmpeg, 15 sauts silencieux → 0. `-race` et `-count=1` alignés sur la recette d'`AGENTS.md`. `M-02` — `make clean` supprimait `dist/`, que rien ne produit, et laissait les six résidus de `fyne package` que `.gitignore` a appris un par un via R-06. Trouvé et non corrigé : deux tests de `lognoise_test.go` ont besoin de ffmpeg sans être gardés. Leçon L-96. |
@@ -1155,7 +1155,7 @@ les fixtures de specs gelées : même traitement que Q-04.
 | 2026-09-11 | **M-04**, trouvé en corrigeant les chiffres périmés d'`AGENTS.md` : l'en-tête de ce document annonçait encore « cinq passes et 67 constats » et « dernière passe : 9ᵉ », l'ordre de lecture s'arrêtait à § 3octies, `## 5bis` était placé **avant** `## 5`, et le § 4 portait deux lignes « 11ᵉ passe ». Compte refait (105), sections renumérotées (Questions ouvertes → § 5, Journal des révisions → § 6) et renvois suivis, lignes fusionnées. L'en-tête porte maintenant la phrase qui dit qu'il périme. Côté `AGENTS.md` : `common.go` « ~1600 » → ~2000 lignes (2023 réelles), `main()` « ~540 » → ~600 (585), couverture 81 % → 83 %, arrondis à la centaine pour vieillir moins vite. Leçon L-98. |
 | 2026-10-14 | **12ᵉ passe, M-05**, partie des trois PR Dependabot bloquées (#73, #74, #75) : `Vulnerability Scan` rouge sur toutes, à cause de Go 1.26.8 pris dans le cache du runner alors que 1.26.9 corrigeait neuf vulnérabilités de la bibliothèque standard. `check-latest: true` sur les neuf étapes `setup-go`. Mesuré en local : Go 1.26.9 suffit, `golang.org/x/net` n'a pas à bouger. L'échec Windows de #74 était un 504 de Chocolatey, sans rapport. Trouvé en chemin : le défaut VAAPI/CQP, consigné au § 3undecies, à traiter à part. Leçon L-99. |
 | 2026-10-14 | **M-06**, relevé par l'utilisateur : la branche de #76 restait après sa fusion. Le réglage *delete branch on merge* ne vaut pas pour une fusion faite avec le `GITHUB_TOKEN` de `merge-on-label.yml`, ce qui était vrai depuis M-03 et masqué par Dependabot, qui supprime ses propres branches. Le workflow attend la fusion et supprime la branche, sauf si une PR est empilée dessus. Leçon L-100. |
-| 2026-10-14 | **13ᵉ passe, à `f925ee5`**, à la demande de l'utilisateur : état des lieux complet, six revues parallèles confrontées aux documentations officielles (FFmpeg 8.0.1, Fyne 2.8.2, Go 1.26.9, GitHub Actions), baseline mesurée (un seul rouge, E-01). § 3duodecies, **25 constats E-01 à E-25**, tous ouverts, les plus lourds reproduits deux fois. Les quatre familles : correctifs appliqués à moitié (E-02, E-06, E-14), défauts introduits par un correctif (E-04, E-10), faits FFmpeg jamais mesurés (E-07 à E-09), tests verts à vide (E-19). Créé : [DECISIONS.md](DECISIONS.md) (34 décisions) et `.claude/`. Q-02 et Q-03 ajoutées. Plan d'actions en sept PR, quatre arbitrages attendus. Leçons L-101 à L-106. **Aucune modification de code.** |
+| 2026-10-14 | **13ᵉ passe, à `f925ee5`**, à la demande de l'utilisateur : état des lieux complet, six revues parallèles confrontées aux documentations officielles (FFmpeg 8.0.1, Fyne 2.8.2, Go 1.26.9, GitHub Actions), baseline mesurée (un seul rouge, E-01). § 3duodecies, **25 constats E-01 à E-25**, tous ouverts, les plus lourds reproduits deux fois. Les quatre familles : correctifs appliqués à moitié (E-02, E-06, E-14), défauts introduits par un correctif (E-04, E-10), faits FFmpeg jamais mesurés (E-07 à E-09), tests verts à vide (E-19). Créé : [decisions.md](decisions.md) (34 décisions) et `.claude/`. Q-02 et Q-03 ajoutées. Plan d'actions en sept PR, quatre arbitrages attendus. Leçons L-101 à L-106. **Aucune modification de code.** |
 | 2026-10-14 | **PR 2 du plan — E-03, E-14, E-15, E-20 corrigés, E-23 en partie.** Une seule méthode de sortie, `appState.shutdown`, attend la goroutine d'encodage depuis les trois chemins ; en l'écrivant, l'hypothèse d'E-03 « `SetOnClosed`, que `app.Quit` et `catchTerm` traversent tous deux » s'est révélée fausse pour `catchTerm` (il appelle `driver.Quit`, aucune fenêtre fermée) — d'où un second crochet après `ShowAndRun()` et L-109. `completeEncoding` est la branche de fin unique, testée aux quatre issues sur un vrai canvas. § 4 mis à jour ; DEC-34 amendée (255 n'est pas une annulation). |
 | 2026-10-14 | **E-26 et E-27**, trouvés après la clôture de la 13ᵉ passe : #85 à #87 avaient fusionné avec Windows rouge, le gate requis étant *sauté* — donc compté réussi — dès qu'un job de test échouait. Gate corrigé et prouvé ; les quatre défauts Windows qu'il cachait corrigés dans la même PR (#88). Leçons L-111, L-112. |
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée.** Q-02 : le garde-fou mémoire, chiffré à 4 fils, sous-estimait de ×1,47 à 16 fils ; pente de +4 % par fil mesurée sur 5120×2880 et 2560×1440, 8 et 10 bits, branchée sur les fils réels (DEC-37, DEC-17 remplacée). Q-03 : pas de télémétrie GoPro, sur décision de l'utilisateur (DEC-38). Leçon L-113. |

@@ -1,7 +1,7 @@
 //! Finding and invoking ffmpeg/ffprobe, and reading what the binary says about
 //! itself.
 //!
-//! The search order is the contract (CONTRATS.md): `SUPERVIEW_FFMPEG_DIR`, the
+//! The search order is the contract (contrats.md): `SUPERVIEW_FFMPEG_DIR`, the
 //! copy bundled next to the executable or under `../lib/superview`, `PATH`,
 //! then on Windows the winget and scoop directories. The bundled copy beats
 //! `PATH` on purpose: the FFmpeg a machine has installed is the variable this

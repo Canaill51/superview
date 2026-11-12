@@ -13,7 +13,7 @@ and opens no window.
 **MP4 in, MP4 out.** The file pickers offer nothing else and the output
 extension is enforced. This is a product constraint, not an oversight.
 
-Read [`docs/CONTRATS.md`](docs/CONTRATS.md) before editing a Rust file: it holds
+Read [`docs/contrats.md`](docs/contrats.md) before editing a Rust file: it holds
 the pipeline invariants and the FFmpeg facts established by measurement. This
 file is the short version — what bites first.
 
@@ -54,7 +54,7 @@ counter-proof itself is valid — an environment can make it mute.
 The root is a Cargo workspace (`superview-core`, `superview-harness`, `superview-app`) and the
 whole product. `scripts/checks/rust.sh` is the Rust half of `scripts/check.sh`, so the
 pre-commit hook needs cargo for every commit. Install with rustup into `~/.cargo` (no sudo,
-`docs/ENVIRONNEMENT.md`); the toolchain is pinned by `rust-toolchain.toml`.
+`docs/environnement.md`); the toolchain is pinned by `rust-toolchain.toml`.
 `make coverage-audit` runs what the CI job *Rust coverage and audit* runs (a 50 % line floor
 with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three tools installed.
 
@@ -134,7 +134,7 @@ than it looks.
 
 - **Build the workspace through cargo**: `cargo build -p superview-app --locked`
   (`make build` for the release binary). The window needs no system GUI headers beyond
-  `libfontconfig1-dev` (`docs/ENVIRONNEMENT.md`).
+  `libfontconfig1-dev` (`docs/environnement.md`).
 - Keep user-facing strings stable unless the task is about them.
 - **`README.md` and `README_FR.md` are one document in two languages.** Any
   user-visible change goes into both, in the same pull request. CI enforces it
@@ -145,8 +145,8 @@ than it looks.
   own strings are the French ones a French Windows shows (*Informations
   complémentaires*, *Exécuter quand même*).
 - **The repository's language split**, until now unwritten: internal audit
-  journals (`docs/LECONS.md`, `docs/ANALYSE.md`, `docs/CONTRATS.md`,
-  `docs/ENVIRONNEMENT.md`) are in French; everything an outsider reads -- both
+  journals (`docs/lecons.md`, `docs/analyse.md`, `docs/contrats.md`,
+  `docs/environnement.md`) are in French; everything an outsider reads -- both
   READMEs' English half, `RELEASING.md`, `AGENTS.md`, `SECURITY.md`,
   `docs/hardware-support.md`, the GUI, error strings, commit and pull request
   titles -- is in English.
@@ -177,21 +177,23 @@ this: [`docs/MERGING.md`](docs/MERGING.md).
 
 ## Recording what you learn
 
-Two journals, and they are how this repository keeps from repeating itself:
+[`docs/README.md`](docs/README.md) indexes every document under `docs/`, who it is for and what it
+holds; a new document gets a line there. Two journals, and they are how this repository keeps from
+repeating itself:
 
-- [`docs/LECONS.md`](docs/LECONS.md) — a numbered lesson per generalisable rule.
+- [`docs/lecons.md`](docs/lecons.md) — a numbered lesson per generalisable rule.
   **Read § 2 before correcting anything**: the correction may have been tried and
   rejected. [`docs/PIEGES.md`](docs/PIEGES.md) indexes it by keyword; the fix log
-  is [`docs/CORRECTIONS.md`](docs/CORRECTIONS.md), where new entries go.
-- [`docs/ANALYSE.md`](docs/ANALYSE.md) — the numbered findings and their state.
+  is [`docs/corrections.md`](docs/corrections.md), where new entries go.
+- [`docs/analyse.md`](docs/analyse.md) — the numbered findings and their state.
   Its § 4 status table is the one that counts. When a finding turns out to be
   wrong, mark it invalid and say why rather than deleting it. Passes 3 to 13
   live in `docs/archives/` (sections left as pointers); find a finding with
   `grep -rn "U-03" docs/`.
 - [`docs/SUITE.md`](docs/SUITE.md) — where things stand; the session-start hook
-  prints its first lines. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the map.
+  prints its first lines. [`docs/architecture.md`](docs/architecture.md) is the map.
 
-And one register, [`docs/DECISIONS.md`](docs/DECISIONS.md): every choice that
+And one register, [`docs/decisions.md`](docs/decisions.md): every choice that
 looks like a defect, with its reason and the condition that would reopen it.
 The table above is its short version. A new decision gets an entry; a reversed
 one is marked *Remplacée*, never deleted.

@@ -14,7 +14,7 @@
 # libavcodec/nvenc.c, exactly one branch of which survives compilation. So the
 # floor is readable straight out of any build, and two binaries both calling
 # themselves "FFmpeg 8.1.2" can carry different ones -- which is how a user's
-# RTX A1000 lost hardware encoding after a routine upgrade (ANALYSE.md U-03).
+# RTX A1000 lost hardware encoding after a routine upgrade (analyse.md U-03).
 #
 # Superview ships a build whose floor it has measured. This turns that
 # measurement into something a release cannot get wrong: bump the pin to a
@@ -52,7 +52,7 @@ assert_driver_floor() {
         if [ -z "$found" ]; then
             echo "::error::$binary carries no known NVENC driver floor. It was probably built without nvenc, so this release would ship an FFmpeg that cannot use NVIDIA hardware at all."
         else
-            echo "::error::$binary demands driver '$found', not the '$expected' this release is pinned to. A build compiled against newer nv-codec-headers takes NVENC away from every machine below the new floor -- see ANALYSE.md U-03 before changing the pin."
+            echo "::error::$binary demands driver '$found', not the '$expected' this release is pinned to. A build compiled against newer nv-codec-headers takes NVENC away from every machine below the new floor -- see analyse.md U-03 before changing the pin."
         fi
         status=1
     done

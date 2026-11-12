@@ -7,12 +7,12 @@ set -euo pipefail
 FAST=0
 [ "${1:-}" = "--fast" ] && FAST=1
 
-# Les hooks tournent dans un shell non interactif où rustup (docs/ENVIRONNEMENT.md)
+# Les hooks tournent dans un shell non interactif où rustup (docs/environnement.md)
 # n'est pas dans le PATH.
 export PATH="$HOME/.cargo/bin:$PATH"
 
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "Erreur : 'cargo' est introuvable. Installation : voir docs/ENVIRONNEMENT.md (rustup, sans sudo)." >&2
+  echo "Erreur : 'cargo' est introuvable. Installation : voir docs/environnement.md (rustup, sans sudo)." >&2
   exit 1
 fi
 
@@ -39,7 +39,7 @@ fi
 # Sans SUPERVIEW_REQUIRE_FFMPEG=1, un test qui a besoin d'ffmpeg se saute sans bruit.
 . scripts/lib/outils.sh
 if ! outil_trouve ffmpeg || ! outil_trouve ffprobe; then
-  echo "Erreur : ffmpeg et ffprobe sont requis pour les tests, dans SUPERVIEW_FFMPEG_DIR (chemin absolu) ou dans le PATH. Installation : sudo apt install ffmpeg (voir docs/ENVIRONNEMENT.md)." >&2
+  echo "Erreur : ffmpeg et ffprobe sont requis pour les tests, dans SUPERVIEW_FFMPEG_DIR (chemin absolu) ou dans le PATH. Installation : sudo apt install ffmpeg (voir docs/environnement.md)." >&2
   exit 1
 fi
 
