@@ -28,7 +28,7 @@
 | 5bis | `.github/scripts/nvenc-driver-floor.sh` | Le plancher pilote NVENC que la release accepte de livrer, lu dans le binaire. | fait foi |
 | 6 | `superview.yaml` | Options de configuration effectivement livrées. Le fichier livré et le défaut interne (`Config::default`) concordent (`performance_mode: safe_performance`, DEC-33) ; garder les deux alignés. |  |
 | 7 | [`analyse.md`](analyse.md) | Constats numérotés B/S/C/X/O/T/N/P/R/D/V/U/M/E et leur état ; le détail des passes 3 à 13 est dans [`archives/`](archives/analyse-passes-3-a-13.md). | journal, voir son en-tête |
-| 8 | [`lecons.md`](lecons.md), [`corrections.md`](corrections.md), [`PIEGES.md`](PIEGES.md) | Leçons permanentes ; historique des corrections appliquées ; index des leçons par mot-clé. | journal, voir son en-tête |
+| 8 | [`lecons.md`](lecons.md), [`corrections.md`](corrections.md), [`pieges-par-domaine.md`](pieges-par-domaine.md) | Leçons permanentes ; historique des corrections appliquées ; règle courte de chaque leçon, par domaine. | journal, voir son en-tête |
 | 8bis | [`decisions.md`](decisions.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les choix du dépôt (DEC-01 à DEC-49), chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
 | 9 | `README.md` et `README_FR.md` | Comportement documenté côté utilisateur. Un seul document en deux langues : toute modification visible par l'utilisateur se fait dans les deux, dans la même PR. Le job `readme-parity` de `lint.yml` le vérifie. |  |
 | 10 | `Makefile` | Cibles locales : `check`, `build`, `test` (pose `SUPERVIEW_REQUIRE_FFMPEG=1`), `coverage-audit`, `fmt`, `clippy`. |  |

@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-12] Un seul plan, `docs/plan.md`, et les pièges rangés par domaine (alignement sur OpenTuneBox, étape 2, DEC-71)
+
+| | |
+| --- | --- |
+| **Constat** | trois documents disaient où on en était (`SUITE.md`, `PLAN-OFX.md`, `PLAN-LIVRAISON.md`) et se renvoyaient l'un à l'autre ; `PIEGES.md` rangeait 122 leçons par date, et `pieges/` ne tenait qu'une fiche, doublon de L-115 ; `/publier` renvoyait encore à une compétence `/piege` qui n'existe pas |
+| **Cause** | chaque plan a été ouvert à côté du précédent au lieu de s'y ajouter ; deuxième des sept étapes du plan d'alignement sur OpenTuneBox |
+| **Fichiers** | `docs/plan.md` (neuf : état, à faire, écarté, à savoir, historique) ; `git mv` des deux plans vers `docs/archives/plan-ofx.md` et `plan-livraison.md` (bandeau, liens corrigés) ; `docs/pieges-par-domaine.md` (neuf) ; `SUITE.md`, `PIEGES.md` et `pieges/` supprimés ; `.claude/hooks/debut-session.sh` ; `scripts/checks/hooks.sh` (test du hook) ; `.claude/skills/publier/SKILL.md` ; `AGENTS.md` (règle du plan unique) ; `docs/README.md`, `architecture.md`, `contrats.md`, `decisions.md` (DEC-71, DEC-40 amendée, DEC-70 ajoutée à l'index où elle manquait), renvois « Lot N » de `decisions`, `lecons`, `corrections`, `tests-manuels` |
+| **PR** | docs/single-plan |
+| **Vérification** | chaque numéro `L-xxx` de l'ancien index figure une fois et une seule dans `pieges-par-domaine.md` (`diff` des deux listes triées, vide). Nouveau test de `hooks.sh` : la tête affichée par le hook est celle de `plan.md` et contient « **État au » ; contre-preuves : hook remis sur `SUITE.md`, puis l'état poussé sous la ligne 15, rouges tous deux. `git grep -nE 'SUITE\.md\|PLAN-OFX\|PLAN-LIVRAISON\|PIEGES\.md\|docs/pieges/'` ne donne plus que des citations historiques (journaux datés, DEC-40, DEC-71). `scripts/check.sh` complet (`/verify`) |
+
 ### [2026-11-12] Documents de `docs/` en minuscules, et un index (alignement sur OpenTuneBox, étape 1)
 
 | | |
@@ -33,29 +43,29 @@
 
 | | |
 | --- | --- |
-| **Constat** | l'essai à blanc du Lot 1 de `PLAN-LIVRAISON.md` a échoué au job `test` de `release.yml`, à l'étape *Audit the dependencies* : `cargo audit` relève une vulnérabilité, aucune version ne pouvait partir, même depuis `master` |
+| **Constat** | l'essai à blanc du Lot 1 de `archives/plan-livraison.md` a échoué au job `test` de `release.yml`, à l'étape *Audit the dependencies* : `cargo audit` relève une vulnérabilité, aucune version ne pouvait partir, même depuis `master` |
 | **Cause** | RUSTSEC-2026-0414 (2026-10-18, gravité 7,5) : croissance exponentielle des événements avec `ENABLE_WIKILINKS` dans `pulldown-cmark` 0.13.4, tiré par `i-slint-common` 1.18.1 ; la base d'avis n'est pas épinglée, à dessein (`release.yml`, commentaire de l'étape) |
 | **Fichiers** | `Cargo.lock` (`cargo update -p pulldown-cmark --precise 0.13.5`, rien d'autre ne bouge) |
 | **PR** | fix/pulldown-cmark-rustsec |
 | **Vérification** | `scripts/check.sh` vert ; `cargo audit` n'est pas installé sur ce poste : c'est le job *Rust coverage and audit* de la PR, puis l'essai à blanc du Lot 1, qui disent l'avis levé |
 
-### [2026-10-27] Le plugin Resolve rend en OpenCL quand Resolve est réglé sur OpenCL (Lot 4c de PLAN-OFX)
+### [2026-10-27] Le plugin Resolve rend en OpenCL quand Resolve est réglé sur OpenCL (Lot 4c de `archives/plan-ofx.md`)
 
 | | |
 | --- | --- |
 | **Constat** | le noyau OpenCL du Lot 4b n'était appelé par rien : en mode OpenCL, Resolve faisait tout en CPU (9 à 10 i/s en 4K) |
 | **Cause** | `Describe` n'annonçait que CUDA et `Render` ne lisait que `CudaEnabled` |
-| **Fichiers** | `crates/superview-ofx/src/plugin.rs` (`Describe` annonce OpenCL, `render_on_opencl`, `GpuWarp<W>`, `DeviceFrame` commun aux deux chemins GPU), `src/journal.rs` (`RenderPath::OpenCl`, `first_failure(path)` remplace `first_cuda_failure`), `AGENTS.md`, `docs/decisions.md` (DEC-68, DEC-66 amendée), `docs/architecture.md`, `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/plugin.rs` (`Describe` annonce OpenCL, `render_on_opencl`, `GpuWarp<W>`, `DeviceFrame` commun aux deux chemins GPU), `src/journal.rs` (`RenderPath::OpenCl`, `first_failure(path)` remplace `first_cuda_failure`), `AGENTS.md`, `docs/decisions.md` (DEC-68, DEC-66 amendée), `docs/architecture.md`, `docs/archives/plan-ofx.md`, `docs/SUITE.md` |
 | **PR** | ofx/opencl-glue |
 | **Vérification** | `/verify` plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : tout vert, `tests/opencl.rs` et `tests/cuda.rs` compris · contre-preuves : un drapeau d'échec partagé par CUDA et OpenCL rougit `only_the_first_failure_of_each_gpu_path_is_reported` ; un drapeau de premier rendu partagé rougit `each_path_is_reported_once_per_instance` · bundle construit (`build_bundle.sh`) · **dans Resolve** (Lot 4d, `tests-manuels.md`) : journal « OpenCL », export égal à CUDA à l'écart de Resolve près, 13 i/s comme le témoin ; le journal ne dit plus « frames render on the CPU » quand seul CUDA manque · **non testé** : AMD, Linux, l'Intel UHD dans Resolve (grisée par Resolve en présence de la RTX ; noyau vérifié par `tests/opencl.rs`) |
 
-### [2026-10-26] Un noyau OpenCL pour le plugin Resolve, pas encore relié à l'hôte (Lot 4b de PLAN-OFX)
+### [2026-10-26] Un noyau OpenCL pour le plugin Resolve, pas encore relié à l'hôte (Lot 4b de `archives/plan-ofx.md`)
 
 | | |
 | --- | --- |
 | **Constat** | sans chemin OpenCL, le plugin rend en CPU sur AMD et Intel, et sur NVIDIA quand Resolve est réglé sur OpenCL (9 à 10 i/s en 4K, sonde du Lot 4a) |
 | **Cause** | seul CUDA était écrit (DEC-66) |
-| **Fichiers** | `crates/superview-ofx/src/opencl.rs` (chargeur, noyau OpenCL C sur tampons, `check_buffer`, `Warp`, aides de test), `src/gpu.rs` (`PerContext` sorti de `cuda.rs`, message sans « CUDA »), `src/cuda.rs`, `src/plugin.rs`, `src/lib.rs`, `tests/opencl.rs`, `AGENTS.md`, `docs/environnement.md`, `docs/architecture.md`, `docs/decisions.md` (DEC-66, nom de `PerContext`), `docs/PLAN-OFX.md`, `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/opencl.rs` (chargeur, noyau OpenCL C sur tampons, `check_buffer`, `Warp`, aides de test), `src/gpu.rs` (`PerContext` sorti de `cuda.rs`, message sans « CUDA »), `src/cuda.rs`, `src/plugin.rs`, `src/lib.rs`, `tests/opencl.rs`, `AGENTS.md`, `docs/environnement.md`, `docs/architecture.md`, `docs/decisions.md` (DEC-66, nom de `PerContext`), `docs/archives/plan-ofx.md`, `docs/SUITE.md` |
 | **PR** | ofx-opencl-module |
 | **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_OPENCL=1 SUPERVIEW_REQUIRE_CUDA=1` : `tests/opencl.rs` vert sur la RTX 3050 Ti **et** l'Intel UHD · contre-preuves : un noyau qui lit `x` au lieu de `map[x]` rougit le test pixel sur les deux appareils (seul le cas identité passe, comme il se doit) ; `check_buffer` sans `first_row` rougit `a_band_needs_the_rows_below_it_too` ; `PerContext` qui ne mémorise plus l'échec rougit `a_kernel_that_failed_is_not_loaded_again_in_the_same_context` · non testé : l'échec de compilation (pas d'injection possible, chemin du journal de compilation), AMD (aucun matériel), Linux (Lot 5) |
 
@@ -75,7 +85,7 @@
 | --- | --- |
 | **Constat** | sur une carte antérieure à `sm_50` ou un pilote trop ancien pour le PTX 6.0, `Warp::new` échouait à chaque trame CUDA : le plugin recompilait le PTX pour rien avant que Resolve refasse la trame en CPU |
 | **Cause** | un échec laissait l'état GPU de l'instance vide, donc « à charger » à la trame suivante |
-| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (`PerContext`, `Warp::context` retiré), `plugin.rs`, `docs/decisions.md` (DEC-66), `docs/PLAN-OFX.md` (Lot 3), `docs/SUITE.md` |
+| **Fichiers** | `crates/superview-ofx/src/cuda.rs` (`PerContext`, `Warp::context` retiré), `plugin.rs`, `docs/decisions.md` (DEC-66), `docs/archives/plan-ofx.md` (Lot 3), `docs/SUITE.md` |
 | **PR** | fix/ofx-cuda-kernel-once |
 | **Vérification** | `/verify`, plus `SUPERVIEW_REQUIRE_CUDA=1` sur la RTX 3050 Ti · contre-preuves : l'échec non mémorisé, le contexte ignoré, l'ancien noyau gardé pendant le chargement du nouveau ; chacune rougit son test. Non vérifié sur une vraie carte pré-Maxwell (aucune à disposition) |
 

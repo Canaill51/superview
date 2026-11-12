@@ -1333,7 +1333,7 @@ vide le `PATH`, pour que le ffmpeg de la machine ne réponde pas à la place du 
 recherche, mesurer ce que la suite trouve seule (la lancer sans le pré-contrôle). Lancer `bash scripts/checks/outils.sh`.
 
 ### L-122 — Un écart mesuré dans l'export d'un hôte n'accuse le plugin qu'après un témoin sans l'effet — 2026-10-26
-Les essais manuels du plugin OpenFX (Lot 1 de `docs/PLAN-OFX.md`) ont donné deux fausses alarmes et un test qui
+Les essais manuels du plugin OpenFX (Lot 1 de `docs/archives/plan-ofx.md`) ont donné deux fausses alarmes et un test qui
 ne tranchait rien. Une colonne noire au bord gauche d'une timeline de 1921 : Resolve exporte en 1922 et l'ajoute
 lui-même, témoin compris. Des exports CUDA et OpenCL qui ne sont pas identiques : Resolve diffère déjà d'un mode
 à l'autre sans l'effet. Et un export *crop* identique à l'octet près à l'export *fit* : avec une source de même
@@ -1398,5 +1398,5 @@ tests d'`encode/args/tests.rs`, dont les chemins sont fixes.
 | 2026-10-14 | **E-26, E-27 corrigés** (#88) : le gate requis, sauté dès qu'un test échouait, comptait comme réussi ; quatre défauts Windows qu'il cachait. Leçons L-111, L-112. |
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée** (#90) : garde-fou mémoire à +4 % par fil au-delà de 4 (DEC-37) ; pas de télémétrie GoPro (DEC-38). Leçon L-113. |
 | 2026-10-14 | **Essai à blanc de la release** après le déplacement vers `cmd/` (#92) : Windows vert ; Linux rouge à l'étape ajoutée par #82 (pas de ffmpeg dans le `PATH`), sans lien avec le déplacement. Leçon L-114. |
-| 2026-10-14 | **Docs alignées sur le gabarit** (DEC-39, DEC-40) : le § 3 devient [corrections.md](corrections.md) (texte inchangé, les nouvelles entrées vont là-bas) ; index [PIEGES.md](PIEGES.md) ; chemins `internal/common/` et `cmd/superview/`. |
+| 2026-10-14 | **Docs alignées sur le gabarit** (DEC-39, DEC-40) : le § 3 devient [corrections.md](corrections.md) (texte inchangé, les nouvelles entrées vont là-bas) ; index `PIEGES.md` (devenu [pieges-par-domaine.md](pieges-par-domaine.md), DEC-71) ; chemins `internal/common/` et `cmd/superview/`. |
 | 2026-10-21 | **Docs remises d'aplomb après la 14ᵉ passe** : L-115 pointe le garde Rust (`repo_guards.rs`) et non plus le test Go retiré ; leçon L-117 (environnement injecté, que `AGENTS.md` citait sous un mauvais numéro). |

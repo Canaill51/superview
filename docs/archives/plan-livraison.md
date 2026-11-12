@@ -1,10 +1,12 @@
-# Plan — Livrer le plugin Resolve dans chaque version, puis publier
+# Plan — Livrer le plugin Resolve dans chaque version, puis publier (archive)
 
-> Écrit le 2026-10-28. Remplace le Lot 6 de [PLAN-OFX.md](PLAN-OFX.md), qui y renvoie.
+> **Archive, texte inchangé** (2026-11-12, DEC-71). Ce plan est terminé ou fondu dans [plan.md](../plan.md), le seul plan du projet : ce qui en reste à faire est là-bas. Seuls les liens ont été corrigés pour suivre les fichiers déplacés.
+
+> Écrit le 2026-10-28. Remplace le Lot 6 de [plan-ofx.md](plan-ofx.md), qui y renvoie.
 
 ## Comment s'en servir
 
-Une session par lot : `/clear`, puis « Lot N de docs/PLAN-LIVRAISON.md ». Chaque lot suit
+Une session par lot : `/clear`, puis « Lot N de docs/archives/plan-livraison.md ». Chaque lot suit
 explorer → planifier → implémenter → vérifier → livrer (une PR, label `merge`) → consigner (cocher ici,
 `docs/SUITE.md`, `docs/corrections.md` si c'est une correction).
 
@@ -13,7 +15,7 @@ explorer → planifier → implémenter → vérifier → livrer (une PR, label 
 - **Le plugin est publié à chaque version**, en **archive séparée** à côté de l'installateur et de
   l'AppImage, pas comme composant de l'installateur.
 - **Windows seulement** : l'archive Linux n'est pas publiée tant que Resolve sous Linux n'a pas été essayé
-  (Lot 5 de `PLAN-OFX.md`). Le bundle Linux reste construit par la CI (`rust.yml`, job `ofx-bundle`).
+  (Lot 5 de `plan-ofx.md`). Le bundle Linux reste construit par la CI (`rust.yml`, job `ofx-bundle`).
 - **Studio et Linux attendent le matériel** ; ils ne bloquent pas la livraison. Le README dit qu'ils n'ont
   pas été essayés, comme AMD pour l'application.
 - **La version suivante (v0.4.1 probablement) vient quand tout est à jour**, c'est-à-dire après les Lots 1 et 2,
@@ -24,7 +26,7 @@ explorer → planifier → implémenter → vérifier → livrer (une PR, label 
 | Nature | Quoi |
 |---|---|
 | Code (CI) | `release.yml` : construire, vérifier, publier l'archive du plugin Windows (Lot 1) |
-| Documentation | ce qui décrit le paquet, avec lui (Lot 1) : DEC-65 et DEC-69, `RELEASING.md`, `architecture.md`, `THIRD_PARTY_NOTICES.md` (embarqué dans le zip), `/publier` ; ce que lisent les utilisateurs et les agents (Lot 2) : les deux README, `AGENTS.md`, `hardware-support.md`, `environnement.md`, `SUITE.md`, `PLAN-OFX.md`, `tests-manuels.md`, balayage du reste |
+| Documentation | ce qui décrit le paquet, avec lui (Lot 1) : DEC-65 et DEC-69, `RELEASING.md`, `architecture.md`, `THIRD_PARTY_NOTICES.md` (embarqué dans le zip), `/publier` ; ce que lisent les utilisateurs et les agents (Lot 2) : les deux README, `AGENTS.md`, `hardware-support.md`, `environnement.md`, `SUITE.md`, `plan-ofx.md`, `tests-manuels.md`, balayage du reste |
 | Manuel (l'utilisateur) | installer l'archive de l'essai à blanc dans Resolve ; installer le `setup.exe` de l'essai à blanc sur ce Windows, ce qui lève aussi « installateur jamais vérifié sur un vrai Windows » (Lot 1) |
 | Décision | aucune en suspens |
 | Hors de portée (matériel) | Resolve Studio, Resolve sous Linux, AMD (plugin et AMF), QSV |
@@ -87,7 +89,7 @@ construit dans `rust.yml`, comparer les deux environnements avant de modifier `b
 But : un utilisateur sait installer et régler le plugin ; les fichiers de suivi disent où on en est.
 
 À lire : `README.md`, `README_FR.md` (parité, `readme-parity` dans `lint.yml`), `docs/tests-manuels.md`
-(Lot 1 de `PLAN-OFX.md` : réglages qui donnent une image fausse), `crates/superview-ofx/src/journal.rs`
+(Lot 1 de `plan-ofx.md` : réglages qui donnent une image fausse), `crates/superview-ofx/src/journal.rs`
 (emplacement du journal).
 
 - [x] README.md et README_FR.md, même PR, même structure de titres : une section sur le plugin Resolve :
@@ -103,7 +105,7 @@ But : un utilisateur sait installer et régler le plugin ; les fichiers de suivi
       (le zip) de celle d'un build local.
 - [x] `docs/SUITE.md` : résumer le long paragraphe du plugin ; état depuis la v0.4.0 (#175 en attente de
       version) ; ce qui attend le matériel ; retirer le renvoi « Prochain travail » quand le plan est fini.
-- [x] `docs/PLAN-OFX.md` : Lot 5, ce qui reste en attente de matériel ; Lot 6 renvoie ici.
+- [x] `docs/archives/plan-ofx.md` : Lot 5, ce qui reste en attente de matériel ; Lot 6 renvoie ici.
 - [x] `docs/tests-manuels.md` : la liste de ce qui est en suspens, à jour.
 - [x] Balayer le reste de la prose, hors `docs/archives/` et journaux datés (qui gardent leur état d'époque) :
       `grep -rniE "prototype|pas (encore )?livr|not (yet )?shipped|hors des versions" --include='*.md' .`
@@ -125,4 +127,4 @@ Vérification : `scripts/check.sh` (le garde-fou `repo_guards.rs` lit le README)
 ## En attente de matériel (non planifié)
 
 Resolve Studio, Resolve sous Linux (puis l'archive Linux, DEC-69), AMD pour le plugin et AMF, QSV, portail
-xdg lent, Linux sans portail ni zenity : `PLAN-OFX.md` Lot 5 et `docs/tests-manuels.md`.
+xdg lent, Linux sans portail ni zenity : `plan-ofx.md` Lot 5 et `docs/tests-manuels.md`.

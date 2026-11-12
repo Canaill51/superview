@@ -83,5 +83,6 @@ gh workflow run release.yml --repo Canaill51/superview --ref master -f version=<
 
 ## 5. Afterwards
 
-Update `docs/SUITE.md` (latest release, nothing left open) and, if the run
-taught something, add the lesson with `/piege`.
+Update `docs/plan.md` (its state lines and a history line for the release) and,
+if the run taught something, add the lesson to `docs/lecons.md` § 2 and its rule
+to `docs/pieges-par-domaine.md`.

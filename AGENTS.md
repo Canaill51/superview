@@ -183,15 +183,19 @@ repeating itself:
 
 - [`docs/lecons.md`](docs/lecons.md) — a numbered lesson per generalisable rule.
   **Read § 2 before correcting anything**: the correction may have been tried and
-  rejected. [`docs/PIEGES.md`](docs/PIEGES.md) indexes it by keyword; the fix log
-  is [`docs/corrections.md`](docs/corrections.md), where new entries go.
+  rejected. [`docs/pieges-par-domaine.md`](docs/pieges-par-domaine.md) gives each
+  lesson's short rule, sorted by domain: read the section of the domain you touch.
+  The fix log is [`docs/corrections.md`](docs/corrections.md), where new entries go.
 - [`docs/analyse.md`](docs/analyse.md) — the numbered findings and their state.
   Its § 4 status table is the one that counts. When a finding turns out to be
   wrong, mark it invalid and say why rather than deleting it. Passes 3 to 13
   live in `docs/archives/` (sections left as pointers); find a finding with
   `grep -rn "U-03" docs/`.
-- [`docs/SUITE.md`](docs/SUITE.md) — where things stand; the session-start hook
-  prints its first lines. [`docs/architecture.md`](docs/architecture.md) is the map.
+- [`docs/plan.md`](docs/plan.md) — **the only plan**: where things stand, what is
+  left, what was set aside, and one history line per finished batch; the
+  session-start hook prints its first lines. Never open a second plan document:
+  new work becomes a section of this one, and a finished plan's detail goes to
+  `docs/archives/`. [`docs/architecture.md`](docs/architecture.md) is the map.
 
 And one register, [`docs/decisions.md`](docs/decisions.md): every choice that
 looks like a defect, with its reason and the condition that would reopen it.
@@ -204,6 +208,6 @@ running the command, not by fixing the one occurrence that inspired it.
 `.claude/` holds the Claude Code side of this (and `/publier`, see above): the permission allowlist for the
 verification recipe, a hook that runs `scripts/check.sh --fast` (format and clippy) after every
 code edit, one that runs the full check whenever Claude stops with non-Markdown changes pending, a guard against dangerous
-commands, a session-start hook that prints the head of `docs/SUITE.md`, and `/verify`, which runs
+commands, a session-start hook that prints the head of `docs/plan.md`, and `/verify`, which runs
 the recipe above and reports each gate instead of summarising. Other agent tools
 ignore the directory; nothing in it is an instruction.
