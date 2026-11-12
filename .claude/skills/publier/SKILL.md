@@ -47,6 +47,9 @@ resolves to the parent without it.
    (`gh release list` and `gh api repos/Canaill51/superview/git/matching-refs/tags/v<version>`).
 4. Show the notes it would get, which creates and publishes nothing:
    `gh api -X POST repos/Canaill51/superview/releases/generate-notes -f tag_name=v<version> -f target_commitish=master --jq '.body'`
+   A merged pull request without an `RN: …` label is missing from them (DEC-72):
+   list them with `gh pr list --repo Canaill51/superview --state merged --search "merged:>=<date of the last release>" --json number,title,labels`,
+   and ask the user which label each missing one gets before going on.
 
 ## 3. Confirm, then run
 

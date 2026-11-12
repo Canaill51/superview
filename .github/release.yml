@@ -1,28 +1,33 @@
-# Shapes the notes GitHub generates for a release.
+# Shapes the notes GitHub generates for a release (DEC-72).
 #
-# The list itself comes from the pull requests merged since the previous
-# release, so it is only as complete as the habit of opening one. Anything
-# pushed straight to master is invisible here -- see RELEASING.md.
-#
-# THE CATCH-ALL IS LOAD-BEARING. GitHub's rule is that "a pull request that
-# matches no category does not appear in the release notes at all". This
-# repository does not label its own pull requests, so without the "*" entry
-# below every change would silently vanish from every release. Do not remove
-# it, and do not add a category above it that could swallow ordinary work.
+# The list comes from the pull requests merged since the previous release, each
+# filed under the section of its "RN: ..." label. GitHub drops a pull request
+# that matches no section, and there is no catch-all on purpose: the
+# pr-label.yml workflow refuses a pull request without exactly one RN label, so
+# nothing can go missing silently, and a catch-all would only hide a forgotten
+# label. Every label below is in that workflow's list, and the reverse
+# (crates/superview-app/src/repo_guards.rs checks it); CONTRIBUTING.md says
+# which label to pick.
 changelog:
+  exclude:
+    labels:
+      - "RN: ignore"   # CI, tooling, plans, registers, internal documents
   categories:
-    # Everything, except the dependency bumps caught by the next category.
-    # "*" comes first so that this section leads the release notes; the
-    # exclusion is what lets the dependency pull requests fall through to it.
-    - title: Changes
+    - title: New features
       labels:
-        - "*"
-      exclude:
-        labels:
-          - dependencies
-
-    # Dependabot, kept last: the weekly cargo updates add up, so on a long release these would
-    # otherwise outnumber and bury the work worth reading about.
+        - "RN: major feature"
+        - "RN: feature"
+    - title: Improvements
+      labels:
+        - "RN: improvement"
+        - "RN: security"
+        - "RN: refactor"
+    - title: Fixes
+      labels:
+        - "RN: fix"
+    # Dependabot, kept last: the weekly cargo updates add up, so on a long
+    # release these would otherwise outnumber and bury the work worth reading
+    # about. Its pull requests carry "dependencies" and no RN label.
     - title: Dependencies
       labels:
         - dependencies

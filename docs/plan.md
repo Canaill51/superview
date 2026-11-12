@@ -8,7 +8,7 @@ qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de dé
 Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
 Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
 **En cours : l'alignement sur OpenTuneBox**, 7 étapes, une PR chacune (`~/.claude/plans/abstract-squishing-rabbit.md`) ;
-étapes 1 (#193), 2 (#194) et 3 (contrôle de la doc) faites, prochaine : l'étape 4. Le plugin attend du matériel pour Studio, Linux
+étapes 1 (#193), 2 (#194) et 3 (#195) faites, 4 (`CONTRIBUTING.md`, étiquettes `RN:`, DEC-72) en PR, prochaine : l'étape 5. Le plugin attend du matériel pour Studio, Linux
 et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 
 ## Comment s'en servir
@@ -87,4 +87,5 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | Audit de sécurité | 2026-11-11 | DLL GPU depuis System32, versions immuables et attestées, permissions de Claude Code (DEC-70, #192) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 1 | 2026-11-12 | Documents de `docs/` en minuscules, index `docs/README.md` (#193) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 2 | 2026-11-12 | Ce plan unique (fusion de `SUITE`, `PLAN-OFX`, `PLAN-LIVRAISON`), pièges rangés par domaine (DEC-71) | [corrections.md](corrections.md) |
-| Alignement OTB, étape 3 | 2026-11-12 | Contrôle automatique de la doc (`docs_guards.rs`), compétence `docs-sync`, section Claude Code de `CLAUDE.md` | [corrections.md](corrections.md) |
+| Alignement OTB, étape 3 | 2026-11-12 | Contrôle automatique de la doc (`docs_guards.rs`), compétence `docs-sync`, section Claude Code de `CLAUDE.md` (#195) | [corrections.md](corrections.md) |
+| Alignement OTB, étape 4 | 2026-11-12 | `CONTRIBUTING.md` (absorbe l'ancien `MERGING.md`), modèles d'issue et de PR, étiquettes `RN:` contrôlées par `pr-label.yml`, plus de rubrique `"*"` (DEC-72) | [corrections.md](corrections.md) |

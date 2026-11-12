@@ -78,7 +78,7 @@ than it looks.
 | What you'll see | Why it is that way |
 | --- | --- |
 | No real version in any committed file (`0.0.0` placeholders in `Cargo.toml` and `packaging/windows/superview.iss` only); `build.rs` reads `SUPERVIEW_VERSION` and a plain `cargo build` reports `dev` | The version comes from the tag (the release workflow sets the variable), so a published binary cannot claim a number a committed file drifted away from. **Do not add a version constant back** (DEC-22, DEC-47). |
-| `.github/release.yml` has a `"*"` catch-all | Load-bearing. GitHub drops any pull request matching no category, and this repository labels none of its own — removing it empties every release. |
+| `.github/release.yml` has no catch-all section, and the `pr-label` check fails a pull request without exactly one `RN:` label | GitHub drops a pull request matching no section. The check makes a forgotten label a red pull request instead of a line missing from the notes; a catch-all would hide it. `RN: ignore` is for CI, tooling, plans and registers (DEC-72, which replaced the old `"*"`). |
 | The bundled FFmpeg is **8.1.1 on Windows** (gyan.dev) and **n8.1.2 on Linux** (BtbN autobuild 2026-08-31), neither the newest | What is pinned is the NVENC driver floor, 570.0 on both, not a version. gyan.dev's 8.1.2 is compiled against newer NVIDIA headers and demands driver 610.00, which a professional card cannot reach — its driver branch stops at 597.06. Bumping a pin to "the current release" silently takes hardware encoding away from those machines. `.github/scripts/nvenc-driver-floor.sh` fails the release if the floor moves; read [`RELEASING.md`](RELEASING.md) before touching either. |
 | The release ships `…-setup.exe` and `….AppImage`, not archives; the one archive is the Resolve plugin | One ready-to-run file per platform (`cargo build --release`, version from `SUPERVIEW_VERSION`). Each package is installed or launched in CI (installer silently, AppImage under `xvfb`), because a package that builds is not one that starts. The installer's `AppId` in `packaging/windows/superview.iss` must never change. The release *build* jobs do not cache `target/`: the build marker must describe that build. See DEC-41, DEC-47. The plugin is the exception because an OpenFX bundle is a folder Resolve reads, not something to run (DEC-69). |
 | The plugin ships as `superview-ofx-<tag>-windows-x86_64.zip`, Windows only, not in the installer, and CI never loads it | A separate download was chosen over an optional installer component (2026-10-28); the user unzips it into `C:\Program Files\Common Files\OFX\Plugins`. A runner has no Resolve, so `check_bundle_zip.sh` reads the layout and the exported `OfxGetPlugin`; loading is tried by hand. No Linux archive until Resolve is tried there. Its version is a fixed `PluginVersion(1, 0)`, not the release's (DEC-69). |
@@ -161,10 +161,14 @@ than it looks.
   `master`.
 - **The pull request title is what users read in the release**: a sentence
   about what changed, not *fix bug*.
+- **Give it exactly one `RN:` label**; it picks the section of the release notes
+  (table in [`CONTRIBUTING.md`](CONTRIBUTING.md)). The `pr-label` check stays red
+  without one, and a title that looks like a branch name fails it too.
 - **Put the `merge` label on it, and stop there**: the workflow picks squash or
   merge commit and merges once checks pass. From a terminal, label with
-  `gh api -X POST "repos/$REPO/issues/<NN>/labels" -f "labels[]=merge"` —
-  `gh pr edit` fails on this repository, silently with stderr redirected.
+  `gh api -X POST "repos/$REPO/issues/<NN>/labels" -f "labels[]=merge"` (the
+  same for `RN: …`) — `gh pr edit` fails on this repository, silently with
+  stderr redirected.
 - Releases are one button ([`RELEASING.md`](RELEASING.md)). Never tag by hand
   unless the intent is explicitly to release. **An agent publishes only when the
   user asks for a release in the conversation, and only through `/publier`**: it
@@ -172,8 +176,8 @@ than it looks.
   exact number, dispatches the Release workflow and verifies the published files.
   A merged pull request or a green CI is not a request.
 
-Merging by hand, stacked pull requests, the repository settings behind all
-this: [`docs/MERGING.md`](docs/MERGING.md).
+Branches, labels, merging by hand, stacked pull requests, the repository
+settings behind all this: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Recording what you learn
 

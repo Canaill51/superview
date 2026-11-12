@@ -1,0 +1,45 @@
+name: Bug report
+description: A conversion fails, the window misbehaves, or the Resolve plugin does
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Superview version
+      description: As the window title and the first line of the Diagnostic report show it, or the name of the plugin zip you downloaded.
+      placeholder: "e.g. v0.5.0 (cdab071)"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Windows 11 24H2, Ubuntu 26.04"
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: "e.g. NVIDIA RTX 3050 Ti, driver 581.57; Intel UHD (11th gen)"
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. For a video, its resolution, frame rate and the camera that recorded it.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: Diagnostic report
+      description: Press *Diagnostic* in the window and paste its output.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Attach the log, or paste its last lines.
+        Application: `%LOCALAPPDATA%\superview\superview.log` on Windows, `~/.cache/superview/superview.log` on Linux (under `$XDG_CACHE_HOME` if set).
+        Resolve plugin: `%LOCALAPPDATA%\superview-ofx\superview-ofx.log`.
