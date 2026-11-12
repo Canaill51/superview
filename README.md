@@ -486,7 +486,7 @@ Releases are made from the Actions tab and are documented in
 [RELEASING.md](RELEASING.md). There is no local release script.
 
 For contributors: [RELEASING.md](RELEASING.md) covers how a release is made,
-[docs/CONTRATS.md](docs/CONTRATS.md) what the code guarantees, and
+[docs/contrats.md](docs/contrats.md) what the code guarantees, and
 [docs/hardware-support.md](docs/hardware-support.md) which GPUs generally work.
 
 ## Contributors ✨

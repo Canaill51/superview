@@ -1,6 +1,6 @@
 # Superview — Corrections de l'ère Go (archive)
 
-> **Archive, pas journal vivant.** Les entrées du 2026-09-04 au 2026-10-14, sorties de [CORRECTIONS.md](../CORRECTIONS.md) (DEC-55) : texte **inchangé**, seule la place a changé. Les renvois « CORRECTIONS … » des autres documents désignent ce fichier pour ces dates. Chercher : `grep -rn "E-19" docs/`.
+> **Archive, pas journal vivant.** Les entrées du 2026-09-04 au 2026-10-14, sorties de [corrections.md](../corrections.md) (DEC-55) : texte **inchangé**, seule la place a changé. Les renvois « CORRECTIONS … » des autres documents désignent ce fichier pour ces dates. Chercher : `grep -rn "E-19" docs/`.
 >
 > **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
 
@@ -22,7 +22,7 @@ c'est son nom qui compte, d'où le correctif dans le script de construction.
 | | |
 | --- | --- |
 | **Constat** | demande de l'utilisateur (modèle : OpenTuneBox) ; L-115 trouvée en route |
-| **Fichiers** | `packaging/windows/superview.iss`, `packaging/windows/superview.ico`, `packaging/linux/build_appimage.sh`, `.github/workflows/release.yml`, `.github/workflows/test.yml` (L-115) ; README.md, README_FR.md, RELEASING.md, AGENTS.md, docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/CONTRATS.md ; test : `cmd/superview/workflow_pipes_test.go` |
+| **Fichiers** | `packaging/windows/superview.iss`, `packaging/windows/superview.ico`, `packaging/linux/build_appimage.sh`, `.github/workflows/release.yml`, `.github/workflows/test.yml` (L-115) ; README.md, README_FR.md, RELEASING.md, AGENTS.md, docs/decisions.md, docs/architecture.md, docs/contrats.md ; test : `cmd/superview/workflow_pipes_test.go` |
 | **PR** | feat/binary-releases |
 | **Vérification** | `scripts/check.sh` ✅ · AppImage construite et lancée en local (code 124) · essai à blanc de la release ✅ sur les deux jobs (installation, outils exécutés, désinstallation ; extraction, outils exécutés, lancement sous `xvfb`, code 124) · contre-épreuve de L-115 ✅ |
 
@@ -33,7 +33,7 @@ l'ancien `.tar.xz` (squashfs gzip), l'installateur moins que l'ancien `.zip`.
 
 | | |
 | --- | --- |
-| **Constat** | Q-02, Q-03 ([ANALYSE.md § 5](../ANALYSE.md)) |
+| **Constat** | Q-02, Q-03 ([analyse.md § 5](../analyse.md)) |
 | **Fichiers** | `common/memory.go`, `common/encode.go`, `common/pipeline.go` ; tests : `common/memoryguard_test.go`, `common/fallbackmemory_test.go`, `common/integration_test.go` |
 | **PR** | #90 |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint` ✅ · 5 contre-épreuves ✅ (voir ci-dessous) |
@@ -58,7 +58,7 @@ créditée sous 4 fils : `NeverBelowTheBaseline` rougit.
 
 | | |
 | --- | --- |
-| **Constat** | E-26, E-27 ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
+| **Constat** | E-26, E-27 ([analyse.md § 3duodecies](../analyse.md)) |
 | **Fichiers** | `.github/workflows/test.yml` (gate) ; `common/observability.go` ; `common/observability_default_test.go`, `common/stopcascade_test.go`, `common/housekeeping*_test.go` |
 | **PR** | #88 |
 | **Vérification** | `gofmt` ✅ · `go vet` ✅ · tests ciblés ✅ sous Linux · Windows : runner CI (seule plateforme qui exécute le `.bat`) · gate prouvé : Windows rouge → gate rouge |
@@ -81,7 +81,7 @@ sous-test renommé et garde dans la fixture.
 
 | | |
 | --- | --- |
-| **Constat** | E-19, sous-items du paquet racine ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
+| **Constat** | E-19, sous-items du paquet racine ([analyse.md § 3duodecies](../analyse.md)) |
 | **Fichiers** | tests seulement : `gui_main_test.go`, `gui_handler_test.go` (nouveau) ; aucune ligne de production |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ (seul le test VAAPI saute) · 13 contre-épreuves ✅, toutes compilées |
@@ -142,7 +142,7 @@ handler, donc ce passage n'est pas testable sans extraction, non faite (tests se
 
 | | |
 | --- | --- |
-| **Constat** | E-19, sous-items du paquet `common` ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
+| **Constat** | E-19, sous-items du paquet `common` ([analyse.md § 3duodecies](../analyse.md)) |
 | **Fichiers** | `common/pgm.go` (une ligne), `common/pipeline.go` (commentaire) ; tests `common/stopcascade_test.go`, `common/toolresolve_test.go`, `common/earlyfailures_test.go` (nouveau), `common/refusals_test.go`, `common/integration_test.go`, `common/lognoise_test.go` |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ (seul le test VAAPI saute, pilote CQP) · 11 contre-épreuves ✅, toutes compilées |
@@ -212,8 +212,8 @@ le faux ffmpeg), L-50 (`findWindowsToolBinary` testé hors de Windows plutôt qu
 
 | | |
 | --- | --- |
-| **Constat** | E-22, E-23 partie `SessionError`, DEC-33 ([ANALYSE.md § 3duodecies](../ANALYSE.md), [DECISIONS.md](../DECISIONS.md)) |
-| **Fichiers** | `common/metrics.go`, `common/tools.go`, `common/observability.go`, `common/health.go`, `common/errors.go`, `common/session.go`, `common/config.go` ; tests `common/housekeeping_test.go`, `common/housekeeping_unix_test.go`, `common/config_test.go`, `common/observability_default_test.go` ; `README.md`, `README_FR.md`, `docs/CONTRATS.md`, `docs/DECISIONS.md` |
+| **Constat** | E-22, E-23 partie `SessionError`, DEC-33 ([analyse.md § 3duodecies](../analyse.md), [decisions.md](../decisions.md)) |
+| **Fichiers** | `common/metrics.go`, `common/tools.go`, `common/observability.go`, `common/health.go`, `common/errors.go`, `common/session.go`, `common/config.go` ; tests `common/housekeeping_test.go`, `common/housekeeping_unix_test.go`, `common/config_test.go`, `common/observability_default_test.go` ; `README.md`, `README_FR.md`, `docs/contrats.md`, `docs/decisions.md` |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `GOOS=windows go vet ./common` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · 7 contre-épreuves ✅ |
 
@@ -249,8 +249,8 @@ cgroup ignoré → 8 GiB au lieu de 424 MiB, rouge ; `session.go` d'origine → 
 
 | | |
 | --- | --- |
-| **Constat** | E-03, E-14, E-15, E-20, E-23 (closures de `main()`, `fyneDo`) ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
-| **Fichiers** | `gui_main.go`, `gui_main_test.go`, `common/gui_helpers.go`, `common/gui_helpers_test.go`, `FyneApp.toml`, `docs/DECISIONS.md` (DEC-34), `docs/LECONS.md`, `docs/ANALYSE.md` |
+| **Constat** | E-03, E-14, E-15, E-20, E-23 (closures de `main()`, `fyneDo`) ([analyse.md § 3duodecies](../analyse.md)) |
+| **Fichiers** | `gui_main.go`, `gui_main_test.go`, `common/gui_helpers.go`, `common/gui_helpers_test.go`, `FyneApp.toml`, `docs/decisions.md` (DEC-34), `docs/lecons.md`, `docs/analyse.md` |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race` ✅ sauf **1 rouge attendu** (E-01, VAAPI/CQP, dépend du GPU) · GUI lancée 8 s (`timeout 8`, code 124 : vivante), aucune panique, aucun avertissement `fyne.Do` ; `kill -TERM` après 3 s : sortie code 0 en 0,1 s, journal sans panique · huit contre-épreuves sur les six tests, chacune rougie puis retirée : 255 relu comme annulation ; *Diagnostic* retiré de `locked()` ; le `case ErrCancelled` supprimé ; `shutdown` qui n'attend pas `done` ; `shutdown` qui n'annule pas (délai de 20 s atteint) ; la garde `shuttingDown` retirée ; `restoringSelection` ignoré ; `GetEncoder` qui ne rend plus le nom capturé |
 
 **Symptôme** — *Quit* pendant un encodage : la fenêtre disparaît, ffmpeg continue jusqu'au
@@ -326,8 +326,8 @@ valeur arrondie. Contre-épreuve : comparaison sur la valeur brute → rouge.
 
 | | |
 | --- | --- |
-| **Constat** | E-05 (arbitrage : **refuser**, pas pivoter), E-16, E-17, E-21, E-12 ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
-| **Fichiers** | `common/pgm.go`, `common/pipeline.go`, `common/metrics.go`, `common/health.go`, `common/security.go`, `common/health_disk_windows.go`, `common/config.go`, `gui_main.go`, `gui_native_dialog_windows.go` ; tests `common/geometry_test.go`, `common/refusals_test.go`, `common/security_unix_test.go`, `gui_config_test.go`, `gui_native_dialog_windows_test.go` ; `README.md`, `README_FR.md`, `docs/CONTRATS.md` |
+| **Constat** | E-05 (arbitrage : **refuser**, pas pivoter), E-16, E-17, E-21, E-12 ([analyse.md § 3duodecies](../analyse.md)) |
+| **Fichiers** | `common/pgm.go`, `common/pipeline.go`, `common/metrics.go`, `common/health.go`, `common/security.go`, `common/health_disk_windows.go`, `common/config.go`, `gui_main.go`, `gui_native_dialog_windows.go` ; tests `common/geometry_test.go`, `common/refusals_test.go`, `common/security_unix_test.go`, `gui_config_test.go`, `gui_native_dialog_windows_test.go` ; `README.md`, `README_FR.md`, `docs/contrats.md` |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `GOOS=windows go vet ./common` ✅ · `golangci-lint` ✅ 0 alerte · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · 22 contre-épreuves ✅. Le fichier Windows de la GUI : `GOOS=windows go vet` sur un module jetable ne contenant que lui et `common` ✅, test exécuté sous Linux sur une copie sans étiquette de build ; **jamais exécuté sous Windows** |
 
@@ -377,8 +377,8 @@ jamais testée) et DEC-28 s'appliquent.
 
 | | |
 | --- | --- |
-| **Constat** | E-06, E-11, E-18, E-24 ([ANALYSE.md § 3duodecies](../ANALYSE.md)) ; accélération des workflows demandée en cours de route |
-| **Fichiers** | `.github/workflows/test.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`, `AGENTS.md` (une ligne du tableau), `RELEASING.md` (§ *Manual pins*), `docs/MERGING.md`, `docs/DECISIONS.md` (DEC-35, DEC-04, DEC-24), `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **Constat** | E-06, E-11, E-18, E-24 ([analyse.md § 3duodecies](../analyse.md)) ; accélération des workflows demandée en cours de route |
+| **Fichiers** | `.github/workflows/test.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`, `AGENTS.md` (une ligne du tableau), `RELEASING.md` (§ *Manual pins*), `docs/MERGING.md`, `docs/decisions.md` (DEC-35, DEC-04, DEC-24), `docs/analyse.md`, `docs/lecons.md` |
 | **PR** | *à ouvrir* |
 | **Vérification** | workflows et documentation seuls, aucun `.go` touché · `python3 -c 'yaml.safe_load'` sur les quatre fichiers ✅ · `actionlint` v1.7.12 ✅ 0 alerte, contre-épreuve : un `steps.landedd` inventé le fait rougir ✅, un nom d'entrée `cache-dependency-pth` **ne le fait pas** (les actions sont épinglées par SHA, actionlint ne connaît pas leurs entrées) — entrées et sorties de `setup-go` lues dans son `action.yml` au SHA épinglé (`cache`, `cache-dependency-path`, sortie `go-version`), `use_oidc` dans le README de `codecov-action` v7 · chaque `uses:` : SHA résolu vers son tag par `gh api .../git/ref/tags/…` (tags annotés déréférencés), commentaires portés en `vX.Y.Z` · contre-épreuve du gate : `needs: [test, test-windowz]` fait rougir actionlint ✅ · noms des workflows `test.yml`/`lint.yml` confirmés par `gh api .../actions/workflows` · contextes requis du ruleset relus, aucun renommé · archive gyan.dev 8.1.1 téléchargée : SHA-256 identique au pin, un seul `bin/` avec `ffmpeg.exe` et `ffprobe.exe` ✅ · `gofmt` ✅ · `go build ./...` ✅ · `TestInstallURLFragmentPointsAtARealHeading` ✅ · **non vérifié ici** : l'étape PowerShell (pas de `pwsh`), le dispatch réel (ne joue qu'à la fusion suivante), l'OIDC côté Codecov |
 
@@ -468,7 +468,7 @@ rien** — `pull_request_target` exécute le `merge-on-label.yml` de `master`, l
 
 | | |
 | --- | --- |
-| **Constat** | E-01 (arbitrage **a**), E-07, E-08, E-09, E-23 partie cache ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
+| **Constat** | E-01 (arbitrage **a**), E-07, E-08, E-09, E-23 partie cache ([analyse.md § 3duodecies](../analyse.md)) |
 | **Fichiers** | `common/encode.go`, `common/probe.go`, `common/hardware.go`, `common/pipeline.go` ; tests `common/probequestion_test.go`, `common/probe_test.go`, `common/sizeprobe_test.go` ; `README.md`, `README_FR.md`, `docs/hardware-support.md` |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ **plus aucun rouge** : le test VAAPI saute avec la raison du pilote · 6 contre-épreuves ✅ |
@@ -505,7 +505,7 @@ retirée → rouge ; tag retiré → test unitaire **et** intégration (ffprobe 
 
 | | |
 | --- | --- |
-| **Constat** | E-02, E-13, E-04, E-10 ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
+| **Constat** | E-02, E-13, E-04, E-10 ([analyse.md § 3duodecies](../analyse.md)) |
 | **Fichiers** | `common/errors.go`, `common/encode.go`, `common/pipeline.go`, `common/security.go` ; tests `common/stopcascade_test.go`, `common/partialoutput_unix_test.go`, `common/integration_test.go` |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ (seul rouge : E-01, inchangé) · 5 contre-épreuves ✅ |
@@ -538,8 +538,8 @@ rouge (6 lancements) ; marqueur retiré → `FailureAfterOutputIsNotRetried` rou
 
 | | |
 | --- | --- |
-| **Constat** | aucun — décision de structure, [DEC-36](../DECISIONS.md), demandée par l'utilisateur |
-| **Fichiers** | `common/common.go` → `errors.go`, `tools.go`, `session.go`, `video.go`, `pgm.go`, `memory.go`, `encode.go`, `pipeline.go` ; `README.md`, `README_FR.md`, `AGENTS.md`, `docs/CONTRATS.md`, `readme_link_test.go` (références) |
+| **Constat** | aucun — décision de structure, [DEC-36](../decisions.md), demandée par l'utilisateur |
+| **Fichiers** | `common/common.go` → `errors.go`, `tools.go`, `session.go`, `video.go`, `pgm.go`, `memory.go`, `encode.go`, `pipeline.go` ; `README.md`, `README_FR.md`, `AGENTS.md`, `docs/contrats.md`, `readme_link_test.go` (références) |
 | **PR** | *à ouvrir* |
 | **Vérification** | `gofmt` ✅ · `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ (seul rouge : E-01, inchangé) · test doré PGM ✅ |
 
@@ -561,8 +561,8 @@ fichier + symbole. **Délibérément laissé** : `hardware.go` (607 lignes) et `
 
 | | |
 | --- | --- |
-| **Constat** | E-01 à E-25 ([ANALYSE.md § 3duodecies](../ANALYSE.md)) |
-| **Fichiers** | `docs/ANALYSE.md`, `docs/DECISIONS.md` (nouveau), `docs/LECONS.md`, `docs/CONTRATS.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/` (nouveau) |
+| **Constat** | E-01 à E-25 ([analyse.md § 3duodecies](../analyse.md)) |
+| **Fichiers** | `docs/analyse.md`, `docs/decisions.md` (nouveau), `docs/lecons.md`, `docs/contrats.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/` (nouveau) |
 | **PR** | *à ouvrir* |
 | **Vérification** | `go build` ✅ · `go vet` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race` ❌ **1 rouge attendu** (E-01, VAAPI/CQP, dépend du GPU) · couverture 71,1 % |
 
@@ -575,7 +575,7 @@ familles : des correctifs appliqués à moitié (E-02 pour U-09, E-06 pour L-100
 U-09), des défauts introduits par un correctif (E-04 et E-10 par P-04), des faits FFmpeg
 jamais mesurés (E-07, E-08, E-09), et des tests verts à vide (E-19).
 
-**Correctif** — Aucun dans le code. `DECISIONS.md` créé (34 décisions, dont une à
+**Correctif** — Aucun dans le code. `decisions.md` créé (34 décisions, dont une à
 réexaminer), `.claude/` créé (autorisations, crochet `gofmt`, compétence `/verify`), six
 leçons. Le plan d'actions, en sept PR, est en fin de § 3duodecies. Trois contre-épreuves
 jetables ont été écrites puis retirées (E-02, E-17, et la géométrie de E-05).
@@ -588,8 +588,8 @@ jetables ont été écrites puis retirées (E-02, E-17, et la géométrie de E-0
 
 | | |
 | --- | --- |
-| **Constat** | M-06 ([ANALYSE.md § 3undecies](../ANALYSE.md)) |
-| **Fichiers** | `.github/workflows/merge-on-label.yml` (pas *Delete the branch once merged*), `docs/MERGING.md`, `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **Constat** | M-06 ([analyse.md § 3undecies](../analyse.md)) |
+| **Fichiers** | `.github/workflows/merge-on-label.yml` (pas *Delete the branch once merged*), `docs/MERGING.md`, `docs/analyse.md`, `docs/lecons.md` |
 | **Vérification** | workflow et documentation seuls · YAML valide · requêtes du script rejouées sur l'API réelle : `autoMergeRequest` vaut `true` pour #73 armée et `false` pour #76 fusionnée, `DELETE` d'une référence absente renvoie `Reference does not exist` (422) sur stderr · contre-épreuve en conditions réelles : la branche de cette PR doit disparaître après sa fusion par le workflow, comme celle de #76 ne l'a pas fait |
 
 **Symptôme** — Après la fusion de #76 par le workflow, `origin/ci/go-check-latest` existait
@@ -615,8 +615,8 @@ dans un fork, si la fusion a été désarmée ou la PR fermée. Branche déjà s
 
 | | |
 | --- | --- |
-| **Constat** | M-05 ([ANALYSE.md § 3undecies](../ANALYSE.md)) |
-| **Fichiers** | `.github/workflows/lint.yml`, `.github/workflows/test.yml`, `.github/workflows/release.yml` (`check-latest: true` sur les neuf étapes `setup-go`), `docs/ENVIRONNEMENT.md` (Go 1.26.9), `docs/ANALYSE.md`, `docs/LECONS.md` |
+| **Constat** | M-05 ([analyse.md § 3undecies](../analyse.md)) |
+| **Fichiers** | `.github/workflows/lint.yml`, `.github/workflows/test.yml`, `.github/workflows/release.yml` (`check-latest: true` sur les neuf étapes `setup-go`), `docs/environnement.md` (Go 1.26.9), `docs/analyse.md`, `docs/lecons.md` |
 | **Vérification** | workflows et documentation seuls, aucun fichier Go modifié · Go 1.26.9 local · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · `govulncheck ./...` 0 vulnérabilité ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ sauf le test VAAPI, rouge pour une raison matérielle consignée à part · contre-épreuve : le job `Vulnerability Scan` de cette PR doit installer 1.26.9 et passer, celui des PR Dependabot non rebasées reste rouge |
 
 **Symptôme** — #73, #74 et #75, trois montées de version Dependabot, bloquées sur la
@@ -638,7 +638,7 @@ montée de x/net envisagée d'abord n'est pas nécessaire et n'est pas faite.
 **Découvert en chemin** — L'échec `Test Go 1.26.x on windows-latest` de #74 est un 504 de
 `community.chocolatey.org` pendant `choco install ffmpeg`, sans rapport avec la PR. Et sur la
 machine de vérification, le pilote VAAPI n'accepte que le mode de débit CQP : la sonde passe,
-la conversion retombe sur le CPU (ANALYSE.md § 3undecies, à traiter dans sa propre PR).
+la conversion retombe sur le CPU (analyse.md § 3undecies, à traiter dans sa propre PR).
 
 **Leçon** — L-99.
 
@@ -650,12 +650,12 @@ la conversion retombe sur le CPU (ANALYSE.md § 3undecies, à traiter dans sa pr
 
 | | |
 | --- | --- |
-| **Constat** | M-04 ([ANALYSE.md § 3decies](../ANALYSE.md)) |
-| **Fichiers** | `AGENTS.md` (tableau *decisions that look like defects*, § *Landing a change*), `docs/ANALYSE.md` (en-tête, § 4, renumérotation § 5/§ 6), `docs/LECONS.md` (en-tête : comptes et légende des préfixes, plus le renvoi) |
+| **Constat** | M-04 ([analyse.md § 3decies](../analyse.md)) |
+| **Fichiers** | `AGENTS.md` (tableau *decisions that look like defects*, § *Landing a change*), `docs/analyse.md` (en-tête, § 4, renumérotation § 5/§ 6), `docs/lecons.md` (en-tête : comptes et légende des préfixes, plus le renvoi) |
 | **Vérification** | documentation seule, aucun fichier Go modifié · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · chiffres remesurés à `996bed5` (2023 lignes, `main()` 585, `common.go` 82,7 %) ✅ · total des constats recompté depuis le § 4, 105 ✅ · plus aucun renvoi pendant à `§ 5bis` ✅ |
 
 **Symptôme** — `AGENTS.md` donnait `common/common.go` à « ~1600 lines » (2023 en réalité) et
-`main()` à « ~540 lines » (585). L'en-tête d'`ANALYSE.md`, celui qui sert à naviguer le
+`main()` à « ~540 lines » (585). L'en-tête d'`analyse.md`, celui qui sert à naviguer le
 document, annonçait « cinq passes et les 67 constats » et « Dernière passe : 9ᵉ », et son
 ordre de lecture s'arrêtait à § 3octies. `## 5bis` était placé **avant** `## 5`, alors que
 *bis* veut dire « après ». Le § 4 portait deux lignes « 11ᵉ passe » distinctes, séquelle de
@@ -687,8 +687,8 @@ exportée, pas une correction de documentation.
 
 **Balayage de L-98, exécuté** — ce fichier-ci portait la même dérive, trouvée en la
 cherchant : « 80 règles » pour 98, « les 67 constats sont clos » pour 105, et une légende
-des préfixes qui s'arrêtait à `R-xx`, sans `D/V`, `U` ni `M`. `CONTRATS.md`,
-`ENVIRONNEMENT.md`, `hardware-support.md` et les deux README ne portent aucun compte :
+des préfixes qui s'arrêtait à `R-xx`, sans `D/V`, `U` ni `M`. `contrats.md`,
+`environnement.md`, `hardware-support.md` et les deux README ne portent aucun compte :
 rien à y dériver.
 
 **Leçon** — L-98.
@@ -701,7 +701,7 @@ rien à y dériver.
 
 | | |
 | --- | --- |
-| **Constat** | M-03 ([ANALYSE.md § 3decies](../ANALYSE.md)) |
+| **Constat** | M-03 ([analyse.md § 3decies](../analyse.md)) |
 | **Fichiers** | `AGENTS.md` (§ *Landing a change*), `.github/workflows/merge-on-label.yml` (nouveau) ; hors dépôt : réglages de fusion et ruleset `master` |
 | **Vérification** | `actionlint` 0 alerte sur le nouveau workflow **et sur les six autres** ✅ · YAML et corps shell reparsés ✅ · logique de décision rejouée contre l'API sur #66 et #67 ✅ · contre-épreuve du ruleset : push direct sur `master` refusé, *« Changes must be made through a pull request. 7 of 7 required status checks are expected »* ✅ · `can_bypass` relu = `pull_requests_only` ✅ |
 
@@ -752,8 +752,8 @@ utilisateur : il veut décider **quand**, plus jamais **comment**.
 
 | | |
 | --- | --- |
-| **Constats** | M-01 et M-02 ([ANALYSE.md § 3decies](../ANALYSE.md)) |
-| **Fichiers** | `Makefile` (cibles `test`, `coverage`, `clean`, texte d'aide), `README.md`, `README_FR.md`, `docs/CONTRATS.md` (commande d'intégration sans garde-fou, trouvée par le balayage de L-96 ; ligne 10 du tableau des contrats) |
+| **Constats** | M-01 et M-02 ([analyse.md § 3decies](../analyse.md)) |
+| **Fichiers** | `Makefile` (cibles `test`, `coverage`, `clean`, texte d'aide), `README.md`, `README_FR.md`, `docs/contrats.md` (commande d'intégration sans garde-fou, trouvée par le balayage de L-96 ; ligne 10 du tableau des contrats) |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · `make check` de bout en bout ✅, couverture module 71,1 % · job `readme-parity` rejoué à la main ✅ · 2 contre-épreuves ✅ |
 
 **Symptôme** — `make test` rendait 0 sur une machine sans ffmpeg, en ayant sauté quinze
@@ -791,7 +791,7 @@ périmètre arbitré ici. Consigné en M-01.
 
 | | |
 | --- | --- |
-| **Constats** | U-13 et U-14 ([ANALYSE.md § 3nonies](../ANALYSE.md)) |
+| **Constats** | U-13 et U-14 ([analyse.md § 3nonies](../analyse.md)) |
 | **Fichiers** | `common/probe.go` (taille en paramètre), `common/hardware.go` (`outputFrameSize`, cache par taille, `verifyEncoderForOutput`, `DescribeVerifiedHardwarePlan`), `common/common.go` (appel dans `PerformEncoding`, `sessionOutputSize`, chiffrage du repli), `gui_main.go` (`verifyHardwareInBackground`, `applyVerifiedHardwareLine`, état `squeeze`), `common/sizeprobe_test.go` et `common/fallbackmemory_test.go` (nouveaux), `common/integration_test.go`, `gui_main_test.go`, `common/probe_test.go`, `README.md`, `README_FR.md` |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 71,1 % ✅ · GUI démarrée et vivante ✅ · 10 contre-épreuves, chacune vérifiée compilable ✅ |
 
@@ -824,7 +824,7 @@ rougi, L-05) ; et la ligne « Hardware » rendue asynchrone a produit une course
 
 | | |
 | --- | --- |
-| **Constat** | U-12 ([ANALYSE.md § 3nonies](../ANALYSE.md)) |
+| **Constat** | U-12 ([analyse.md § 3nonies](../analyse.md)) |
 | **Fichiers** | `common/common.go` (lecture de progression, commentaire orphelin), `common/health.go` (`minimumTempFreeGB`), `common/observability.go` (`SetHandler`, `SetObservabilityHandler`, retrait de `RegisterObservabilityHandler`), `gui_main.go` (installation du gestionnaire, texte d'attente), `common/lognoise_test.go` (nouveau), `common/observability_test.go` |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 70,6 % ✅ · GUI démarrée et vivante ✅ · balayage du symbole retiré dans la prose (L-29) ✅ · 4 contre-épreuves, chacune vérifiée compilable ✅ |
 
@@ -854,7 +854,7 @@ annulation pour une phase de quelques secondes.
 
 | | |
 | --- | --- |
-| **Constat** | U-11 ([ANALYSE.md § 3nonies](../ANALYSE.md)) |
+| **Constat** | U-11 ([analyse.md § 3nonies](../analyse.md)) |
 | **Fichiers** | `common/common.go` (`encodesInTenBits`, constantes mesurées, `memoryNeededForEncode`, `checkMemoryForEncode`, appel dans `PerformEncoding`), `common/memoryguard_test.go` (nouveau), `common/integration_test.go`, `README.md`, `README_FR.md` |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 70,3 % ✅ · GUI démarrée et vivante ✅ · 5 contre-épreuves, chacune vérifiée compilable ✅ |
 
@@ -880,7 +880,7 @@ position : rien n'est produit, et ffmpeg n'a pas démarré.
 
 | | |
 | --- | --- |
-| **Constat** | U-10 ([ANALYSE.md § 3nonies](../ANALYSE.md)) |
+| **Constat** | U-10 ([analyse.md § 3nonies](../analyse.md)) |
 | **Fichiers** | `common/hardware.go` (familles de codecs, `crossFamilyHardwareEncoder`, `describeCodecFamilySwitch`, `softwareEncoderForFallback`, `HardwarePlan.CodecSwitch`), `common/common.go` (`FindEncoder`, cascade de repli, lignes de résumé), `common/crossfamily_test.go` (nouveau), `README.md`, `README_FR.md` |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 69,8 % ✅ · GUI démarrée et vivante ✅ · 6 contre-épreuves, chacune vérifiée compilable ✅ |
 
@@ -905,7 +905,7 @@ encodeur choisi explicitement dans la liste n'est jamais remplacé.
 
 | | |
 | --- | --- |
-| **Constat** | U-09 ([ANALYSE.md § 3nonies](../ANALYSE.md)) |
+| **Constat** | U-09 ([analyse.md § 3nonies](../analyse.md)) |
 | **Fichiers** | `common/common.go` (sentinelle, goroutine de signal, `classifyFfmpegFailure`), `common/health.go` (`availableMemoryBytes`, `parseMemAvailable`, `formatAvailableMemory`), `common/exitsignal_unix.go` et `common/exitsignal_windows.go` (nouveaux), `gui_main.go` (sortie sur signal), `common/stopreason_test.go` et `common/stopreason_unix_test.go` (nouveaux), `common/common_test.go` |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./...` ✅ · `golangci-lint run ./...` 0 alerte ✅ · couverture module 69,0 % (seuil 50 %) ✅ · GUI démarrée et vivante (code 124) ✅ · 4 contre-épreuves, dont une réécrite parce qu'elle ne compilait pas (L-86) ✅ |
 
@@ -939,8 +939,8 @@ contre les nettoyages.
 
 | | |
 | --- | --- |
-| **Constat** | U-08 ([ANALYSE.md § 3octies](../ANALYSE.md)) |
-| **Fichiers** | `README_FR.md` (nouveau), `README.md` (ligne de langue), `.github/workflows/lint.yml` (job `readme-parity`), `.all-contributorsrc`, `AGENTS.md`, `docs/CONTRATS.md` § 1 |
+| **Constat** | U-08 ([analyse.md § 3octies](../analyse.md)) |
+| **Fichiers** | `README_FR.md` (nouveau), `README.md` (ligne de langue), `.github/workflows/lint.yml` (job `readme-parity`), `.all-contributorsrc`, `AGENTS.md`, `docs/contrats.md` § 1 |
 | **Vérification** | parité de forme des deux fichiers ✅ · liens et cibles relatives des deux ✅ · ancres accentuées conservées ✅ · UTF-8 sans BOM, fins de ligne LF ✅ · logique du job éprouvée sur cinq cas, dont `docs/README.md` qui ne doit pas compter ✅ · `lint.yml` reparsé ✅ · suite complète rejouée ✅ |
 
 **Symptôme** — le dépôt s'adresse à un public qui n'est pas nécessairement anglophone, et
@@ -954,7 +954,7 @@ L-47. Rien n'avait donc jamais tranché la question de la langue du README.
 en tête des deux. Les libellés de l'interface restent en anglais dans le fichier
 français, l'interface n'étant pas traduite ; les chaînes de Windows, elles, sont celles
 d'un Windows français. La convention et la règle de co-modification sont écrites dans
-`AGENTS.md`, et `docs/CONTRATS.md` § 1 nomme désormais les deux fichiers.
+`AGENTS.md`, et `docs/contrats.md` § 1 nomme désormais les deux fichiers.
 
 **Ce qui garde le miroir** — le job `readme-parity` échoue quand une PR modifie un README
 sans l'autre, et quand leurs structures de titres divergent. `.all-contributorsrc` liste
@@ -977,8 +977,8 @@ aurait désaccordé le README français des boutons qu'il décrit.
 
 | | |
 | --- | --- |
-| **Constat** | U-07 ([ANALYSE.md § 3octies](../ANALYSE.md)) |
-| **Fichiers** | `README.md` (restructuré), `gui_main.go` (`installURL`), `common/common.go` (texte d'erreur), `readme_link_test.go` (nouveau), `docs/ENVIRONNEMENT.md` (renvoi de section) |
+| **Constat** | U-07 ([analyse.md § 3octies](../analyse.md)) |
+| **Fichiers** | `README.md` (restructuré), `gui_main.go` (`installURL`), `common/common.go` (texte d'erreur), `readme_link_test.go` (nouveau), `docs/environnement.md` (renvoi de section) |
 | **Vérification** | `gofmt -l .` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · contre-épreuve du test d'ancre dans les deux sens ✅ · archive Windows v0.2.6 téléchargée, `unzip -l` ✅ · archive Linux v0.2.6 : `sha256sum -c` ✅, `tar -xJf` et structure ✅ · liens et ancres du README ✅ · **séquence Windows non vérifiée, voir ci-dessous** |
 
 **Symptôme** — un utilisateur lambda, à qui il était demandé d'installer la dernière
@@ -1025,8 +1025,8 @@ faire suivre la nouvelle section mot à mot.
 
 | | |
 | --- | --- |
-| **Constat** | U-06 ([ANALYSE.md § 3septies](../ANALYSE.md)) |
-| **Fichiers** | `README.md` (Requirements, Overview, Installation, Usage, Configuration, Architecture, Development), `docs/ANALYSE.md` (§ 1), `docs/CONTRATS.md` (§ 1), `docs/ENVIRONNEMENT.md`, `superview.yaml` |
+| **Constat** | U-06 ([analyse.md § 3septies](../analyse.md)) |
+| **Fichiers** | `README.md` (Requirements, Overview, Installation, Usage, Configuration, Architecture, Development), `docs/analyse.md` (§ 1), `docs/contrats.md` (§ 1), `docs/environnement.md`, `superview.yaml` |
 | **PR** | #56 |
 | **Vérification** | documentation seule ; aucun fichier Go modifié · `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `superview.yaml` reparsé et tests de config rejoués (fichier livré) ✅ · liens internes du README vérifiés ✅ |
 
@@ -1044,8 +1044,8 @@ correctif.
 avertissement `winget` avec la version qui fonctionne, et renvoi à *Diagnostic* pour vérifier le
 GPU. Contenu réel des archives, disposition d'installation, `SUPERVIEW_FFMPEG_DIR` documenté là où
 on le cherche, cartographie du projet à jour. Hors README : compteurs et couverture de
-`ANALYSE.md` § 1 rafraîchis à `ec7d753`, table des sources de `CONTRATS.md` complétée,
-`ENVIRONNEMENT.md` précise qu'un build source n'embarque pas de FFmpeg — donc que les sondes
+`analyse.md` § 1 rafraîchis à `ec7d753`, table des sources de `contrats.md` complétée,
+`environnement.md` précise qu'un build source n'embarque pas de FFmpeg — donc que les sondes
 mesurent celui du système et non celui que les utilisateurs recevront — et `superview.yaml` dit
 pourquoi le choix du binaire n'est pas une clé de configuration.
 
@@ -1064,7 +1064,7 @@ dans les sections relues.
 | | |
 | --- | --- |
 | **Constat** | aucun ; hygiène de ce document, relevée par l'utilisateur |
-| **Fichiers** | `docs/LECONS.md` (gabarit § 1 et les 18 entrées du § 3), `docs/ANALYSE.md` (journal des révisions) |
+| **Fichiers** | `docs/lecons.md` (gabarit § 1 et les 18 entrées du § 3), `docs/analyse.md` (journal des révisions) |
 | **PR** | #55 |
 | **Vérification** | documentation seule ; aucun fichier Go modifié, `go build ./...` rejoué pour le confirmer ✅ · les 18 numéros établis par `git log -S` sur le code, pas par déduction ✅ |
 
@@ -1079,7 +1079,7 @@ supposait de revenir sur le fichier une fois la PR fusionnée — une étape que
 accessible par `git log --grep '(#NN)'`, donc rien n'est perdu.
 
 Les dix-huit entrées ont été renseignées à partir de l'historique. `git log -S` sur
-`docs/LECONS.md` ne sert à rien ici : il attribue **toutes** les anciennes entrées à `3c20954`,
+`docs/lecons.md` ne sert à rien ici : il attribue **toutes** les anciennes entrées à `3c20954`,
 la réécriture intégrale du fichier. C'est `git log -S` sur le **code** que chaque entrée décrit
 qui répond, en nommant le commit d'écrasement — lequel porte le numéro dans son titre. Lire le
 corps des PR n'aurait pas suffi : plusieurs mentionnent un même constat, l'une le corrigeant et
@@ -1097,8 +1097,8 @@ une ligne `**PR** — #NN` sous leur titre, et le gabarit documente cette forme.
 
 | | |
 | --- | --- |
-| **Constat** | U-05 ([ANALYSE.md § 3septies](../ANALYSE.md)) |
-| **Fichiers** | `common/hardware.go`, `common/common.go`, `common/probe.go` ; tests : `common/hardware_test.go`, `common/common_test.go`, `common/probe_test.go`, `common/integration_test.go` ; docs : `README.md`, `docs/CONTRATS.md`, `docs/hardware-support.md` |
+| **Constat** | U-05 ([analyse.md § 3septies](../analyse.md)) |
+| **Fichiers** | `common/hardware.go`, `common/common.go`, `common/probe.go` ; tests : `common/hardware_test.go`, `common/common_test.go`, `common/probe_test.go`, `common/integration_test.go` ; docs : `README.md`, `docs/contrats.md`, `docs/hardware-support.md` |
 | **PR** | #54 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · conversion réelle 640×480 → 853×480 par `h264_vulkan` ✅ · 5 contre-épreuves ✅ |
 
@@ -1135,8 +1135,8 @@ risque : un chemin qui ne répond pas n'est jamais retenu.
 
 | | |
 | --- | --- |
-| **Constat** | U-04 ([ANALYSE.md § 3septies](../ANALYSE.md)) |
-| **Fichiers** | `.github/workflows/release.yml`, `.github/scripts/nvenc-driver-floor.sh` (nouveau), `common/common.go`, `THIRD_PARTY_NOTICES.md` (nouveau) ; tests : `common/toolresolve_test.go` (nouveau) ; docs : `README.md`, `AGENTS.md`, `RELEASING.md`, `docs/hardware-support.md`, `docs/CONTRATS.md` |
+| **Constat** | U-04 ([analyse.md § 3septies](../analyse.md)) |
+| **Fichiers** | `.github/workflows/release.yml`, `.github/scripts/nvenc-driver-floor.sh` (nouveau), `common/common.go`, `THIRD_PARTY_NOTICES.md` (nouveau) ; tests : `common/toolresolve_test.go` (nouveau) ; docs : `README.md`, `AGENTS.md`, `RELEASING.md`, `docs/hardware-support.md`, `docs/contrats.md` |
 | **PR** | #53 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · scripts du YAML extraits et exécutés en vrai ✅ · paquet Linux construit, empaqueté, installé et **lancé installé** ✅ |
 
@@ -1156,7 +1156,7 @@ un répertoire jetable pour vérifier que tout atterrit au bon endroit.
 
 **Ce qui n'a pas été retenu** — les variantes `lgpl` (sans libx264/libx265, donc sans repli CPU),
 gyan `full_build-shared` (92 Mo zippés contre 71), et le build statique BtbN du fork (106 Mo).
-Détail des mesures : ANALYSE.md U-04.
+Détail des mesures : analyse.md U-04.
 
 **Défaut trouvé en chemin** — `make install` d'un paquet fyne 1.7.2 échoue sur sa ligne d'icône
 (`$(Icon)` sans `.png`), après avoir installé le binaire. Aucune archive Linux publiée par ce
@@ -1177,7 +1177,7 @@ l'application ne passera plus en fallback. »
 
 | | |
 | --- | --- |
-| **Constat** | U-03 ([ANALYSE.md § 3septies](../ANALYSE.md)) |
+| **Constat** | U-03 ([analyse.md § 3septies](../analyse.md)) |
 | **Fichiers** | `common/probe.go` (nouveau), `common/common.go` (`newFFmpegCommandContext`), `common/health.go`, `gui_main.go` ; tests : `common/probe_test.go` (nouveau), `common/health_report_test.go`, `gui_main_test.go` |
 | **PR** | #52 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée, capturée, journal relu ✅ · 8 contre-épreuves ✅ |
@@ -1191,7 +1191,7 @@ annonçait pourtant `Hardware: planned h264_nvenc encode + CUDA decode` et encod
 *Chez FFmpeg* : le plancher pilote NVENC est fixé à la compilation par les `nv-codec-headers`.
 gyan.dev est passé du SDK 13.0 au SDK 13.1 entre 8.1.1 et 8.1.2, portant l'exigence de 570 à
 610, alors que la branche pilote RTX Enterprise plafonne à 597.06. Mesures et sources :
-ANALYSE.md § 3septies.
+analyse.md § 3septies.
 
 *Chez nous* : `CheckFfmpeg` déduisait les capacités de `ffmpeg -encoders` et `ffmpeg -hwaccels`,
 qui décrivent le binaire et pas la machine. Rien dans le programme n'était en mesure de
@@ -1225,7 +1225,7 @@ dont chacune rougit pour sa propre raison (L-37, L-54).
 
 | | |
 | --- | --- |
-| **Constat** | U-01, U-02 ([ANALYSE.md § 3sexies](../ANALYSE.md)) |
+| **Constat** | U-01, U-02 ([analyse.md § 3sexies](../analyse.md)) |
 | **Fichiers** | `gui_main.go:34-76` (géométrie et helpers), `gui_main.go:1040` (rangée), `gui_main.go:1085-1088` (taille de fenêtre) ; `gui_main_test.go:142-241` |
 | **PR** | #51 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `SUPERVIEW_REQUIRE_FFMPEG=1 go test -race ./... -count=1` ✅ · `golangci-lint run ./...` 0 alerte ✅ · GUI lancée et capturée ✅ · contre-épreuves ✅ |
@@ -1302,7 +1302,7 @@ d'où elle vient, et rien de ce qui sort d'un dispatch n'est publié.
 
 | | |
 | --- | --- |
-| **Constats** | P-12, P-13 ([§ 3ter](../ANALYSE.md)) |
+| **Constats** | P-12, P-13 ([§ 3ter](../analyse.md)) |
 | **Fichiers** | `common/common.go` · `common/pgm_golden_test.go` · `gui_main.go` · `gui_main_test.go` · `README.md` |
 | **PR** | #33 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve ✅ |
@@ -1348,7 +1348,7 @@ Python → Go. Sans importance pour la décision : l'intention est démontrable 
 | | |
 | --- | --- |
 | **Constat** | aucun ; dérive de documentation relevée en clôture |
-| **Fichiers** | `docs/ANALYSE.md` · `docs/LECONS.md` — **aucun code** |
+| **Fichiers** | `docs/analyse.md` · `docs/lecons.md` — **aucun code** |
 | **PR** | #30 |
 | **Vérification** | audit systématique des 22 titres N-xx/P-xx contre le § 4bis, plus les cases de la file d'attente |
 
@@ -1382,8 +1382,8 @@ laissées telles quelles : elles disent ce qui était vrai à leur date, c'est l
 
 | | |
 | --- | --- |
-| **Constat** | N-07 ([§ 3bis](../ANALYSE.md)) |
-| **Fichiers** | `docs/ANALYSE.md` · `docs/CONTRATS.md` — **aucun fichier de code** |
+| **Constat** | N-07 ([§ 3bis](../analyse.md)) |
+| **Fichiers** | `docs/analyse.md` · `docs/contrats.md` — **aucun fichier de code** |
 | **PR** | #29 |
 | **Vérification** | mesures refaites sur RTX 4070, code actuel, deux exécutions concordantes par cas |
 
@@ -1422,7 +1422,7 @@ code.** Décision finale à l'utilisateur.
 
 | | |
 | --- | --- |
-| **Constat** | P-10 ([§ 3ter](../ANALYSE.md)) |
+| **Constat** | P-10 ([§ 3ter](../analyse.md)) |
 | **Fichiers** | `gui_main.go` · `gui_main_test.go` |
 | **PR** | #28 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve sur les trois propriétés clés ✅ |
@@ -1473,7 +1473,7 @@ mise en page n'ont rien à gagner à être découpées (L-45).
 
 | | |
 | --- | --- |
-| **Constats** | P-01 à P-07, P-09 ([§ 3ter](../ANALYSE.md)) · N-06, N-08, N-09, N-10 ([§ 3bis](../ANALYSE.md)) |
+| **Constats** | P-01 à P-07, P-09 ([§ 3ter](../analyse.md)) · N-06, N-08, N-09, N-10 ([§ 3bis](../analyse.md)) |
 | **Fichiers** | `common/common.go` · `common/metrics.go` · `common/observability.go` · `common/config.go` · `gui_main.go` · `superview.yaml` · `.github/copilot-instructions.md` · 5 fichiers de test |
 | **PR** | #28 |
 | **Vérification** | `gofmt` ✅ · `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · GUI démarrée ✅ · contre-épreuve sur chaque correctif ✅ |
@@ -1534,7 +1534,7 @@ mentionne que le répertoire temporaire est souvent en RAM et suggère `TMPDIR`.
 
 | | |
 | --- | --- |
-| **Constat** | N-03, N-04, N-05 ([ANALYSE.md § 3bis](../ANALYSE.md)) |
+| **Constat** | N-03, N-04, N-05 ([analyse.md § 3bis](../analyse.md)) |
 | **Fichiers** | `common/common.go` (`VideoStream`, `CheckVideo`, `buildEncodeBaseArgs`, + 4 helpers) · `common/common_test.go` · `common/integration_test.go` |
 | **PR** | #28 |
 | **Vérification** | `go build ./...` ✅ · `go vet ./...` ✅ · `golangci-lint` ✅ 0 alerte · `go test -race ./...` ✅ · contre-épreuve ✅ |
@@ -1571,7 +1571,7 @@ projet ne vise Main12.
 
 | | |
 | --- | --- |
-| **Constat** | P-08 ([ANALYSE.md § 3ter](../ANALYSE.md)) |
+| **Constat** | P-08 ([analyse.md § 3ter](../analyse.md)) |
 | **Fichiers** | `common/common.go` (`GeneratePGM`, `putMapSample`) · `common/pgm_golden_test.go` |
 | **PR** | #28 |
 | **Vérification** | `go test -race ./...` ✅ · équivalence prouvée sur la sortie décodée ✅ · contre-épreuve boutisme ✅ |
@@ -1605,7 +1605,7 @@ dépendre du build de FFmpeg (L-36).
 
 | | |
 | --- | --- |
-| **Constat** | P-11 ([ANALYSE.md § 3ter](../ANALYSE.md)) — découvert en écrivant le test de N-03 |
+| **Constat** | P-11 ([analyse.md § 3ter](../analyse.md)) — découvert en écrivant le test de N-03 |
 | **Fichiers** | `common/common.go` (`clampEncoderThreads`, `x265MaxFrameThreads`) · `common/common_test.go` |
 | **PR** | #28 |
 | **Vérification** | reproduit à 17/24/32 threads ✅ · `go test -race ./...` ✅ |
@@ -1677,7 +1677,7 @@ Le bloc « API Documentation » du README montrait encore `common.CheckFfmpeg()`
 
 **PR** — #27.
 
-Dix constats N-01 à N-10 consignés dans [ANALYSE.md § 3bis](../ANALYSE.md).
+Dix constats N-01 à N-10 consignés dans [analyse.md § 3bis](../analyse.md).
 **Aucun code modifié** : cette passe est un diagnostic, les corrections restent à arbitrer.
 
 Méthode : corpus de fichiers difficiles fabriqué avec FFmpeg, mesures de mémoire, de débit et de
@@ -2095,7 +2095,7 @@ dépôt, et la procédure de résolution du fichier de configuration y est docum
 
 #### B-03 — Constat invalidé, aucune correction nécessaire
 
-Voir [ANALYSE.md](../ANALYSE.md) B-03 et [[L-10]]. Le remplacement par
+Voir [analyse.md](../analyse.md) B-03 et [[L-10]]. Le remplacement par
 `file.URI().Path()` a été conservé comme simplification, pas comme correctif.
 
 ---

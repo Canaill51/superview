@@ -6,7 +6,7 @@
 
 Une session par lot : `/clear`, puis « Lot N de docs/PLAN-LIVRAISON.md ». Chaque lot suit
 explorer → planifier → implémenter → vérifier → livrer (une PR, label `merge`) → consigner (cocher ici,
-`docs/SUITE.md`, `docs/CORRECTIONS.md` si c'est une correction).
+`docs/SUITE.md`, `docs/corrections.md` si c'est une correction).
 
 ## Décisions de l'utilisateur (2026-10-28)
 
@@ -24,7 +24,7 @@ explorer → planifier → implémenter → vérifier → livrer (une PR, label 
 | Nature | Quoi |
 |---|---|
 | Code (CI) | `release.yml` : construire, vérifier, publier l'archive du plugin Windows (Lot 1) |
-| Documentation | ce qui décrit le paquet, avec lui (Lot 1) : DEC-65 et DEC-69, `RELEASING.md`, `ARCHITECTURE.md`, `THIRD_PARTY_NOTICES.md` (embarqué dans le zip), `/publier` ; ce que lisent les utilisateurs et les agents (Lot 2) : les deux README, `AGENTS.md`, `hardware-support.md`, `ENVIRONNEMENT.md`, `SUITE.md`, `PLAN-OFX.md`, `TESTS-MANUELS.md`, balayage du reste |
+| Documentation | ce qui décrit le paquet, avec lui (Lot 1) : DEC-65 et DEC-69, `RELEASING.md`, `architecture.md`, `THIRD_PARTY_NOTICES.md` (embarqué dans le zip), `/publier` ; ce que lisent les utilisateurs et les agents (Lot 2) : les deux README, `AGENTS.md`, `hardware-support.md`, `environnement.md`, `SUITE.md`, `PLAN-OFX.md`, `tests-manuels.md`, balayage du reste |
 | Manuel (l'utilisateur) | installer l'archive de l'essai à blanc dans Resolve ; installer le `setup.exe` de l'essai à blanc sur ce Windows, ce qui lève aussi « installateur jamais vérifié sur un vrai Windows » (Lot 1) |
 | Décision | aucune en suspens |
 | Hors de portée (matériel) | Resolve Studio, Resolve sous Linux, AMD (plugin et AMF), QSV |
@@ -62,10 +62,10 @@ build), DEC-65, L-114.
       (« the Windows installer and the Linux AppImage ») nomme aussi le zip. La vérification du paquet exige le fichier.
 - [x] Nouvelle décision (DEC-69) : archive séparée, Windows seulement, et ce qui la rouvre (Resolve essayé sous
       Linux → publier l'archive Linux). Amender DEC-65 (« prototype, pas encore livré » ne vaut plus).
-- [x] `RELEASING.md` (le fichier publié, ce qui le vérifie) et `ARCHITECTURE.md` (« prototype, pas dans les
+- [x] `RELEASING.md` (le fichier publié, ce qui le vérifie) et `architecture.md` (« prototype, pas dans les
       versions »).
 - [x] `.claude/skills/publier/SKILL.md` : la vérification des fichiers publiés attend le zip du plugin.
-- [x] Consigner : `docs/CORRECTIONS.md` si quelque chose a été corrigé en route ; une leçon dans `LECONS.md`
+- [x] Consigner : `docs/corrections.md` si quelque chose a été corrigé en route ; une leçon dans `lecons.md`
       (et `PIEGES.md`) si l'essai à blanc en apprend une.
 
 Vérification :
@@ -77,7 +77,7 @@ Vérification :
 - **Manuel (l'utilisateur)** : sur ce poste, désinstaller le plugin de développement, décompresser le zip de
   l'essai à blanc dans `C:\Program Files\Common Files\OFX\Plugins`, relancer Resolve, appliquer l'effet,
   vérifier le journal (CUDA). Installer aussi le `setup.exe` de l'essai à blanc, lancer une conversion, puis
-  désinstaller. Consigner les deux dans `docs/TESTS-MANUELS.md`.
+  désinstaller. Consigner les deux dans `docs/tests-manuels.md`.
 
 Critère d'arrêt : si le bundle ne se construit pas sur `windows-latest` dans `release.yml` alors qu'il se
 construit dans `rust.yml`, comparer les deux environnements avant de modifier `build_bundle.sh`.
@@ -86,7 +86,7 @@ construit dans `rust.yml`, comparer les deux environnements avant de modifier `b
 
 But : un utilisateur sait installer et régler le plugin ; les fichiers de suivi disent où on en est.
 
-À lire : `README.md`, `README_FR.md` (parité, `readme-parity` dans `lint.yml`), `docs/TESTS-MANUELS.md`
+À lire : `README.md`, `README_FR.md` (parité, `readme-parity` dans `lint.yml`), `docs/tests-manuels.md`
 (Lot 1 de `PLAN-OFX.md` : réglages qui donnent une image fausse), `crates/superview-ofx/src/journal.rs`
 (emplacement du journal).
 
@@ -99,15 +99,15 @@ But : un utilisateur sait installer et régler le plugin ; les fichiers de suivi
       ligne du tableau des décisions pour DEC-69 est déjà faite (Lot 1, comme la ligne « not archives »).
 - [x] `docs/hardware-support.md` : le plugin, CUDA (NVIDIA, `sm_50` et plus) et OpenCL, choisis par Resolve ;
       ce qui a été vérifié (RTX 3050 Ti, Intel UHD) et ce qui ne l'a pas été (AMD, Studio, Linux).
-- [x] `docs/ENVIRONNEMENT.md`, section *Plugin OpenFX* : distinguer l'installation depuis la version publiée
+- [x] `docs/environnement.md`, section *Plugin OpenFX* : distinguer l'installation depuis la version publiée
       (le zip) de celle d'un build local.
 - [x] `docs/SUITE.md` : résumer le long paragraphe du plugin ; état depuis la v0.4.0 (#175 en attente de
       version) ; ce qui attend le matériel ; retirer le renvoi « Prochain travail » quand le plan est fini.
 - [x] `docs/PLAN-OFX.md` : Lot 5, ce qui reste en attente de matériel ; Lot 6 renvoie ici.
-- [x] `docs/TESTS-MANUELS.md` : la liste de ce qui est en suspens, à jour.
+- [x] `docs/tests-manuels.md` : la liste de ce qui est en suspens, à jour.
 - [x] Balayer le reste de la prose, hors `docs/archives/` et journaux datés (qui gardent leur état d'époque) :
       `grep -rniE "prototype|pas (encore )?livr|not (yet )?shipped|hors des versions" --include='*.md' .`
-- [x] `docs/ANALYSE.md` et `docs/CONTRATS.md` : rien n'est attendu, mais vérifier au balayage qu'aucun ne dit le
+- [x] `docs/analyse.md` et `docs/contrats.md` : rien n'est attendu, mais vérifier au balayage qu'aucun ne dit le
       plugin hors des versions.
 
 Vérification : `scripts/check.sh` (le garde-fou `repo_guards.rs` lit le README), CI `readme-parity` verte.
@@ -125,4 +125,4 @@ Vérification : `scripts/check.sh` (le garde-fou `repo_guards.rs` lit le README)
 ## En attente de matériel (non planifié)
 
 Resolve Studio, Resolve sous Linux (puis l'archive Linux, DEC-69), AMD pour le plugin et AMF, QSV, portail
-xdg lent, Linux sans portail ni zenity : `PLAN-OFX.md` Lot 5 et `docs/TESTS-MANUELS.md`.
+xdg lent, Linux sans portail ni zenity : `PLAN-OFX.md` Lot 5 et `docs/tests-manuels.md`.

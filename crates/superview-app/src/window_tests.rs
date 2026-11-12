@@ -685,7 +685,7 @@ fn check_popup(window: &MainWindow, popup: Popup, texts: &[&str], button: &str, 
 /// the report sits in a read-only `TextEdit`, whose scrollbars, wheel and selection are what
 /// reach the end of it and copy it. The testing backend does not measure the font, so the
 /// content height cannot be compared with the visible one here: the box being read-only text
-/// that is not clipped to a fixed size is what is checked (`docs/TESTS-MANUELS.md` reads it).
+/// that is not clipped to a fixed size is what is checked (`docs/tests-manuels.md` reads it).
 fn the_long_diagnostic_fits_and_can_be_read_to_its_end(window: &MainWindow) {
     let report: String = (0..200)
         .map(|i| format!("line {i}: {}\n", "x".repeat(300)))

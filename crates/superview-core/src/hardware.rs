@@ -283,7 +283,7 @@ pub fn candidate_encoders_for_codec(codec: &str) -> Vec<&'static str> {
         // pipeline actually sets. Then the vendor-neutral pair, which is the point of
         // having them -- D3D12 and Vulkan video encode are driven by the display driver
         // rather than by NVENC's own API, so they are still there when an FFmpeg build
-        // demands a newer NVIDIA driver than the machine can install (ANALYSE.md
+        // demands a newer NVIDIA driver than the machine can install (analyse.md
         // U-03). v4l2m2m last, then the CPU.
         "h264" | "avc" => vec![
             "h264_nvenc",

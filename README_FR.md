@@ -534,7 +534,7 @@ Les publications se font depuis l'onglet Actions et sont documentées dans
 local.
 
 Pour les contributeurs : [RELEASING.md](RELEASING.md) explique comment une
-version est publiée, [docs/CONTRATS.md](docs/CONTRATS.md) ce que le code
+version est publiée, [docs/contrats.md](docs/contrats.md) ce que le code
 garantit, et [docs/hardware-support.md](docs/hardware-support.md) quels GPU
 fonctionnent généralement.
 

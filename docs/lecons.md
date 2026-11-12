@@ -3,33 +3,33 @@
 > **Go et Fyne.** Les noms de ce journal (`common/`, `internal/common/`, `cmd/superview/`, `gui_*.go`, `appState`, `go test`, `-race`…) décrivent le code Go retiré (DEC-49) : ils ne sont pas réécrits (DEC-55). Pour relire un fichier cité : `git show v0.2.9:<chemin>`, avec `common/` = `internal/common/` et `gui_*.go` = `cmd/superview/` (`common.go` y est découpé en huit fichiers, DEC-36) ; les numéros de ligne cités sont ceux du commit analysé, pas de v0.2.9.
 >
 > **Ce fichier se met à jour après CHAQUE correction appliquée au code.**
-> Procédure : (1) ajouter une entrée dans [CORRECTIONS.md](CORRECTIONS.md) (ex-§ 3) avec le gabarit ci-dessous, (2) si la
+> Procédure : (1) ajouter une entrée dans [corrections.md](corrections.md) (ex-§ 3) avec le gabarit ci-dessous, (2) si la
 > correction révèle une règle réutilisable, l'ajouter en § 2.
 >
 > Le § 2 est la partie à lire avant de corriger quoi que ce soit : 110 règles tirées
-> de défauts réels de ce dépôt. [CORRECTIONS.md](CORRECTIONS.md) est l'historique, à consulter pour savoir si
+> de défauts réels de ce dépôt. [corrections.md](corrections.md) est l'historique, à consulter pour savoir si
 > une correction a déjà été tentée. Les **décisions** — ce qui ressemble à un défaut
-> et n'en est pas un — sont dans [DECISIONS.md](DECISIONS.md).
+> et n'en est pas un — sont dans [decisions.md](decisions.md).
 >
 > La file d'attente qui figurait ici a disparu avec son dernier item le 2026-10-14 ;
 > la 13ᵉ passe en a rouvert une de 25 constats (E-01 à E-25). L'état d'avancement vit
-> dans [ANALYSE.md § 4](ANALYSE.md), seul endroit qui le tienne. **Ces deux nombres
+> dans [analyse.md § 4](analyse.md), seul endroit qui le tienne. **Ces deux nombres
 > périment à chaque leçon et à chaque passe** — ils étaient restés à 80 et 67
 > jusqu'au 2026-09-11 (M-04).
 
 Les identifiants `Q-xx` renvoient aux **questions ouvertes** de
-[ANALYSE.md § 5](ANALYSE.md) : ce ne sont pas des constats, mais des points dont
+[analyse.md § 5](analyse.md) : ce ne sont pas des constats, mais des points dont
 on ignore encore s'ils constituent un défaut.
 
 Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
-[ANALYSE.md § 3](ANALYSE.md) (1ʳᵉ et 2ᵉ passes), `N-xx` à
-[§ 3bis](ANALYSE.md) (3ᵉ passe, empirique), `P-xx` à [§ 3ter](ANALYSE.md)
-(4ᵉ passe), `R-xx` à [§ 3quater](ANALYSE.md) (5ᵉ passe), `D-xx` et `V-xx` à
-[§ 3quinquies](ANALYSE.md) (6ᵉ passe), `U-xx` aux [§ 3sexies à § 3nonies](ANALYSE.md)
+[analyse.md § 3](analyse.md) (1ʳᵉ et 2ᵉ passes), `N-xx` à
+[§ 3bis](analyse.md) (3ᵉ passe, empirique), `P-xx` à [§ 3ter](analyse.md)
+(4ᵉ passe), `R-xx` à [§ 3quater](analyse.md) (5ᵉ passe), `D-xx` et `V-xx` à
+[§ 3quinquies](analyse.md) (6ᵉ passe), `U-xx` aux [§ 3sexies à § 3nonies](analyse.md)
 (7ᵉ à 10ᵉ passes, toutes parties d'un signalement utilisateur), `M-xx` aux
-[§ 3decies et § 3undecies](ANALYSE.md) (11ᵉ et 12ᵉ passes, entretien) et `E-xx` au
-[§ 3duodecies](ANALYSE.md) (13ᵉ passe, état des lieux). `DEC-xx` renvoie au registre
-[DECISIONS.md](DECISIONS.md).
+[§ 3decies et § 3undecies](analyse.md) (11ᵉ et 12ᵉ passes, entretien) et `E-xx` au
+[§ 3duodecies](analyse.md) (13ᵉ passe, état des lieux). `DEC-xx` renvoie au registre
+[decisions.md](decisions.md).
 
 ---
 
@@ -40,7 +40,7 @@ Les identifiants `B-xx`, `S-xx`, `C-xx`, `X-xx`, `O-xx`, `T-xx` renvoient à
 
 | | |
 | --- | --- |
-| **Constat** | ID-xx (lien vers ANALYSE.md) |
+| **Constat** | ID-xx (lien vers analyse.md) |
 | **Fichiers** | `chemin:lignes` |
 | **PR** | #NN |
 | **Vérification** | `scripts/check.sh` ✅/❌ · contre-preuve (le test rougit sans le correctif) ✅/❌ · test manuel ✅/❌/n.a. |
@@ -77,7 +77,7 @@ non vérifiée doit être annoncée explicitement comme telle à l'utilisateur.
 *Mise à jour 2026-09-04* : Go 1.26.8 est désormais installé dans `~/.local/go` et y survit aux
 redémarrages. Le **sysroot GUI vit dans `/tmp` et n'y survit pas** : après un redémarrage,
 `./common` se vérifie normalement mais le paquet `main` ne compile plus tant que le sysroot
-n'est pas reconstruit. Procédure : [ENVIRONNEMENT.md](ENVIRONNEMENT.md).
+n'est pas reconstruit. Procédure : [environnement.md](environnement.md).
 
 ### L-02 — La CI de qualité ne couvre pas le paquet `main` — 2026-09-04
 *Résolu par X-01 : `lint.yml` et `test.yml` ciblent maintenant `./...`.* La règle de travail
@@ -157,7 +157,7 @@ de paquets `.deb` vers un sysroot local (`/tmp/glue/sysroot`) via `apt-get downl
 sans droits root. Cela a permis de compiler, tester et linter **le paquet GUI**, ce qui a
 révélé 4 défauts réels qu'aucun outil ne voyait. Sans cela, étendre la CI à `./...` aurait été
 un pari à l'aveugle susceptible de faire rougir la CI du projet.
-Procédure complète : [ENVIRONNEMENT.md](ENVIRONNEMENT.md).
+Procédure complète : [environnement.md](environnement.md).
 
 ### L-14 — `-re` n'a pas sa place dans une transcodification vers fichier — 2026-09-04
 Ce drapeau FFmpeg bride la lecture de l'entrée à sa cadence native. Utile pour alimenter un
@@ -257,7 +257,7 @@ de l'outil, pas son code de retour supposé, fait foi.
 
 ### L-29 — Une refactorisation de signature doit balayer la documentation — 2026-09-04
 La refactorisation C-05 a changé les signatures de `CheckFfmpeg` et `PerformEncoding`. J'ai mis à
-jour le code, les tests et `CONTRATS.md`, mais pas le bloc d'exemple du README, resté avec les
+jour le code, les tests et `contrats.md`, mais pas le bloc d'exemple du README, resté avec les
 anciennes signatures pendant deux PR. Aucun outil ne le détecte : les extraits de code en
 Markdown ne sont pas compilés.
 → Après tout changement de signature exportée : `grep -rn "NomFonction" --include='*.md' .`
@@ -1033,7 +1033,7 @@ doit l'être plutôt que redit en prose — « Rebase and merge » retiré du me
 paragraphe qui demande de ne pas le cliquer.
 
 ### L-98 — Un document ne compile pas : ce qu'il compte vieillit sans rien casser — 2026-09-11
-L'en-tête d'`ANALYSE.md` annonçait « cinq passes et les 67 constats » alors qu'il en portait
+L'en-tête d'`analyse.md` annonçait « cinq passes et les 67 constats » alors qu'il en portait
 onze et 105 ; son ordre de lecture s'arrêtait deux passes plus tôt ; `AGENTS.md` donnait
 `common.go` à « ~1600 lines » pour 2023 et `main()` à « ~540 » pour 585. Aucune de ces
 phrases n'était fausse quand elle a été écrite, et aucune n'a jamais rougi. Le balayage de
@@ -1042,7 +1042,7 @@ L-80 ne les attrape pas : il porte sur ce que la doc **promet**, pas sur ce qu'e
 → **Un chiffre dans de la prose est un test sans assertion.** Trois remèdes, par ordre de
 solidité : ne pas l'écrire quand la phrase tient sans lui ; l'arrondir à un ordre de
 grandeur qui survit à la dérive (« ~2000 lignes » plutôt que « 1600 ») ; et, quand il est
-là pour naviguer, écrire à côté **ce qui l'invalide** — l'en-tête d'`ANALYSE.md` dit
+là pour naviguer, écrire à côté **ce qui l'invalide** — l'en-tête d'`analyse.md` dit
 désormais qu'ajouter une passe oblige à le rouvrir. Corollaire de balayage : en ajoutant une
 passe ou une section, relire l'en-tête et le sommaire du même fichier, jamais seulement le
 corps.
@@ -1358,7 +1358,7 @@ tests d'`encode/args/tests.rs`, dont les chemins sont fixes.
 
 ## 3. Corrections appliquées
 
-> Déplacé, texte inchangé, dans [CORRECTIONS.md](CORRECTIONS.md). **Les nouvelles entrées s'ajoutent là-bas.**
+> Déplacé, texte inchangé, dans [corrections.md](corrections.md). **Les nouvelles entrées s'ajoutent là-bas.**
 
 ## 4. Journal des révisions de ce document
 
@@ -1398,5 +1398,5 @@ tests d'`encode/args/tests.rs`, dont les chemins sont fixes.
 | 2026-10-14 | **E-26, E-27 corrigés** (#88) : le gate requis, sauté dès qu'un test échouait, comptait comme réussi ; quatre défauts Windows qu'il cachait. Leçons L-111, L-112. |
 | 2026-10-14 | **Q-02 mesurée, Q-03 tranchée** (#90) : garde-fou mémoire à +4 % par fil au-delà de 4 (DEC-37) ; pas de télémétrie GoPro (DEC-38). Leçon L-113. |
 | 2026-10-14 | **Essai à blanc de la release** après le déplacement vers `cmd/` (#92) : Windows vert ; Linux rouge à l'étape ajoutée par #82 (pas de ffmpeg dans le `PATH`), sans lien avec le déplacement. Leçon L-114. |
-| 2026-10-14 | **Docs alignées sur le gabarit** (DEC-39, DEC-40) : le § 3 devient [CORRECTIONS.md](CORRECTIONS.md) (texte inchangé, les nouvelles entrées vont là-bas) ; index [PIEGES.md](PIEGES.md) ; chemins `internal/common/` et `cmd/superview/`. |
+| 2026-10-14 | **Docs alignées sur le gabarit** (DEC-39, DEC-40) : le § 3 devient [corrections.md](corrections.md) (texte inchangé, les nouvelles entrées vont là-bas) ; index [PIEGES.md](PIEGES.md) ; chemins `internal/common/` et `cmd/superview/`. |
 | 2026-10-21 | **Docs remises d'aplomb après la 14ᵉ passe** : L-115 pointe le garde Rust (`repo_guards.rs`) et non plus le test Go retiré ; leçon L-117 (environnement injecté, que `AGENTS.md` citait sous un mauvais numéro). |

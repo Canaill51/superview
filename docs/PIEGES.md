@@ -1,9 +1,9 @@
 # Pièges rencontrés — index
 
-> Une ligne par leçon permanente de [LECONS.md § 2](LECONS.md) (le texte complet, avec sa cause
+> Une ligne par leçon permanente de [lecons.md § 2](lecons.md) (le texte complet, avec sa cause
 > et son contrôle, est là-bas). **Claude : avant de toucher un domaine, cherche ici**
-> (`grep -i <mot> docs/PIEGES.md`) puis lis la leçon : `grep -n "### L-NN" docs/LECONS.md`.
-> Un nouveau piège : une entrée L-NN dans LECONS.md § 2 (skill `/piege`), puis une ligne ici.
+> (`grep -i <mot> docs/PIEGES.md`) puis lis la leçon : `grep -n "### L-NN" docs/lecons.md`.
+> Un nouveau piège : une entrée L-NN dans lecons.md § 2 (skill `/piege`), puis une ligne ici.
 > Le modèle `docs/pieges/_modele.md` sert aux pièges qui méritent un fichier à eux.
 > Les pièges valables pour TOUS les projets vont aussi dans `~/.claude/pieges/`.
 >

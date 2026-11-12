@@ -21,4 +21,4 @@ Voir `.github/workflows/release.yml`, étapes « The installer must install… �
 
 ## Prévention
 - [x] Test ajouté : `workflows_do_not_cut_a_tools_output_short` dans `crates/superview-app/src/repo_guards.rs` (d'abord `cmd/superview/workflow_pipes_test.go`, retiré avec Go, DEC-49) — rouge si le motif réapparaît dans `.github/workflows/*.yml` (contre-preuve faite)
-- [x] Leçon L-115 dans `docs/LECONS.md` § 2, ligne dans `docs/PIEGES.md`
+- [x] Leçon L-115 dans `docs/lecons.md` § 2, ligne dans `docs/PIEGES.md`

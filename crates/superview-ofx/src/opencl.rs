@@ -1,7 +1,7 @@
 //! The warp on the GPU, for a host that hands over OpenCL buffers (AMD, Intel, or Resolve set to
 //! OpenCL on NVIDIA).
 //!
-//! What Resolve hands over was measured by a throwaway probe (`docs/TESTS-MANUELS.md`, *Sonde
+//! What Resolve hands over was measured by a throwaway probe (`docs/tests-manuels.md`, *Sonde
 //! OpenCL*): `cl_mem` **buffers**, never OpenCL images; RGBA float rows `row_bytes` apart; the
 //! host's command queue, in the context of those buffers; buffers taken from a pool, larger than
 //! the frame. A frame that returns `FAILED` is done again on the CPU, but the next one is asked
