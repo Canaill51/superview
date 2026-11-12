@@ -533,8 +533,9 @@ Les publications se font depuis l'onglet Actions et sont documentées dans
 [RELEASING.md](RELEASING.md) (en anglais). Il n'y a pas de script de publication
 local.
 
-Pour les contributeurs : [RELEASING.md](RELEASING.md) explique comment une
-version est publiée, [docs/contrats.md](docs/contrats.md) ce que le code
+Pour les contributeurs : [CONTRIBUTING.md](CONTRIBUTING.md) (en anglais) décrit
+les branches, les demandes de fusion et leurs étiquettes de notes de version,
+[RELEASING.md](RELEASING.md) comment une version est publiée, [docs/contrats.md](docs/contrats.md) ce que le code
 garantit, et [docs/hardware-support.md](docs/hardware-support.md) quels GPU
 fonctionnent généralement.
 

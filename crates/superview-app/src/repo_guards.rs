@@ -294,3 +294,102 @@ fn every_embedded_font_has_its_licence_in_the_shipped_notices() {
         "ui/fonts and the imports of main.slint differ"
     );
 }
+
+// DEC-72: release notes are filed by `RN:` labels, and a pull request matching no section
+// vanishes from them. The labels `pr-label.yml` accepts must be exactly those of
+// `.github/release.yml`, `CONTRIBUTING.md` must name each, and no section may be a
+// catch-all, which would hide a forgotten label instead of the check refusing it.
+
+/// The labels of the `known='[…]'` JSON array in `pr-label.yml`.
+fn rn_labels_accepted(workflow: &str) -> Vec<String> {
+    let line = workflow
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("known='"))
+        .expect("pr-label.yml has no known='[…]' line");
+    let json = line.trim_start_matches("known='").trim_end_matches('\'');
+    let mut labels: Vec<String> =
+        serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    labels.sort();
+    labels
+}
+
+/// The `RN:` list items of `.github/release.yml` (sections and exclusions), and whether
+/// any list item is the `"*"` catch-all. Comments are skipped.
+fn rn_labels_filed(release: &str) -> (Vec<String>, bool) {
+    let mut labels = Vec::new();
+    let mut catch_all = false;
+    for line in release.lines().map(str::trim) {
+        let Some(item) = line.strip_prefix("- ") else {
+            continue;
+        };
+        let value = item
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .trim_matches('"');
+        if value == "*" {
+            catch_all = true;
+        } else if value.starts_with("RN: ") {
+            labels.push(value.to_string());
+        }
+    }
+    labels.sort();
+    (labels, catch_all)
+}
+
+/// What disagrees between the three files, as readable lines; empty when they agree.
+fn rn_label_drift(workflow: &str, release: &str, contributing: &str) -> Vec<String> {
+    let accepted = rn_labels_accepted(workflow);
+    let (filed, catch_all) = rn_labels_filed(release);
+    let mut drift = Vec::new();
+    for label in accepted.iter().filter(|l| !filed.contains(l)) {
+        drift.push(format!(
+            "{label}: accepted by pr-label.yml, in no section of release.yml"
+        ));
+    }
+    for label in filed.iter().filter(|l| !accepted.contains(l)) {
+        drift.push(format!("{label}: in release.yml, refused by pr-label.yml"));
+    }
+    for label in accepted
+        .iter()
+        .filter(|l| !contributing.contains(&format!("`{l}`")))
+    {
+        drift.push(format!("{label}: not named in CONTRIBUTING.md"));
+    }
+    if catch_all {
+        drift.push("release.yml has a \"*\" catch-all section".to_string());
+    }
+    drift
+}
+
+#[test]
+fn the_release_note_labels_agree_everywhere() {
+    let drift = rn_label_drift(
+        &read(&repo_file(".github/workflows/pr-label.yml")),
+        &read(&repo_file(".github/release.yml")),
+        &read(&repo_file("CONTRIBUTING.md")),
+    );
+    assert!(
+        drift.is_empty(),
+        "release-note labels drifted (DEC-72):\n{}",
+        drift.join("\n")
+    );
+}
+
+#[test]
+fn the_release_note_label_check_sees_each_drift() {
+    let workflow = "  known='[\"RN: fix\",\"RN: ignore\"]'\n";
+    let release = "exclude:\n  - \"RN: ignore\"  # internal\ncategories:\n  - \"RN: fix\"\n";
+    let contributing = "| `RN: fix` | `RN: ignore` |";
+    assert!(rn_label_drift(workflow, release, contributing).is_empty());
+
+    let one_side = "categories:\n  - \"RN: fix\"\n";
+    assert_eq!(rn_label_drift(workflow, one_side, contributing).len(), 1);
+    let extra = format!("{release}  - \"RN: feature\"\n");
+    assert_eq!(rn_label_drift(workflow, &extra, contributing).len(), 1);
+    assert_eq!(rn_label_drift(workflow, release, "`RN: fix`").len(), 1);
+    let star = format!("{release}  - \"*\"\n");
+    assert_eq!(rn_label_drift(workflow, &star, contributing).len(), 1);
+}

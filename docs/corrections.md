@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-12] `CONTRIBUTING.md`, modèles d'issue et de PR, étiquettes `RN:` obligatoires pour les notes de version (alignement sur OpenTuneBox, étape 4, DEC-72)
+
+| | |
+| --- | --- |
+| **Constat** | pas de `CONTRIBUTING.md` ni de modèle d'issue ou de PR : un rapport de bogue arrivait sans version, GPU, Diagnostic ni journal ; les notes de version rangeaient tout sous *Changes* par la rubrique fourre-tout `"*"`, une PR de CI au même rang qu'un correctif ; la procédure de fusion vivait à part, dans `docs/MERGING.md` |
+| **Cause** | quatrième des sept étapes du plan d'alignement sur OpenTuneBox (`CONTRIBUTING.md`, `etiquette-pr.yml`, modèles) |
+| **Fichiers** | `CONTRIBUTING.md` (neuf, anglais : signaler un problème, branches `type/short-description`, vérification, doc dans le même commit, titre en phrase, tableau des étiquettes `RN:`, § *Merging* = tout `docs/MERGING.md`, supprimé) ; `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/{bug,feature,config}.yml` (le bogue demande version, système, GPU et pilote, Diagnostic, journal de l'application ou du plugin) ; `.github/release.yml` (rubriques *New features*, *Improvements*, *Fixes*, *Dependencies*, `RN: ignore` exclue, plus de `"*"`) ; `.github/workflows/pr-label.yml` (neuf : `permissions: {}`, sans checkout, titre et étiquettes par `env:`, concurrence par PR sans annulation, une seule `RN:` connue, Dependabot exempté, titre-nom-de-branche refusé) ; `repo_guards.rs` (mêmes étiquettes dans le workflow, `release.yml` et `CONTRIBUTING.md`, aucun fourre-tout) ; `merge-on-label.yml` (commentaire et `RULE_URL` vers `CONTRIBUTING.md#merging`) ; `AGENTS.md` (ligne `"*"` du tableau remplacée, *Landing a change*) ; `RELEASING.md` (*The notes write themselves*) ; les deux README (renvoi vers `CONTRIBUTING.md`) ; compétence `publier` (PR fusionnées sans étiquette) ; `decisions.md` (DEC-72, DEC-25 partie `"*"` remplacée, liens de DEC-24 et DEC-35) ; `architecture.md`, `docs/README.md`, `plan.md` |
+| **PR** | docs/contributing-rn-labels |
+| **Vérification** | `the_release_note_labels_agree_everywhere` et sa contre-preuve sur cas fabriqués ; contre-preuve sur le vrai dépôt : `RN: refactor` retirée de `release.yml`, `"*"` remise, `RN: docs` ajoutée au workflow, `RN: security` retirée de `CONTRIBUTING.md` : le test rougit à chaque fois sur la bonne ligne, puis reverdit. Le script du workflow, extrait et lancé sur dix cas (sans étiquette, `merge` seule, deux `RN:`, `RN:` inconnue, titre `docs/…`, Dependabot avec et sans étiquette, titre contenant `$(…)`) : codes attendus ; `shellcheck` propre. Sur GitHub, à faire par l'utilisateur : créer les 7 étiquettes, étiqueter #190, #191 (`RN: ignore`) et #192 (`RN: security`), exiger le contrôle `pr-label` dans la règle de `master`. `scripts/check.sh` complet (`/verify`) |
+
 ### [2026-11-12] Un contrôle automatique de la doc, la compétence `docs-sync` et une section Claude Code dans `CLAUDE.md` (alignement sur OpenTuneBox, étape 3)
 
 | | |

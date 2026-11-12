@@ -46,14 +46,19 @@ appear; only the title does.
 The body of a published release is:
 
 1. the download list and the `sha256sum -c checksums.txt` line, written by the run;
-2. **Changes** — one entry per pull request merged since the previous release;
+2. **New features**, **Improvements** and **Fixes** — one entry per pull request
+   merged since the previous release, filed by its `RN: …` label; `RN: ignore`
+   leaves it out;
 3. **Dependencies** — the Dependabot bumps, kept separate so a week of
    `cargo` updates cannot bury the rest;
 4. a **Full Changelog** compare link.
 
-Sections 2 and 3 come from `.github/release.yml`. That file's `"*"` catch-all is
-load-bearing: GitHub drops any pull request matching no category, and this
-repository does not label its own, so removing it would empty every release.
+Sections 2 and 3 come from `.github/release.yml`. It has no catch-all: GitHub
+drops a pull request that matches no section, and the `pr-label` check is what
+keeps that from happening, by refusing a pull request without exactly one `RN:`
+label (DEC-72; the labels are in [CONTRIBUTING.md](CONTRIBUTING.md)). A pull
+request merged before that check existed may still lack one: label it, and it
+appears.
 
 **To see the notes before releasing**, ask GitHub for them. This creates and
 publishes nothing:

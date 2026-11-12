@@ -1,0 +1,66 @@
+name: PR label
+
+# Checks every pull request for the release notes GitHub generates (DEC-72; the
+# sections are in .github/release.yml):
+# - exactly one "RN: ..." label from the list below. A pull request with none
+#   would vanish from the notes, since release.yml has no catch-all on purpose.
+#   Dependabot is exempt: its "dependencies" label puts it under Dependencies.
+#   Other labels, "merge" included, are not counted.
+# - a title written as a sentence, not a branch name ("fix/..."): the title is
+#   the line users read in the release.
+# It runs again when a label is added or removed, the title changes or a commit
+# is pushed: the required check of the master ruleset reads the latest commit.
+#
+# No checkout and no permission: everything comes from the event. The title and
+# the labels reach the script through env:, never through ${{ }} inside it --
+# anyone can write a title, and it would run as bash.
+on:
+  pull_request:
+    types: [opened, edited, labeled, unlabeled, synchronize, reopened]
+
+permissions: {}
+
+# Opening a pull request and labelling it within the same second starts two runs
+# that finish together, and GitHub may keep the first one's failure (read without
+# the label): the pull request stays red. So the runs of one pull request queue
+# up, and the latest event always finishes last. No cancellation, so that no
+# "cancelled" run is left on the commit.
+concurrency:
+  group: pr-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  pr-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: One RN label and a sentence for a title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # The same labels as the sections and exclusions of .github/release.yml
+          # (crates/superview-app/src/repo_guards.rs compares them).
+          known='["RN: major feature","RN: feature","RN: improvement","RN: security","RN: refactor","RN: fix","RN: ignore"]'
+          echo "title: $TITLE"
+          echo "labels: $LABELS"
+          failed=0
+          if [[ "$TITLE" =~ ^(feat|fix|docs|refactor|test|chore|perf|ci)/ ]]; then
+            echo "::error::the title is a branch name: write a sentence saying what changed (it becomes the line of the release notes)"
+            failed=1
+          fi
+          rn=$(jq -r '.[] | select(startswith("RN: "))' <<< "$LABELS")
+          count=$(jq '[.[] | select(startswith("RN: "))] | length' <<< "$LABELS")
+          unknown=$(jq -r --argjson known "$known" '.[] | select(startswith("RN: ")) | select(. as $l | $known | index($l) | not)' <<< "$LABELS")
+          dependencies=$(jq 'index("dependencies") != null' <<< "$LABELS")
+          if [ -n "$unknown" ]; then
+            echo "::error::label unknown to .github/release.yml: $unknown"
+            failed=1
+          fi
+          if [ "$count" -eq 0 ] && { [ "$dependencies" = true ] || [ "$AUTHOR" = "dependabot[bot]" ]; }; then
+            echo "Dependabot: listed under Dependencies"
+          elif [ "$count" -ne 1 ]; then
+            echo "::error::exactly one \"RN: ...\" label is needed (found $count${rn:+: $rn}); \"RN: ignore\" for CI, tooling, plans and registers (CONTRIBUTING.md)"
+            failed=1
+          fi
+          exit "$failed"

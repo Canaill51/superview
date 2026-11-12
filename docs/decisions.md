@@ -58,7 +58,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-22](#dec-22) | La version vient du tag, jamais d'un fichier commité | Acceptée, amendée par DEC-47 et DEC-49 |
 | [DEC-23](#dec-23) | `main()` reste long ; l'état est dans `appState` | Remplacée par DEC-49 |
 | [DEC-24](#dec-24) | Toute modification passe par une PR fusionnée sur label `merge` ; le workflow choisit la méthode | Acceptée |
-| [DEC-25](#dec-25) | La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné | Acceptée (partie `Makefile` : *Remplacée* par DEC-41) |
+| [DEC-25](#dec-25) | La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné | Acceptée (partie `Makefile` : *Remplacée* par DEC-41 ; partie `"*"` : *Remplacée* par DEC-72) |
 | [DEC-26](#dec-26) | Journaux internes en français, tout ce qu'un tiers lit en anglais ; README en deux langues à parité | Acceptée |
 | [DEC-27](#dec-27) | La suite ne vaut qu'avec `SUPERVIEW_REQUIRE_FFMPEG=1`, `-race`, et un seuil de 50 % module entier | Acceptée, amendée par DEC-47 et DEC-49 |
 | [DEC-28](#dec-28) | Tout test est prouvé par contre-épreuve | Acceptée |
@@ -105,6 +105,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-69](#dec-69) | Le plugin OpenFX est livré dans chaque version en archive Windows séparée, pas en composant de l'installateur ni pour Linux | Acceptée (amende DEC-65) |
 | [DEC-70](#dec-70) | Durcissement de la sécurité : versions immuables et attestées, étiquettes protégées, pilotes GPU depuis System32, sources vérifiées, permissions de Claude Code resserrées | Acceptée |
 | [DEC-71](#dec-71) | Un seul plan, `docs/plan.md` ; les pièges sont rangés par domaine dans `pieges-par-domaine.md` | Acceptée |
+| [DEC-72](#dec-72) | Les notes de version sont rangées par une étiquette `RN:` obligatoire, contrôlée par `pr-label.yml` ; la rubrique fourre-tout `"*"` est retirée | Acceptée (remplace la partie `"*"` de DEC-25) |
 
 ---
 
@@ -289,7 +290,7 @@ origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49
 
 ### DEC-24
 **Toute modification passe par une PR fusionnée sur label `merge` ; le workflow choisit la méthode.**
-2026-09-11 / 2026-10-14 · Acceptée · M-03, M-06, L-97, L-100, [MERGING.md](MERGING.md)
+2026-09-11 / 2026-10-14 · Acceptée · M-03, M-06, L-97, L-100, [CONTRIBUTING.md](../CONTRIBUTING.md#merging) (anciennement `docs/MERGING.md`)
 
 **Décision** — Ruleset sur `master`, squash par défaut, merge commit si une PR est empilée dessus, suppression de branche par le workflow (le réglage du dépôt ne vaut pas pour le `GITHUB_TOKEN`), et relance de la CI de `master` par le même workflow (DEC-35, pour la même raison). Labelliser par `gh api`, pas `gh pr edit`.
 
@@ -297,7 +298,7 @@ origine du dépôt · Acceptée (partie « Go + Fyne » : *Remplacée par DEC-49
 **La release est un bouton ; `"*"` reste dans `release.yml` ; le `Makefile` de fyne est rustiné.**
 2026-09-05 / 2026-09-06 · Acceptée · R-xx, U-04, L-67, L-76
 
-**Décision** — `workflow_dispatch` seul, jamais de tag manuel. La catégorie `"*"` est porteuse : GitHub jette toute PR sans catégorie. Le `Makefile` généré par fyne n'installe pas les outils embarqués et sa ligne d'icône est cassée ; le patch est clé sur les lignes exactes et `make install` est exécuté dans un répertoire jetable pour le prouver. **La partie `Makefile` est *Remplacée* par [DEC-41](#dec-41)** : il n'y a plus de `Makefile` fyne livré.
+**Décision** — `workflow_dispatch` seul, jamais de tag manuel. La catégorie `"*"` est porteuse : GitHub jette toute PR sans catégorie. Le `Makefile` généré par fyne n'installe pas les outils embarqués et sa ligne d'icône est cassée ; le patch est clé sur les lignes exactes et `make install` est exécuté dans un répertoire jetable pour le prouver. **La partie `Makefile` est *Remplacée* par [DEC-41](#dec-41)** : il n'y a plus de `Makefile` fyne livré. **La partie `"*"` est *Remplacée* par [DEC-72](#dec-72)** : les PR portent une étiquette `RN:` obligatoire, et la rubrique fourre-tout est retirée.
 
 ### DEC-26
 **Journaux internes en français, tout ce qu'un tiers lit en anglais ; README en deux langues à parité.**
@@ -364,7 +365,7 @@ origine · Acceptée, amendée par DEC-43 (6.4) et DEC-49 · B-03 (invalidé)
 
 ### DEC-35
 **La CI de `master` est relancée par le workflow de fusion via `workflow_dispatch` ; le ruleset reste non strict.**
-2026-10-14 · Acceptée · E-06, L-104, L-107, DEC-24, [MERGING.md](MERGING.md)
+2026-10-14 · Acceptée · E-06, L-104, L-107, DEC-24, [CONTRIBUTING.md](../CONTRIBUTING.md#merging) (anciennement `docs/MERGING.md`)
 
 **Contexte** — Depuis que `merge-on-label.yml` fusionne (M-03), la fusion est faite avec le `GITHUB_TOKEN`, et « events triggered by the `GITHUB_TOKEN`, with the exception of `workflow_dispatch` and `repository_dispatch`, will not create a new workflow run » (docs.github.com, *Triggering a workflow*). Cinq fusions (#73 à #77) sans un seul run sur `master`. Trois issues : rendre le ruleset strict (*Require branches to be up to date*), fusionner avec un jeton d'application ou personnel, ou utiliser l'exception.
 **Décision** — L'exception. `test.yml` (aujourd'hui `rust.yml`) et `lint.yml` acceptent `workflow_dispatch` ; après la fusion, le job de `merge-on-label.yml` (qui a `actions: write` pour cela) les dispatche sur la branche par défaut, en meilleur effort — un échec de dispatch est un avertissement, pas un rouge sur une PR déjà fusionnée. Le ruleset garde `strict_required_status_checks_policy: false` : strict refuserait toute PR qui n'est pas au sommet de `master` — chaque membre d'une pile, chaque bump Dependabot derrière un autre — tant qu'un humain ne l'a pas rebasée, c'est-à-dire exactement le geste manuel que le label supprime. Un jeton d'application déclencherait tout nativement, au prix d'un secret à longue durée de vie dans un job qui fusionne du code.
@@ -767,3 +768,12 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 **Décision** — `docs/plan.md` est le seul plan : l'état en tête (les 15 lignes que montre le hook `debut-session.sh`), ce qui reste à faire, ce qui est écarté, puis l'historique, une ligne par lot fait. Les deux plans terminés vont, inchangés hors liens, dans `docs/archives/plan-ofx.md` et `docs/archives/plan-livraison.md`. `PIEGES.md` devient `pieges-par-domaine.md` : la règle courte de chaque leçon, sous son domaine (FFmpeg, processus, interface, plugin, empaquetage, CI, outillage, puis tests, documentation et méthode, qui valent pour toute tâche), avec son numéro `L-xxx`. `pieges/` est supprimé.
 **Conséquences** — AGENTS.md interdit d'ouvrir un second plan : un nouveau travail devient une section de `plan.md`, et le détail d'un plan fini va dans `archives/`. Un nouveau piège s'écrit en deux temps, la leçon dans `lecons.md` § 2 puis sa ligne dans la section de son domaine. `scripts/checks/hooks.sh` vérifie que le hook affiche la tête de `plan.md` et que l'état y figure. Les mentions de `SUITE.md` et `PIEGES.md` dans les journaux datés restent : elles disent ce qui existait alors (`git show 92e515b:docs/SUITE.md`).
 **À rouvrir si** — `plan.md` dépasse ce qu'une reprise de session peut lire (alors archiver l'historique), ou une leçon ne trouve sa place dans aucun domaine sans en créer un pour elle seule.
+
+### DEC-72
+**Les notes de version sont rangées par une étiquette `RN:` obligatoire, contrôlée par `pr-label.yml` ; la rubrique fourre-tout `"*"` est retirée.**
+2026-11-12 · Acceptée · étape 4 du plan d'alignement sur OpenTuneBox, approuvé par l'utilisateur le 2026-11-12 ; L-67 ; remplace la partie `"*"` de DEC-25
+
+**Contexte** — Les notes générées par GitHub ne rangent une PR que dans une rubrique dont elle porte l'étiquette, et jettent les autres (L-67). Faute d'étiqueter ses PR, le dépôt passait par une rubrique `"*"` : tout tombait dans *Changes*, sans distinguer une nouveauté d'une correction, et une PR purement interne (CI, plan, registre) figurait dans les notes au même rang qu'un correctif. OpenTuneBox range ses notes par des étiquettes `RN: …` obligatoires.
+**Décision** — Rubriques *New features* (`RN: major feature`, `RN: feature`), *Improvements* (`RN: improvement`, `RN: security`, `RN: refactor`), *Fixes* (`RN: fix`) et *Dependencies* (`dependencies`, posée par Dependabot) ; `RN: ignore` est exclue des notes. Le workflow `pr-label.yml` exige exactement une étiquette `RN:` connue (Dependabot exempté, `merge` non comptée) et refuse un titre qui ressemble à un nom de branche ; il ne lit que l'événement (`permissions: {}`, aucun checkout, titre et étiquettes par `env:`) et ses passages d'une même PR s'attendent sans s'annuler (leçon d'OpenTuneBox : deux passages simultanés y laissaient la PR rouge). Son contrôle est exigé par la règle de `master`. `repo_guards.rs` vérifie que sa liste est celle de `.github/release.yml`, que `CONTRIBUTING.md` les nomme toutes et qu'aucune rubrique n'est un fourre-tout.
+**Conséquences** — Une étiquette oubliée rend la PR rouge au lieu de la faire disparaître des notes : c'est ce qui permet de retirer `"*"` sans retomber dans L-67. Les PR fusionnées depuis v0.5.0 sans étiquette (#190, #191 → `RN: ignore` ; #192 → `RN: security`) sont étiquetées après coup, sinon elles manqueraient aux notes de la prochaine version. Une nouvelle étiquette `RN:` s'ajoute aux trois endroits à la fois (workflow, `release.yml`, tableau de `CONTRIBUTING.md`), et se crée sur GitHub. `docs/MERGING.md` est fondu dans `CONTRIBUTING.md` (§ *Merging*), vers lequel pointe le commentaire de `merge-on-label.yml`.
+**À rouvrir si** — GitHub fait figurer dans les notes les PR sans rubrique, ou le contrôle d'étiquette devient un frein réel (PR externes nombreuses que personne n'étiquette) ; alors une rubrique `"*"` en dernière position, après les rubriques étiquetées, plutôt qu'en tête.
