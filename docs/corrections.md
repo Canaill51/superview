@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-12] Un contrôle automatique de la doc, la compétence `docs-sync` et une section Claude Code dans `CLAUDE.md` (alignement sur OpenTuneBox, étape 3)
+
+| | |
+| --- | --- |
+| **Constat** | rien ne vérifiait la doc : l'index de `decisions.md` avait perdu DEC-65 à DEC-68 sans que personne le voie, `architecture.md` citait `scripts/nvenc-driver-floor.sh` (le fichier est sous `.github/scripts/`), et aucune liste ne disait quels documents relire après tel changement ; le paragraphe `.claude/` d'AGENTS.md décrivait un outil que les autres agents ignorent |
+| **Cause** | la cohérence reposait sur la relecture ; troisième des sept étapes du plan d'alignement sur OpenTuneBox (`rust/otb-dev/tests/docs.rs` et sa compétence `docs-sync`) |
+| **Fichiers** | `crates/superview-app/src/docs_guards.rs` (neuf, déclaré dans `main.rs` comme `repo_guards.rs`) : liens relatifs et leurs titres, chemins cités entre backticks (et `chemin.rs:élément`, hors journaux historiques ; liste blanche commentée des fichiers supprimés cités exprès), index de `docs/`, numéros `DEC`, `L` et constats donnés une fois, index de `decisions.md` complet, chaque leçon dans `pieges-par-domaine.md`, chaque numéro cité défini ; `repo_guards.rs` (`github_slug` retire emoji et tirets cadratins comme GitHub, titres en double suffixés `-1`) ; `.claude/skills/docs-sync/SKILL.md` (neuf) ; `CLAUDE.md` (section *Specific to Claude Code*, reprise d'AGENTS.md) ; `AGENTS.md` ; `docs/decisions.md` (index DEC-65 à DEC-68) ; `architecture.md`, `contrats.md`, `plan.md` |
+| **PR** | docs/docs-sync |
+| **Vérification** | les 12 tests de `docs_guards` passent, dont 5 contre-preuves sur cas fabriqués ; chaque contrôle sur fichiers porte un plancher (liens, extraits de code, citations, entrées lues) pour ne pas passer à vide. Contre-preuve sur le vrai dépôt, d'un coup : lien vers `docs/contrat.md`, ancre `#dec-99`, chemin et élément Rust inexistants, un numéro de leçon inexistant, `### DEC-01` en double, ligne DEC-65 retirée de l'index, L-117 retirée de `pieges-par-domaine.md`, `docs/nouveau.md` non indexé : les 7 contrôles rougissent, chacun sur sa faute, puis reverdissent une fois les fichiers rétablis. `scripts/check.sh` complet (`/verify`) |
+
 ### [2026-11-12] Un seul plan, `docs/plan.md`, et les pièges rangés par domaine (alignement sur OpenTuneBox, étape 2, DEC-71)
 
 | | |

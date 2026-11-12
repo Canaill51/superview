@@ -67,6 +67,8 @@ fn build_identity() -> String {
 #[cfg(test)]
 mod app_tests;
 #[cfg(test)]
+mod docs_guards;
+#[cfg(test)]
 mod repo_guards;
 #[cfg(test)]
 mod window_tests;
