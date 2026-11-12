@@ -57,9 +57,19 @@ CODE=1 attendu 2 "avant-fin bloque sur une vérification rouge" avant-fin.sh '{"
 attendu 1 "avant-fin prévient sans bloquer sur une entrée illisible" avant-fin.sh 'pas du JSON'
 
 lance oui "apres-modif vérifie un fichier Rust" '{"tool_input":{"file_path":"/x/crates/a/src/lib.rs"}}'
-lance non "apres-modif saute un fichier Markdown" '{"tool_input":{"file_path":"/x/docs/SUITE.md"}}'
+lance non "apres-modif saute un fichier Markdown" '{"tool_input":{"file_path":"/x/docs/plan.md"}}'
 lance non "apres-modif saute .claude sous Windows" '{"tool_input":{"file_path":"C:\\x\\.claude\\hooks\\a.sh"}}'
 lance oui "apres-modif vérifie quand même sur une entrée illisible" 'pas du JSON'
+
+# debut-session.sh lit le vrai plan : sa tête doit porter l'état, sinon une session reprend sans lui.
+reprise="$(CLAUDE_PROJECT_DIR="$PWD" bash "$hooks/debut-session.sh" </dev/null)"
+if [ "$(printf '%s\n' "$reprise" | sed -n 2p)" = "$(head -n 1 docs/plan.md)" ] &&
+   printf '%s\n' "$reprise" | grep -q '^\*\*État au '; then
+  echo "ok : debut-session affiche la tête de docs/plan.md, état compris"
+else
+  echo "ÉCHEC : debut-session n'affiche pas l'état de docs/plan.md (« **État au … » hors des 15 premières lignes ?)" >&2
+  echec=1
+fi
 
 if [ "$echec" -ne 0 ]; then
   echo "Un hook ne lit pas son entrée : voir .claude/hooks/json.sh." >&2

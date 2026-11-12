@@ -134,7 +134,7 @@ un chronométrage temporaire, retiré depuis).
       du plugin contre la sortie de l'application (3584×2016, agrandie en 3840×2160 pour comparer) : 38 à 41 dB
       de PSNR aux images 10, 60, 120 et 170 s, contre 19 à 25 dB pour un simple étirement de la source ; bords
       de même luminosité. Une source 59,94 i/s dans une timeline 29,97 : comparer à l'image voisine de 1/60 s.
-- [x] **Parité au pixel** (2026-10-26, Lot 1 de `docs/PLAN-OFX.md`) : `DJI_0221.MP4` réduite en 1440×1080
+- [x] **Parité au pixel** (2026-10-26, Lot 1 de `docs/archives/plan-ofx.md`) : `DJI_0221.MP4` réduite en 1440×1080
       29,97 i/s (10 s, x264 CRF 8), convertie par l'application (`superview-harness convert`, libx264) et par
       le plugin dans une timeline 1920×1080. Export H.264 : 47,4 dB, **uniformes** (bords 47,9 et 48,9 dB,
       centre 46,8 dB) ; colonnes de bord égales à l'application (107 et 126). Un écart de géométrie dégraderait
@@ -164,7 +164,7 @@ un chronométrage temporaire, retiré depuis).
       timeline : une source de même hauteur donne exactement l'image de *Scale entire image to fit* (mesuré).
 - [x] **Défilement** (2026-10-26) : défilement rapide sur le clip, ni trame rouge ni noire ni message d'erreur.
 - [ ] **Studio**, **Linux** et **AMD** : chargement, CUDA ou OpenCL et vitesse, non essayés (pas de matériel).
-- [x] **Journal** (2026-10-26, Lot 2 de `docs/PLAN-OFX.md`) : après un démarrage de Resolve et une lecture avec
+- [x] **Journal** (2026-10-26, Lot 2 de `docs/archives/plan-ofx.md`) : après un démarrage de Resolve et une lecture avec
       l'effet, `%LocalAppData%\superview-ofx\superview-ofx.log` (Linux : `~/.cache/superview-ofx/superview-ofx.log`)
       dit `plugin loaded`, `CUDA rendering offered to the host`, puis une seule fois
       `rendering on the GPU with CUDA (WxH)` par instance de l'effet, et rien par trame. Resolve réglé sur
@@ -174,7 +174,7 @@ un chronométrage temporaire, retiré depuis).
       (3840x2160)`. Après plusieurs minutes de lecture le fichier tient en dix lignes : le bavardage du fork est
       bien filtré. Deux `plugin loaded` à 54 s d'écart lors du premier lancement après l'installation, un seul
       au redémarrage en OpenCL : pas systématique, sans conséquence (une ligne par chargement).
-- [x] **Sonde OpenCL** (2026-10-26, Lot 4a de `docs/PLAN-OFX.md`, branche jetable `sonde/opencl-resolve`, non
+- [x] **Sonde OpenCL** (2026-10-26, Lot 4a de `docs/archives/plan-ofx.md`, branche jetable `sonde/opencl-resolve`, non
       fusionnée) : Resolve 21.1.1 gratuit réglé sur OpenCL, RTX 3050 Ti, effet sur un clip en timeline 4K, lecture
       puis défilement, deux lancements de Resolve. La sonde déclare OpenCL (tampons), journalise les 5 premières
       trames OpenCL de chaque instance, interroge `OpenCL.dll` sur ce qu'elle reçoit, puis rend `FAILED`. Mesuré :
@@ -190,7 +190,7 @@ un chronométrage temporaire, retiré depuis).
       - après chaque `FAILED`, Resolve **refait la même trame en CPU** (même `time`), sans trame rouge ni erreur ;
         mais il redemande la trame suivante en OpenCL : un échec permanent doit être mémorisé (comme `cuda::PerContext`).
       Lecture 4K dans ce mode (OpenCL refusé, donc CPU) : 9 à 10 i/s ; le défilement reste assez fluide.
-- [x] **OpenCL dans Resolve** (2026-10-27, Lot 4d de `docs/PLAN-OFX.md`, bundle de la PR #184) : Resolve 21.1.1
+- [x] **OpenCL dans Resolve** (2026-10-27, Lot 4d de `docs/archives/plan-ofx.md`, bundle de la PR #184) : Resolve 21.1.1
       gratuit, RTX 3050 Ti, réglé tour à tour sur OpenCL et sur CUDA. Le journal dit, à chaque lancement, le seul
       chemin que l'hôte propose (« OpenCL rendering offered » et CUDA non proposé, ou l'inverse), puis « rendering
       on the GPU with OpenCL » en 4K et en 1080p ; **aucun échec**, aucune trame rouge. Exports DNxHR HQX,
@@ -202,7 +202,7 @@ un chronométrage temporaire, retiré depuis).
       en OpenCL sur NVIDIA qui lit moins vite qu'en CUDA (29,97) ; le CPU donnait 9 à 10. Tant que la RTX est active, *Mémoire
       et GPU* grise la case de l'Intel UHD (« Discrete GPU utilisé ») : voir l'entrée suivante, RTX désactivée. Le
       journal disait « frames render on the CPU » quand CUDA n'était pas proposé, faux en OpenCL : retiré.
-- [x] **OpenCL sur l'Intel UHD dans Resolve** (2026-10-27, Lot 5 de `docs/PLAN-OFX.md`, bundle de master après
+- [x] **OpenCL sur l'Intel UHD dans Resolve** (2026-10-27, Lot 5 de `docs/archives/plan-ofx.md`, bundle de master après
       #184) : RTX 3050 Ti désactivée dans le Gestionnaire de périphériques, Resolve 21.1.1 gratuit relancé. *Mémoire
       et GPU* accepte alors l'UHD : méthode de calcul *Auto* sur OpenCL, l'UHD seule dans la liste et cochée
       (« Affichage principal GPU », 6,3 Go). Le journal dit « OpenCL rendering offered », CUDA non proposé, puis
@@ -210,7 +210,7 @@ un chronométrage temporaire, retiré depuis).
       un pilote OpenCL non NVIDIA derrière la colle `Render`, le plus proche d'un poste AMD ou Intel qu'offre ce
       poste. Lecture d'une timeline 4K : **10 à 20 i/s avec l'effet, 18 à 30 sans** (le témoin) ; sur l'UHD l'effet
       coûte à la lecture, contrairement à la RTX en OpenCL. Ni export comparé ni mesure en 1080p.
-- [x] **Export long en `FullySafe`** (2026-10-27, Lot 5 de `docs/PLAN-OFX.md`, branche jetable
+- [x] **Export long en `FullySafe`** (2026-10-27, Lot 5 de `docs/archives/plan-ofx.md`, branche jetable
       `sonde/rendus-simultanes`, non fusionnée) : Resolve 21.1.1 gratuit, RTX 3050 Ti (pilote 617.42). Le risque
       est celui du fork d'`ofx-rs` (images en `Rc`, DEC-66) si Resolve rend deux trames à la fois ; un export sans
       plantage ne prouve rien, donc la sonde compte les `Render` en cours (compteur atomique autour de l'action,
@@ -230,7 +230,7 @@ un chronométrage temporaire, retiré depuis).
         l'hôte. Non reproduits : la même séquence (export OpenCL 4K de 3 min puis Edit → Deliver trois fois)
         refaite **sans le plugin** (bundle retiré du dossier OFX) puis **avec le plugin et l'effet** ne plante pas.
         Cause non établie, non imputée au plugin ; à surveiller.
-- [x] **L'archive de la version** (DEC-69, Lot 1 de `PLAN-LIVRAISON.md`), le 2026-10-28, même poste : le zip de
+- [x] **L'archive de la version** (DEC-69, Lot 1 de `archives/plan-livraison.md`), le 2026-10-28, même poste : le zip de
       l'essai à blanc de `release.yml` (run 40705797285, `superview-ofx-feat-release-ofx-zip-windows-x86_64.zip`,
       `check_bundle_zip.sh` vert sur le runner et refait sur le zip téléchargé) décompressé dans
       `C:\Program Files\Common Files\OFX\Plugins` à la place du plugin de développement, Resolve relancé, effet
@@ -238,7 +238,7 @@ un chronométrage temporaire, retiré depuis).
       OpenCL non proposé (Resolve en CUDA), puis `rendering on the GPU with CUDA (3840x2160)`. Le journal ne dit
       pas de version : `PluginVersion(1, 0)` fixe (DEC-69). Le `setup.exe` du même run : installé, une
       conversion, désinstallé, conforme d'après l'utilisateur.
-- [x] **Les fichiers de la v0.5.0 publiée** (Lot 3 de `PLAN-LIVRAISON.md`), le 2026-10-28, même poste :
+- [x] **Les fichiers de la v0.5.0 publiée** (Lot 3 de `archives/plan-livraison.md`), le 2026-10-28, même poste :
       `superview-ofx-v0.5.0-windows-x86_64.zip` et `superview-v0.5.0-windows-x86_64-setup.exe`, téléchargés depuis
       la page de la version (`sha256sum -c checksums.txt` passe), installés à la main tous les deux : conformes
       d'après l'utilisateur.

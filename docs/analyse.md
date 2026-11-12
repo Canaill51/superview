@@ -873,7 +873,7 @@ justifié par « port 1:1 », caduc depuis DEC-49) ; struct `FfmpegCapabilities`
 rotation du journal au lieu de la troncature ; préférences écrites sur le fil UI ; `version()` qui
 rend toujours `0.0.0` ; `remap_output_size` `pub` qui panique sur une vidéo sans flux ; aller-retour
 octets → Go → octets dans `disk.rs` ; fusion des trois journaux (`ANALYSE`, `LECONS`, `CORRECTIONS`)
-et des deux systèmes de pièges (`PIEGES.md`, `pieges/`) ; `LICENSE` GPL-3.0 face au
+et des deux systèmes de pièges (`PIEGES.md`, `pieges/` : fondus dans `pieges-par-domaine.md` le 2026-11-12, DEC-71) ; `LICENSE` GPL-3.0 face au
 `GPL-3.0-or-later` de Cargo ; `.github/sample.gif` de 5,3 Mo dans le dépôt.
 
 ## 4. État d'avancement

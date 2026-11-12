@@ -1,4 +1,6 @@
-# Plan — plugin OpenFX : ce qui reste avant de le livrer
+# Plan — plugin OpenFX : ce qui reste avant de le livrer (archive)
+
+> **Archive, texte inchangé** (2026-11-12, DEC-71). Ce plan est terminé ou fondu dans [plan.md](../plan.md), le seul plan du projet : ce qui en reste à faire est là-bas. Seuls les liens ont été corrigés pour suivre les fichiers déplacés.
 
 > Établi le 2026-10-26 après l'analyse de parité avec l'application. Le plugin ne décode ni n'encode
 > (Resolve le fait) : le FFmpeg livré et les encodeurs matériels ne le concernent pas. Ce qui reste :
@@ -7,7 +9,7 @@
 
 ## Comment s'en servir
 
-- **Une session = un lot.** Ouvrir une session neuve (`/clear`) et demander : « Lot N de `docs/PLAN-OFX.md` ».
+- **Une session = un lot.** Ouvrir une session neuve (`/clear`) et demander : « Lot N de `docs/archives/plan-ofx.md` ».
   Un lot de code = une branche = une PR avec le label `merge`.
 - **Phases de chaque lot de code** : explorer (lire les fichiers cités, sous-agent `Explore` si la recherche
   est large) → planifier (mode plan, valider le plan avant d'écrire) → implémenter → vérifier (`/verify`,
@@ -129,12 +131,12 @@ le pilote, file de l'hôte, repli CPU par `FAILED`.
 
 ## Lot 6 — Livraison · décision de l'utilisateur, puis Sonnet
 
-> **Décidé le 2026-10-28 et replanifié dans [PLAN-LIVRAISON.md](PLAN-LIVRAISON.md)** : archive séparée à
+> **Décidé le 2026-10-28 et replanifié dans [plan-livraison.md](plan-livraison.md)** : archive séparée à
 > chaque version, Windows seulement tant que Linux n'est pas essayé. Les cases ci-dessous n'y sont plus suivies.
 
 - [x] **Décision à prendre** (tranchée le 2026-10-28 : téléchargement séparé, DEC-69) : un téléchargement séparé, ou un composant facultatif de l'installateur
       Windows (`{commoncf}\OFX\Plugins`) ? Sous Linux : une archive et `sudo cp` (une AppImage ne peut pas
       installer dans `/usr/OFX`).
 - [x] `release.yml` et l'essai à blanc **avant** fusion (#188) (L-114) ; vérifier le paquet comme les autres (DEC-41).
-- [x] README.md et README_FR.md ensemble (Lot 2 de `PLAN-LIVRAISON.md`) (réglage *Scale entire image to fit*, limites, installation).
+- [x] README.md et README_FR.md ensemble (Lot 2 de `plan-livraison.md`) (réglage *Scale entire image to fit*, limites, installation).
 - [x] DEC-65 : retirer « prototype » (amendée par DEC-69) ; `SUITE.md`. La publication reste sur demande, par `/publier`.

@@ -108,5 +108,5 @@ dossier temporaire.
 
 ## Où lire quoi
 [contrats.md](contrats.md) (faits mesurés, à lire avant d'éditer un fichier Rust) · [decisions.md](decisions.md)
-(ce qui ressemble à un défaut) · [PIEGES.md](PIEGES.md) (index des leçons) ·
-[corrections.md](corrections.md) (historique des corrections) · [SUITE.md](SUITE.md) (où on en est).
+(ce qui ressemble à un défaut) · [pieges-par-domaine.md](pieges-par-domaine.md) (règle courte de chaque leçon, par domaine) ·
+[corrections.md](corrections.md) (historique des corrections) · [plan.md](plan.md) (où on en est, le seul plan).
