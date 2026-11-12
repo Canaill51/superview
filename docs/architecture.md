@@ -26,7 +26,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
   noyau PTX, repli CPU), `opencl` (le même calcul sur les tampons OpenCL de l'hôte : chargeur chargé à
   l'exécution, noyau OpenCL C compilé par le pilote, repli CPU), `gpu` (`PerContext` : un
   noyau construit, ou son échec, mémorisé par contexte GPU), `journal` (fichier plafonné, une ligne par instance et par chemin, bavardage du fork filtré)
-  et `plugin` (la colle avec l'hôte, `FullySafe` ; annonce CUDA et OpenCL, l'hôte choisit). Un bundle `Superview.ofx.bundle` par
+  et `plugin` (la colle avec l'hôte, `FullySafe` ; annonce CUDA et OpenCL, l'hôte choisit). Seule crate où `unsafe` est permis (le workspace l'interdit, DEC-70). Un bundle `Superview.ofx.bundle` par
   `packaging/ofx/build_bundle.sh` ; publié dans chaque version (archive Windows, DEC-69).
 
 ### `superview-core`

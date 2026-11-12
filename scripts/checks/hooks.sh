@@ -50,6 +50,16 @@ echo "==> Hooks Claude Code (python3 indisponible)"
 attendu 2 "garde-fou refuse git reset --hard" garde-fou.sh '{"tool_input":{"command":"git status && git reset --hard"}}'
 attendu 2 "garde-fou refuse --no-verify dans une commande non ASCII" garde-fou.sh '{"tool_input":{"command":"git commit -m \"réglé\" --no-verify"}}'
 attendu 0 "garde-fou laisse passer git status" garde-fou.sh '{"tool_input":{"command":"git status"}}'
+# Les formes que les règles de settings.json, lues en début de commande, ne voient pas.
+attendu 2 "garde-fou refuse un push forcé après git -C" garde-fou.sh '{"tool_input":{"command":"git -C /x push -f origin b"}}'
+attendu 2 "garde-fou refuse une refspec +branche après git -c" garde-fou.sh '{"tool_input":{"command":"git -c a=b push origin +master"}}'
+attendu 2 "garde-fou refuse un push forcé dans sh -c" garde-fou.sh '{"tool_input":{"command":"sh -c \"git push --force-with-lease\""}}'
+attendu 2 "garde-fou refuse -f groupé (-uf) après &&" garde-fou.sh "{\"tool_input\":{\"command\":\"bash -c 'cd x && git push -uf origin b'\"}}"
+attendu 2 "garde-fou refuse git -C … reset --hard" garde-fou.sh '{"tool_input":{"command":"git -C x reset --hard HEAD"}}'
+attendu 2 "garde-fou refuse git -C … tag" garde-fou.sh '{"tool_input":{"command":"git -C x tag v1"}}'
+attendu 0 "garde-fou laisse passer un push ordinaire" garde-fou.sh '{"tool_input":{"command":"git push -u origin feature-f"}}'
+attendu 0 "garde-fou laisse passer un -f hors du push" garde-fou.sh '{"tool_input":{"command":"git push origin b && echo -f"}}'
+attendu 0 "garde-fou laisse passer reset --soft et une branche nommée tag" garde-fou.sh '{"tool_input":{"command":"git reset --soft HEAD~1 && git checkout -b fix/tag-x"}}'
 attendu 2 "garde-fou refuse une entrée illisible" garde-fou.sh 'pas du JSON'
 
 CODE=1 attendu 0 "avant-fin ne relance pas quand stop_hook_active est vrai" avant-fin.sh '{"stop_hook_active":true}'

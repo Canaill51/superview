@@ -103,7 +103,7 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-67](#dec-67) | Les encodeurs D3D12 encodent sans images B, et la sonde envoie huit trames au lieu d'une | Acceptée (amende DEC-05) |
 | [DEC-68](#dec-68) | Le plugin OpenFX déforme aussi en OpenCL quand Resolve lui donne des tampons OpenCL ; CUDA reste, et c'est l'hôte qui choisit | Acceptée (amende DEC-66 ; amendée par DEC-69) |
 | [DEC-69](#dec-69) | Le plugin OpenFX est livré dans chaque version en archive Windows séparée, pas en composant de l'installateur ni pour Linux | Acceptée (amende DEC-65) |
-| [DEC-70](#dec-70) | Durcissement de la sécurité : versions immuables et attestées, étiquettes protégées, pilotes GPU depuis System32, sources vérifiées, permissions de Claude Code resserrées | Acceptée |
+| [DEC-70](#dec-70) | Durcissement de la sécurité : versions immuables et attestées, étiquettes protégées, pilotes GPU depuis System32, sources vérifiées, permissions de Claude Code resserrées | Acceptée, amendée (`unsafe` interdit hors plugin, garde-fou) |
 | [DEC-71](#dec-71) | Un seul plan, `docs/plan.md` ; les pièges sont rangés par domaine dans `pieges-par-domaine.md` | Acceptée |
 | [DEC-72](#dec-72) | Les notes de version sont rangées par une étiquette `RN:` obligatoire, contrôlée par `pr-label.yml` ; la rubrique fourre-tout `"*"` est retirée | Acceptée (remplace la partie `"*"` de DEC-25) |
 
@@ -759,6 +759,11 @@ lignes (`encode.go` en est à 656) se redécoupe au prochain ajout.
 - un pilote GPU est livré hors de System32 (alors un chemin absolu documenté par le fabricant) ;
 - l'action de publication joint les fichiers d'une préversion avant de la publier (alors retirer l'étape de publication du brouillon) ;
 - GitHub cesse d'accepter la permission `artifact-metadata`.
+
+**Amendée le 2026-11-12** (alignement sur OpenTuneBox, étape 5) :
+- **`unsafe` interdit** dans tout le workspace (`[workspace.lints.rust] unsafe_code = "deny"`) ; `superview-ofx` seul le lève, dans `lib.rs` et ses trois tests qui appellent les pilotes, parce qu'OpenFX, CUDA et OpenCL sont des interfaces C (DEC-65). `SECURITY.md` ne promet donc pas un programme « sans `unsafe` ».
+- **`deny.toml`** : crate retirée de crates.io (`yanked`) refusée, versions `*` refusées (chemins internes permis) ; la CI et `make coverage-audit` lancent aussi `bans`. Les doublons de versions sont tus (`multiple-versions = "allow"`) : seize, tous dans l'arbre de Slint et winit, 1 300 lignes qui noyaient un vrai échec dans le journal.
+- **Claude Code** : `garde-fou.sh` cherche git partout dans la commande, options globales comprises (`git -C`, `git -c`, `sh -c`, après `&&`), pour le push forcé (y compris `-uf` et `+branche`), `reset --hard` et `tag` ; `gh pr merge` et tout `gh workflow run` demandent confirmation.
 
 ### DEC-71
 **Un seul plan, `docs/plan.md` ; les pièges sont rangés par domaine dans `pieges-par-domaine.md`.**

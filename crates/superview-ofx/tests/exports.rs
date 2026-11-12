@@ -1,5 +1,8 @@
 //! What the host asks first: how many plugins, and which.
 
+// The test calls the plugin's C exports as the host does (the workspace denies `unsafe`).
+#![allow(unsafe_code)]
+
 use std::ffi::CStr;
 
 unsafe extern "C" {

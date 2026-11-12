@@ -190,10 +190,11 @@ jobs:
     - name: Audit the dependencies
       run: cargo audit
 
-    # Advisories again, through the dependency graph of the shipped targets, and the licences:
-    # every crate must offer one compatible with GPL-3.0-or-later (deny.toml).
+    # Advisories and yanked crates again, through the dependency graph of the shipped targets;
+    # the licences (every crate must offer one compatible with GPL-3.0-or-later), wildcard
+    # versions and sources (deny.toml).
     - name: Check advisories and licences
-      run: cargo deny --locked check advisories licenses sources
+      run: cargo deny --locked check advisories bans licenses sources
 
   rust-windows:
     name: Rust on windows-latest

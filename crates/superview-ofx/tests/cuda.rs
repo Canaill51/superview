@@ -4,6 +4,9 @@
 //! where that absence fails the test: on a machine with an NVIDIA GPU, set it, or a green run
 //! can mean the kernel never ran.
 
+// The test drives the CUDA driver directly, a C interface (the workspace denies `unsafe`).
+#![allow(unsafe_code)]
+
 use superview_ofx::cuda::{Driver, PIXEL_BYTES, Warp};
 use superview_ofx::warp::{Mode, column_map, warp_row};
 

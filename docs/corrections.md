@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-12] `unsafe` interdit hors du plugin, `cargo deny` sur les crates retirées et les versions `*`, `SECURITY.md` complété, garde-fou qui voit `git -C` et `sh -c` (alignement sur OpenTuneBox, étape 5, DEC-70 amendée)
+
+| | |
+| --- | --- |
+| **Constat** | rien n'empêchait d'ajouter du code `unsafe` à l'application, au cœur ou au banc, qui lisent des fichiers venus d'ailleurs ; `deny.toml` laissait passer une crate retirée de crates.io et une version `*` (pas de `[bans]`, et la CI ne lançait pas `bans`) ; `SECURITY.md` ne disait ni la portée ni comment vérifier un téléchargement ; `garde-fou.sh` ne reconnaissait le push forcé et `reset --hard` qu'écrits tels quels en début de texte, et `settings.json` ne voit que le début de la commande : `git -C x push -f`, `git -c a=b push origin +master` ou `git -C x tag v1` passaient |
+| **Cause** | cinquième des sept étapes du plan d'alignement sur OpenTuneBox (`deny.toml`, `unsafe_code = "deny"`, `guard-git.sh`) |
+| **Fichiers** | `Cargo.toml` (`[workspace.lints.rust] unsafe_code = "deny"`) ; `crates/superview-ofx/src/lib.rs` et `tests/{cuda,opencl,exports}.rs` (`#![allow(unsafe_code)]` motivé) ; `deny.toml` (`yanked = "deny"`, `[bans]` : `wildcards = "deny"`, `allow-wildcard-paths`, `multiple-versions = "allow"`) ; `.github/workflows/rust.yml` et `Makefile` (`cargo deny … bans …`) ; `SECURITY.md` (*Scope*, *Integrity of the downloads*) ; `.claude/hooks/garde-fou.sh` (git cherché partout, options globales comprises : push forcé, `reset --hard`, `tag`) ; `.claude/settings.json` (`gh pr merge *` et `gh workflow run *` en `ask`) ; `scripts/checks/hooks.sh` (9 cas) ; `AGENTS.md`, `CLAUDE.md`, `docs/architecture.md`, `docs/contrats.md`, `docs/decisions.md` (DEC-70 amendée), `docs/plan.md` |
+| **PR** | security/deny-unsafe-guards |
+| **Vérification** | `scripts/check.sh` complet vert. `cargo deny --locked check advisories bans licenses sources` vert ; contre-preuve : `serde_json = "*"` dans le banc fait échouer `bans` (`error[wildcard]`). Contre-preuve du lint : un `unsafe {}` dans `superview-core` fait échouer clippy (« usage of an `unsafe` block »). Contre-preuve des hooks : avec l'ancien `garde-fou.sh`, cinq des nouveaux cas de `hooks.sh` rougissent (le cas `sh -c` passait déjà, le texte y figurant tel quel) ; seize commandes essayées à la main, dont six qui doivent passer (push ordinaire, `-f` hors du push, `reset --soft`, branche contenant `tag`, `fetch --tags`). Le garde a aussi bloqué, pendant le travail, une commande de test qui contenait les motifs dans un heredoc : faux positif attendu et documenté |
+
 ### [2026-11-12] `CONTRIBUTING.md`, modèles d'issue et de PR, étiquettes `RN:` obligatoires pour les notes de version (alignement sur OpenTuneBox, étape 4, DEC-72)
 
 | | |

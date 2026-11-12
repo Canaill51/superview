@@ -17,4 +17,7 @@ which other agent tools ignore. Nothing in `.claude/` is an instruction of its o
   non-Markdown changes pending; a guard against dangerous commands (`garde-fou.sh`); and at
   session start, the head of `docs/plan.md`.
 - **Permissions** (`.claude/settings.json`): the verification recipe is allowed; tagging,
-  creating a release and force-pushing are denied.
+  creating a release and force-pushing are denied; merging a pull request, dispatching a
+  workflow and writing through `gh api` ask first. The rules match the start of a command, so
+  `garde-fou.sh` also looks for a forced push, `reset --hard` and `tag` anywhere in it
+  (`git -C`, `sh -c`, after `&&`).

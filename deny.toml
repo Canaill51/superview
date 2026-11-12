@@ -1,13 +1,16 @@
 # cargo-deny, run by the job "Rust coverage and audit" (.github/workflows/rust.yml) and by
-# `make coverage-audit`. Three checks: known advisories, licences compatible with
-# GPL-3.0-or-later, and sources -- crates.io and the one pinned git fork, nothing else. Bans are
-# not checked (nothing here asks for them).
+# `make coverage-audit`. Four checks: known advisories and yanked crates, licences compatible
+# with GPL-3.0-or-later, bans (no wildcard version), and sources -- crates.io and the one pinned
+# git fork, nothing else.
 
 [graph]
 # The shipped binaries are Linux and Windows only; build tools are not audited as dependencies.
 targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 [advisories]
+# A crate pulled from crates.io ("yanked") fails the job like a vulnerability: its author withdrew
+# it, usually for a defect. Update it; `--locked` would otherwise keep it in the build for good.
+yanked = "deny"
 # A vulnerability fails the job. The way out is a reasoned, dated `ignore` below, never removing
 # the step. These are crates flagged "unmaintained", not vulnerable, and none is ours to
 # replace: they come in through Slint's winit backend (zbus; sctk-adwaita -> ab_glyph ->
@@ -44,6 +47,15 @@ allow = [
     "GPL-3.0-only",
     "GPL-3.0-or-later",
 ]
+
+[bans]
+# Duplicate versions are not reported: Slint's and winit's trees hold sixteen (2026-11-12), none
+# ours to merge, and their 1,300 lines of warnings would bury a real failure in the CI log.
+multiple-versions = "allow"
+# A `*` version would take whatever crates.io serves next. The workspace's own crates are paths
+# (`path = "../superview-core"`), without a version: those are allowed.
+wildcards = "deny"
+allow-wildcard-paths = true
 
 [sources]
 # A dependency from anywhere else -- another registry, another git repository, a fork swapped in

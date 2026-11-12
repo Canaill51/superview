@@ -32,7 +32,8 @@
       "Read(~/.claude/pieges/**)"
     ],
     "ask": [
-      "Bash(gh workflow run release.yml *)",
+      "Bash(gh workflow run *)",
+      "Bash(gh pr merge *)",
       "Bash(gh api *-X*)",
       "Bash(gh api *--method*)",
       "Bash(gh api * -f*)",

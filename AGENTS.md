@@ -61,6 +61,9 @@ with `cargo llvm-cov`, then `cargo audit` and `cargo deny`); it needs the three 
 - **No test modifies the process environment.** Tests run in parallel in one process and
   `std::env::set_var` is `unsafe` in edition 2024; tool lookup takes the environment as a
   parameter (L-117).
+- **No `unsafe` outside the Resolve plugin.** The workspace denies `unsafe_code`; `superview-ofx`
+  lifts it in its `lib.rs` and in the tests that call the GPU drivers, because OpenFX, CUDA and
+  OpenCL are C interfaces (DEC-65, DEC-70).
 - **`powi(2)`, never `powf(2.0)`**, where the old code had `math.Pow(x, 2)`: `powf` depends
   on the platform's libm and would break the golden fingerprints
   (`superview-core/tests/pgm_golden.rs`).

@@ -26,7 +26,7 @@ test:
 coverage-audit:
 	SUPERVIEW_REQUIRE_FFMPEG=1 cargo llvm-cov --workspace --locked --fail-under-lines 50
 	cargo audit
-	cargo deny --locked check advisories licenses sources
+	cargo deny --locked check advisories bans licenses sources
 
 fmt:
 	cargo fmt --all --check
