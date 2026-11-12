@@ -16,25 +16,26 @@ fn read(path: &Path) -> String {
     std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path:?}: {e}"))
 }
 
-/// How GitHub turns a heading into a fragment: lower-case, punctuation dropped, spaces to
-/// hyphens. Letters keep their accents, so this cannot simply strip everything non-ASCII.
-fn github_slug(title: &str) -> String {
+/// How GitHub turns a heading into a fragment: lower-case, punctuation and symbols dropped,
+/// spaces to hyphens. Letters keep their accents, so this cannot simply strip everything
+/// non-ASCII; an emoji or an em dash goes, and leaves its surrounding spaces behind.
+pub(crate) fn github_slug(title: &str) -> String {
     title
         .to_lowercase()
         .chars()
         .filter_map(|c| match c {
             ' ' => Some('-'),
             '-' | '_' => Some(c),
-            c if c.is_ascii_digit() || c.is_ascii_lowercase() => Some(c),
-            c if !c.is_ascii() => Some(c),
+            c if c.is_alphanumeric() => Some(c),
             _ => None,
         })
         .collect()
 }
 
 /// The slug of every Markdown heading, skipping fenced code blocks so that a `#` opening a
-/// comment inside one is not mistaken for a heading.
-fn heading_slugs(markdown: &str) -> HashSet<String> {
+/// comment inside one is not mistaken for a heading. A repeated heading gets `-1`, `-2`…
+/// as on GitHub.
+pub(crate) fn heading_slugs(markdown: &str) -> HashSet<String> {
     let mut in_fence = false;
     let mut slugs = HashSet::new();
     for line in markdown.lines() {
@@ -47,7 +48,13 @@ fn heading_slugs(markdown: &str) -> HashSet<String> {
         }
         let title = line.trim_start_matches('#').trim();
         if !title.is_empty() {
-            slugs.insert(github_slug(title));
+            let slug = github_slug(title);
+            let mut unique = slug.clone();
+            let mut n = 0;
+            while !slugs.insert(unique.clone()) {
+                n += 1;
+                unique = format!("{slug}-{n}");
+            }
         }
     }
     slugs
@@ -65,10 +72,15 @@ fn the_slug_follows_github() {
         "informations-complémentaires"
     );
     assert_eq!(github_slug("What's new? (v2)"), "whats-new-v2");
-    let found = heading_slugs("# Top\n```\n# not a heading\n```\n## Second part\n");
+    assert_eq!(github_slug("🔴 B-01 — Boucle"), "-b-01--boucle");
+    let found = heading_slugs("# Top\n```\n# not a heading\n```\n## Second part\n## Top\n");
     assert_eq!(
         found,
-        HashSet::from(["top".to_string(), "second-part".to_string()])
+        HashSet::from([
+            "top".to_string(),
+            "second-part".to_string(),
+            "top-1".to_string()
+        ])
     );
 }
 

@@ -205,9 +205,12 @@ one is marked *Remplacée*, never deleted.
 After a correction, add the entry. A lesson whose remedy is a command ends by
 running the command, not by fixing the one occurrence that inspired it.
 
-`.claude/` holds the Claude Code side of this (and `/publier`, see above): the permission allowlist for the
-verification recipe, a hook that runs `scripts/check.sh --fast` (format and clippy) after every
-code edit, one that runs the full check whenever Claude stops with non-Markdown changes pending, a guard against dangerous
-commands, a session-start hook that prints the head of `docs/plan.md`, and `/verify`, which runs
-the recipe above and reports each gate instead of summarising. Other agent tools
-ignore the directory; nothing in it is an instruction.
+The documentation follows each change in the same pull request.
+[`.claude/skills/docs-sync/SKILL.md`](.claude/skills/docs-sync/SKILL.md) says which documents to
+reread for each kind of change; any agent can read it. What a test can check — links and their
+headings, cited paths, the index of `docs/`, register numbers given once and cited only if they
+exist — `crates/superview-app/src/docs_guards.rs` checks with the workspace suite. A failure there
+means a document to fix, not a check to weaken.
+
+`.claude/` (skills, hooks, permissions) is the Claude Code side of all this; `CLAUDE.md`
+describes it.

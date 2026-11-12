@@ -98,6 +98,10 @@ Date · Statut (Acceptée | Remplacée par DEC-yy | À réexaminer) · Source (c
 | [DEC-62](#dec-62) | L'aperçu de la distorsion est dessiné par la formule des cartes de remappage, en deux masques teintés par l'accent | Acceptée |
 | [DEC-63](#dec-63) | Les polices IBM Plex Sans et Sora sont embarquées dans le binaire (OFL), avec leur licence dans les notices livrées | Acceptée |
 | [DEC-64](#dec-64) | L'identifiant de la fenêtre est `superview` : sans nom de personne, et égal au `.desktop` qu'un lanceur d'AppImage crée | Acceptée |
+| [DEC-65](#dec-65) | Le plugin OpenFX pour DaVinci Resolve est un second livrable du dépôt : il déforme la trame de la timeline avec la formule de l'application | Acceptée (amendée par DEC-66 et DEC-69) |
+| [DEC-66](#dec-66) | Le plugin OpenFX déforme en CUDA quand Resolve lui donne la mémoire de la carte, se déclare `FullySafe`, et garde le chemin CPU en repli | Acceptée (amende DEC-65 ; amendée par DEC-68 et DEC-69) |
+| [DEC-67](#dec-67) | Les encodeurs D3D12 encodent sans images B, et la sonde envoie huit trames au lieu d'une | Acceptée (amende DEC-05) |
+| [DEC-68](#dec-68) | Le plugin OpenFX déforme aussi en OpenCL quand Resolve lui donne des tampons OpenCL ; CUDA reste, et c'est l'hôte qui choisit | Acceptée (amende DEC-66 ; amendée par DEC-69) |
 | [DEC-69](#dec-69) | Le plugin OpenFX est livré dans chaque version en archive Windows séparée, pas en composant de l'installateur ni pour Linux | Acceptée (amende DEC-65) |
 | [DEC-70](#dec-70) | Durcissement de la sécurité : versions immuables et attestées, étiquettes protégées, pilotes GPU depuis System32, sources vérifiées, permissions de Claude Code resserrées | Acceptée |
 | [DEC-71](#dec-71) | Un seul plan, `docs/plan.md` ; les pièges sont rangés par domaine dans `pieges-par-domaine.md` | Acceptée |

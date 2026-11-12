@@ -61,7 +61,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 | `engine.rs`, `host.rs` | ffmpeg, ffprobe et pipeline derrière le trait `Engine` (un résolveur et un `Prober` par processus, en `static`) ; le bureau derrière `Host` (navigateur sans shell, fin de la boucle) |
 | `dialogs.rs` | sélecteurs de fichiers : rfd, puis zenity/kdialog si rfd rend « rien » en moins de 300 ms, puis un champ texte (horloge et outils injectés) |
 | `journal.rs`, `signals.rs`, `main.rs` | journal plafonné ; SIGINT/SIGTERM (`signal-hook` sous Unix, `ctrlc` sous Windows) ; démarrage |
-| `repo_guards.rs` | tests sur des fichiers que le compilateur ne lit pas (ancre du README, fichiers de workflow) |
+| `repo_guards.rs`, `docs_guards.rs` | tests sur des fichiers que le compilateur ne lit pas : ancre du README, fichiers de workflow ; cohérence de la doc (liens, chemins cités, index de `docs/`, numéros des registres), voir la compétence `docs-sync` |
 | `app_tests.rs`, `window_tests.rs` | scénarios de fenêtre avec une conversion simulée ; rendu sans écran (`i-slint-backend-testing`) |
 | `build.rs` | version (`SUPERVIEW_VERSION`), marqueur de build, icône du `.exe`, `DT_RPATH` de l'AppImage |
 
@@ -71,7 +71,7 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 | `Cargo.toml`, `crates/` | le workspace Cargo ci-dessus (à la racine) ; `rust-toolchain.toml` épingle la version |
 | `crates/superview-core/tests/fixtures/` | fixtures enregistrées (`recorded/*.json`, `ffprobe/`) : enregistrées par l'oracle Go (`internal/common/parity_test.go`, #101, sur un code identique à la v0.2.9 ; `git show 915dc2c^:<chemin>`), **gelées**, ce sont la spécification que le Rust doit reproduire |
 | `scripts/` | `check.sh` (point d'entrée unique de vérification), `checks/rust.sh`, `checks/hooks.sh` (les hooks de `.claude/hooks` sans `python3`, L-119) et `checks/outils.sh` (`lib/outils.sh` : ffmpeg cherché comme par `ToolResolver`, L-121) |
-| `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
+| `.github/` | CI (`rust.yml`, `lint.yml`, `release.yml`, `merge-on-label.yml`), `.github/scripts/nvenc-driver-floor.sh` (plancher pilote NVENC) |
 | `packaging/` | `windows/superview.iss` (installateur Inno Setup), `linux/build_appimage.sh` et `check_appimage_libs.sh` (AppImage) : DEC-41, DEC-47 ; `ofx/` (bundle du plugin Resolve, DEC-65 ; publié en archive Windows, DEC-69) |
 | `docs/` | contrats, décisions, journaux (voir ci-dessous), `archives/` ; index : [README.md](README.md), un document par ligne, noms en minuscules |
 | `superview.yaml` | configuration livrée |

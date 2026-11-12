@@ -32,7 +32,7 @@
 | 8bis | [`decisions.md`](decisions.md) | **Avant de « corriger » ce qui ressemble à un défaut** : les choix du dépôt (DEC-01 à DEC-49), chacun avec sa raison et la condition qui le rouvrirait. | fait foi, tant que la décision n'est pas marquée *Remplacée* |
 | 9 | `README.md` et `README_FR.md` | Comportement documenté côté utilisateur. Un seul document en deux langues : toute modification visible par l'utilisateur se fait dans les deux, dans la même PR. Le job `readme-parity` de `lint.yml` le vérifie. |  |
 | 10 | `Makefile` | Cibles locales : `check`, `build`, `test` (pose `SUPERVIEW_REQUIRE_FFMPEG=1`), `coverage-audit`, `fmt`, `clippy`. |  |
-| 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` ne fait que l'importer : Claude Code sait lire `AGENTS.md`, mais pas dans toutes ses sessions, et l'import le charge partout. `.claude/` porte les autorisations, les crochets et la compétence `/verify`. |  |
+| 11 | [`AGENTS.md`](../AGENTS.md) | Conventions du projet pour les agents, et les pièges qui coûtent le plus cher. `CLAUDE.md` l'importe (Claude Code sait lire `AGENTS.md`, mais pas dans toutes ses sessions, et l'import le charge partout) et décrit `.claude/` : autorisations, crochets, compétences `docs-sync`, `verify` et `publier`. |  |
 
 > Les entrées `build.sh`, `tools/` et `coverage.out` ont disparu de cette table avec
 > les fichiers eux-mêmes. `.github/copilot-instructions.md` aussi : son contenu vit
