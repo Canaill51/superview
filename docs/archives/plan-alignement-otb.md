@@ -1,6 +1,7 @@
 > **Archive, plan terminé.** Plan d'alignement de Superview sur l'organisation d'OpenTuneBox, approuvé par
 > l'utilisateur le 2026-11-12 et mené en sept PR, #193 à #199 (2026-11-12 et 2026-11-13). Il vivait hors du
-> dépôt (`~/.claude/plans/abstract-squishing-rabbit.md`) ; texte inchangé. Ce qui a été fait, étape par
+> dépôt (`~/.claude/plans/abstract-squishing-rabbit.md`) ; texte inchangé, sauf le numéro d'une leçon
+> d'OpenTuneBox, retiré parce que le contrôle de la doc le chercherait parmi les leçons de Superview. Ce qui a été fait, étape par
 > étape : l'historique de [plan.md](../plan.md) et [corrections.md](../corrections.md). Écart avec le texte :
 > à l'étape 7, un passage `draft=true` ne pose plus d'étiquette (DEC-73), sans quoi l'essai `RC-…` aurait
 > laissé une étiquette que la règle interdit de supprimer.
@@ -164,7 +165,7 @@ tableau « tel changement → relire tels documents ». Y mettre les deux README
   Le fourre-tout `"*"` est retiré.
 - **Workflow `pr-label.yml`**, copie adaptée d'`etiquette-pr.yml` :
   - `permissions: {}`, pas de checkout, titre et étiquettes passés par `env:` ;
-  - concurrence par numéro de PR, sans annulation (L-098 d'OTB) ;
+  - concurrence par numéro de PR, sans annulation (leçon d'OTB) ;
   - exactement une étiquette `RN:` ; Dependabot est exempté ; l'étiquette `merge` est ignorée ; refus
     d'un titre qui ressemble à un nom de branche.
 - **Test dans `repo_guards.rs`** : la liste d'étiquettes du workflow est identique aux rubriques de
