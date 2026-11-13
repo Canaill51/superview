@@ -9,6 +9,26 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-13] `pr-label.yml` lit les étiquettes au moment du passage, plus dans l'événement (DEC-72 amendée)
+
+| | |
+| --- | --- |
+| **Constat** | à l'ouverture de #198, le passage « opened » de *PR label* a échoué (« found 0 », `LABELS: []`, run 43342023224) alors que `RN: ignore` était posée deux secondes après ; le passage suivant était vert, mais l'échec restait dans l'historique |
+| **Cause** | le script lisait `github.event.pull_request.labels`, figé à l'émission de l'événement ; `gh pr create --label` crée la PR puis pose l'étiquette par un second appel, donc l'événement d'ouverture ne la voit jamais |
+| **Fichiers** | `.github/workflows/pr-label.yml` (`gh api repos/$REPO/issues/$PR/labels` au début du script, `set -euo pipefail`, `permissions: pull-requests: read`) ; `CONTRIBUTING.md` ; `docs/decisions.md` (DEC-72 amendée) |
+| **PR** | ci-hygiene (#198) |
+| **Vérification** | `actionlint` vert. Le script extrait du workflow, lancé en local contre l'API : #198 (`RN: ignore`) et #197 (`RN: security`) passent, #189 (seulement `merge`) échoue (« found 0 »), une PR inexistante échoue (l'API en erreur n'est pas lue comme « aucune étiquette »). La contre-preuve de l'ancien comportement est le run 43342023224 lui-même. Non prouvé avant la prochaine ouverture de PR : que le passage « opened » d'une PR créée avec `--label` soit vert |
+
+### [2026-11-13] Hygiène CI : `actionlint` sur les workflows, audit des dépendances chaque lundi, Dependabot cargo groupé (alignement sur OpenTuneBox, étape 6)
+
+| | |
+| --- | --- |
+| **Constat** | aucun contrôle ne relisait les workflows eux-mêmes (expressions `${{ }}`, paramètres des actions, scripts `run:`) ; une faille publiée contre `Cargo.lock` n'était vue qu'à la PR suivante ; Dependabot cargo ouvrait une PR par crate, sans jour ni plafond ; les checkouts de `rust.yml` et `lint.yml` laissaient le jeton dans `.git/config` sans rien pousser ; le bundle OFX de `rust.yml` restait 90 jours |
+| **Cause** | sixième des sept étapes du plan d'alignement sur OpenTuneBox (`tests.yml` : job `actionlint` ; `audit.yml` ; `dependabot.yml`) |
+| **Fichiers** | `.github/workflows/lint.yml` (job `actionlint` 1.7.12, SHA-256 vérifié ; `persist-credentials: false`) ; `.github/workflows/audit.yml` (neuf : `cargo audit` et `cargo deny`, lundi 5 h UTC et à la demande, `contents: read`) ; `.github/dependabot.yml` (cargo : lundi 6 h Europe/Paris, 5 PR au plus, mineures et correctifs groupés, préfixe `chore`) ; `.github/workflows/rust.yml` (`persist-credentials: false`, `retention-days: 7` sur le bundle OFX) ; `.github/workflows/release.yml` (`# shellcheck disable=SC2016` motivé : les backticks y sont du Markdown imprimé) ; `RELEASING.md` (*Manual pins*), `docs/architecture.md`, `docs/contrats.md`, `docs/plan.md` ; `CONTRIBUTING.md` et le ruleset `master` du dépôt (réglage, pas un fichier) : *Workflows pass actionlint* ajouté aux contrôles exigés, à la demande de Cédric |
+| **PR** | ci-hygiene (#198) |
+| **Vérification** | `actionlint` 1.7.12 en local sur les six workflows : seuls signalements avant correction, cinq SC2016 (faux positifs) dans `release.yml` ; vert après. Contre-preuve : sans la directive, `actionlint` sort en 1 ; un `${{ github.nope }}` dans `audit.yml` est signalé (`property "nope" is not defined`). `audit.yml` et `dependabot.yml` ne s'essaient qu'une fois fusionnés (déclenchement à la main, puis la PR Dependabot du lundi) |
+
 ### [2026-11-12] `unsafe` interdit hors du plugin, `cargo deny` sur les crates retirées et les versions `*`, `SECURITY.md` complété, garde-fou qui voit `git -C` et `sh -c` (alignement sur OpenTuneBox, étape 5, DEC-70 amendée)
 
 | | |

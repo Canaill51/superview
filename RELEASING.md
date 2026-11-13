@@ -252,7 +252,8 @@ not see these, which move only when someone edits the file:
 
 | Pin | Where |
 | --- | --- |
-| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2), `cargo-deny` (0.20.2) | `test` job of `.github/workflows/release.yml` and `rust-coverage-audit` of `rust.yml`, `cargo install --locked --version` — keep both identical |
+| `cargo-llvm-cov` (0.9.1), `cargo-audit` (0.22.2), `cargo-deny` (0.20.2) | `test` job of `.github/workflows/release.yml`, `rust-coverage-audit` of `rust.yml` and the weekly `audit.yml` (the last two only), `cargo install --locked --version` — keep them identical |
+| `actionlint` (1.7.12) + its SHA-256 | `lint.yml`, `actionlint` job: change the number and the digest together |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Windows (gyan.dev 8.1.1) | `release.yml`, `build-gui-windows`; the same two values in `rust.yml`, `rust-windows` — keep both identical |
 | `FFMPEG_URL` + `FFMPEG_SHA256`, Linux (BtbN n8.1.2) | `release.yml`, `build-gui-linux` |
 

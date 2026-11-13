@@ -755,6 +755,8 @@ jobs:
         if [ "$EVENT" = "push" ] && [ "$kind" != "tag" ]; then
           echo "::warning::${TAG} is lightweight, so it carries no notes of its own. The release still gets the generated list. Use 'git tag -a' to write your own."
         fi
+        # The backticks below are Markdown printed into the notes, not command substitution.
+        # shellcheck disable=SC2016
         {
           # Only a hand-written message is worth leading with. The button tags
           # with "Superview vx.y.z", which would be a heading saying nothing.
