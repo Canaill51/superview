@@ -43,9 +43,14 @@ on:
         type: boolean
         default: false
 
-# Read-only for every job but the one that tags and publishes. The build jobs
-# run third-party code -- build scripts and proc macros -- with the token actions/checkout
-# persists in .git/config, and a writable one there could push (E-24).
+# The files of a release travel through the release page itself, never through GitHub's
+# artifact storage (DEC-73): `draft` opens the page as a draft, each build job uploads its own
+# file to it, and `publish` checks the list, attests, tags and makes it public.
+#
+# Read-only by default. The jobs that write get contents: write on their own. The build jobs
+# among them run third-party code -- build scripts and proc macros -- so their checkout keeps no
+# token in .git/config (persist-credentials: false), and the token reaches only the one step
+# that uploads, through its environment (E-24, amended by DEC-73).
 permissions:
   contents: read
 
@@ -212,10 +217,130 @@ jobs:
     - name: Audit the dependencies
       run: cargo audit
 
+  # The release page, as a draft, once the tests have passed and before anything is built. A
+  # draft is invisible to visitors and creates no tag, so a run that fails from here on spends
+  # no version number; a later run of the same version finds the draft and starts it over.
+  draft:
+    name: Open the draft release
+    needs: [prepare, test]
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    # fetch-depth 0: a hand-pushed tag's message leads the notes, and reading it needs the tag
+    # object. No token stays in .git/config: gh gets it through GH_TOKEN, git needs none here.
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    # The generated notes say what changed -- one line per merged pull request, sorted by its
+    # RN: label (.github/release.yml), plus a compare link. What they cannot say is which file
+    # to download and how to check it, so that section is written here and leads the body.
+    #
+    # A hand-pushed annotated tag is the one case where a human wrote notes on purpose: its
+    # message leads, ahead of everything else. A lightweight tag has no message of its own --
+    # git would hand back the commit's -- so it gets nothing but the download section, and says
+    # so in the run log.
+    - name: Write the release notes
+      env:
+        TAG: ${{ needs.prepare.outputs.tag }}
+        EVENT: ${{ github.event_name }}
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        kind="$(git cat-file -t "$TAG" 2>/dev/null || echo none)"
+        subject="$(git tag -l --format='%(contents:subject)' "$TAG")"
+        # Outside the redirected group on purpose: inside it, the warning would
+        # be written into the release notes instead of the run log.
+        if [ "$EVENT" = "push" ] && [ "$kind" != "tag" ]; then
+          echo "::warning::${TAG} is lightweight, so it carries no notes of its own. The release still gets the generated list. Use 'git tag -a' to write your own."
+        fi
+        # The backticks below are Markdown printed into the notes, not command substitution.
+        # shellcheck disable=SC2016
+        {
+          # Only a hand-written message is worth leading with. The button tags
+          # with "Superview vx.y.z", which would be a heading saying nothing.
+          if [ "$EVENT" = "push" ] && [ "$kind" = "tag" ] && [ -n "$subject" ]; then
+            printf '## %s\n\n' "$subject"
+            git tag -l --format='%(contents:body)' "$TAG"
+            printf '\n'
+          fi
+          printf '### Downloads\n\n'
+          printf -- '- Windows: `superview-%s-windows-x86_64-setup.exe`\n' "$TAG"
+          printf -- '- Linux (Ubuntu 24.04+): `superview-%s-linux-x86_64.AppImage`\n' "$TAG"
+          printf -- '- DaVinci Resolve plugin (Windows): `superview-ofx-%s-windows-x86_64.zip`\n' "$TAG"
+          printf '\n### Verify integrity\n\n'
+          printf '```bash\nsha256sum -c checksums.txt\n```\n'
+          printf '\nTo check that a file was built by the release workflow of this repository:\n\n'
+          printf '```bash\ngh attestation verify <file> --repo Canaill51/superview\n```\n\n'
+          # The pull requests merged since the previous release. For a tag that does not exist
+          # yet, GitHub reads them up to target_commitish, this run's commit.
+          gh api -X POST "repos/${GH_REPO}/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq .body
+        } > "${RUNNER_TEMP}/notes.md"
+        echo "=== Release notes ===" && cat "${RUNNER_TEMP}/notes.md"
+
+    # A draft left by an earlier run of the same version (a build failed, the run was cancelled)
+    # is reused rather than duplicated, but emptied and given this run's notes: the list that
+    # `publish` checks must be this run's files and nothing older. "Not found" is told apart from
+    # any other failure by gh's message, so that a network error is not taken for an absent page.
+    #
+    # A dispatched run gives the draft this commit as its target; the tag is pushed only by
+    # `publish`, and only when the release is made public. A hand-pushed tag already exists, and
+    # --verify-tag makes sure the draft is attached to it.
+    - name: Create the draft, or start over the one a previous run left
+      env:
+        TAG: ${{ needs.prepare.outputs.tag }}
+        EVENT: ${{ github.event_name }}
+        PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        notes="${RUNNER_TEMP}/notes.md"
+        if found="$(gh release view "$TAG" --json isDraft -q .isDraft 2>&1)"; then
+          if [ "$found" != "true" ]; then
+            echo "::error::release ${TAG} is already published, and a published release is immutable -- pick another version"
+            exit 1
+          fi
+          echo "A draft ${TAG} exists from an earlier run: emptying it and rewriting its notes."
+          gh release view "$TAG" --json assets -q '.assets[].name' | while IFS= read -r asset; do
+            gh release delete-asset "$TAG" "$asset" --yes
+          done
+          args=(--notes-file "$notes" --prerelease="$PRERELEASE")
+          if [ "$EVENT" != "push" ]; then args+=(--target "$GITHUB_SHA"); fi
+          gh release edit "$TAG" "${args[@]}"
+        else
+          case "$found" in
+            *"release not found"*|*"Not Found"*) ;;
+            *) echo "::error::cannot read release ${TAG}: ${found}"; exit 1 ;;
+          esac
+          args=(--draft --title "$TAG" --notes-file "$notes")
+          if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+          if [ "$EVENT" = "push" ]; then
+            args+=(--verify-tag)
+          else
+            args+=(--target "$GITHUB_SHA")
+          fi
+          gh release create "$TAG" "${args[@]}"
+        fi
+        gh release view "$TAG" --json name,isDraft,isPrerelease,url
+
   build-gui-windows:
     name: Build GUI (Windows)
-    needs: [prepare, test]
+    needs: [prepare, test, draft]
+    # On a dry run `draft` is skipped, and a job whose need was skipped is skipped too unless
+    # it says otherwise: this runs whenever nothing before it failed.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: windows-latest
+    # Uploads the installer to the draft release. Only the upload step holds the token.
+    permissions:
+      contents: write
 
     env:
       # The FFmpeg shipped inside the Windows installer.
@@ -242,6 +367,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # No token in .git/config while third-party build scripts run (see the top of the file).
+        persist-credentials: false
 
     # No cargo cache in the build jobs: the build marker must describe this build, and a
     # restored target/ is the one place a stale one could come from (DEC-47). The cost is a
@@ -371,14 +499,27 @@ jobs:
         if (Test-Path "$dir\superview.exe") { Write-Error "the uninstaller left superview.exe behind"; exit 1 }
         Write-Host "install, bundled tools and uninstall: ok"
 
-    - name: Upload GUI artifacts
+    # A release: onto the draft page, replacing a file of the same name (a rerun of this job).
+    # The token is in this step's environment and nowhere else in the job.
+    - name: Upload the installer to the draft release
+      if: needs.prepare.outputs.release == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release upload "$TAG" "superview-${TAG}-windows-x86_64-setup.exe" --clobber
+
+    # A dry run: downloadable from the run's page for a day, then gone, so dry runs do not fill
+    # the artifact storage.
+    - name: Keep the installer for a day (dry run)
+      if: needs.prepare.outputs.release != 'true'
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: gui-windows-artifacts
         path: superview-${{ needs.prepare.outputs.label }}-windows-*-setup.exe
-        # Uploading nothing is not success: without this the release job would
-        # publish an empty draft.
         if-no-files-found: error
+        retention-days: 1
 
   # The OpenFX plugin for DaVinci Resolve, as a zip of the Superview.ofx.bundle folder that the
   # user copies into C:\Program Files\Common Files\OFX\Plugins (DEC-69). Windows only: the Linux
@@ -386,8 +527,11 @@ jobs:
   # own, so it builds while the installer does.
   build-ofx-windows:
     name: Build the Resolve plugin (Windows)
-    needs: [prepare, test]
+    needs: [prepare, test, draft]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     defaults:
       run:
@@ -396,6 +540,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # No token in .git/config while third-party build scripts run (see the top of the file).
+        persist-credentials: false
 
     # No cargo cache, as in the GUI jobs (DEC-47): what is zipped is this build. bindgen
     # (ofx_sys) finds libclang in the runner's LLVM, as in rust.yml's ofx-bundle job.
@@ -417,17 +564,30 @@ jobs:
     - name: The archive must hold a plugin Resolve can load
       run: sh packaging/ofx/check_bundle_zip.sh superview-ofx-*-windows-x86_64.zip
 
-    - name: Upload the plugin archive
+    - name: Upload the plugin archive to the draft release
+      if: needs.prepare.outputs.release == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release upload "$TAG" "superview-ofx-${TAG}-windows-x86_64.zip" --clobber
+
+    - name: Keep the plugin archive for a day (dry run)
+      if: needs.prepare.outputs.release != 'true'
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ofx-windows-artifacts
         path: superview-ofx-${{ needs.prepare.outputs.label }}-windows-x86_64.zip
         if-no-files-found: error
+        retention-days: 1
 
   build-gui-linux:
     name: Build GUI (Linux)
-    needs: [prepare, test]
+    needs: [prepare, test, draft]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     env:
       # The FFmpeg shipped inside the Linux archive. Same reasoning as the
@@ -448,6 +608,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # No token in .git/config while third-party build scripts run (see the top of the file).
+        persist-credentials: false
 
     # libfontconfig1-dev: Slint's text layout is built against it (as in rust.yml).
     #
@@ -637,20 +800,31 @@ jobs:
 
         sh packaging/linux/check_appimage_libs.sh "${image}" 10
 
-    - name: Upload GUI artifacts
+    - name: Upload the AppImage to the draft release
+      if: needs.prepare.outputs.release == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release upload "$TAG" "superview-${TAG}-linux-x86_64.AppImage" --clobber
+
+    - name: Keep the AppImage for a day (dry run)
+      if: needs.prepare.outputs.release != 'true'
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: gui-linux-artifacts
         path: superview-${{ needs.prepare.outputs.label }}-linux-*.AppImage
         if-no-files-found: error
+        retention-days: 1
 
-  create-release:
-    name: Create GitHub Release
-    needs: [prepare, build-gui-windows, build-ofx-windows, build-gui-linux]
+  publish:
+    name: Publish the release
+    needs: [prepare, draft, build-gui-windows, build-ofx-windows, build-gui-linux]
     runs-on: ubuntu-latest
     if: needs.prepare.outputs.release == 'true'
-    # The only job that writes: it pushes the tag and publishes the release. The
-    # other three are for the provenance attestation below, and only for it.
+    # Pushes the tag and publishes the release. The other three are for the provenance
+    # attestation below, and only for it. Nothing here compiles third-party code, so this
+    # checkout keeps its token: pushing the tag needs it.
     permissions:
       contents: write
       id-token: write
@@ -658,39 +832,46 @@ jobs:
       artifact-metadata: write
 
     steps:
-    # This job never checked anything out -- it only downloaded artifacts. The
-    # tag message is needed here now, and reading it needs the repository and
-    # the tag object, hence fetch-depth 0.
+    # The tag object is created from this repository, hence fetch-depth 0.
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
 
-    - name: Download all artifacts
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-      with:
-        path: artifacts
-
-    - name: List all artifacts
-      run: |
-        echo "=== Release Artifacts ==="
-        find artifacts -type f | sort
-
-    # Record bare filenames, not the artifact directory layout.
-    #
-    # The paths used to come out as artifacts/gui-linux-artifacts/<file>, so the
-    # "sha256sum -c checksums.txt" the release notes advertise failed for anyone
-    # who downloaded the assets: they arrive flat, not under that tree. v0.2.0
-    # shipped with a checksums file that had to be corrected by hand before
-    # publication.
-    - name: Calculate checksums
+    # Exactly the three files, by name: one missing is a build whose upload did not happen,
+    # one extra is something that has no business in a release. Everything after this --
+    # checksums, attestation, tag -- describes this list and no other.
+    - name: The draft must hold exactly the three files
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
       run: |
         set -euo pipefail
-        find artifacts -type f \( -name "*-setup.exe" -o -name "*.AppImage" -o -name "superview-ofx-*-windows-x86_64.zip" \) -print0 |
-          while IFS= read -r -d '' file; do
-            ( cd "$(dirname "$file")" && sha256sum "$(basename "$file")" )
-          done > artifacts/checksums.txt
-        echo "=== Checksums ===" && cat artifacts/checksums.txt
+        gh release view "$TAG" --json assets -q '.assets[].name' | LC_ALL=C sort > "${RUNNER_TEMP}/assets.txt"
+        printf '%s\n' \
+          "superview-${TAG}-linux-x86_64.AppImage" \
+          "superview-${TAG}-windows-x86_64-setup.exe" \
+          "superview-ofx-${TAG}-windows-x86_64.zip" | LC_ALL=C sort > "${RUNNER_TEMP}/expected.txt"
+        echo "=== On the draft ===" && cat "${RUNNER_TEMP}/assets.txt"
+        if ! diff "${RUNNER_TEMP}/expected.txt" "${RUNNER_TEMP}/assets.txt"; then
+          echo "::error::the draft ${TAG} does not hold exactly the three expected files"
+          exit 1
+        fi
+
+    # What is checksummed and attested is what a user downloads: the files back from the draft.
+    # Bare filenames in checksums.txt, so that the "sha256sum -c checksums.txt" the notes
+    # advertise works on the files as downloaded (v0.2.0 shipped with paths that did not).
+    - name: Download the files and write checksums.txt
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: |
+        set -euo pipefail
+        gh release download "$TAG" --dir dist
+        ( cd dist && sha256sum -- superview-* > checksums.txt )
+        echo "=== Checksums ===" && cat dist/checksums.txt
 
     # checksums.txt sits next to the files it describes, so it catches a broken
     # download and nothing else: whoever could replace a file could replace its
@@ -702,113 +883,65 @@ jobs:
     - name: Attest build provenance
       uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
       with:
-        subject-path: |
-          artifacts/**/*-setup.exe
-          artifacts/**/*.AppImage
-          artifacts/**/superview-ofx-*-windows-x86_64.zip
+        subject-path: dist/superview-*
+
+    - name: Upload checksums.txt to the draft release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release upload "$TAG" dist/checksums.txt --clobber
 
     # The tag is created here and nowhere earlier: a version number spent on a
     # run whose Windows build then failed is a number that can never be reused.
     # By this point both platforms and the plugin have built and their files are in hand.
     #
+    # Not when the run stops at a draft either: the tag ruleset refuses deleting a v* or RC-*
+    # tag, so a draft someone then throws away would leave a tag behind for good. Publishing
+    # such a draft by hand lets GitHub create the tag, on the commit this run built.
+    #
     # A tag pushed with GITHUB_TOKEN does not start another workflow run --
     # GitHub's own loop protection -- so this does not re-enter the push
     # trigger above.
     - name: Create the annotated tag
-      if: github.event_name == 'workflow_dispatch'
+      if: github.event_name == 'workflow_dispatch' && needs.prepare.outputs.draft != 'true'
       env:
         TAG: ${{ needs.prepare.outputs.tag }}
       run: |
         set -euo pipefail
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        # Annotated, never lightweight. The notes no longer come from the tag
-        # on this path -- GitHub generates them below -- but an annotated tag
-        # carries its own date and is what "git describe" prefers, and a
-        # lightweight one would hand the commit's message back to anyone who
-        # asked the tag what it said (#37).
+        # Annotated, never lightweight: an annotated tag carries its own date and is what
+        # "git describe" prefers, and a lightweight one would hand the commit's message back
+        # to anyone who asked the tag what it said (#37).
         git tag -a "$TAG" -m "Superview ${TAG}"
         git push origin "refs/tags/${TAG}"
         echo "Tagged $(git rev-parse --short HEAD) as ${TAG}"
 
-    # What goes above GitHub's generated list.
-    #
-    # The generated notes say what changed -- one line per merged pull request,
-    # plus a compare link. What they cannot say is which file to download and
-    # how to check it, so that is what this writes, and the publish step below
-    # pre-pends it to the generated list.
-    #
-    # A hand-pushed annotated tag is the one case where a human wrote notes on
-    # purpose: its message leads, ahead of everything else. A lightweight tag
-    # has no message of its own -- git would hand back the commit's -- so it
-    # gets nothing but the download section, and says so in the run log.
-    - name: Write the download section
-      env:
-        TAG: ${{ needs.prepare.outputs.tag }}
-        EVENT: ${{ github.event_name }}
-      run: |
-        set -euo pipefail
-        kind="$(git cat-file -t "$TAG" 2>/dev/null || echo none)"
-        subject="$(git tag -l --format='%(contents:subject)' "$TAG")"
-        # Outside the redirected group on purpose: inside it, the warning would
-        # be written into the release notes instead of the run log.
-        if [ "$EVENT" = "push" ] && [ "$kind" != "tag" ]; then
-          echo "::warning::${TAG} is lightweight, so it carries no notes of its own. The release still gets the generated list. Use 'git tag -a' to write your own."
-        fi
-        # The backticks below are Markdown printed into the notes, not command substitution.
-        # shellcheck disable=SC2016
-        {
-          # Only a hand-written message is worth leading with. The button tags
-          # with "Superview vx.y.z", which would be a heading saying nothing.
-          if [ "$EVENT" = "push" ] && [ "$kind" = "tag" ] && [ -n "$subject" ]; then
-            printf '## %s\n\n' "$subject"
-            git tag -l --format='%(contents:body)' "$TAG"
-            printf '\n'
-          fi
-          printf '### Downloads\n\n'
-          printf -- '- Windows: `superview-%s-windows-x86_64-setup.exe`\n' "$TAG"
-          printf -- '- Linux (Ubuntu 24.04+): `superview-%s-linux-x86_64.AppImage`\n' "$TAG"
-          printf -- '- DaVinci Resolve plugin (Windows): `superview-ofx-%s-windows-x86_64.zip`\n' "$TAG"
-          printf '\n### Verify integrity\n\n'
-          printf '```bash\nsha256sum -c checksums.txt\n```\n'
-          printf '\nTo check that a file was built by the release workflow of this repository:\n\n'
-          printf '```bash\ngh attestation verify <file> --repo Canaill51/superview\n```\n'
-        } > /tmp/release.md
-        echo "=== Body, which the generated list is appended to ===" && cat /tmp/release.md
-
-    # Releases are immutable on this repository: once published, nothing can be
-    # attached to them. The action uploads before publishing for a release, but
-    # it publishes a prerelease first and uploads after, which immutability
-    # refuses. So a prerelease goes up as a draft, and the step below publishes
-    # it once its files are on.
-    - name: Publish release assets
-      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-      with:
-        tag_name: ${{ needs.prepare.outputs.tag }}
-        draft: ${{ needs.prepare.outputs.draft == 'true' || needs.prepare.outputs.prerelease == 'true' }}
-        prerelease: ${{ needs.prepare.outputs.prerelease }}
-        # body_path is pre-pended to the generated notes, so the release reads
-        # download section first, then "What's Changed" built from the pull
-        # requests merged since the previous tag.
-        body_path: /tmp/release.md
-        generate_release_notes: true
-        files: |
-          artifacts/**/*-setup.exe
-          artifacts/**/*.AppImage
-          artifacts/**/superview-ofx-*-windows-x86_64.zip
-          artifacts/checksums.txt
-
-    - name: Publish the prerelease draft
-      if: needs.prepare.outputs.prerelease == 'true' && needs.prepare.outputs.draft != 'true'
+    # Releases are immutable on this repository (DEC-70): once published, nothing can be
+    # attached to them, which is why every file went onto the draft first. Published last,
+    # with all four files on, as the latest release or as a prerelease.
+    - name: Publish the draft
       env:
         GH_TOKEN: ${{ github.token }}
-        REPO: ${{ github.repository }}
+        GH_REPO: ${{ github.repository }}
         TAG: ${{ needs.prepare.outputs.tag }}
-      run: gh release edit "$TAG" --repo "$REPO" --draft=false --prerelease
+        DRAFT: ${{ needs.prepare.outputs.draft }}
+        PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      run: |
+        set -euo pipefail
+        if [ "$DRAFT" = "true" ]; then
+          echo "Asked to stop at a draft: ${TAG} stays a draft, with its four files."
+        elif [ "$PRERELEASE" = "true" ]; then
+          gh release edit "$TAG" --draft=false --prerelease
+        else
+          gh release edit "$TAG" --draft=false --latest
+        fi
+        gh release view "$TAG" --json name,isDraft,isPrerelease,url,assets -q '{name, isDraft, isPrerelease, url, assets: [.assets[].name]}'
 
   notify:
     name: Notify Release Status
-    needs: [prepare, test, build-gui-windows, build-ofx-windows, build-gui-linux, create-release]
+    needs: [prepare, test, draft, build-gui-windows, build-ofx-windows, build-gui-linux, publish]
     runs-on: ubuntu-latest
     if: always()
 
@@ -826,16 +959,19 @@ jobs:
       env:
         PLAN: ${{ needs.prepare.result }}
         TESTS: ${{ needs.test.result }}
+        DRAFT_PAGE: ${{ needs.draft.result }}
         WINDOWS: ${{ needs.build-gui-windows.result }}
         PLUGIN: ${{ needs.build-ofx-windows.result }}
         LINUX: ${{ needs.build-gui-linux.result }}
-        RELEASE: ${{ needs.create-release.result }}
+        RELEASE: ${{ needs.publish.result }}
+        PLANNED: ${{ needs.prepare.outputs.release }}
         DRAFT: ${{ needs.prepare.outputs.draft }}
         TAG: ${{ needs.prepare.outputs.tag }}
       run: |
         set -uo pipefail
         echo "Plan:           ${PLAN}"
         echo "Tests:          ${TESTS}"
+        echo "Draft page:     ${DRAFT_PAGE}"
         echo "Windows build:  ${WINDOWS}"
         echo "Plugin build:   ${PLUGIN}"
         echo "Linux build:    ${LINUX}"
@@ -847,23 +983,26 @@ jobs:
           [ "$result" = "success" ] || failed=1
         done
 
-        case "$RELEASE" in
-          success)
+        if [ "$PLANNED" = "true" ]; then
+          # A release was asked for: the draft page and the publication must both have run.
+          if [ "$DRAFT_PAGE" = "success" ] && [ "$RELEASE" = "success" ]; then
             if [ "$DRAFT" = "true" ]; then
               echo "Draft ${TAG} created. Publishing it is still a manual step."
             else
               echo "Released ${TAG}. The assets are public."
             fi
-            ;;
-          skipped)
-            # Expected on a dry run: both platforms and the plugin are built and uploaded, but
-            # nothing is tagged and nothing is published.
-            echo "Dry run: no version was given, so nothing was tagged or published."
-            ;;
-          *)
+          else
             failed=1
-            ;;
-        esac
+            # Only the publish job pushes the tag, after every file is on the draft.
+            echo "${TAG} was not published. Unless the publish job reached its tag step, the version is not spent: a draft may be left, and a new run of the same version starts it over."
+          fi
+        elif [ "$DRAFT_PAGE" = "skipped" ] && [ "$RELEASE" = "skipped" ]; then
+          # Expected on a dry run: both platforms and the plugin are built and kept for a day,
+          # but nothing is tagged and nothing is published.
+          echo "Dry run: no version was given, so nothing was tagged or published."
+        else
+          failed=1
+        fi
 
         if [ "$failed" -ne 0 ]; then
           echo "::error::the release run did not complete successfully -- see the job results above"

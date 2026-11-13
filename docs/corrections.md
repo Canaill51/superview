@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-13] Les fichiers d'une version passent par la page Releases en brouillon, plus par les artefacts (alignement sur OpenTuneBox, étape 7, DEC-73)
+
+| | |
+| --- | --- |
+| **Constat** | `release.yml` passait les trois livrables par `upload-artifact` (90 jours) puis `download-artifact` vers `create-release` : un quota d'artefacts plein bloque une version ; un essai à blanc gardait ses fichiers 90 jours ; un brouillon `draft=true` poussait une étiquette que la règle d'étiquettes interdit ensuite de supprimer |
+| **Cause** | septième et dernière étape du plan d'alignement sur OpenTuneBox (`construire.yml` : brouillon, `gh release upload --clobber`, contrôle de la liste, publication) |
+| **Fichiers** | `.github/workflows/release.yml` (job `draft` : notes = *Downloads* + `generate-notes`, brouillon créé ou repris et vidé ; builds en `contents: write`, `persist-credentials: false`, jeton dans la seule étape d'envoi, essai à blanc en `retention-days: 1` ; `create-release` devient `publish` : liste exacte des trois fichiers, `checksums.txt` et attestation sur les fichiers retéléchargés du brouillon, étiquette annotée sauf `draft=true`, `gh release edit --draft=false --latest`/`--prerelease` ; `softprops/action-gh-release` retiré ; `notify` lit `draft` et `publish`) ; `RELEASING.md` ; `.claude/skills/publier/SKILL.md` (brouillon repris, `sha256sum -c` des fichiers publiés) ; `docs/decisions.md` (DEC-73) ; `docs/analyse.md` (E-24 annoté) ; `docs/plan.md` |
+| **PR** | ci/release-draft-upload (#199) |
+| **Vérification** | `actionlint` 1.7.12 (shellcheck compris) vert. Contre-preuve : un `needs.create-release` resté dans `notify` est signalé. Essai à blanc sur la branche (run 43349266755) : builds verts, `draft` et `publish` sautés, artefacts expirant au bout d'un jour. Essai `version=0.5.1`, `prerelease=true`, `draft=true` (run 43405938037) : brouillon préversion `RC-0.5.1` sur `7f4d863`, exactement les quatre fichiers, aucune étiquette `RC-0.5.1` créée, `sha256sum -c` et `gh attestation verify` verts sur les trois livrables retéléchargés, notes = *Downloads* + #192 et #197 depuis v0.5.0 (les `RN: ignore` exclues) ; brouillon supprimé ensuite. Non essayés : la reprise d'un brouillon laissé par un passage raté, l'étiquette poussée et la publication publique, qui ne tournent qu'à une vraie version (`/publier`) |
+
 ### [2026-11-13] `pr-label.yml` lit les étiquettes au moment du passage, plus dans l'événement (DEC-72 amendée)
 
 | | |
