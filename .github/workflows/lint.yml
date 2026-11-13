@@ -32,6 +32,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     # Compares the sequence of heading levels, never the titles: the French
     # ones are translated, their shape is not. Fenced blocks are skipped so a
@@ -91,6 +93,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     - name: The hooks pass their check
       run: bash scripts/checks/hooks.sh
@@ -107,6 +111,34 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     - name: The ffmpeg lookup passes its check
       run: bash scripts/checks/outils.sh
+
+  # The workflows themselves: syntax, `${{ }}` expressions, action inputs, and every `run:`
+  # script through shellcheck (already on GitHub's Ubuntu runners). actionlint is a pinned
+  # binary checked against its SHA-256, read from actionlint_1.7.12_checksums.txt on
+  # 2026-11-11. Dependabot does not see this version (it is not an action): to move it,
+  # change the number AND the digest. Locally: the same three lines, then `actionlint`.
+  actionlint:
+    name: Workflows pass actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Lint the workflows
+      run: |
+        set -euo pipefail
+        v=1.7.12
+        curl -sSfL -o "$RUNNER_TEMP/actionlint.tar.gz" \
+          "https://github.com/rhysd/actionlint/releases/download/v$v/actionlint_${v}_linux_amd64.tar.gz"
+        echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+        tar xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+        "$RUNNER_TEMP/actionlint" -color

@@ -8,10 +8,25 @@ updates:
   # Port Rust (DEC-43). L'étiquette `dependencies` : .github/release.yml trie dessus.
   - package-ecosystem: "cargo"
     directory: "/"
+    # Minor and patch updates come as one pull request; a major one stays on its own.
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      cargo:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"

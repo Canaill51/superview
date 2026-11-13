@@ -1,0 +1,42 @@
+name: Audit
+
+# The dependency audit of rust.yml's "Rust coverage and audit" job, on its own: every
+# Monday and on demand. An advisory can be published against Cargo.lock without a line
+# changing here, and until now it waited for the next pull request to be seen. A failure
+# means a dependency to update (Dependabot often has the pull request open already), or a
+# reasoned, dated `ignore` in deny.toml -- never removing the step.
+#
+# Not a required check, and not dispatched by merge-on-label.yml: pull requests already
+# run the same two commands in rust.yml.
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    # The versions rust.yml pins, so both jobs read the lock file the same way.
+    - name: Install the audit tools
+      run: |
+        set -euo pipefail
+        cargo install --locked --version 0.22.2 cargo-audit
+        cargo install --locked --version 0.20.2 cargo-deny
+
+    - name: Audit the dependencies
+      run: cargo audit
+
+    - name: Check advisories and licences
+      run: cargo deny --locked check advisories bans licenses sources
