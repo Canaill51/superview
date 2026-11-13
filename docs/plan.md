@@ -8,7 +8,7 @@ qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de dé
 Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
 Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
 **En cours : l'alignement sur OpenTuneBox**, 7 étapes, une PR chacune (`~/.claude/plans/abstract-squishing-rabbit.md`) ;
-étapes 1 (#193) à 5 (#197) faites, 6 (hygiène CI : `actionlint`, `audit.yml` hebdomadaire, Dependabot cargo groupé) en PR, prochaine : l'étape 7 (publication sur le modèle de `construire.yml`). Le plugin attend du matériel pour Studio, Linux
+étapes 1 (#193) à 5 (#197) faites, 6 (#198, hygiène CI : `actionlint`, `audit.yml` hebdomadaire, Dependabot cargo groupé) en PR, prochaine : l'étape 7 (publication sur le modèle de `construire.yml`). Le plugin attend du matériel pour Studio, Linux
 et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 
 ## Comment s'en servir
