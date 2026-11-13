@@ -17,6 +17,13 @@ lto = "fat"
 codegen-units = 1
 strip = "symbols"
 
+# No `unsafe` in the application, the core or the harness: they read files from anywhere and hand
+# paths to ffmpeg, and only `unsafe` code could turn a malformed input into memory corruption. The
+# Resolve plugin is the exception, since OpenFX, CUDA and OpenCL are C interfaces: superview-ofx
+# lifts the ban in its lib.rs and in each test file that calls the drivers (DEC-65).
+[workspace.lints.rust]
+unsafe_code = "deny"
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 

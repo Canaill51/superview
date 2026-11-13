@@ -5,6 +5,9 @@
 //! kernel never ran. Every GPU the loader lists is tried, so one run covers an NVIDIA card and an
 //! Intel iGPU side by side.
 
+// The test drives the OpenCL loader directly, a C interface (the workspace denies `unsafe`).
+#![allow(unsafe_code)]
+
 use superview_ofx::opencl::{Buffer, Device, Library, PIXEL_BYTES, TestQueue, Warp};
 use superview_ofx::warp::{Mode, column_map, warp_row};
 
