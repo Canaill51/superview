@@ -16,4 +16,4 @@ les README à la racine) est en anglais (AGENTS.md, *The repository's language s
 | [tests-manuels.md](tests-manuels.md) | Développeurs | Ce que les tests automatiques ne voient pas : bureau, GPU, sélecteurs, Resolve |
 | [environnement.md](environnement.md) | Développeurs | Reconstruire le poste de vérification (rustup sans sudo, ffmpeg, outils de couverture) |
 | [hardware-support.md](hardware-support.md) | Utilisateurs, développeurs | Encodeurs matériels : sonde au démarrage, pilotes, repli (anglais) |
-| [archives/](archives/) | — | Textes sortis des journaux vivants, inchangés : analyse passes 3 à 13, corrections de l'ère Go, plans terminés du plugin OpenFX et de sa livraison |
+| [archives/](archives/) | — | Textes sortis des journaux vivants, inchangés : analyse passes 3 à 13, corrections de l'ère Go, plans terminés du plugin OpenFX, de sa livraison et de l'alignement sur OpenTuneBox |

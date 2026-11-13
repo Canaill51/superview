@@ -1356,6 +1356,15 @@ ligne qui porte un chemin, un nom de fichier temporaire ou toute autre partie al
 `grep -rnE '!\s*[a-z_\[\]0-9.()&]*\.contains\("-' crates --include=*.rs` — passé le 2026-10-26 : seuls restent les
 tests d'`encode/args/tests.rs`, dont les chemins sont fixes.
 
+### L-124 — Le contrôle de la doc ne lit que les fichiers suivis par git : un document neuf n'est vérifié qu'après `git add` — 2026-11-13
+`docs/archives/plan-alignement-otb.md`, créé pour #200, citait le numéro d'une leçon d'OpenTuneBox.
+`cargo test -p superview-app -- docs_guards`, lancé avant le `git add`, est passé (12 sur 12) ; la CI de la PR a
+rougi sur `every_cited_number_exists` sous Linux, Windows et la couverture. `docs_guards.rs` parcourt
+`git ls-files` : un fichier non suivi n'existe pas pour lui, et un vert local sur un document neuf ne prouve rien.
+→ **Après avoir créé un document, `git add` puis relancer `docs_guards`** (le hook de pré-commit le fait, mais
+après le commit écrit). Et ne pas citer les numéros d'un autre dépôt (`L-`, `D-`) : écrire « leçon
+d'OpenTuneBox », comme DEC-72. Relancé le 2026-11-13 après `git add` : vert.
+
 ## 3. Corrections appliquées
 
 > Déplacé, texte inchangé, dans [corrections.md](corrections.md). **Les nouvelles entrées s'ajoutent là-bas.**

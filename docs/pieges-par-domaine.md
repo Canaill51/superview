@@ -140,6 +140,7 @@ domaine. Les pièges valables pour tous les projets vont aussi dans `~/.claude/p
 - Un chiffre dans de la prose est un test sans assertion : il vieillit sans rien casser. L-98
 - Une convention non écrite n'est pas une convention. L-47
 - Une leçon dont le remède est une commande se termine en exécutant la commande. L-59
+- Le contrôle de la doc ne voit que les fichiers suivis : `git add` avant de le lancer sur un document neuf ; pas de numéro d'un autre dépôt. L-124
 
 ## Méthode (toute tâche)
 

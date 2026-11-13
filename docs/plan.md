@@ -7,8 +7,8 @@ qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de dé
 **État au 2026-11-13** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
 Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
 Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
-**En cours : l'alignement sur OpenTuneBox**, 7 étapes, une PR chacune (`~/.claude/plans/abstract-squishing-rabbit.md`) ;
-étapes 1 (#193) à 6 (#198) faites, 7 (publication par la page Releases en brouillon, DEC-73) en PR, à vérifier par deux essais du workflow. Le plugin attend du matériel pour Studio, Linux
+**Alignement sur OpenTuneBox terminé** le 2026-11-13 : 7 étapes, #193 à #199 ([archives/plan-alignement-otb.md](archives/plan-alignement-otb.md)).
+La publication passe désormais par la page Releases en brouillon (DEC-73) : la prochaine version demande d'abord un essai à blanc sur `master` (L-114). Le plugin attend du matériel pour Studio, Linux
 et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 
 ## Comment s'en servir
@@ -86,9 +86,9 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | OFX Lot 6 = Livraison | 2026-10-28 | Archive Windows du plugin à chaque version (DEC-69, #188), README (#189), v0.5.0 publiée et installée à la main | [archives/plan-livraison.md](archives/plan-livraison.md) |
 | Audit de sécurité | 2026-11-11 | DLL GPU depuis System32, versions immuables et attestées, permissions de Claude Code (DEC-70, #192) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 1 | 2026-11-12 | Documents de `docs/` en minuscules, index `docs/README.md` (#193) | [corrections.md](corrections.md) |
-| Alignement OTB, étape 2 | 2026-11-12 | Ce plan unique (fusion de `SUITE`, `PLAN-OFX`, `PLAN-LIVRAISON`), pièges rangés par domaine (DEC-71) | [corrections.md](corrections.md) |
+| Alignement OTB, étape 2 | 2026-11-12 | Ce plan unique (fusion de `SUITE`, `PLAN-OFX`, `PLAN-LIVRAISON`), pièges rangés par domaine (DEC-71, #194) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 3 | 2026-11-12 | Contrôle automatique de la doc (`docs_guards.rs`), compétence `docs-sync`, section Claude Code de `CLAUDE.md` (#195) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 4 | 2026-11-12 | `CONTRIBUTING.md` (absorbe l'ancien `MERGING.md`), modèles d'issue et de PR, étiquettes `RN:` contrôlées par `pr-label.yml`, plus de rubrique `"*"` (DEC-72, #196) | [corrections.md](corrections.md) |
-| Alignement OTB, étape 5 | 2026-11-12 | `unsafe` interdit hors du plugin, `deny.toml` (`yanked`, `wildcards`, `bans` en CI), `SECURITY.md` (portée, intégrité), garde-fou qui voit `git -C` et `sh -c` (DEC-70 amendée) | [corrections.md](corrections.md) |
-| Alignement OTB, étape 6 | 2026-11-13 | Hygiène CI : job `actionlint` (binaire épinglé par SHA-256), `audit.yml` chaque lundi, Dependabot cargo groupé (lundi, Europe/Paris), `persist-credentials: false`, bundle OFX gardé 7 jours | [corrections.md](corrections.md) |
-| Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73) | [corrections.md](corrections.md) |
+| Alignement OTB, étape 5 | 2026-11-12 | `unsafe` interdit hors du plugin, `deny.toml` (`yanked`, `wildcards`, `bans` en CI), `SECURITY.md` (portée, intégrité), garde-fou qui voit `git -C` et `sh -c` (DEC-70 amendée, #197) | [corrections.md](corrections.md) |
+| Alignement OTB, étape 6 | 2026-11-13 | Hygiène CI : job `actionlint` (binaire épinglé par SHA-256), `audit.yml` chaque lundi, Dependabot cargo groupé (lundi, Europe/Paris), `persist-credentials: false`, bundle OFX gardé 7 jours (#198) | [corrections.md](corrections.md) |
+| Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73, #199) | [corrections.md](corrections.md) |
