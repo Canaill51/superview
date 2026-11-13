@@ -15,7 +15,8 @@ that no pull request you are waiting for is still open, and that the release
 workflow has been tried since it last changed (L-114); it proposes the version
 and shows the notes; **it dispatches the run only after your yes to that exact
 version**; then it watches the run and checks that the installer, the AppImage,
-the plugin archive and `checksums.txt` are on the release.
+the plugin archive and `checksums.txt` are on the release, and that each file
+matches its line in `checksums.txt`.
 
 It never tags and never runs `gh release create`: both are denied in
 `.claude/settings.json`, because the workflow tags only after both platforms
@@ -118,19 +119,32 @@ dev (7a74276, modified)       built locally, uncommitted changes
 | | What it does |
 | --- | --- |
 | **Run workflow, with a version** | The normal path. Tests, builds, tags, publishes. |
-| **Run workflow, version left empty** | A dry run: builds both platforms and the plugin, tags nothing, publishes nothing. Use it to try a change to the workflow without spending a version number. |
+| **Run workflow, version left empty** | A dry run: builds both platforms and the plugin, tags nothing, publishes nothing. The three files can be downloaded from the run's page for one day. Use it to try a change to the workflow without spending a version number. |
 | **`git push` an annotated tag** | The escape hatch, and the way to write your own notes. The release stops at a draft. |
 
 Two checkboxes sit next to the version field: **draft** stops before
 publishing, and **prerelease** tags `RC-x.y.z` instead of `vx.y.z` and marks
-the release as a pre-release.
+the release as a pre-release. A run that stops at a draft pushes **no tag**: the
+tag ruleset refuses deleting one, so a draft thrown away would otherwise leave a
+tag behind for good. Publishing that draft by hand lets GitHub create the tag, on
+the commit the run built.
 
 ## What the run guarantees, and what it does not
+
+**How the files travel** (DEC-73). Never through GitHub's artifact storage, whose
+quota a release would fill. Once the tests pass, the `draft` job opens the release
+page as a draft, with its notes. Each build job uploads its own file to it
+(`gh release upload --clobber`). The `publish` job then checks that the draft
+holds exactly the three expected files, downloads them back, writes and attaches
+`checksums.txt`, attests them, pushes the tag and makes the release public. A
+draft left by a failed run is reused by the next run of the same version, emptied
+first. The build jobs hold a write token for that upload: their checkout keeps no
+token in `.git/config`, and only the upload step receives one, in its environment.
 
 The tag is created only after both platforms and the plugin have built, so a
 failed Windows build cannot burn a version number. Before anything is built, the run refuses a
 version that is not `x.y.z` and a tag that already exists. Checksums are
-generated from the uploaded artifacts with bare filenames, so the
+generated from the files as they sit on the draft, with bare filenames, so the
 `sha256sum -c checksums.txt` the notes advertise works on the files as
 downloaded. Each built binary is inspected and rejected if its readable marker
 (`SUPERVIEW-BUILD version=… revision=… modified=…`) says `modified=true` or
@@ -197,7 +211,7 @@ The Windows installer is not signed (SmartScreen will warn). The installer's
 over an old one.
 
 Each installer, AppImage and plugin archive also gets a provenance attestation
-(`actions/attest`, in `create-release`, before the tag): signed by Sigstore for
+(`actions/attest`, in `publish`, before the tag): signed by Sigstore for
 this workflow, commit and run, and kept by GitHub apart from the release, so
 `gh attestation verify <file> --repo Canaill51/superview` tells a file built
 here from one swapped in afterwards, which `checksums.txt` cannot (DEC-70).
@@ -206,9 +220,8 @@ here from one swapped in afterwards, which `checksums.txt` cannot (DEC-70).
 release's files and its tag can no longer change, and the tag ruleset refuses
 deleting or moving a `v*` or `RC-*` tag. A wrong file is fixed by a new version,
 never by replacing it. A draft can still be edited, so a hand-pushed tag, which
-stops at a draft, is unaffected. A prerelease goes up as a draft and is published
-by the next step once its files are on: the release action uploads after
-publishing a prerelease, which immutability refuses.
+stops at a draft, is unaffected. Every release, prerelease included, is built up as
+a draft and published only once its four files are on (DEC-73).
 
 ## Bumping the bundled FFmpeg
 

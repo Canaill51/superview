@@ -4,11 +4,11 @@
 qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de début de session affiche les
 15 premières lignes de ce fichier.
 
-**État au 2026-11-12** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
+**État au 2026-11-13** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
 Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
 Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
 **En cours : l'alignement sur OpenTuneBox**, 7 étapes, une PR chacune (`~/.claude/plans/abstract-squishing-rabbit.md`) ;
-étapes 1 (#193) à 5 (#197) faites, 6 (#198, hygiène CI : `actionlint`, `audit.yml` hebdomadaire, Dependabot cargo groupé) en PR, prochaine : l'étape 7 (publication sur le modèle de `construire.yml`). Le plugin attend du matériel pour Studio, Linux
+étapes 1 (#193) à 6 (#198) faites, 7 (publication par la page Releases en brouillon, DEC-73) en PR, à vérifier par deux essais du workflow. Le plugin attend du matériel pour Studio, Linux
 et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 
 ## Comment s'en servir
@@ -91,3 +91,4 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | Alignement OTB, étape 4 | 2026-11-12 | `CONTRIBUTING.md` (absorbe l'ancien `MERGING.md`), modèles d'issue et de PR, étiquettes `RN:` contrôlées par `pr-label.yml`, plus de rubrique `"*"` (DEC-72, #196) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 5 | 2026-11-12 | `unsafe` interdit hors du plugin, `deny.toml` (`yanked`, `wildcards`, `bans` en CI), `SECURITY.md` (portée, intégrité), garde-fou qui voit `git -C` et `sh -c` (DEC-70 amendée) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 6 | 2026-11-13 | Hygiène CI : job `actionlint` (binaire épinglé par SHA-256), `audit.yml` chaque lundi, Dependabot cargo groupé (lundi, Europe/Paris), `persist-credentials: false`, bundle OFX gardé 7 jours | [corrections.md](corrections.md) |
+| Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73) | [corrections.md](corrections.md) |
