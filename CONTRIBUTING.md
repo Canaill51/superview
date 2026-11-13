@@ -89,7 +89,7 @@ change and loses the record of it. One commit did exactly that and appears in no
 release. A repository ruleset now refuses the direct push rather than trusting
 this paragraph, and holds the required checks in front of every merge: *README
 parity (EN/FR)*, *Rust on ubuntu-latest*, *Rust on windows-latest*, *Rust
-coverage and audit* and *pr-label*.
+coverage and audit*, *pr-label* and *Workflows pass actionlint*.
 
 **Put the `merge` label on it, and stop there.**
 [`merge-on-label.yml`](.github/workflows/merge-on-label.yml) works out which
