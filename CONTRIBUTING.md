@@ -72,7 +72,9 @@ A security issue does not go in a public issue: see [SECURITY.md](SECURITY.md).
 
    The [`pr-label.yml`](.github/workflows/pr-label.yml) check stays red until
    the pull request has exactly one `RN: …` label and a sentence for a title;
-   it runs again when either changes. A pull request with no `RN:` label would
+   it runs again when either changes. It reads the labels when it runs, not
+   as the opening event saw them, so a label `gh pr create --label` adds a
+   second after creating the pull request counts for the first run too. A pull request with no `RN:` label would
    simply be missing from the notes: [`.github/release.yml`](.github/release.yml)
    has no catch-all section, on purpose.
 

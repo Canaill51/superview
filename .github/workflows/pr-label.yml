@@ -11,14 +11,18 @@ name: PR label
 # It runs again when a label is added or removed, the title changes or a commit
 # is pushed: the required check of the master ruleset reads the latest commit.
 #
-# No checkout and no permission: everything comes from the event. The title and
-# the labels reach the script through env:, never through ${{ }} inside it --
-# anyone can write a title, and it would run as bash.
+# No checkout. The title comes from the event, through env:, never through
+# ${{ }} inside the script -- anyone can write a title, and it would run as bash.
+# The labels are read from the API when the run starts, not from the event: the
+# event holds them as they were when it fired, and a pull request opened then
+# labelled a second later (`gh pr create --label` does it in two calls) left a
+# failed "opened" run behind, reading no label (run 43342023224, #198).
 on:
   pull_request:
     types: [opened, edited, labeled, unlabeled, synchronize, reopened]
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 # Opening a pull request and labelling it within the same second starts two runs
 # that finish together, and GitHub may keep the first one's failure (read without
@@ -36,9 +40,13 @@ jobs:
       - name: One RN label and a sentence for a title
         env:
           TITLE: ${{ github.event.pull_request.title }}
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
+          LABELS=$(gh api "repos/$REPO/issues/$PR/labels" --jq '[.[].name]')
           # The same labels as the sections and exclusions of .github/release.yml
           # (crates/superview-app/src/repo_guards.rs compares them).
           known='["RN: major feature","RN: feature","RN: improvement","RN: security","RN: refactor","RN: fix","RN: ignore"]'
