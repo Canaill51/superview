@@ -274,6 +274,7 @@ jobs:
           printf -- '- Windows: `superview-%s-windows-x86_64-setup.exe`\n' "$TAG"
           printf -- '- Linux (Ubuntu 24.04+): `superview-%s-linux-x86_64.AppImage`\n' "$TAG"
           printf -- '- DaVinci Resolve plugin (Windows): `superview-ofx-%s-windows-x86_64.zip`\n' "$TAG"
+          printf -- '- DaVinci Resolve plugin (Linux, glibc 2.34+): `superview-ofx-%s-linux-x86_64.zip`\n' "$TAG"
           printf '\n### Verify integrity\n\n'
           printf '```bash\nsha256sum -c checksums.txt\n```\n'
           printf '\nTo check that a file was built by the release workflow of this repository:\n\n'
@@ -522,9 +523,8 @@ jobs:
         retention-days: 1
 
   # The OpenFX plugin for DaVinci Resolve, as a zip of the Superview.ofx.bundle folder that the
-  # user copies into C:\Program Files\Common Files\OFX\Plugins (DEC-69). Windows only: the Linux
-  # bundle stays a CI artifact of rust.yml until Resolve has been tried on Linux. A job of its
-  # own, so it builds while the installer does.
+  # user copies into C:\Program Files\Common Files\OFX\Plugins (DEC-69). A job of its own, so it
+  # builds while the installer does. build-ofx-linux below is its Linux twin.
   build-ofx-windows:
     name: Build the Resolve plugin (Windows)
     needs: [prepare, test, draft]
@@ -578,6 +578,61 @@ jobs:
       with:
         name: ofx-windows-artifacts
         path: superview-ofx-${{ needs.prepare.outputs.label }}-windows-x86_64.zip
+        if-no-files-found: error
+        retention-days: 1
+
+  # The same plugin for Resolve on Linux, copied into /usr/OFX/Plugins (DEC-69, amended
+  # 2026-11-15 once Resolve Studio 21.1 had loaded it, with CUDA and OpenCL). Built on
+  # ubuntu-latest like the AppImage; what it demands of the user's system is its glibc symbol
+  # versions, held at or below 2.34 by check_bundle_zip.sh (Ubuntu 22.04, Debian 12, Rocky 9).
+  build-ofx-linux:
+    name: Build the Resolve plugin (Linux)
+    needs: [prepare, test, draft]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # No token in .git/config while third-party build scripts run (see the top of the file).
+        persist-credentials: false
+
+    # No cargo cache (DEC-47). bindgen (ofx_sys) finds the runner's libclang, as in rust.yml's
+    # ofx-bundle job; build_bundle.sh points it at gcc's stdbool.h.
+    - name: Build the bundle
+      run: sh packaging/ofx/build_bundle.sh
+
+    # A zip, like the Windows archive: one way to unpack for both, and a library that dlopen
+    # reads needs no execute bit to survive the trip.
+    - name: Zip the bundle
+      env:
+        LABEL: ${{ needs.prepare.outputs.label }}
+      run: |
+        set -euo pipefail
+        ( cd target/ofx && zip -qr "../../superview-ofx-${LABEL}-linux-x86_64.zip" Superview.ofx.bundle )
+        ls -l superview-ofx-*-linux-x86_64.zip
+
+    # The layout, the two entry points and the glibc floor, on the zip a user downloads.
+    - name: The archive must hold a plugin Resolve can load
+      run: sh packaging/ofx/check_bundle_zip.sh superview-ofx-*-linux-x86_64.zip
+
+    - name: Upload the plugin archive to the draft release
+      if: needs.prepare.outputs.release == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ needs.prepare.outputs.tag }}
+      run: gh release upload "$TAG" "superview-ofx-${TAG}-linux-x86_64.zip" --clobber
+
+    - name: Keep the plugin archive for a day (dry run)
+      if: needs.prepare.outputs.release != 'true'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ofx-linux-artifacts
+        path: superview-ofx-${{ needs.prepare.outputs.label }}-linux-x86_64.zip
         if-no-files-found: error
         retention-days: 1
 
@@ -819,7 +874,7 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: [prepare, draft, build-gui-windows, build-ofx-windows, build-gui-linux]
+    needs: [prepare, draft, build-gui-windows, build-ofx-windows, build-ofx-linux, build-gui-linux]
     runs-on: ubuntu-latest
     if: needs.prepare.outputs.release == 'true'
     # Pushes the tag and publishes the release. The other three are for the provenance
@@ -838,10 +893,10 @@ jobs:
       with:
         fetch-depth: 0
 
-    # Exactly the three files, by name: one missing is a build whose upload did not happen,
+    # Exactly the four files, by name: one missing is a build whose upload did not happen,
     # one extra is something that has no business in a release. Everything after this --
     # checksums, attestation, tag -- describes this list and no other.
-    - name: The draft must hold exactly the three files
+    - name: The draft must hold exactly the four files
       env:
         GH_TOKEN: ${{ github.token }}
         GH_REPO: ${{ github.repository }}
@@ -852,10 +907,11 @@ jobs:
         printf '%s\n' \
           "superview-${TAG}-linux-x86_64.AppImage" \
           "superview-${TAG}-windows-x86_64-setup.exe" \
+          "superview-ofx-${TAG}-linux-x86_64.zip" \
           "superview-ofx-${TAG}-windows-x86_64.zip" | LC_ALL=C sort > "${RUNNER_TEMP}/expected.txt"
         echo "=== On the draft ===" && cat "${RUNNER_TEMP}/assets.txt"
         if ! diff "${RUNNER_TEMP}/expected.txt" "${RUNNER_TEMP}/assets.txt"; then
-          echo "::error::the draft ${TAG} does not hold exactly the three expected files"
+          echo "::error::the draft ${TAG} does not hold exactly the four expected files"
           exit 1
         fi
 
@@ -920,7 +976,7 @@ jobs:
 
     # Releases are immutable on this repository (DEC-70): once published, nothing can be
     # attached to them, which is why every file went onto the draft first. Published last,
-    # with all four files on, as the latest release or as a prerelease.
+    # with all five files on (the four builds and checksums.txt), as the latest release or as a prerelease.
     - name: Publish the draft
       env:
         GH_TOKEN: ${{ github.token }}
@@ -931,7 +987,7 @@ jobs:
       run: |
         set -euo pipefail
         if [ "$DRAFT" = "true" ]; then
-          echo "Asked to stop at a draft: ${TAG} stays a draft, with its four files."
+          echo "Asked to stop at a draft: ${TAG} stays a draft, with its five files."
         elif [ "$PRERELEASE" = "true" ]; then
           gh release edit "$TAG" --draft=false --prerelease
         else
@@ -941,7 +997,7 @@ jobs:
 
   notify:
     name: Notify Release Status
-    needs: [prepare, test, draft, build-gui-windows, build-ofx-windows, build-gui-linux, publish]
+    needs: [prepare, test, draft, build-gui-windows, build-ofx-windows, build-ofx-linux, build-gui-linux, publish]
     runs-on: ubuntu-latest
     if: always()
 
@@ -962,6 +1018,7 @@ jobs:
         DRAFT_PAGE: ${{ needs.draft.result }}
         WINDOWS: ${{ needs.build-gui-windows.result }}
         PLUGIN: ${{ needs.build-ofx-windows.result }}
+        PLUGIN_LINUX: ${{ needs.build-ofx-linux.result }}
         LINUX: ${{ needs.build-gui-linux.result }}
         RELEASE: ${{ needs.publish.result }}
         PLANNED: ${{ needs.prepare.outputs.release }}
@@ -973,13 +1030,13 @@ jobs:
         echo "Tests:          ${TESTS}"
         echo "Draft page:     ${DRAFT_PAGE}"
         echo "Windows build:  ${WINDOWS}"
-        echo "Plugin build:   ${PLUGIN}"
+        echo "Plugin build:   ${PLUGIN} (Windows), ${PLUGIN_LINUX} (Linux)"
         echo "Linux build:    ${LINUX}"
         echo "Release:        ${RELEASE}"
         echo ""
 
         failed=0
-        for result in "$PLAN" "$TESTS" "$WINDOWS" "$PLUGIN" "$LINUX"; do
+        for result in "$PLAN" "$TESTS" "$WINDOWS" "$PLUGIN" "$PLUGIN_LINUX" "$LINUX"; do
           [ "$result" = "success" ] || failed=1
         done
 

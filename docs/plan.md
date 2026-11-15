@@ -4,12 +4,13 @@
 qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de début de session affiche les
 15 premières lignes de ce fichier.
 
-**État au 2026-11-13** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
+**État au 2026-11-15** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
 Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
 Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
 **Alignement sur OpenTuneBox terminé** le 2026-11-13 : 7 étapes, #193 à #199 ([archives/plan-alignement-otb.md](archives/plan-alignement-otb.md)).
-La publication passe désormais par la page Releases en brouillon (DEC-73) : la prochaine version demande d'abord un essai à blanc sur `master` (L-114). Le plugin attend du matériel pour Studio, Linux
-et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
+La publication passe désormais par la page Releases en brouillon (DEC-73) : la prochaine version demande d'abord un essai à blanc sur `master` (L-114). **Plugin sous Linux** essayé dans Resolve Studio
+(RTX 4070, CUDA et OpenCL) le 2026-11-15 : la prochaine version publie aussi son archive Linux (DEC-69 amendée).
+Le plugin attend du matériel pour Studio sous Windows et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 
 ## Comment s'en servir
 
@@ -37,9 +38,10 @@ et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
 Elles ne bloquent pas la livraison (DEC-69) ; le README les dit non essayées.
 
 - [ ] **Resolve Studio** (Windows) : chargement, CUDA, vitesse. Demande une licence ou un poste qui l'a.
-- [ ] **Resolve sous Linux** (poste KDE, NVIDIA et Intel) : chargement depuis `/usr/OFX/Plugins`, CUDA,
-      OpenCL. Puis publier l'archive Linux (DEC-69). À vérifier et documenter : Resolve **gratuit** sous Linux
-      ne décoderait pas le H.264/H.265 ni l'AAC (limite de Resolve, pas du plugin).
+- [ ] **Archive Linux de la prochaine version** : la télécharger depuis la page publiée, la décompresser dans
+      `/usr/OFX/Plugins` et appliquer l'effet (essai à blanc d'abord, L-114).
+- [ ] **Resolve gratuit sous Linux** : non essayé ; il ne décode ni le H.264 ni le H.265 (limite de Resolve,
+      écrite dans les README). L'AAC n'a pas été vérifié.
 - [ ] **AMD** : pas de matériel ; reste « non vérifié », comme AMF pour l'application.
 - [ ] À surveiller : deux plantages de Resolve en OpenCL au passage à Deliver, dans le pilote OpenGL de
       NVIDIA, non reproduits ni avec ni sans le plugin, non imputés au plugin.
@@ -55,7 +57,7 @@ Les arbitrages à ne pas rouvrir sans leur condition sont dans [decisions.md](de
 AGENTS.md). Écartés en cours de plan :
 
 - **Le plugin dans l'installateur Windows** : téléchargement séparé à la place (DEC-69, 2026-10-28).
-- **Une archive Linux du plugin** tant que Resolve n'a pas été essayé sous Linux (DEC-69).
+- **Un plugin Linux pour Rocky 8** (glibc 2.28) : le plancher reste 2.34, choisi le 2026-11-15 (DEC-69 amendée).
 - **Une version du plugin tirée de `SUPERVIEW_VERSION`** : `PluginVersion(1, 0)` reste fixe (DEC-69).
 
 ## À savoir
@@ -92,3 +94,4 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | Alignement OTB, étape 5 | 2026-11-12 | `unsafe` interdit hors du plugin, `deny.toml` (`yanked`, `wildcards`, `bans` en CI), `SECURITY.md` (portée, intégrité), garde-fou qui voit `git -C` et `sh -c` (DEC-70 amendée, #197) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 6 | 2026-11-13 | Hygiène CI : job `actionlint` (binaire épinglé par SHA-256), `audit.yml` chaque lundi, Dependabot cargo groupé (lundi, Europe/Paris), `persist-credentials: false`, bundle OFX gardé 7 jours (#198) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73, #199) | [corrections.md](corrections.md) |
+| Plugin sous Linux | 2026-11-15 | Essai dans Resolve Studio 21.1 (Ubuntu 26.04, RTX 4070 : CUDA, OpenCL, lecture 4K, export), archive `superview-ofx-<tag>-linux-x86_64.zip` dans `release.yml`, plancher glibc 2.34 contrôlé (DEC-69 amendée) | [tests-manuels.md](tests-manuels.md) |
