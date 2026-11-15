@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-15] Le plugin Resolve est aussi publié pour Linux, plancher glibc 2.34 contrôlé (DEC-69 amendée)
+
+| | |
+| --- | --- |
+| **Constat** | Le plugin n'était livré qu'en archive Windows : DEC-69 attendait un essai de Resolve sous Linux, que personne n'avait le matériel pour faire |
+| **Cause** | condition de réouverture de DEC-69 remplie : Resolve Studio 21.1 sous Ubuntu 26.04, RTX 4070, a chargé le bundle et rendu en CUDA et en OpenCL (`docs/tests-manuels.md`). Le code du plugin était déjà portable (`libcuda.so.1`, `libOpenCL.so.1` chargés à l'exécution) : rien n'y change |
+| **Fichiers** | `.github/workflows/release.yml` (job `build-ofx-linux`, ligne *Downloads*, liste exacte de quatre fichiers dans `publish`, `notify`) ; `packaging/ofx/check_bundle_zip.sh` (plateforme lue dans le nom, exports par `objdump -T` sous Linux, plancher `GLIBC_FLOOR=2.34`) ; `.github/workflows/rust.yml` (commentaire) ; `README.md`, `README_FR.md` ; `RELEASING.md` ; `AGENTS.md` ; `THIRD_PARTY_NOTICES.md` ; `.claude/skills/publier/SKILL.md` ; `docs/decisions.md` (DEC-69) ; `docs/hardware-support.md` ; `docs/architecture.md` ; `docs/environnement.md` ; `docs/tests-manuels.md` ; `docs/plan.md` |
+| **PR** | ofx-linux-archive |
+| **Vérification** | `SUPERVIEW_REQUIRE_CUDA=1 SUPERVIEW_REQUIRE_OPENCL=1 cargo test -p superview-ofx` vert sur la RTX 4070. `check_bundle_zip.sh` vert sur le zip Linux local (glibc demandée : 2.34). Contre-preuves : plancher abaissé à 2.33, bibliothèque sans exports (`libgcc_s` renommée), dossier `Win64` dans une archive Linux, nom sans plateforme : chacune rougit. La branche Windows du script (sortie de `llvm-readobj` relue par `sed`) n'a pas d'`llvm-readobj` ici : éprouvée par l'essai à blanc de `release.yml` sur la branche |
+
 ### [2026-11-13] Les fichiers d'une version passent par la page Releases en brouillon, plus par les artefacts (alignement sur OpenTuneBox, étape 7, DEC-73)
 
 | | |

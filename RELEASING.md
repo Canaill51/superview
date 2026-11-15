@@ -15,7 +15,7 @@ that no pull request you are waiting for is still open, and that the release
 workflow has been tried since it last changed (L-114); it proposes the version
 and shows the notes; **it dispatches the run only after your yes to that exact
 version**; then it watches the run and checks that the installer, the AppImage,
-the plugin archive and `checksums.txt` are on the release, and that each file
+the two plugin archives and `checksums.txt` are on the release, and that each file
 matches its line in `checksums.txt`.
 
 It never tags and never runs `gh release create`: both are denied in
@@ -119,7 +119,7 @@ dev (7a74276, modified)       built locally, uncommitted changes
 | | What it does |
 | --- | --- |
 | **Run workflow, with a version** | The normal path. Tests, builds, tags, publishes. |
-| **Run workflow, version left empty** | A dry run: builds both platforms and the plugin, tags nothing, publishes nothing. The three files can be downloaded from the run's page for one day. Use it to try a change to the workflow without spending a version number. |
+| **Run workflow, version left empty** | A dry run: builds both platforms and the plugin, tags nothing, publishes nothing. The four files can be downloaded from the run's page for one day. Use it to try a change to the workflow without spending a version number. |
 | **`git push` an annotated tag** | The escape hatch, and the way to write your own notes. The release stops at a draft. |
 
 Two checkboxes sit next to the version field: **draft** stops before
@@ -156,7 +156,7 @@ longer than a plain release build; that is the price of a binary a third smaller
 
 **What the release builds** (DEC-47): the Rust binary, `cargo build --release
 --locked -p superview-app`, and the Resolve plugin, `sh packaging/ofx/build_bundle.sh`
-(`cargo build --release --locked -p superview-ofx`); nothing more is compiled. Before anything is built, the
+(`cargo build --release --locked -p superview-ofx`) on Windows and on Linux; nothing more is compiled. Before anything is built, the
 `test` job runs `cargo fmt`, `clippy`, the test suite with
 `SUPERVIEW_REQUIRE_FFMPEG=1` under `cargo llvm-cov` (at least 50 % of lines) and
 `cargo audit`; the two cargo tools are installed at a pinned version.
@@ -184,16 +184,18 @@ Each download is also tried, not just built:
   to confirm all three came from the image. The CI cannot catch a version mismatch with a
   newer system `libxkbcommon`: before a release, also run the AppImage by hand on a machine
   whose system `libxkbcommon` is newer than the image's (DEC-47).
-- **DaVinci Resolve plugin (Windows only).** `superview-ofx-<tag>-windows-x86_64.zip`
-  must hold `Superview.ofx.bundle` and nothing else at its root
-  (`packaging/ofx/check_bundle_zip.sh`): the DLL, `Info.plist`, `LICENSE` and
-  `THIRD_PARTY_NOTICES.md` are there, and the DLL exports `OfxGetPlugin` and
-  `OfxGetNumberOfPlugins`, the two functions Resolve calls at load. It is **not
-  loaded**: a runner has no Resolve. On a release that matters, unzip it into
-  `C:\Program Files\Common Files\OFX\Plugins`, restart Resolve and apply the
-  effect to a clip. Its plugin version is a fixed 1.0, not the release's, so a
-  published plugin does not say which release it came from (DEC-69). No Linux
-  archive: that bundle stays a CI artifact of `rust.yml`.
+- **DaVinci Resolve plugin (Windows and Linux).** `superview-ofx-<tag>-windows-x86_64.zip`
+  and `superview-ofx-<tag>-linux-x86_64.zip` must each hold `Superview.ofx.bundle` and
+  nothing else at their root (`packaging/ofx/check_bundle_zip.sh`): the library (under
+  `Contents/Win64` or `Contents/Linux-x86-64`), `Info.plist`, `LICENSE` and
+  `THIRD_PARTY_NOTICES.md` are there, and the library exports `OfxGetPlugin` and
+  `OfxGetNumberOfPlugins`, the two functions Resolve calls at load. The Linux library must
+  also ask for no glibc newer than **2.34** (Ubuntu 22.04, Debian 12, Rocky 9): the check
+  reads its symbol versions, and fails the run if a newer toolchain or dependency raises
+  them. Neither is **loaded**: a runner has no Resolve. On a release that matters, unzip one
+  into `C:\Program Files\Common Files\OFX\Plugins` or `/usr/OFX/Plugins`, restart Resolve
+  and apply the effect to a clip. Its plugin version is a fixed 1.0, not the release's, so a
+  published plugin does not say which release it came from (DEC-69).
 
 The version the binary claims is checked by the build marker (see above, DEC-47).
 Not checked automatically: anything that needs a real GPU or a real desktop. Downloading the
@@ -221,7 +223,7 @@ release's files and its tag can no longer change, and the tag ruleset refuses
 deleting or moving a `v*` or `RC-*` tag. A wrong file is fixed by a new version,
 never by replacing it. A draft can still be edited, so a hand-pushed tag, which
 stops at a draft, is unaffected. Every release, prerelease included, is built up as
-a draft and published only once its four files are on (DEC-73).
+a draft and published only once its five files are on (DEC-73).
 
 ## Bumping the bundled FFmpeg
 

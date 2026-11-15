@@ -20,7 +20,7 @@ s'élargissent.
 > Superview est distribué et maintenu comme une application **à interface
 > graphique uniquement**.
 > La même distorsion existe aussi dans DaVinci Resolve, sous forme d'un
-> [plugin pour Windows](#plugin-pour-davinci-resolve-windows) séparé.
+> [plugin pour Windows et Linux](#plugin-pour-davinci-resolve-windows-et-linux) séparé.
 
 ## Téléchargement et installation
 
@@ -223,7 +223,7 @@ duquel il a été construit, et si l'arbre était modifié — dans le titre de 
 fenêtre, la première ligne du rapport Diagnostic et le journal au démarrage.
 Citez-la dans tout rapport de bug.
 
-## Plugin pour DaVinci Resolve (Windows)
+## Plugin pour DaVinci Resolve (Windows et Linux)
 
 La même distorsion, appliquée dans DaVinci Resolve comme un effet sur un clip :
 plus de fichier à convertir d'abord. C'est un téléchargement séparé de
@@ -237,21 +237,36 @@ réglages s'y affichent ; une interface de Resolve en français traduit les menu
 
 1. Fermez DaVinci Resolve.
 2. Dans la **[dernière version](https://github.com/Canaill51/superview/releases/latest)**,
-   téléchargez le fichier dont le nom se termine par **`-windows-x86_64.zip`**
-   (`superview-ofx-<version>-windows-x86_64.zip`). Il figure dans
-   `checksums.txt` comme les autres téléchargements
+   téléchargez le fichier de votre système : celui dont le nom se termine par
+   **`-windows-x86_64.zip`** (`superview-ofx-<version>-windows-x86_64.zip`) ou
+   par **`-linux-x86_64.zip`** (`superview-ofx-<version>-linux-x86_64.zip`). Il
+   figure dans `checksums.txt` comme les autres téléchargements
    ([Vérifier votre téléchargement](#vérifier-votre-téléchargement)).
 3. Décompressez-le où vous voulez. Il contient un seul dossier,
    `Superview.ofx.bundle`.
-4. Déplacez ce dossier dans `C:\Program Files\Common Files\OFX\Plugins`, en
-   créant `OFX\Plugins` s'il n'existe pas. Windows demande une confirmation
-   d'administrateur, parce que le dossier est sous `Program Files`. Le résultat
-   doit être `C:\Program Files\Common Files\OFX\Plugins\Superview.ofx.bundle`,
-   pas un dossier imbriqué un niveau plus bas.
+4. Déplacez ce dossier dans le dossier des plugins OpenFX de Resolve :
+   - **Windows** : `C:\Program Files\Common Files\OFX\Plugins`, en créant
+     `OFX\Plugins` s'il n'existe pas. Windows demande une confirmation
+     d'administrateur, parce que le dossier est sous `Program Files`. Le
+     résultat doit être
+     `C:\Program Files\Common Files\OFX\Plugins\Superview.ofx.bundle`, pas un
+     dossier imbriqué un niveau plus bas.
+   - **Linux** : `/usr/OFX/Plugins`, en root, depuis le dossier où vous avez
+     décompressé l'archive :
+
+     ```bash
+     sudo mkdir -p /usr/OFX/Plugins
+     sudo cp -r Superview.ofx.bundle /usr/OFX/Plugins/
+     ```
+
+     Le résultat doit être `/usr/OFX/Plugins/Superview.ofx.bundle`. Le plugin
+     demande glibc 2.34 ou plus récente : Ubuntu 22.04, Debian 12, Rocky
+     Linux 9 ou plus récents, pas Rocky Linux 8.
 5. Relancez Resolve.
 
-Pour mettre à jour, fermez Resolve et remplacez le dossier par le nouveau. Pour
-retirer le plugin, supprimez le dossier.
+Pour mettre à jour, fermez Resolve, supprimez l'ancien dossier, puis mettez le
+nouveau à sa place. Pour retirer le plugin, supprimez le dossier (sous Linux,
+`sudo rm -r /usr/OFX/Plugins/Superview.ofx.bundle`).
 
 ### L'utiliser dans Resolve
 
@@ -278,13 +293,14 @@ la compression de l'export diffère.
 **Memory and GPU** → **GPU processing mode**, et le plugin suit : CUDA sur une
 carte NVIDIA (Maxwell — GeForce GTX 750 et série 900 — ou plus récente), OpenCL
 sur tout GPU dont le pilote le fournit, le CPU sinon. Rien à régler dans le
-plugin. En CUDA sur une RTX 3050 Ti, une timeline 4K se lit en temps réel avec
-l'effet.
+plugin. En CUDA sur une RTX 3050 Ti sous Windows, ou une RTX 4070 sous Linux,
+une timeline 4K se lit en temps réel avec l'effet.
 
 ### Si le plugin se comporte mal
 
 Le plugin tient un court journal dans
-`%LOCALAPPDATA%\superview-ofx\superview-ofx.log` : qu'il s'est chargé, lequel de
+`%LOCALAPPDATA%\superview-ofx\superview-ofx.log` sous Windows,
+`~/.cache/superview-ofx/superview-ofx.log` sous Linux : qu'il s'est chargé, lequel de
 CUDA et d'OpenCL Resolve a proposé, et une fois par effet le chemin qui le rend,
 avec tout échec. Joignez-le à un rapport de bug, avec le nom du zip que vous avez
 téléchargé — le plugin annonce à Resolve une version fixe 1.0, pas le numéro de
@@ -295,11 +311,14 @@ exactement là où le dit l'étape 4, puis relancez Resolve.
 
 Limites, à cette version :
 
-- **Windows seulement.** Aucune archive Linux n'est publiée tant que le plugin
-  n'a pas été essayé dans Resolve sous Linux.
 - Essayé avec DaVinci Resolve 21 **gratuit** sous Windows 11 : CUDA et OpenCL sur
-  une NVIDIA RTX 3050 Ti, OpenCL sur un Intel UHD (11ᵉ génération).
-  **DaVinci Resolve Studio n'a pas été essayé**, ni aucun GPU AMD.
+  une NVIDIA RTX 3050 Ti, OpenCL sur un Intel UHD (11ᵉ génération). Essayé avec
+  **DaVinci Resolve Studio** 21.1 sous Ubuntu 26.04 : CUDA et OpenCL sur une
+  NVIDIA RTX 4070. **Studio sous Windows, Resolve gratuit sous Linux et les GPU
+  AMD n'ont pas été essayés.**
+- DaVinci Resolve gratuit sous Linux ne décode ni le H.264 ni le H.265, ce
+  qu'enregistrent les caméras d'action. C'est une limite de Resolve, pas du
+  plugin ; Studio les décode.
 
 ## Ce que fait Superview
 

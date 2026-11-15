@@ -189,7 +189,7 @@ licence text travels with its source on crates.io.
 
 ### The DaVinci Resolve plugin
 
-The plugin archive (`superview-ofx-<tag>-windows-x86_64.zip`, the `Superview.ofx`
+The plugin archives (`superview-ofx-<tag>-windows-x86_64.zip` and `-linux-x86_64.zip`, the `Superview.ofx`
 library for DaVinci Resolve) is a separate build of the crate
 [`crates/superview-ofx`](crates/superview-ofx/). It contains no FFmpeg and no
 fonts. It links 49 crates (its two workspace crates included, build tools

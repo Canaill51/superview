@@ -187,7 +187,7 @@ out, without anyone having to know in advance which one works.
 
 ## The DaVinci Resolve plugin
 
-The Resolve plugin (Windows, a separate download — see the README) encodes nothing and
+The Resolve plugin (Windows and Linux, a separate download — see the README) encodes nothing and
 probes nothing: Resolve decodes and encodes, and the plugin only computes the warp. Which GPU
 API it uses is **Resolve's choice**, set under *Preferences → Memory and GPU → GPU processing
 mode*. The plugin offers both and renders on the one the host proposes:
@@ -198,17 +198,20 @@ mode*. The plugin offers both and renders on the one the host proposes:
 - **The CPU** when neither is offered or the GPU path fails; the plugin remembers a failure
   instead of retrying it every frame.
 
-Its log, `%LOCALAPPDATA%\superview-ofx\superview-ofx.log`, says which path each instance of the
-effect renders on.
+Its log, `%LOCALAPPDATA%\superview-ofx\superview-ofx.log` on Windows and
+`~/.cache/superview-ofx/superview-ofx.log` on Linux, says which path each instance of the effect
+renders on.
 
 | Configuration | State |
 | --- | --- |
 | Resolve 21 (free), Windows 11, RTX 3050 Ti, CUDA | Verified: same image as the application, 4K playback in real time |
 | Resolve 21 (free), Windows 11, RTX 3050 Ti, OpenCL | Verified: same image as CUDA; playback limited by Resolve in OpenCL, not by the plugin |
 | Resolve 21 (free), Windows 11, Intel UHD (11th gen.), OpenCL | Verified: renders without failure |
+| Resolve Studio 21.1, Ubuntu 26.04, RTX 4070, CUDA | Verified: loads, 4K playback in real time, export with the effect |
+| Resolve Studio 21.1, Ubuntu 26.04, RTX 4070, OpenCL | Verified: renders on the GPU, export with the effect |
 | AMD GPU (OpenCL) | Not verified, no hardware |
-| DaVinci Resolve Studio | Not tried |
-| Resolve on Linux | Not tried; no Linux archive is published |
+| Resolve Studio on Windows | Not tried |
+| Resolve (free) on Linux | Not tried; it does not decode H.264 or H.265 there, whatever the plugin |
 
 ## If your GPU does not appear
 

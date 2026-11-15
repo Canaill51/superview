@@ -117,7 +117,7 @@ Préparer un clip : `ffmpeg -f lavfi -i testsrc2=size=1440x1080:rate=30 -f lavfi
       vert sans matériel ne prouve rien. Passé le 2026-10-20 sous le masque Nvidia décrit
       ci-dessus, avec `--nocapture` : la sortie dit « using h264_vaapi », donc il a bien tourné.
 
-## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, DEC-69 : livré, archive Windows)
+## Plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, DEC-69 : livré, archives Windows et Linux)
 
 `sh packaging/ofx/build_bundle.sh` (Linux, ou Git Bash sous Windows avec les Build Tools, `docs/environnement.md`)
 ou l'artefact `Superview.ofx.bundle-Windows` de la CI. Passés le 2026-10-25 sous Windows 11, Resolve 21.1.1
@@ -163,7 +163,18 @@ un chronométrage temporaire, retiré depuis).
       cadre déjà rogné, sans bandes, et l'élargit quand même. À essayer avec une source **plus grande** que la
       timeline : une source de même hauteur donne exactement l'image de *Scale entire image to fit* (mesuré).
 - [x] **Défilement** (2026-10-26) : défilement rapide sur le clip, ni trame rouge ni noire ni message d'erreur.
-- [ ] **Studio**, **Linux** et **AMD** : chargement, CUDA ou OpenCL et vitesse, non essayés (pas de matériel).
+- [x] **Studio sous Linux** (2026-11-15) : DaVinci Resolve **Studio** 21.1, Ubuntu 26.04.1 (KDE), RTX 4070, pilote
+      615.71.09. Bundle construit par `build_bundle.sh` sur la branche de l'archive Linux, copié dans
+      `/usr/OFX/Plugins` à côté de Gyroflow. Passés d'après l'utilisateur : chargement (*Effects → OpenFX →
+      Superview*), CUDA (lecture 4K en temps réel), OpenCL (*Preferences → Memory and GPU*, Resolve relancé),
+      export depuis Deliver avec l'effet. Le journal (`~/.cache/superview-ofx/superview-ofx.log`) le confirme :
+      `CUDA rendering offered to the host` puis `rendering on the GPU with CUDA (3840x2160)` ; après bascule,
+      `OpenCL rendering offered to the host` puis `rendering on the GPU with OpenCL (3840x2160)` ; aucun rendu
+      CPU, aucun échec. Le même jour, `tests/cuda.rs` et `tests/opencl.rs` passent sur ce poste avec
+      `SUPERVIEW_REQUIRE_CUDA=1 SUPERVIEW_REQUIRE_OPENCL=1`. Parité au pixel non refaite (le calcul est le même).
+- [ ] **Studio sous Windows**, **Resolve gratuit sous Linux** et **AMD** : non essayés (pas de matériel ni de licence).
+- [ ] **L'archive Linux d'une version** (DEC-69 amendée) : le zip d'un essai à blanc ou de la version publiée,
+      décompressé dans `/usr/OFX/Plugins` à la place du bundle de développement, Resolve relancé, effet appliqué.
 - [x] **Journal** (2026-10-26, Lot 2 de `docs/archives/plan-ofx.md`) : après un démarrage de Resolve et une lecture avec
       l'effet, `%LocalAppData%\superview-ofx\superview-ofx.log` (Linux : `~/.cache/superview-ofx/superview-ofx.log`)
       dit `plugin loaded`, `CUDA rendering offered to the host`, puis une seule fois

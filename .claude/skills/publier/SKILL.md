@@ -78,14 +78,14 @@ gh workflow run release.yml --repo Canaill51/superview --ref master -f version=<
 3. On success, `gh release view v<version> --repo Canaill51/superview --json assets,isDraft,url`
    (`RC-<version>` for a release candidate) must list **exactly**
    `superview-<tag>-windows-x86_64-setup.exe`,
-   `superview-<tag>-linux-x86_64.AppImage`, `superview-ofx-<tag>-windows-x86_64.zip` and
-   `checksums.txt`, and
+   `superview-<tag>-linux-x86_64.AppImage`, `superview-ofx-<tag>-windows-x86_64.zip`,
+   `superview-ofx-<tag>-linux-x86_64.zip` and `checksums.txt`, and
    `isDraft` must match what was asked.
 4. Check the published files against their sums, in a new directory of the scratchpad:
    `gh release download <tag> --repo Canaill51/superview --dir <dir>` then
-   `(cd <dir> && sha256sum -c checksums.txt)`: three `OK`, nothing else. For one file,
+   `(cd <dir> && sha256sum -c checksums.txt)`: four `OK`, nothing else. For one file,
    `gh attestation verify <dir>/<file> --repo Canaill51/superview` must pass too.
-5. Report the release URL, the four files and the result of the check. Say plainly what was **not** checked:
+5. Report the release URL, the five files and the result of the check. Say plainly what was **not** checked:
    the published binary on a real Windows machine, and any GPU encoder
    (`RELEASING.md`, *What the run guarantees, and what it does not*).
 
