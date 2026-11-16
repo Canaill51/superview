@@ -4,13 +4,14 @@
 qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de début de session affiche les
 15 premières lignes de ce fichier.
 
-**État au 2026-11-15** : **v0.5.0 publiée le 2026-10-28** (installateur Windows, AppImage, archive du plugin
-Resolve `superview-ofx-v0.5.0-windows-x86_64.zip`, `checksums.txt`), installée à la main et conforme.
-Depuis : DLL GPU du plugin chargées depuis System32 seulement et fichiers de version attestés (#192, DEC-70).
-**Alignement sur OpenTuneBox terminé** le 2026-11-13 : 7 étapes, #193 à #199 ([archives/plan-alignement-otb.md](archives/plan-alignement-otb.md)).
-La publication passe désormais par la page Releases en brouillon (DEC-73) : la prochaine version demande d'abord un essai à blanc sur `master` (L-114). **Plugin sous Linux** essayé dans Resolve Studio
-(RTX 4070, CUDA et OpenCL) le 2026-11-15 : la prochaine version publie aussi son archive Linux (DEC-69 amendée).
-Le plugin attend du matériel pour Studio sous Windows et AMD. Une version suivante seulement sur demande, par `/publier` (DEC-42).
+**État au 2026-11-16** : **v0.6.0 publiée le 2026-11-16** (installateur Windows, AppImage, archives du plugin
+Resolve pour Windows **et Linux**, `checksums.txt`), la première par la page Releases en brouillon (DEC-73), après un
+essai à blanc vert sur `master` (run 43842077418) ; run de publication 43849926498, sommes et attestation vérifiées.
+Elle apporte le plugin sous Linux (#201, DEC-69 amendée), les DLL GPU depuis System32 et les fichiers attestés (#192,
+DEC-70), `unsafe` interdit hors du plugin (#197). **Alignement sur OpenTuneBox terminé** le 2026-11-13
+([archives/plan-alignement-otb.md](archives/plan-alignement-otb.md)). Reste à installer à la main l'archive Linux
+publiée. Le plugin attend du matériel pour Studio sous Windows et AMD. Une version suivante seulement sur demande,
+par `/publier` (DEC-42).
 
 ## Comment s'en servir
 
@@ -38,8 +39,8 @@ Le plugin attend du matériel pour Studio sous Windows et AMD. Une version suiva
 Elles ne bloquent pas la livraison (DEC-69) ; le README les dit non essayées.
 
 - [ ] **Resolve Studio** (Windows) : chargement, CUDA, vitesse. Demande une licence ou un poste qui l'a.
-- [ ] **Archive Linux de la prochaine version** : la télécharger depuis la page publiée, la décompresser dans
-      `/usr/OFX/Plugins` et appliquer l'effet (essai à blanc d'abord, L-114).
+- [ ] **Archive Linux de la v0.6.0** : `superview-ofx-v0.6.0-linux-x86_64.zip`, téléchargée depuis la page publiée,
+      décompressée dans `/usr/OFX/Plugins` à la place du bundle de développement, effet appliqué.
 - [ ] **Resolve gratuit sous Linux** : non essayé ; il ne décode ni le H.264 ni le H.265 (limite de Resolve,
       écrite dans les README). L'AAC n'a pas été vérifié.
 - [ ] **AMD** : pas de matériel ; reste « non vérifié », comme AMF pour l'application.
@@ -95,3 +96,4 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | Alignement OTB, étape 6 | 2026-11-13 | Hygiène CI : job `actionlint` (binaire épinglé par SHA-256), `audit.yml` chaque lundi, Dependabot cargo groupé (lundi, Europe/Paris), `persist-credentials: false`, bundle OFX gardé 7 jours (#198) | [corrections.md](corrections.md) |
 | Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73, #199) | [corrections.md](corrections.md) |
 | Plugin sous Linux | 2026-11-15 | Essai dans Resolve Studio 21.1 (Ubuntu 26.04, RTX 4070 : CUDA, OpenCL, lecture 4K, export), archive `superview-ofx-<tag>-linux-x86_64.zip` dans `release.yml`, plancher glibc 2.34 contrôlé (DEC-69 amendée) | [tests-manuels.md](tests-manuels.md) |
+| Version v0.6.0 | 2026-11-16 | Essai à blanc sur `master` (run 43842077418), puis publication (run 43849926498) : cinq fichiers, `sha256sum -c` et `gh attestation verify` verts. Première version passée par le brouillon (DEC-73) et avec l'archive Linux du plugin | [page de la version](https://github.com/Canaill51/superview/releases/tag/v0.6.0) |
