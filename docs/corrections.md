@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-17] Dependabot ne demande plus l'étiquette `ci`, qui n'existe pas
+
+| | |
+| --- | --- |
+| **Constat** | sur #203 (actions GitHub), Dependabot commente « The following labels could not be found: `ci` » ; il le refait à chaque PR des actions, chaque lundi |
+| **Cause** | `.github/dependabot.yml` demandait `dependencies` et `ci` pour l'écosystème `github-actions`, mais le dépôt n'a jamais eu d'étiquette `ci`. Aucun workflow ni `.github/release.yml` ne la lit : les notes rangent ces PR par `dependencies`. Écarté : créer l'étiquette, réglage du dépôt invisible depuis le code, sans usage |
+| **Fichiers** | `.github/dependabot.yml` ; `docs/corrections.md` |
+| **PR** | ci/dependabot-labels |
+| **Vérification** | `gh label list` : `dependencies` existe, `ci` non. Effet visible à la prochaine PR des actions GitHub (lundi) : plus de commentaire d'avertissement |
+
 ### [2026-11-17] `chrono`, non maintenu, remplacé par un substitut local écrit sur `jiff` (DEC-74)
 
 | | |
