@@ -11,7 +11,7 @@ sortie : contrainte produit, pas un oubli. Le programme a été écrit en Go + F
 Go a été retiré en DEC-49 (`git show v0.2.9:<chemin>` pour relire l'ancien code).
 
 ## Vue d'ensemble
-Un workspace Cargo à la racine (`crates/`), quatre crates :
+Un workspace Cargo à la racine (`crates/`), cinq crates :
 
 - **`superview-core`** — toute la logique, sans interface. Un module par responsabilité (voir le tableau).
 - **`superview-app`** — la fenêtre Slint. Seul le fil de l'interface touche un widget ; les autres
@@ -20,6 +20,9 @@ Un workspace Cargo à la racine (`crates/`), quatre crates :
 - **`superview-harness`** — banc d'essai jamais livré, pas une CLI (DEC-44) : `convert` et `probe`
   (sortie JSON) et SIGINT/SIGTERM, pour les tests qui lancent une vraie conversion dans un processus
   séparé.
+- **`chrono-shim`** (paquet `chrono`) — tient la place de `chrono`, non maintenu, que Slint tire pour son
+  `DatePicker` : `[patch.crates-io]` le substitue au vrai, il n'offre que ce qu'appelle `i-slint-core`, calculé
+  par `jiff` (DEC-74). À supprimer quand Slint abandonne `chrono`.
 
 - **`superview-ofx`** — le plugin OpenFX pour DaVinci Resolve (DEC-65, DEC-66, DEC-68) : `warp` (le calcul, pur, qui
   réutilise `pgm::source_x_for_output_x`), `cuda` (le même calcul sur la carte : pilote CUDA chargé à l'exécution,
@@ -94,6 +97,7 @@ dossier temporaire.
 | rfd (portail xdg, sans GTK) | sélecteurs de fichiers ; charge `libdbus` à l'exécution | DEC-43 |
 | `serde-saphyr`, `serde_json` | YAML de configuration ; préférences et fixtures | DEC-43 |
 | `fs4`, `tempfile`, `signal-hook` / `ctrlc`, `thiserror`, `log` | espace disque, dossier de session, signaux, erreurs, journal | — |
+| `jiff` | les dates du substitut de `chrono` (`crates/chrono-shim`), pour le `DatePicker` de Slint | DEC-74 |
 | Rust (rustup, `rust-toolchain.toml`) | la chaîne d'outils ; `cargo llvm-cov`, `cargo audit` et `cargo deny` pour le contrôle de couverture et des dépendances | `docs/environnement.md` |
 | Inno Setup 6, `appimagetool` 1.9.1 | l'installateur Windows ; l'AppImage Linux (épinglé par SHA-256) ; l'archive `.zip` du plugin Resolve, par `7z` (DEC-69) | `RELEASING.md`, DEC-41 |
 

@@ -123,7 +123,7 @@ cargo install --locked --version 0.20.2 cargo-deny
 ```
 
 `cargo audit` lit la base d'avis la plus récente, qui n'est pas épinglée : un avis publié le matin
-peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans `deny.toml` (`cargo deny` ; `cargo audit` n’a pas de fichier de configuration ici), pas le retrait de l'étape.
+peut rougir la CI l'après-midi (DEC-47) ; la parade est un `ignore` motivé dans `deny.toml` (`cargo deny` ; `cargo audit` n’a pas de fichier de configuration ici), ou le remplacement de la crate quand c'est faisable (`chrono`, DEC-74), pas le retrait de l'étape.
 
 ## Lancer la suite comme la CI la lance
 
