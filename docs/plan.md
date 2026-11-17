@@ -4,7 +4,8 @@
 qui est écarté, et en bas l'historique, une ligne par lot fait. Le hook de début de session affiche les
 15 premières lignes de ce fichier.
 
-**État au 2026-11-16** : **v0.6.0 publiée le 2026-11-16** (installateur Windows, AppImage, archives du plugin
+**État au 2026-11-17** : `chrono`, non maintenu et tiré par Slint, remplacé par un substitut sur `jiff` (DEC-74), ce qui
+remet au vert les PR de Dependabot (#203 à #206, à rebaser après fusion). **v0.6.0 publiée le 2026-11-16** (installateur Windows, AppImage, archives du plugin
 Resolve pour Windows **et Linux**, `checksums.txt`), la première par la page Releases en brouillon (DEC-73), après un
 essai à blanc vert sur `master` (run 43842077418) ; run de publication 43849926498, sommes et attestation vérifiées.
 Elle apporte le plugin sous Linux (#201, DEC-69 amendée), les DLL GPU depuis System32 et les fichiers attestés (#192,
@@ -97,3 +98,4 @@ plans archivés ; ce tableau dit quand et par quoi chaque chantier est prouvé.
 | Alignement OTB, étape 7 | 2026-11-13 | Publication sur le modèle de `construire.yml` : brouillon, envoi par chaque build (`gh release upload --clobber`), liste exacte contrôlée, puis publication ; plus d'artefacts de version (DEC-73, #199) | [corrections.md](corrections.md) |
 | Plugin sous Linux | 2026-11-15 | Essai dans Resolve Studio 21.1 (Ubuntu 26.04, RTX 4070 : CUDA, OpenCL, lecture 4K, export), archive `superview-ofx-<tag>-linux-x86_64.zip` dans `release.yml`, plancher glibc 2.34 contrôlé (DEC-69 amendée) | [tests-manuels.md](tests-manuels.md) |
 | Version v0.6.0 | 2026-11-16 | Essai à blanc sur `master` (run 43842077418), puis publication (run 43849926498) : cinq fichiers, `sha256sum -c` et `gh attestation verify` verts. Première version passée par le brouillon (DEC-73) et avec l'archive Linux du plugin | [page de la version](https://github.com/Canaill51/superview/releases/tag/v0.6.0) |
+| Remplacement de `chrono` | 2026-11-17 | `chrono` non maintenu (RUSTSEC-2026-0543) rougissait toute PR : substitut local sur `jiff`, `crates/chrono-shim`, mêmes résultats que `chrono` (DEC-74) | [corrections.md](corrections.md) |

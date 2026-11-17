@@ -1,0 +1,25 @@
+# Stands in for `chrono` (unmaintained, RUSTSEC-2026-0543), which Slint still pulls in for its date
+# picker. The root `[patch.crates-io]` puts this crate in its place; it offers only what
+# i-slint-core calls, on jiff (DEC-74). Its version must stay within the `0.4` that i-slint-core
+# asks for; delete the crate and the patch line once Slint stops depending on chrono.
+[package]
+name = "chrono"
+version = "0.4.99"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+jiff = "1.0.0"
+
+# The features i-slint-core enables on chrono. They must exist; they change nothing here.
+[features]
+default = []
+alloc = []
+std = []
+clock = []
+wasmbind = []
