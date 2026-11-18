@@ -36,9 +36,10 @@ updates:
       time: "06:00"
       timezone: "Europe/Paris"
     open-pull-requests-limit: 5
+    # Only labels that exist on the repository: a missing one is dropped, with a warning comment on
+    # every pull request (`ci` was, until 2026-11-17).
     labels:
       - "dependencies"
-      - "ci"
     commit-message:
       prefix: "chore"
       include: "scope"
