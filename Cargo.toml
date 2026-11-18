@@ -32,3 +32,6 @@ all = { level = "warn", priority = -1 }
 [patch.crates-io]
 ofx = { git = "https://github.com/AdrianEddy/ofx-rs.git", rev = "0b152196fb47b0dd09c110881786d6a9e5e0d953" }
 ofx_sys = { git = "https://github.com/AdrianEddy/ofx-rs.git", rev = "0b152196fb47b0dd09c110881786d6a9e5e0d953" }
+# DEC-74: chrono is unmaintained (RUSTSEC-2026-0543) and Slint still depends on it, for its date
+# picker only. crates/chrono-shim takes its place, on jiff; remove both when Slint drops chrono.
+chrono = { path = "crates/chrono-shim" }

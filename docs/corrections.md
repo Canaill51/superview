@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-17] `chrono`, non maintenu, remplacé par un substitut local écrit sur `jiff` (DEC-74)
+
+| | |
+| --- | --- |
+| **Constat** | les quatre PR de Dependabot du 2026-11-17 (#203 à #206) rouges sur *Rust coverage and audit*, étape `cargo deny` : `error[unmaintained]: chrono is unmaintained`, RUSTSEC-2026-0543, « No safe upgrade is available ». #203 ne touche qu'une action GitHub : la cause n'est pas dans les PR. `master` était vert la veille (audit planifié du 2026-11-16) |
+| **Cause** | avis entré dans la base RustSec entre le 2026-11-16 et le 17 ; `chrono` vient de `i-slint-core` (fonctionnalité `std`, obligatoire), encore présent dans Slint 1.19.0, pour le seul `DatePicker`. Écarté : un `ignore` dans `deny.toml` (refusé par l'utilisateur, qui ne veut pas garder une crate non maintenue), une demande à Slint (hors de notre dépôt, par choix) |
+| **Fichiers** | `crates/chrono-shim/` (nouveau, paquet `chrono` 0.4.99 sur `jiff` 1.0, tests) ; `Cargo.toml` (`[patch.crates-io]`) ; `Cargo.lock` ; `AGENTS.md` ; `docs/decisions.md` (DEC-74) ; `docs/architecture.md` ; `docs/environnement.md` ; `docs/plan.md` |
+| **PR** | deps/replace-chrono |
+| **Vérification** | le code de `date_time.rs` de Slint exécuté sur le vrai `chrono` 0.4.45 et sur le substitut : 38 879 appels, aucun écart de −9999 à 9999 (`%x` et `%-x` alignés en route). `cargo deny --locked check advisories bans licenses sources` vert ; sans la ligne de patch, rouge sur RUSTSEC-2026-0543. Contre-preuves des tests du crate : `%x` laissé à `jiff`, `%-x` accepté, dimanche compté 0, signe des jours inversé : chacune rougit. Deux contre-preuves d'abord muettes : `month_offset` de Slint ramène dimanche à 0 (d'où un test direct de `number_from_monday`), et `since` sans unité compte déjà en jours |
+
 ### [2026-11-15] Le plugin Resolve est aussi publié pour Linux, plancher glibc 2.34 contrôlé (DEC-69 amendée)
 
 | | |
