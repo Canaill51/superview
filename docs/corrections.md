@@ -9,6 +9,16 @@
 
 ## 3. Corrections appliquées
 
+### [2026-11-23] `url` 2.5.9 : RUSTSEC-2026-0592 rougissait toutes les PR
+
+| | |
+| --- | --- |
+| **Constat** | sur #209 (Dependabot : `jiff`, `ctrlc`, `serde-saphyr`), le job *Rust coverage and audit* échoue : `cargo audit` relève une vulnérabilité qui n'est dans aucune des trois mises à jour ; `master` la porte aussi |
+| **Cause** | RUSTSEC-2026-0592 : débordement de pile dans `Url::origin()` sur des URL `blob:` imbriquées, dans `url` 2.5.8, tiré par `i-slint-compiler` et `webbrowser` (Slint 1.18.1). Avis paru après le dernier audit hebdomadaire vert (2026-11-16) ; la base d'avis n'est pas épinglée, à dessein |
+| **Fichiers** | `Cargo.lock` (`cargo update -p url --precise 2.5.9`, qui monte aussi `form_urlencoded` 1.2.3) ; `docs/corrections.md` |
+| **PR** | fix/url-rustsec |
+| **Vérification** | `cargo deny check` vert ; `cargo audit` n'est pas installé sur ce poste : c'est le job *Rust coverage and audit* de la PR qui dit l'avis levé, puis #209 une fois rebasée |
+
 ### [2026-11-17] Dependabot ne demande plus l'étiquette `ci`, qui n'existe pas
 
 | | |
